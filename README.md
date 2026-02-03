@@ -206,11 +206,4 @@ docker run --env-file .env nmdc-suggestor:latest
 
 [Specify your license here]
 
-## Acknowledgments
-
-This project uses:
-- [uv](https://github.com/astral-sh/uv) for fast Python package management
-- [OpenAI](https://openai.com/) and [Anthropic](https://www.anthropic.com/) for LLM capabilities
-- [Pydantic](https://docs.pydantic.dev/) for data validation
-- [Loguru](https://github.com/Delgan/loguru) for logging
 
