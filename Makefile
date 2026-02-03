@@ -8,12 +8,12 @@ help: ## Show this help message
 
 all-install:
 	uv sync --all-extras
-	
+
 prod-install: ## Install production dependencies
 	uv sync --no-dev
 
 dev-install: ## Install all dependencies including dev
-	uv sync
+	uv sync --extra dev
 
 test: ## Run tests
 	uv run pytest
