@@ -36,15 +36,9 @@ jobs:
     - name: Run type checking
       run: uv run mypy src
 
-    - name: Run tests
-      run: uv run pytest --cov=src/nmdc_metadata_suggestor --cov-report=xml --cov-report=term
+    - name: Run tests 
+      run: uv run pytest tests
 
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v4
-      if: matrix.python-version == '3.12'
-      with:
-        file: ./coverage.xml
-        fail_ci_if_error: false
 
   docker:
     runs-on: ubuntu-latest

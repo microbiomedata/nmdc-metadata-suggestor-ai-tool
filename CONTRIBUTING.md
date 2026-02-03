@@ -10,11 +10,21 @@ Thank you for your interest in contributing to the NMDC Metadata Suggestor! This
    git clone https://github.com/YOUR_USERNAME/nmdc-metadata-suggestor-ai-tool.git
    cd nmdc-metadata-suggestor-ai-tool
    ```
-3. **Run the setup script**:
+3. **Install uv** (if not already installed):
    ```bash
-   ./setup.sh
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   # Restart your shell or run: source $HOME/.cargo/env
    ```
-4. **Create a branch** for your changes:
+4. **Set up your environment**:
+   ```bash
+   # Install dependencies
+   uv sync --all-extras
+   
+   # Create .env file from template
+   cp .env.example .env
+   # Edit .env and add your API keys (OPENAI_API_KEY or ANTHROPIC_API_KEY)
+   ```
+5. **Create a branch** for your changes:
    ```bash
    git checkout -b feature/your-feature-name
    ```
@@ -106,8 +116,7 @@ def process_metadata(data: dict[str, Any]) -> dict[str, str]:
 1. **Update documentation** if you're adding features or changing behavior
 2. **Add tests** for new functionality
 3. **Run all quality checks** and ensure they pass
-4. **Update CHANGELOG** if applicable
-5. **Write a clear PR description** explaining:
+4. **Write a clear PR description** explaining:
    - What changes you made
    - Why you made them
    - How to test them
@@ -131,22 +140,6 @@ When reporting issues, please include:
 - Your environment (OS, Python version, etc.)
 - Relevant logs or error messages
 
-## Feature Requests
-
-We welcome feature requests! Please:
-
-- Check existing issues first to avoid duplicates
-- Clearly describe the feature and its benefits
-- Provide examples or use cases
-- Be open to discussion about implementation
-
-## Code of Conduct
-
-- Be respectful and inclusive
-- Welcome newcomers and help them learn
-- Focus on constructive feedback
-- Collaborate openly and transparently
-
 ## Questions?
 
 If you have questions:
@@ -154,11 +147,3 @@ If you have questions:
 - Search existing issues
 - Open a new issue with the "question" label
 - Reach out to the maintainers
-
-## License
-
-By contributing, you agree that your contributions will be licensed under the same license as the project.
-
-## Thank You!
-
-Your contributions make this project better for everyone. We appreciate your time and effort! 🎉

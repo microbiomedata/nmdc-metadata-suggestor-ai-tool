@@ -2,16 +2,6 @@
 
 A Python application for the NMDC Submission portal metadata suggestor tool, powered by AI. This project uses modern Python tooling with [uv](https://github.com/astral-sh/uv) for dependency management and Docker for containerization.
 
-## Features
-
-- 🚀 Modern Python development with uv
-- 🐳 Docker and Docker Compose support
-- 🤖 LLM integration (OpenAI and Anthropic)
-- ⚙️ Configuration management with Pydantic Settings
-- 📝 Structured logging with Loguru
-- 🧪 Testing setup with pytest
-- 🔧 Code quality tools (Black, Ruff, MyPy)
-
 ## Prerequisites
 
 - Python 3.12 or higher

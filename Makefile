@@ -6,7 +6,10 @@ help: ## Show this help message
 	@echo "Available targets:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
 
-install: ## Install production dependencies
+all-install:
+	uv sync --all-extras
+	
+prod-install: ## Install production dependencies
 	uv sync --no-dev
 
 dev-install: ## Install all dependencies including dev
@@ -14,9 +17,6 @@ dev-install: ## Install all dependencies including dev
 
 test: ## Run tests
 	uv run pytest
-
-test-cov: ## Run tests with coverage
-	uv run pytest --cov=src/nmdc_metadata_suggestor --cov-report=html --cov-report=term
 
 lint: ## Run linters
 	uv run ruff check src tests
