@@ -1,0 +1,27 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./src:/app/src
+      - ./tests:/app/tests
+      - ./.env:/app/.env
+    environment:
+      - PYTHONUNBUFFERED=1
+    env_file:
+      - .env
+    command: uv run nmdc-suggestor
+    # For interactive development:
+    # command: tail -f /dev/null
+    # Then exec into container: docker-compose exec app bash
+
+  # Production build
+  app-prod:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    profiles:
+      - production
