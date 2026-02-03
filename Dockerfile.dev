@@ -10,13 +10,14 @@ WORKDIR /app
 # Copy dependency files
 COPY pyproject.toml .
 COPY .python-version .
+COPY uv.lock .
+COPY README.md .
 
 # Install dependencies including dev dependencies
 RUN uv sync --frozen
 
 # Copy application code (in development, this will be mounted as a volume)
 COPY src ./src
-COPY README.md .
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1

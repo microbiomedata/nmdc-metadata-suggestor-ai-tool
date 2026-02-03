@@ -10,13 +10,14 @@ WORKDIR /app
 # Copy dependency files
 COPY pyproject.toml .
 COPY .python-version .
+COPY uv.lock .
+COPY README.md .
 
 # Install dependencies
 RUN uv sync --frozen --no-dev
 
 # Copy application code
 COPY src ./src
-COPY README.md .
 
 # Production stage
 FROM python:3.12-slim
