@@ -79,9 +79,9 @@ OLS_API_BASE = "https://www.ebi.ac.uk/ols4/api"
 load_dotenv()
 
 CREDENTIALS_FILE = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
-PROJECT_ID = os.environ.get("ANTHROPIC_VERTEX_PROJECT_ID", "638610442344")
-REGION = os.environ.get("GEMINI_REGION", os.environ.get("CLOUD_ML_REGION", "us-east5"))
-DEFAULT_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+PROJECT_ID = os.environ.get("ANTHROPIC_VERTEX_PROJECT_ID")
+REGION = os.environ.get("GEMINI_REGION", os.environ.get("CLOUD_ML_REGION"))
+DEFAULT_MODEL = os.environ.get("GEMINI_MODEL")
 
 VALID_MODELS = [
     "gemini-2.5-pro",
