@@ -74,12 +74,9 @@ A Python application for the NMDC Submission portal metadata suggestor tool, pow
 nmdc-metadata-suggestor-ai-tool/
 ├── src/
 │   └── nmdc_metadata_suggestor/
-│       ├── __init__.py
-│       ├── main.py           # Main entry point
-│       ├── config.py          # Configuration management
-│       └── llm_client.py      # LLM client interface
+│       └── main.py           # Main entry point
 ├── tests/                     # Test files
-├── config/                    # Additional configuration files
+├── scripts/                   # Vertex AI test scripts
 ├── pyproject.toml            # Project dependencies and metadata
 ├── Dockerfile                # Production Docker image
 ├── Dockerfile.dev            # Development Docker image
