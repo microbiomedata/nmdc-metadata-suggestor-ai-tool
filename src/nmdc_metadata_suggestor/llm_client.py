@@ -1,16 +1,14 @@
 """Unified LLM client for Vertex AI (Gemini and Claude)."""
 
-import json
 import os
 from typing import Any
 
-from dotenv import load_dotenv
-from google.oauth2 import service_account
 import google.auth.transport.requests
 import requests as http_requests
-
+from dotenv import load_dotenv
 from google import genai
 from google.genai import types
+from google.oauth2 import service_account
 
 load_dotenv()
 
