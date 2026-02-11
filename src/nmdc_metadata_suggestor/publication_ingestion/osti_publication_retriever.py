@@ -9,45 +9,9 @@ from dataclasses import dataclass
 from typing import Any, Dict, Optional
 import requests
 
-# ============================================================================
-# DATA STRUCTURE
-# ============================================================================
-
-@dataclass
-class PDFResult:
-    """Result from PDF retrieval attempt via API.
-    
-    Attributes:
-        success: Whether PDF was successfully retrieved
-        content: The PDF binary content
-        url: The URL where content was retrieved from
-        metadata: Additional info (file size, format, API response details, etc.)
-        error: Error message if retrieval failed
-    """
-    success: bool
-    content: Optional[bytes] = None
-    url: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
-    abstract: Optional[str] = None
-    error: Optional[str] = None
-
-
-# ============================================================================
-# CONSTANTS
-# ============================================================================
-
-USER_AGENT = (
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
-)
 
 # API endpoints
-ESS_DIVE_API_URL = "https://dive.sdsc.edu/api/v1/publications"
 OSTI_API_URL = "https://www.osti.gov/api/v1/records"
-
-# Timeouts
-DEFAULT_TIMEOUT = 30
-PDF_DOWNLOAD_TIMEOUT = 60
 
 
 
@@ -102,30 +66,9 @@ def retrieve_doi_info_from_osti(doi: str) -> Dict[str, Any]:
         )
 
 
-def save_pdf(result: PDFResult, output_path: str) -> bool:
-    """Save PDF content to a file.
-    
-    Args:
-        result: PDFResult containing the PDF content
-        output_path: Path where PDF should be saved
-        
-    Returns:
-        True if saved successfully, False otherwise
-    """
-    if not result.success or not result.content:
-        return False
-    
-    try:
-        with open(output_path, "wb") as f:
-            f.write(result.content)
-        return True
-    except Exception:
-        return False
-
-
 if __name__ == "__main__":
     # example 
-    doi = "10.15485/1729719"
+    doi = ["10.15485/1729719", "10.15485/1603775"]
     
     info = retrieve_doi_info_from_osti(doi)
     print(info)
