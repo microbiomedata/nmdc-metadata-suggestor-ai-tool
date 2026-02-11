@@ -82,8 +82,9 @@ def retrieve_doi_info_from_osti(doi: str) -> Dict[str, Any]:
         
         # get the record
         record = data[0] if isinstance(data, list) else data
-        
-        return record
+        # we can see if the record is a publication or not. If not, we can just return the description.
+        if record["product_type"] != "Publication":
+            return record["description"]
         
     except requests.exceptions.Timeout:
         raise requests.exceptions.RequestException(
@@ -123,12 +124,8 @@ def save_pdf(result: PDFResult, output_path: str) -> bool:
 
 
 if __name__ == "__main__":
-    # Example usage
+    # example 
     doi = "10.15485/1729719"
     
-    try:
-        info = retrieve_doi_info_from_osti(doi)
-        print("Publication Information:")
-        print(info["description"])
-    except Exception as e:
-        print(f"Error: {e}")
+    info = retrieve_doi_info_from_osti(doi)
+    print(info)
