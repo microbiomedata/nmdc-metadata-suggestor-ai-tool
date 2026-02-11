@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional
 import requests
 
 # ============================================================================
-# DATA STRUCTURES
+# DATA STRUCTURE
 # ============================================================================
 
 @dataclass
@@ -43,16 +43,63 @@ USER_AGENT = (
 
 # API endpoints
 ESS_DIVE_API_URL = "https://dive.sdsc.edu/api/v1/publications"
-OSTI_API_URL = "https://www.osti.gov/api/v1/publications"
+OSTI_API_URL = "https://www.osti.gov/api/v1/records"
 
 # Timeouts
 DEFAULT_TIMEOUT = 30
 PDF_DOWNLOAD_TIMEOUT = 60
 
 
-# ============================================================================
-# CONVENIENCE FUNCTION
-# ============================================================================
+
+def retrieve_doi_info_from_osti(doi: str) -> Dict[str, Any]:
+    """Retrieve publication information from OSTI API using a DOI.
+    
+    Args:
+        doi: Digital Object Identifier (e.g., "10.15485/1729719")
+        
+    Returns:
+        Dictionary containing publication information. Response fields from here https://www.osti.gov/api/v1/docs. 
+        
+    Raises:
+        requests.exceptions.RequestException: If API request fails
+    """
+    # strip to just the Osti ID
+    osti_id = doi.split("/")[-1]
+    osti_url = f"{OSTI_API_URL}/{osti_id}"
+    
+    try:
+
+        response = requests.get(
+            osti_url
+        )
+        response.raise_for_status()
+        
+        data = response.json()
+        
+        # Check if we got any results
+        if not data or len(data) == 0:
+            raise ValueError(f"No publication found in OSTI for DOI: {doi}")
+        
+        # get the record
+        record = data[0] if isinstance(data, list) else data
+        
+        return record
+        
+    except requests.exceptions.Timeout:
+        raise requests.exceptions.RequestException(
+            f"OSTI API request timed out for DOI: {doi}"
+        )
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 404:
+            raise ValueError(f"DOI not found in OSTI: {doi}")
+        raise requests.exceptions.RequestException(
+            f"OSTI API request failed with status {e.response.status_code}: {str(e)}"
+        )
+    except Exception as e:
+        raise requests.exceptions.RequestException(
+            f"Failed to retrieve DOI information from OSTI: {str(e)}"
+        )
+
 
 def save_pdf(result: PDFResult, output_path: str) -> bool:
     """Save PDF content to a file.
@@ -75,6 +122,13 @@ def save_pdf(result: PDFResult, output_path: str) -> bool:
         return False
 
 
-
 if __name__ == "__main__":
-    dois = ["10.1371/journal.pone.0228165", "10.1073/pnas.2004192118", "10.1038/s41564-020-00861-0", "10.1111/1462-2920.16314", "10.1128/mSystems.00045-18", "10.1038/s41597-024-03069-7", "10.1101/2022.12.12.520098", "10.1016/j.apsoil.2025.106110", "10.1029/2024GL113091", "10.1038/s41564-022-01266-x", "10.1016/j.geoderma.2021.115674", "10.1029/2022JG006889", "10.1002/ppp.2200", "10.1038/s41467-023-36515-y", "10.1021/acs.estlett.0c00748", "10.1128/msystems.00768-19"]
+    # Example usage
+    doi = "10.15485/1729719"
+    
+    try:
+        info = retrieve_doi_info_from_osti(doi)
+        print("Publication Information:")
+        print(info["description"])
+    except Exception as e:
+        print(f"Error: {e}")
