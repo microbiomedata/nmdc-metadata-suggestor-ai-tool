@@ -1,12 +1,12 @@
 """
-A module to attempt to retrieve publication abstract and PDF bytes via OSTI and ESS Dive.
+A module to attempt to retrieve publication abstract and PDF bytes via a provided OSTI DOI.
 
-This module provides direct API-based retrieval of publication abstracts and full-text PDFs from OSIT and ESS Dive. It complements the web scraping approach
-by using structured APIs for more reliable access.
+This module provides direct API-based retrieval of publication abstracts and full-text PDFs starting from OSTI, then calling Crossref and/or Europe PMC.
 """
 
 from typing import Any, Dict
 import requests
+from nmdc_metadata_suggestor.models.publication import Publication
 
 
 # API endpoints
@@ -18,8 +18,7 @@ EUROPEPMC_API_URL = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
 DEFAULT_TIMEOUT = 30
 
 
-
-def retrieve_doi_info_from_osti(doi: str) -> Dict[str, Any]:
+def retrieve_doi_info_from_osti(doi: str) -> Publication:
     """Retrieve publication information from OSTI API using a DOI.
     
     Args:
@@ -31,6 +30,7 @@ def retrieve_doi_info_from_osti(doi: str) -> Dict[str, Any]:
     Raises:
         requests.exceptions.RequestException: If API request fails
     """
+
     # strip to just the Osti ID
     osti_id = doi.split("/")[-1]
     osti_url = f"{OSTI_API_URL}/{osti_id}"
@@ -38,7 +38,9 @@ def retrieve_doi_info_from_osti(doi: str) -> Dict[str, Any]:
     try:
 
         response = requests.get(
-            osti_url
+            osti_url,
+            timeout=DEFAULT_TIMEOUT,
+            headers={"User-Agent": "NMDC Metadata Suggestor (mailto:support@microbiomedata.org)"}
         )
         response.raise_for_status()
         
@@ -54,28 +56,33 @@ def retrieve_doi_info_from_osti(doi: str) -> Dict[str, Any]:
         if record["product_type"] == "Journal Article":
             # get the JA DOI
             ja_doi = record.get("doi")
-            journal_issn = record.get("journal_issn")
             crossef_pdf_links = retrieve_pdf_link_from_crossref(ja_doi)
-            if len(crossef_pdf_links.get("pdf_links")) == 0:
-                # try pmc
-                pmc_info = retrieve_from_pmc(ja_doi)
-            # gather the publisher info
-            publisher = record.get("publisher", "Unknown Publisher")
-            # check if the publisher is one of the supported ones using fuzzy matching
-            supported_publishers = ["ASLO", "Nature", "Frontiers", "Elsevier", "Soil Science Society", "CyVerse", "Springer"]
-            # Case-insensitive partial matching
-            publisher_lower = publisher.lower()
-            is_supported = any(
-                supported.lower() in publisher_lower 
-                for supported in supported_publishers
-            )
-            if not is_supported:
-                return record["description"]
+            if len(crossef_pdf_links.get("pdf_links")) != 0:
+                pub = Publication(
+                    source = "Crossref",
+                    osti_doi=doi,
+                    publication_doi=ja_doi,
+                    urls=crossef_pdf_links.get("pdf_links"),
+                    abstract=record.get("description")
+                )
+                
             else:
-                # call marks code as needed 
-                pass
+                # try pmc
+                pmc_pdf_info = retrieve_pdf_link_from_pmc(ja_doi)
+                pub = Publication(
+                    source = "PMC" if pmc_pdf_info.get("pdf_url") else None,
+                    osti_doi=doi,
+                    publication_doi=ja_doi,
+                    pmid=pmc_pdf_info.get("pmid"),
+                    urls=record.get("urls"),
+                    abstract=record.get("description")
+                )
+            return pub
         else:
-            return record["description"]
+            return Publication(
+                osti_doi=doi,
+                abstract=record.get("description")
+            )
         
         
     except requests.exceptions.Timeout:
@@ -120,14 +127,14 @@ def retrieve_pdf_link_from_crossref(id: str) -> Dict[str, Any]:
         return {"error": str(e), "pdf_links": []}
 
 
-def retrieve_from_pmc(doi: str) -> Dict[str, Any]:
+def retrieve_pdf_link_from_pmc(doi: str) -> Dict[str, Any]:
     """Get publication info and PDF from Europe PMC.
     
     Args:
         doi: Digital Object Identifier
         
     Returns:
-        Dictionary with abstract, pdf_url, and metadata
+        Dict including PDF URL if available and pmcid
     """
     try:
         params = {
@@ -145,25 +152,21 @@ def retrieve_from_pmc(doi: str) -> Dict[str, Any]:
         
         if data.get("resultList", {}).get("result"):
             article = data["resultList"]["result"][0]
-            result = {
-                "abstract": article.get("abstractText"),
-                "pdf_url": None,
-                "metadata": article
-            }
+            pdf_url = None
             
             # Check for PDF
             if article.get("isOpenAccess") == "Y" and article.get("fullTextUrlList"):
                 for url_entry in article["fullTextUrlList"].get("fullTextUrl", []):
                     if url_entry.get("documentStyle") == "pdf":
-                        result["pdf_url"] = url_entry.get("url")
+                        pdf_url = url_entry.get("url")
                         break
             
             # Try PMC ID for PDF
-            if not result["pdf_url"] and article.get("pmcid"):
-                pmc_id = article["pmcid"]
-                result["pdf_url"] = f"https://www.ncbi.nlm.nih.gov/pmc/articles/{pmc_id}/pdf/"
+            if not pdf_url and article.get("pmcid"):
+                pmcid = article["pmcid"]
+                pdf_url = f"https://www.ncbi.nlm.nih.gov/pmc/articles/{pmcid}/pdf/"
             
-            return result
+            return {"pdf_url": pdf_url, "pmcid": article.get("pmcid")}
         
         return {"error": "No results found"}
         
@@ -172,7 +175,6 @@ def retrieve_from_pmc(doi: str) -> Dict[str, Any]:
 
 
 if __name__ == "__main__":
-    # Example 1: OSTI
     doi = ["10.15485/2478895", "10.15485/1729719", "10.15485/1603775"]
     info = retrieve_doi_info_from_osti(doi[0])
-    print("OSTI:", info)
+    print(info)
