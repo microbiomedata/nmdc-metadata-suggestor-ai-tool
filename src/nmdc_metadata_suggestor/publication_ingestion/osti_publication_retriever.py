@@ -47,8 +47,27 @@ def retrieve_doi_info_from_osti(doi: str) -> Dict[str, Any]:
         # get the record
         record = data[0] if isinstance(data, list) else data
         # we can see if the record is a publication or not. If not, we can just return the description.
-        if record["product_type"] != "Publication":
+        if record["product_type"] == "Journal Article":
+            # gather the publisher info
+            publisher = record.get("publisher", "Unknown Publisher")
+            # check if the publisher is one of the supported ones using fuzzy matching
+            # This allows "Springer Science + Business Media" to match "Springer Nature"
+            supported_publishers = ["ASLO", "Nature", "Frontiers", "Elsevier", "Soil Science Society", "CyVerse", "Springer"]
+            
+            # Case-insensitive partial matching
+            publisher_lower = publisher.lower()
+            is_supported = any(
+                supported.lower() in publisher_lower 
+                for supported in supported_publishers
+            )
+            if not is_supported:
+                return record["description"]
+            else:
+                # call marks code as needed 
+                pass
+        else:
             return record["description"]
+        
         
     except requests.exceptions.Timeout:
         raise requests.exceptions.RequestException(
@@ -70,5 +89,5 @@ if __name__ == "__main__":
     # example 
     doi = ["10.15485/1729719", "10.15485/1603775"]
     
-    info = retrieve_doi_info_from_osti(doi)
+    info = retrieve_doi_info_from_osti(doi[0])
     print(info)
