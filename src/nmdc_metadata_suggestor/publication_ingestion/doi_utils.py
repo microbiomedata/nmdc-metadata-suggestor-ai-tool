@@ -318,14 +318,10 @@ def classify_doi(doi: str) -> DoiClassification:
         return _classify_datacite(doi, prefix, ra)
 
     # Other RA (mEDRA, ISTIC, etc.) — valid but we can't classify further
-    return DoiClassification(
-        doi=doi, is_valid=True, prefix=prefix, registration_agency=ra
-    )
+    return DoiClassification(doi=doi, is_valid=True, prefix=prefix, registration_agency=ra)
 
 
-def _classify_crossref(
-    doi: str, prefix: str | None, ra: str
-) -> DoiClassification:
+def _classify_crossref(doi: str, prefix: str | None, ra: str) -> DoiClassification:
     """Classify a Crossref DOI by querying the Crossref API."""
     try:
         response = requests.get(
@@ -355,9 +351,7 @@ def _classify_crossref(
         )
 
 
-def _classify_datacite(
-    doi: str, prefix: str | None, ra: str
-) -> DoiClassification:
+def _classify_datacite(doi: str, prefix: str | None, ra: str) -> DoiClassification:
     """Classify a DataCite DOI by querying the DataCite API."""
     try:
         response = requests.get(
@@ -378,9 +372,7 @@ def _classify_datacite(
             resource_type_general=resource_type_general,
             publisher=attrs.get("publisher"),
             prefix=prefix,
-            inferred_nmdc_category=infer_nmdc_category(
-                ra, resource_type, resource_type_general
-            ),
+            inferred_nmdc_category=infer_nmdc_category(ra, resource_type, resource_type_general),
         )
     except requests.RequestException as e:
         return DoiClassification(
