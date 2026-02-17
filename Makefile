@@ -1,4 +1,4 @@
-.PHONY: help install dev-install test test-integration lint format clean docker-build docker-run docker-dev validate-doi classify-doi classify-fixture
+.PHONY: help install dev-install test test-integration lint format clean docker-build docker-run docker-dev validate-doi classify-doi classify-fixture get-abstract get-abstracts
 
 help: ## Show this help message
 	@echo "Usage: make [target]"
@@ -71,3 +71,9 @@ classify-doi: ## Classify a DOI (usage: make classify-doi DOI=10.1038/s41564-020
 
 classify-fixture: ## Classify all DOIs in the test fixture
 	$(DOI_CLI) classify-fixture
+
+get-abstract: ## Fetch abstract for a DOI (usage: make get-abstract DOI=10.1038/... [OUT=abstracts/])
+	$(DOI_CLI) get-abstract $(DOI) $(OUT)
+
+get-abstracts: ## Fetch abstracts for all publication DOIs in the fixture
+	$(DOI_CLI) get-abstracts

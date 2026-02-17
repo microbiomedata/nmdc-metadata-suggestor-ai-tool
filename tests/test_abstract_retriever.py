@@ -1,0 +1,409 @@
+"""Tests for abstract retrieval waterfall.
+
+Unit tests mock all HTTP with ``responses``; integration tests hit real APIs.
+"""
+
+import pytest
+import responses
+from requests.exceptions import ConnectionError as RequestsConnectionError
+
+from nmdc_metadata_suggestor.publication_ingestion.abstract_retriever import (
+    CROSSREF_API,
+    OPENALEX_API,
+    PUBMED_EFETCH,
+    PUBMED_ID_CONVERTER,
+    AbstractResult,
+    decode_inverted_abstract,
+    get_abstract,
+    strip_jats_xml,
+)
+from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
+    DOI_RA_API,
+)
+
+integration = pytest.mark.integration
+
+SAMPLE_DOI = "10.1038/s41564-020-00861-0"
+
+
+# ---------------------------------------------------------------------------
+# Helpers for mocking the classification gate
+# ---------------------------------------------------------------------------
+
+
+def _mock_classify_as_publication(doi: str) -> None:
+    """Mock RA + Crossref so classify_doi sees a valid publication."""
+    responses.add(
+        responses.GET,
+        f"{DOI_RA_API}/{doi}",
+        json=[{"DOI": doi, "RA": "Crossref"}],
+    )
+    responses.add(
+        responses.GET,
+        f"https://api.crossref.org/works/{doi}",
+        json={"message": {"type": "journal-article", "publisher": "Test"}},
+    )
+
+
+def _mock_classify_as_dataset(doi: str) -> None:
+    """Mock RA + Crossref so classify_doi sees a dataset."""
+    responses.add(
+        responses.GET,
+        f"{DOI_RA_API}/{doi}",
+        json=[{"DOI": doi, "RA": "Crossref"}],
+    )
+    responses.add(
+        responses.GET,
+        f"https://api.crossref.org/works/{doi}",
+        json={"message": {"type": "dataset", "publisher": "Test"}},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Parsing helpers — pure functions, no mocking
+# ---------------------------------------------------------------------------
+
+
+class TestDecodeInvertedAbstract:
+    def test_basic(self) -> None:
+        inverted = {"Hello": [0], "world": [1], "this": [2], "works": [3]}
+        assert decode_inverted_abstract(inverted) == "Hello world this works"
+
+    def test_repeated_words(self) -> None:
+        inverted = {"the": [0, 2], "cat": [1], "sat": [3]}
+        assert decode_inverted_abstract(inverted) == "the cat the sat"
+
+    def test_empty(self) -> None:
+        assert decode_inverted_abstract({}) == ""
+
+    def test_gap_in_positions(self) -> None:
+        """Missing positions produce empty strings that join cleanly."""
+        inverted = {"Hello": [0], "world": [5]}
+        result = decode_inverted_abstract(inverted)
+        assert result.startswith("Hello")
+        assert result.endswith("world")
+
+
+class TestStripJatsXml:
+    def test_simple_jats(self) -> None:
+        xml = "<jats:p>This is an abstract.</jats:p>"
+        assert strip_jats_xml(xml) == "This is an abstract."
+
+    def test_nested_jats(self) -> None:
+        xml = "<jats:p>Contains <jats:italic>italic</jats:italic> text.</jats:p>"
+        assert strip_jats_xml(xml) == "Contains italic text."
+
+    def test_html_entities(self) -> None:
+        xml = "<jats:p>CO&amp;O &lt;values&gt;</jats:p>"
+        assert strip_jats_xml(xml) == "CO&O <values>"
+
+    def test_plain_text_passthrough(self) -> None:
+        text = "Already plain text, no XML here."
+        assert strip_jats_xml(text) == text
+
+    def test_unicode_entities(self) -> None:
+        xml = "<jats:p>don&#x2019;t stop</jats:p>"
+        assert strip_jats_xml(xml) == "don\u2019t stop"
+
+
+# ---------------------------------------------------------------------------
+# get_abstract — waterfall tests (mocked HTTP)
+# ---------------------------------------------------------------------------
+
+
+class TestGetAbstractClassificationGate:
+    """Test that invalid and non-publication DOIs are refused."""
+
+    def test_invalid_doi_refused(self) -> None:
+        result = get_abstract("not-a-doi")
+        assert result.abstract is None
+        assert result.error is not None
+        assert "Invalid DOI" in result.error
+        assert result.attempts == []
+
+    @responses.activate
+    def test_dataset_doi_refused(self) -> None:
+        doi = "10.15485/1729719"
+        _mock_classify_as_dataset(doi)
+        result = get_abstract(doi)
+        assert result.abstract is None
+        assert "not a publication" in result.error
+        assert result.attempts == []
+
+    @responses.activate
+    def test_skip_classification_bypasses_gate(self) -> None:
+        """skip_classification=True goes straight to waterfall."""
+        doi = SAMPLE_DOI
+        # Only mock OpenAlex (no classification mocks), and have it return nothing
+        responses.add(responses.GET, f"{OPENALEX_API}/https://doi.org/{doi}", json={})
+        responses.add(responses.GET, f"{CROSSREF_API}/{doi}", json={"message": {}})
+        responses.add(responses.GET, PUBMED_ID_CONVERTER, json={"records": []})
+        responses.add(responses.GET, f"https://doi.org/{doi}", status=404)
+        result = get_abstract(doi, skip_classification=True)
+        assert "openalex" in result.attempts
+        assert result.error == "No abstract found in any source"
+
+
+class TestGetAbstractWaterfall:
+    """Test waterfall ordering — each test mocks classification + sources."""
+
+    @responses.activate
+    def test_openalex_hit(self) -> None:
+        """OpenAlex returns abstract, waterfall stops immediately."""
+        doi = SAMPLE_DOI
+        _mock_classify_as_publication(doi)
+        responses.add(
+            responses.GET,
+            f"{OPENALEX_API}/https://doi.org/{doi}",
+            json={"abstract_inverted_index": {"Hello": [0], "world": [1]}},
+        )
+        result = get_abstract(doi)
+        assert result.abstract == "Hello world"
+        assert result.raw_abstract == '{"Hello": [0], "world": [1]}'
+        assert result.source == "openalex"
+        assert result.content_format == "inverted_index"
+        assert result.attempts == ["openalex"]
+
+    @responses.activate
+    def test_openalex_miss_crossref_hit(self) -> None:
+        """OpenAlex has no abstract, Crossref does."""
+        doi = SAMPLE_DOI
+        _mock_classify_as_publication(doi)
+        # OpenAlex miss
+        responses.add(responses.GET, f"{OPENALEX_API}/https://doi.org/{doi}", json={})
+        # Crossref hit
+        responses.add(
+            responses.GET,
+            f"{CROSSREF_API}/{doi}",
+            json={"message": {"abstract": "<jats:p>Crossref abstract.</jats:p>"}},
+        )
+        result = get_abstract(doi)
+        assert result.abstract == "Crossref abstract."
+        assert result.raw_abstract == "<jats:p>Crossref abstract.</jats:p>"
+        assert result.source == "crossref"
+        assert result.content_format == "jats_xml"
+        assert result.attempts == ["openalex", "crossref"]
+
+    @responses.activate
+    def test_pubmed_fallback(self) -> None:
+        """OpenAlex + Crossref miss, PubMed has it."""
+        doi = SAMPLE_DOI
+        _mock_classify_as_publication(doi)
+        # OpenAlex miss
+        responses.add(responses.GET, f"{OPENALEX_API}/https://doi.org/{doi}", json={})
+        # Crossref miss
+        responses.add(responses.GET, f"{CROSSREF_API}/{doi}", json={"message": {}})
+        # PubMed ID converter
+        responses.add(
+            responses.GET,
+            PUBMED_ID_CONVERTER,
+            json={"records": [{"pmid": "12345678"}]},
+        )
+        # PubMed efetch
+        responses.add(responses.GET, PUBMED_EFETCH, body="PubMed abstract text here.")
+        result = get_abstract(doi)
+        assert result.abstract == "PubMed abstract text here."
+        assert result.raw_abstract == "PubMed abstract text here."
+        assert result.source == "pubmed"
+        assert result.content_format == "plain_text"
+        assert result.pmid == "12345678"
+        assert result.attempts == ["openalex", "crossref", "pubmed"]
+
+    @responses.activate
+    def test_content_negotiation_fallback(self) -> None:
+        """All others miss, content negotiation provides the abstract."""
+        doi = SAMPLE_DOI
+        _mock_classify_as_publication(doi)
+        # OpenAlex miss
+        responses.add(responses.GET, f"{OPENALEX_API}/https://doi.org/{doi}", json={})
+        # Crossref miss
+        responses.add(responses.GET, f"{CROSSREF_API}/{doi}", json={"message": {}})
+        # PubMed miss
+        responses.add(responses.GET, PUBMED_ID_CONVERTER, json={"records": []})
+        # Content negotiation hit
+        responses.add(
+            responses.GET,
+            f"https://doi.org/{doi}",
+            json={"abstract": "Content negotiation abstract."},
+        )
+        result = get_abstract(doi)
+        assert result.abstract == "Content negotiation abstract."
+        assert result.raw_abstract == "Content negotiation abstract."
+        assert result.source == "content_negotiation"
+        assert result.content_format == "citeproc_json"
+        assert result.attempts == ["openalex", "crossref", "pubmed", "content_negotiation"]
+
+    @responses.activate
+    def test_all_miss(self) -> None:
+        """All sources return nothing — graceful None."""
+        doi = SAMPLE_DOI
+        _mock_classify_as_publication(doi)
+        responses.add(responses.GET, f"{OPENALEX_API}/https://doi.org/{doi}", json={})
+        responses.add(responses.GET, f"{CROSSREF_API}/{doi}", json={"message": {}})
+        responses.add(responses.GET, PUBMED_ID_CONVERTER, json={"records": []})
+        responses.add(responses.GET, f"https://doi.org/{doi}", json={})
+        result = get_abstract(doi)
+        assert result.abstract is None
+        assert result.error == "No abstract found in any source"
+        assert len(result.attempts) == 4
+
+    @responses.activate
+    def test_network_errors_waterfall_continues(self) -> None:
+        """Each source errors, waterfall continues to next."""
+        doi = SAMPLE_DOI
+        _mock_classify_as_publication(doi)
+        responses.add(
+            responses.GET,
+            f"{OPENALEX_API}/https://doi.org/{doi}",
+            body=RequestsConnectionError("down"),
+        )
+        responses.add(
+            responses.GET,
+            f"{CROSSREF_API}/{doi}",
+            body=RequestsConnectionError("down"),
+        )
+        responses.add(
+            responses.GET,
+            PUBMED_ID_CONVERTER,
+            body=RequestsConnectionError("down"),
+        )
+        responses.add(
+            responses.GET,
+            f"https://doi.org/{doi}",
+            body=RequestsConnectionError("down"),
+        )
+        result = get_abstract(doi)
+        assert result.abstract is None
+        assert len(result.attempts) == 4
+
+    @responses.activate
+    def test_attempts_tracking(self) -> None:
+        """The attempts list records what was tried, in order."""
+        doi = SAMPLE_DOI
+        _mock_classify_as_publication(doi)
+        responses.add(responses.GET, f"{OPENALEX_API}/https://doi.org/{doi}", json={})
+        responses.add(
+            responses.GET,
+            f"{CROSSREF_API}/{doi}",
+            json={"message": {"abstract": "<jats:p>Found it.</jats:p>"}},
+        )
+        result = get_abstract(doi)
+        assert result.attempts == ["openalex", "crossref"]
+        assert result.source == "crossref"
+
+
+class TestGetAbstractResult:
+    """Test the AbstractResult model."""
+
+    def test_defaults(self) -> None:
+        r = AbstractResult(doi="10.1234/test")
+        assert r.abstract is None
+        assert r.raw_abstract is None
+        assert r.source is None
+        assert r.content_format is None
+        assert r.pmid is None
+        assert r.attempts == []
+        assert r.error is None
+
+
+class TestContentFormatClassification:
+    """Test that content_format correctly identifies the raw response format."""
+
+    @responses.activate
+    def test_crossref_plain_text_format(self) -> None:
+        """Crossref abstract without XML tags → plain_text, raw == abstract."""
+        doi = SAMPLE_DOI
+        _mock_classify_as_publication(doi)
+        responses.add(responses.GET, f"{OPENALEX_API}/https://doi.org/{doi}", json={})
+        responses.add(
+            responses.GET,
+            f"{CROSSREF_API}/{doi}",
+            json={"message": {"abstract": "A plain text abstract with no XML."}},
+        )
+        result = get_abstract(doi)
+        assert result.content_format == "plain_text"
+        assert result.abstract == "A plain text abstract with no XML."
+        assert result.raw_abstract == result.abstract
+
+    @responses.activate
+    def test_crossref_jats_raw_preserved(self) -> None:
+        """Crossref JATS → abstract is stripped but raw_abstract has original XML."""
+        doi = SAMPLE_DOI
+        _mock_classify_as_publication(doi)
+        responses.add(responses.GET, f"{OPENALEX_API}/https://doi.org/{doi}", json={})
+        jats = "<jats:p>An <jats:italic>important</jats:italic> finding.</jats:p>"
+        responses.add(
+            responses.GET,
+            f"{CROSSREF_API}/{doi}",
+            json={"message": {"abstract": jats}},
+        )
+        result = get_abstract(doi)
+        assert result.abstract == "An important finding."
+        assert result.raw_abstract == jats
+
+    @responses.activate
+    def test_content_negotiation_jats_raw_preserved(self) -> None:
+        """Content negotiation JATS → raw_abstract has original tags."""
+        doi = SAMPLE_DOI
+        _mock_classify_as_publication(doi)
+        responses.add(responses.GET, f"{OPENALEX_API}/https://doi.org/{doi}", json={})
+        responses.add(responses.GET, f"{CROSSREF_API}/{doi}", json={"message": {}})
+        responses.add(responses.GET, PUBMED_ID_CONVERTER, json={"records": []})
+        jats = "<jats:p>Tagged abstract.</jats:p>"
+        responses.add(
+            responses.GET,
+            f"https://doi.org/{doi}",
+            json={"abstract": jats},
+        )
+        result = get_abstract(doi)
+        assert result.content_format == "jats_xml"
+        assert result.abstract == "Tagged abstract."
+        assert result.raw_abstract == jats
+
+    @responses.activate
+    def test_openalex_raw_is_json(self) -> None:
+        """OpenAlex raw_abstract is the JSON-serialized inverted index."""
+        doi = SAMPLE_DOI
+        _mock_classify_as_publication(doi)
+        inverted = {"Hello": [0], "world": [1]}
+        responses.add(
+            responses.GET,
+            f"{OPENALEX_API}/https://doi.org/{doi}",
+            json={"abstract_inverted_index": inverted},
+        )
+        result = get_abstract(doi)
+        assert result.abstract == "Hello world"
+        import json
+
+        assert json.loads(result.raw_abstract) == inverted
+
+
+# ---------------------------------------------------------------------------
+# Integration tests — hit real APIs, skip in CI
+# ---------------------------------------------------------------------------
+
+
+@integration
+def test_get_abstract_real_frontiers_doi() -> None:
+    """Frontiers article — OpenAlex should have this."""
+    result = get_abstract("10.3389/fsoil.2023.1120425")
+    assert result.abstract is not None
+    assert len(result.abstract) > 100
+    assert result.source in ("openalex", "crossref")
+
+
+@integration
+def test_get_abstract_real_nature_doi() -> None:
+    """Nature article — may need PubMed fallback."""
+    result = get_abstract("10.1038/s41564-020-00861-0")
+    assert result.abstract is not None
+    assert len(result.abstract) > 100
+
+
+@integration
+def test_get_abstract_real_dataset_doi() -> None:
+    """Dataset DOI — should be gracefully refused (not a publication)."""
+    result = get_abstract("10.15485/1729719")
+    assert result.abstract is None
+    assert result.error is not None
+    assert "not a publication" in result.error

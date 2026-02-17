@@ -103,10 +103,13 @@ class TestValidateDoi:
 
 
 @responses.activate
-@pytest.mark.parametrize("doi,expected_ra", [
-    ("10.1038/s41564-020-00861-0", "Crossref"),
-    ("10.15485/1729719", "DataCite"),
-])
+@pytest.mark.parametrize(
+    "doi,expected_ra",
+    [
+        ("10.1038/s41564-020-00861-0", "Crossref"),
+        ("10.15485/1729719", "DataCite"),
+    ],
+)
 def test_detect_registration_agency(doi: str, expected_ra: str) -> None:
     responses.add(responses.GET, f"{DOI_RA_API}/{doi}", json=[{"DOI": doi, "RA": expected_ra}])
     assert detect_registration_agency(doi) == expected_ra
@@ -239,9 +242,7 @@ class TestClassifyDoi:
         """RA detected but Crossref API fails — DOI is still valid, just unclassified."""
         doi = "10.1038/s41564-020-00861-0"
         responses.add(responses.GET, f"{DOI_RA_API}/{doi}", json=[{"DOI": doi, "RA": "Crossref"}])
-        responses.add(
-            responses.GET, f"{CROSSREF_API}/{doi}", body=RequestsConnectionError("down")
-        )
+        responses.add(responses.GET, f"{CROSSREF_API}/{doi}", body=RequestsConnectionError("down"))
         result = classify_doi(doi)
         assert result.is_valid is True
         assert result.registration_agency == "Crossref"

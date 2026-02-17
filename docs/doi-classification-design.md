@@ -207,8 +207,173 @@ See `tests/fixtures/README.md` for detailed provenance documentation.
 | `make test` | Run all unit tests (mocked, no network) |
 | `make lint` | Run ruff + mypy |
 
-**Note:** The `doi_cli.py` module and the `validate-doi`, `classify-doi`, and
-`classify-fixture` Makefile targets exist for development-time interactive
-testing. They may be removed once the DOI triage layer is stable and integrated
-into the retrieval pipelines, since the same functionality is covered by the
-unit tests and by the library API itself.
+**Note:** The `doi_cli.py` module and Makefile targets exist for development-time
+interactive testing. They also serve as documentation for how to call the
+equivalent functions programmatically. They may be removed once the DOI triage
+layer is stable and integrated into the retrieval pipelines.
+
+---
+
+## 7. Abstract Retrieval Waterfall
+
+**Module:** `publication_ingestion/abstract_retriever.py`
+
+### Programmatic usage
+
+```python
+from nmdc_metadata_suggestor.publication_ingestion.abstract_retriever import (
+    get_abstract,
+    AbstractResult,
+)
+
+result: AbstractResult = get_abstract("10.1038/s41564-020-00861-0")
+result.abstract    # str | None — the abstract text
+result.source      # "openalex" | "crossref" | "pubmed" | "content_negotiation" | None
+result.pmid        # str | None — PubMed ID (only if source was PubMed)
+result.attempts    # ["openalex", "crossref"] — sources tried, in order
+result.error       # str | None — why it was refused or not found
+```
+
+### Classification gate
+
+Before hitting any API, `get_abstract()` validates the DOI and classifies it
+via `classify_doi()`. If the DOI is invalid or not a `publication_doi`, the
+function refuses gracefully:
+
+```python
+>>> get_abstract("not-a-doi").error
+'Invalid DOI: Malformed DOI syntax'
+
+>>> get_abstract("10.15485/1729719").error   # dataset DOI
+'DOI is a dataset_doi, not a publication. Abstract retrieval is only supported for publication DOIs.'
+```
+
+To bypass the gate (e.g., if you've already classified the DOI):
+
+```python
+result = get_abstract(doi, skip_classification=True)
+```
+
+### Waterfall order (empirically validated)
+
+| # | Source | Why | Coverage | Raw format |
+|---|--------|-----|----------|------------|
+| 1 | **OpenAlex** | Best coverage, longest abstracts, covers both Crossref & DataCite DOIs | ~90% of publications | `inverted_index` |
+| 2 | **Crossref** | Fallback for DOIs not yet in OpenAlex | ~30% have abstracts | `jats_xml` or `plain_text` |
+| 3 | **PubMed** | Catches Nature/Elsevier holdouts | ~86% biomedical coverage | `plain_text` |
+| 4 | **Content negotiation** | Universal last resort (Citeproc JSON via doi.org) | Same data as Crossref but works for any RA | `jats_xml` or `citeproc_json` |
+
+Each step returns as soon as an abstract is found. If all 4 fail, returns
+`AbstractResult(abstract=None, error="No abstract found in any source")`.
+Network errors at any step are caught and the waterfall continues to the next
+source.
+
+### Response format classification
+
+The `content_format` field on `AbstractResult` records what raw format the
+API returned, **before** our parsing converted it to plain text. This lets
+downstream code know whether the text may have parsing artifacts:
+
+| `content_format` | Source(s) | What we do | Potential artifacts |
+|------------------|-----------|------------|-------------------|
+| `inverted_index` | OpenAlex | Reconstruct text from `{word: [positions...]}` | May lose punctuation spacing; gap positions become empty strings |
+| `jats_xml` | Crossref, content negotiation | Strip `<jats:p>`, `<jats:italic>`, etc. via XML parser; unescape HTML entities | Structured sub-sections within abstracts are flattened to a single string |
+| `plain_text` | PubMed efetch, Crossref (when no tags present) | Return as-is (after `.strip()`) | None — text is already clean |
+| `citeproc_json` | Content negotiation (when no JATS tags) | Return as-is | None — text is already clean |
+
+Detection is simple: if the raw string contains `<`, we classify it as
+`jats_xml` and strip tags; otherwise it's `plain_text` (Crossref) or
+`citeproc_json` (content negotiation).
+
+### Parsing helpers (also importable)
+
+```python
+from nmdc_metadata_suggestor.publication_ingestion.abstract_retriever import (
+    decode_inverted_abstract,
+    strip_jats_xml,
+)
+
+# OpenAlex returns inverted index: {word: [positions...]}
+text = decode_inverted_abstract({"Hello": [0], "world": [1]})
+# → "Hello world"
+
+# Crossref/content negotiation return JATS XML
+text = strip_jats_xml("<jats:p>An <jats:italic>important</jats:italic> finding.</jats:p>")
+# → "An important finding."
+```
+
+### CLI / Makefile equivalents
+
+| Make target | Equivalent function call |
+|-------------|------------------------|
+| `make get-abstract DOI=10.1038/...` | `get_abstract("10.1038/...")` → prints `AbstractResult` as JSON |
+| `make get-abstract DOI=10.1038/... OUT=abstracts/` | Same, but writes JSON to `abstracts/{doi_slug}.json` |
+| `make get-abstracts` | Runs `get_abstract()` on all `publication_doi` entries in the test fixture |
+
+The `abstracts/` output directory is gitignored.
+
+---
+
+## 8. Full Text Retrieval — Scope and Limitations
+
+Full text retrieval is **not implemented** in this module and is deliberately
+out of scope for the abstract retrieval waterfall. This section documents why,
+and what challenges a future full-text module would face.
+
+### Why abstracts are sufficient for metadata suggestion
+
+Abstracts are ~200-400 words of structured, high-signal text. For NMDC metadata
+suggestion (inferring sample type, environment, methodology), the abstract
+contains the key information in a clean, parseable form. Full papers are
+5,000-15,000 words, with most of the additional content (discussion, related
+work, references) being low-signal for metadata extraction.
+
+### Challenges that a full-text module would need to address
+
+**Format heterogeneity.** Full text arrives in multiple formats, each requiring
+a different parser:
+
+| Format | Source | Quality |
+|--------|--------|---------|
+| JATS XML | PubMed Central (PMC) | Excellent — structured, section-labeled, free |
+| Publisher XML | Elsevier (ScienceDirect), Springer (via API) | Good — but proprietary schemas, API keys required |
+| HTML | Some OA publishers | Variable — needs scraping, layout-dependent |
+| PDF | Universal fallback | Poor — see below |
+
+**PDF parsing difficulties:**
+- Multi-column layouts produce interleaved text
+- Headers, footers, and page numbers bleed into body text
+- Tables render as positioned text fragments, not structured data
+- Equations appear as images or garbled Unicode
+- Scanned PDFs require OCR (additional dependency, lower accuracy)
+- Ligatures (fi, fl, ff) may map to wrong Unicode codepoints
+
+**Paywall / access barriers:**
+- Most Nature, Elsevier, Wiley, ACS articles are paywalled
+- Unpaywall can find OA copies but covers only ~50-60% of arbitrary DOIs
+- Institutional access would require proxy configuration or API keys
+- Some publishers offer text-mining APIs but require institutional agreements
+
+**Size and cost implications:**
+- A full paper is 7K-20K tokens (vs ~500 tokens for an abstract)
+- Processing hundreds of DOIs through an LLM at full-text length is expensive
+- Most metadata signal is concentrated in the abstract + methods section
+- Section extraction (to get only methods) circles back to the format problem
+
+**Non-text content that doesn't survive extraction:**
+- Tables — often the most metadata-rich part (sample descriptions, measurements)
+- Supplementary materials — frequently separate PDFs or Excel files
+- Figures and captions
+- Chemical formulas, gene names with special notation
+
+### If full text is needed later
+
+The highest-value next step would be **structured JATS XML from PMC**, which is:
+- Free and open access
+- Cleanly structured with labeled sections (`<sec sec-type="methods">`)
+- Parseable with standard XML tools
+- Available for ~5 million articles via the PMC OA subset
+
+This would be a separate retriever module with a different return type (sections
+rather than a single string), and would complement rather than replace the
+abstract retrieval waterfall.
