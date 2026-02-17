@@ -383,21 +383,91 @@ class TestContentFormatClassification:
 # ---------------------------------------------------------------------------
 
 
+# -- Issue #1597 target prefixes --
+# Each test covers one of the 6 assigned prefixes from microbiomedata/issues#1597.
+# DOIs are taken from the curated fixture (tests/fixtures/doi_test_cases.json).
+
+
 @integration
-def test_get_abstract_real_frontiers_doi() -> None:
-    """Frontiers article — OpenAlex should have this."""
-    result = get_abstract("10.3389/fsoil.2023.1120425")
-    assert result.abstract is not None
-    assert len(result.abstract) > 100
-    assert result.source in ("openalex", "crossref")
+def test_get_abstract_real_aslo_doi() -> None:
+    """10.4319 — ASLO (limnology/oceanography) journal article."""
+    result = get_abstract("10.4319/lom.2008.6.230")
+    assert (
+        result.abstract is not None
+    ), f"No abstract found: {result.error} (tried {result.attempts})"
+    assert len(result.abstract) > 50
+    assert result.source is not None
+    assert result.raw_abstract is not None
+    assert result.content_format is not None
 
 
 @integration
 def test_get_abstract_real_nature_doi() -> None:
-    """Nature article — may need PubMed fallback."""
+    """10.1038 — Nature journal article."""
     result = get_abstract("10.1038/s41564-020-00861-0")
-    assert result.abstract is not None
+    assert (
+        result.abstract is not None
+    ), f"No abstract found: {result.error} (tried {result.attempts})"
     assert len(result.abstract) > 100
+    assert result.raw_abstract is not None
+    assert result.content_format is not None
+
+
+@integration
+def test_get_abstract_real_frontiers_doi() -> None:
+    """10.3389 — Frontiers journal article."""
+    result = get_abstract("10.3389/fsoil.2023.1120425")
+    assert (
+        result.abstract is not None
+    ), f"No abstract found: {result.error} (tried {result.attempts})"
+    assert len(result.abstract) > 100
+    assert result.source in ("openalex", "crossref")
+    assert result.raw_abstract is not None
+
+
+@integration
+def test_get_abstract_real_elsevier_doi() -> None:
+    """10.1016 — Elsevier journal article.
+
+    Elsevier does NOT share abstracts via Crossref, and many Elsevier articles
+    are not in PMC. The waterfall may fail for this publisher. This test
+    verifies graceful handling: either an abstract is found (via OpenAlex or
+    PubMed) or the failure is clean with all 4 sources attempted.
+    """
+    result = get_abstract("10.1016/j.apsoil.2025.106110")
+    if result.abstract:
+        assert result.raw_abstract is not None
+        assert result.content_format is not None
+    else:
+        # Known Elsevier holdout — all 4 sources tried, clean failure
+        assert result.error == "No abstract found in any source"
+        assert len(result.attempts) == 4
+
+
+@integration
+def test_get_abstract_real_soil_science_doi() -> None:
+    """10.2136 — Soil Science Society of America book chapter."""
+    result = get_abstract("10.2136/sssabookser5.3.c16")
+    # Book chapters may or may not have abstracts; verify graceful handling
+    assert result.error is None or "No abstract found" in result.error
+    if result.abstract:
+        assert result.raw_abstract is not None
+        assert result.content_format is not None
+
+
+@integration
+def test_get_abstract_real_protocols_io_doi() -> None:
+    """10.17504 — protocols.io (DataCite). Not a standard publication, NMDC category unmapped."""
+    result = get_abstract("10.17504/protocols.io.kxygxyydkl8j/v1")
+    # Category is unmapped (None), so gate allows it through.
+    # protocols.io DOIs typically don't have abstracts in the traditional sources.
+    assert result.error is None or "No abstract found" in result.error
+    # Should NOT be refused as non-publication (category is None, not dataset/award)
+    if result.error:
+        assert "not a publication" not in result.error
+
+
+# -- Other integration tests --
 
 
 @integration
@@ -407,3 +477,17 @@ def test_get_abstract_real_dataset_doi() -> None:
     assert result.abstract is None
     assert result.error is not None
     assert "not a publication" in result.error
+
+
+@integration
+def test_get_abstract_raw_vs_cleaned() -> None:
+    """Verify raw_abstract differs from abstract when JATS XML is present."""
+    result = get_abstract("10.3389/fsoil.2023.1120425")
+    assert result.abstract is not None
+    assert result.raw_abstract is not None
+    if result.content_format == "jats_xml":
+        assert "<" in result.raw_abstract
+        assert "<" not in result.abstract
+    elif result.content_format == "inverted_index":
+        assert "{" in result.raw_abstract
+        assert result.abstract != result.raw_abstract
