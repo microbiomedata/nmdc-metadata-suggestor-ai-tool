@@ -55,3 +55,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+markers = [
+    "integration: hits real external APIs (deselect with -m 'not integration')",
+]
+addopts = "-m 'not integration'"

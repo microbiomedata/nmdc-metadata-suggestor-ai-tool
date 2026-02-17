@@ -1,4 +1,4 @@
-.PHONY: help install dev-install test lint format clean docker-build docker-run docker-dev validate-doi classify-doi classify-fixture
+.PHONY: help install dev-install test test-integration lint format clean docker-build docker-run docker-dev validate-doi classify-doi classify-fixture
 
 help: ## Show this help message
 	@echo "Usage: make [target]"
@@ -15,8 +15,11 @@ prod-install: ## Install production dependencies
 dev-install: ## Install all dependencies including dev
 	uv sync --extra dev
 
-test: ## Run tests
+test: ## Run unit tests (mocked, no network)
 	uv run pytest
+
+test-integration: ## Run integration tests against real APIs
+	uv run pytest -m integration
 
 lint: ## Run linters
 	uv run ruff check src tests
