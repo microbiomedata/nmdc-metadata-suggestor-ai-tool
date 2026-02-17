@@ -1,7 +1,7 @@
 """Unified LLM client for Vertex AI (Gemini and Claude)."""
 
 import os
-from typing import Any
+from typing import Any, cast
 
 import google.auth.transport.requests
 import requests as http_requests
@@ -169,4 +169,7 @@ class LLMClient:
             scopes=["https://www.googleapis.com/auth/cloud-platform"],
         )
         credentials.refresh(google.auth.transport.requests.Request())
-        return credentials.token
+        token = credentials.token
+        if token is None:
+            raise RuntimeError("Failed to obtain access token from credentials")
+        return cast(str, token)
