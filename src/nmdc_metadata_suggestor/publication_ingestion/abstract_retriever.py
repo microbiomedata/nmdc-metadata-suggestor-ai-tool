@@ -7,8 +7,8 @@ Tries each source in order and returns the first abstract found:
     3. PubMed    — catches Nature/Elsevier holdouts (~86% biomedical coverage)
     4. Content negotiation — universal last resort
 
-Before hitting any API, the DOI is validated and classified. If the DOI is
-invalid or not a publication (e.g., dataset, award), the function refuses
+Before hitting any API, the DOI is classified. If the DOI is not a
+publication (e.g., dataset, award), the function refuses
 gracefully and returns an error message instead of wasting API calls.
 
 Programmatic usage::
@@ -125,7 +125,7 @@ class AbstractResult(BaseModel):
 def get_abstract(doi: str, skip_classification: bool = False) -> AbstractResult:
     """Try each source in waterfall order, return the first abstract found.
 
-    Before fetching, validates the DOI and checks that it is a publication.
+    Before fetching, classifies the DOI and checks that it is a publication.
     Dataset, award, and DMP DOIs are refused with a clear error message.
     Pass ``skip_classification=True`` to bypass this check (e.g., if you
     already know the DOI is a publication).
@@ -274,7 +274,7 @@ def _try_openalex(doi: str) -> tuple[str | None, str | None, str | None]:
             raw = json.dumps(inverted, ensure_ascii=False)
             return decode_inverted_abstract(inverted), raw, "inverted_index"
         return None, None, None
-    except requests.RequestException:
+    except (requests.RequestException, ValueError):
         return None, None, None
 
 
@@ -300,7 +300,7 @@ def _try_crossref(doi: str) -> tuple[str | None, str | None, str | None]:
             fmt = "jats_xml" if "<" in raw else "plain_text"
             return strip_jats_xml(raw), raw, fmt
         return None, None, None
-    except requests.RequestException:
+    except (requests.RequestException, ValueError):
         return None, None, None
 
 
@@ -327,7 +327,7 @@ def _try_pubmed(doi: str) -> tuple[str | None, str | None]:
         pmid = records[0].get("pmid")
         if not pmid or pmid == "0":
             return None, None
-    except requests.RequestException:
+    except (requests.RequestException, ValueError):
         return None, None
 
     # Step 2: PMID → abstract via efetch
@@ -374,7 +374,7 @@ def _try_content_negotiation(doi: str) -> tuple[str | None, str | None, str | No
             fmt = "jats_xml" if "<" in raw else "citeproc_json"
             return strip_jats_xml(raw), raw, fmt
         return None, None, None
-    except requests.RequestException:
+    except (requests.RequestException, ValueError):
         return None, None, None
 
 

@@ -129,7 +129,7 @@ class DoiValidation(BaseModel):
 class DoiClassification(BaseModel):
     """Classification of a DOI along multiple axes.
 
-    Axes (from doi-categories-and-fetching-research-2026-02-17.md):
+    Axes (see docs/doi-classification-design.md):
     1. Resource Type — what does the DOI point to?
     2. Registration Agency — Crossref or DataCite
     3. Publisher/Source — who publishes the content?
@@ -211,7 +211,7 @@ def validate_doi(doi: str) -> DoiValidation:
             handle_response_code=code,
             error=None if code == 1 else f"Handle API responseCode={code}",
         )
-    except requests.RequestException as e:
+    except (requests.RequestException, ValueError) as e:
         return DoiValidation(doi=doi, is_valid=False, error=f"Request failed: {e}")
 
 
@@ -240,7 +240,7 @@ def detect_registration_agency(doi: str) -> str | None:
             ra: str | None = data[0].get("RA")
             return ra
         return None
-    except requests.RequestException:
+    except (requests.RequestException, ValueError):
         return None
 
 
@@ -305,11 +305,14 @@ def classify_doi(doi: str) -> DoiClassification:
 
     ra = detect_registration_agency(doi)
     if ra is None:
+        # RA detection can fail due to transient network errors, not just
+        # nonexistent DOIs. Return is_valid=True so the abstract waterfall
+        # can still proceed; callers can check the error field if needed.
         return DoiClassification(
             doi=doi,
-            is_valid=False,
+            is_valid=True,
             prefix=prefix,
-            error="Could not detect registration agency (DOI may not exist)",
+            error="Could not detect registration agency (network error or DOI may not exist)",
         )
 
     if ra == "Crossref":
@@ -341,7 +344,7 @@ def _classify_crossref(doi: str, prefix: str | None, ra: str) -> DoiClassificati
             prefix=prefix,
             inferred_nmdc_category=infer_nmdc_category(ra, resource_type, None),
         )
-    except requests.RequestException as e:
+    except (requests.RequestException, ValueError) as e:
         return DoiClassification(
             doi=doi,
             is_valid=True,
@@ -374,7 +377,7 @@ def _classify_datacite(doi: str, prefix: str | None, ra: str) -> DoiClassificati
             prefix=prefix,
             inferred_nmdc_category=infer_nmdc_category(ra, resource_type, resource_type_general),
         )
-    except requests.RequestException as e:
+    except (requests.RequestException, ValueError) as e:
         return DoiClassification(
             doi=doi,
             is_valid=True,
