@@ -1,4 +1,4 @@
-.PHONY: help install dev-install test lint format clean docker-build docker-run docker-dev
+.PHONY: help install dev-install test lint format clean docker-build docker-run docker-dev validate-doi classify-doi classify-fixture
 
 help: ## Show this help message
 	@echo "Usage: make [target]"
@@ -57,3 +57,14 @@ docker-shell: ## Open shell in development container
 
 run: ## Run the application locally
 	uv run nmdc-suggestor
+
+DOI_CLI = uv run python -m nmdc_metadata_suggestor.publication_ingestion.doi_cli
+
+validate-doi: ## Validate a DOI (usage: make validate-doi DOI=10.1038/s41564-020-00861-0)
+	$(DOI_CLI) validate $(DOI)
+
+classify-doi: ## Classify a DOI (usage: make classify-doi DOI=10.1038/s41564-020-00861-0)
+	$(DOI_CLI) classify $(DOI)
+
+classify-fixture: ## Classify all DOIs in the test fixture
+	$(DOI_CLI) classify-fixture
