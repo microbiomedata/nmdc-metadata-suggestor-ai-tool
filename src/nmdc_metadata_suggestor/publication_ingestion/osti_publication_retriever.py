@@ -60,8 +60,8 @@ def retrieve_doi_info_from_osti(doi: str) -> Publication:
             if len(crossef_pdf_links.get("pdf_links")) != 0:
                 pub = Publication(
                     source = "Crossref",
-                    osti_doi=doi,
-                    publication_doi=ja_doi,
+                    doi=doi,
+                    associated_publication_doi=ja_doi,
                     urls=crossef_pdf_links.get("pdf_links"),
                     abstract=record.get("description")
                 )
@@ -71,8 +71,8 @@ def retrieve_doi_info_from_osti(doi: str) -> Publication:
                 pmc_pdf_info = retrieve_pdf_link_from_pmc(ja_doi)
                 pub = Publication(
                     source = "PMC" if pmc_pdf_info.get("pdf_url") else None,
-                    osti_doi=doi,
-                    publication_doi=ja_doi,
+                    doi=doi,
+                    associated_publication_doi=ja_doi,
                     pmid=pmc_pdf_info.get("pmid"),
                     urls=record.get("urls"),
                     abstract=record.get("description")
@@ -80,7 +80,7 @@ def retrieve_doi_info_from_osti(doi: str) -> Publication:
             return pub
         else:
             return Publication(
-                osti_doi=doi,
+                doi=doi,
                 abstract=record.get("description")
             )
         
