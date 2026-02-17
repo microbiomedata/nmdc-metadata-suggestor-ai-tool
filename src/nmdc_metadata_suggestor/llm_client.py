@@ -78,12 +78,18 @@ class LLMClient:
         """Send a prompt and return the response text."""
         if self.provider == "gemini":
             return self._generate_gemini(
-                prompt, model=model, system=system,
-                max_tokens=max_tokens, temperature=temperature,
+                prompt,
+                model=model,
+                system=system,
+                max_tokens=max_tokens,
+                temperature=temperature,
             )
         return self._generate_claude(
-            prompt, model=model, system=system,
-            max_tokens=max_tokens, temperature=temperature,
+            prompt,
+            model=model,
+            system=system,
+            max_tokens=max_tokens,
+            temperature=temperature,
         )
 
     def _generate_gemini(
@@ -104,7 +110,9 @@ class LLMClient:
             config.system_instruction = system
 
         response = self._gemini_client.models.generate_content(
-            model=model, contents=prompt, config=config,
+            model=model,
+            contents=prompt,
+            config=config,
         )
         return (response.text or "").strip()
 
