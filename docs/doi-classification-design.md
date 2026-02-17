@@ -197,7 +197,7 @@ See `tests/fixtures/README.md` for detailed provenance documentation.
 
 ---
 
-## 5. CLI / Makefile Targets
+## 6. CLI / Makefile Targets
 
 | Target | What it does |
 |--------|-------------|
@@ -206,3 +206,9 @@ See `tests/fixtures/README.md` for detailed provenance documentation.
 | `make classify-fixture` | Classify all DOIs in the test fixture (hits real APIs) |
 | `make test` | Run all unit tests (mocked, no network) |
 | `make lint` | Run ruff + mypy |
+
+**Note:** The `doi_cli.py` module and the `validate-doi`, `classify-doi`, and
+`classify-fixture` Makefile targets exist for development-time interactive
+testing. They may be removed once the DOI triage layer is stable and integrated
+into the retrieval pipelines, since the same functionality is covered by the
+unit tests and by the library API itself.
