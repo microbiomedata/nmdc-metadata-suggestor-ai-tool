@@ -1,6 +1,6 @@
-# Test Fixtures
+# Test Data Provenance
 
-## doi_test_cases.json
+## tests/fixtures/doi_test_cases.json
 
 Curated DOI test cases from the NMDC MongoDB DOI inventory, covering all 23 DOI prefixes
 found in NMDC data plus bogus/malformed DOIs for negative testing.
