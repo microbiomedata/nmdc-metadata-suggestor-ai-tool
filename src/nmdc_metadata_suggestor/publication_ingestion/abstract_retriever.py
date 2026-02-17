@@ -39,9 +39,36 @@ from pydantic import BaseModel
 from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
     DEFAULT_TIMEOUT,
     USER_AGENT,
+    DoiClassification,
     classify_doi,
     normalize_doi,
 )
+
+# DataCite resourceTypeGeneral values that are clearly not publications.
+# These are unmapped in doi_utils (inferred_nmdc_category returns None),
+# but we can still refuse them in the abstract retrieval gate.
+# Source: DataCite Metadata Schema 4.6
+DATACITE_NON_PUBLICATION_TYPES = {
+    "Software",
+    "Workflow",
+    "ComputationalNotebook",
+    "Collection",
+    "Image",
+    "Audiovisual",
+    "Sound",
+    "Model",
+    "Service",
+    "Event",
+    "InteractiveResource",
+    "Instrument",
+    "PhysicalObject",
+}
+
+# Crossref work types that are clearly not publications.
+# "component" is a figure/table/supplement within a larger work.
+CROSSREF_NON_PUBLICATION_TYPES = {
+    "component",
+}
 
 # API endpoints
 OPENALEX_API = "https://api.openalex.org/works"
@@ -116,20 +143,9 @@ def get_abstract(doi: str, skip_classification: bool = False) -> AbstractResult:
 
     if not skip_classification:
         classification = classify_doi(doi)
-        if not classification.is_valid:
-            return AbstractResult(
-                doi=doi,
-                error=f"Invalid DOI: {classification.error or 'validation failed'}",
-            )
-        category = classification.inferred_nmdc_category
-        if category and category != "publication_doi":
-            return AbstractResult(
-                doi=doi,
-                error=(
-                    f"DOI is a {category}, not a publication. "
-                    "Abstract retrieval is only supported for publication DOIs."
-                ),
-            )
+        refusal = _check_classification_gate(classification)
+        if refusal:
+            return AbstractResult(doi=doi, error=refusal)
 
     attempts: list[str] = []
 
@@ -187,6 +203,47 @@ def get_abstract(doi: str, skip_classification: bool = False) -> AbstractResult:
         )
 
     return AbstractResult(doi=doi, attempts=attempts, error="No abstract found in any source")
+
+
+# ---------------------------------------------------------------------------
+# Classification gate
+# ---------------------------------------------------------------------------
+
+
+def _check_classification_gate(c: DoiClassification) -> str | None:
+    """Check all classification axes and return a refusal reason, or None to proceed.
+
+    Checks in order:
+    1. Is the DOI valid?
+    2. NMDC category — refuse dataset_doi, award_doi, data_management_plan_doi
+    3. DataCite resourceTypeGeneral — refuse Software, Collection, Image, etc.
+    4. Crossref resource type — refuse component (figure/table within a work)
+
+    Returns:
+        Human-readable refusal string, or None if the DOI should proceed.
+    """
+    if not c.is_valid:
+        return f"Invalid DOI: {c.error or 'validation failed'}"
+
+    # Check NMDC category (most specific signal)
+    if c.inferred_nmdc_category and c.inferred_nmdc_category != "publication_doi":
+        return (
+            f"DOI is a {c.inferred_nmdc_category}, not a publication. "
+            "Abstract retrieval is only supported for publication DOIs."
+        )
+
+    # Check DataCite resourceTypeGeneral (catches unmapped non-publications)
+    if c.resource_type_general and c.resource_type_general in DATACITE_NON_PUBLICATION_TYPES:
+        return (
+            f"DOI has DataCite resourceTypeGeneral={c.resource_type_general!r}, "
+            "which is not a publication type."
+        )
+
+    # Check Crossref type (catches unmapped non-publications)
+    if c.resource_type and c.resource_type in CROSSREF_NON_PUBLICATION_TYPES:
+        return f"DOI has Crossref type={c.resource_type!r}, " "which is not a publication type."
+
+    return None
 
 
 # ---------------------------------------------------------------------------

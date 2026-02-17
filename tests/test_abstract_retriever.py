@@ -18,6 +18,7 @@ from nmdc_metadata_suggestor.publication_ingestion.abstract_retriever import (
     strip_jats_xml,
 )
 from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
+    DATACITE_API,
     DOI_RA_API,
 )
 
@@ -56,6 +57,44 @@ def _mock_classify_as_dataset(doi: str) -> None:
         responses.GET,
         f"https://api.crossref.org/works/{doi}",
         json={"message": {"type": "dataset", "publisher": "Test"}},
+    )
+
+
+def _mock_classify_as_datacite_software(doi: str) -> None:
+    """Mock RA + DataCite so classify_doi sees Software (unmapped NMDC category)."""
+    responses.add(
+        responses.GET,
+        f"{DOI_RA_API}/{doi}",
+        json=[{"DOI": doi, "RA": "DataCite"}],
+    )
+    responses.add(
+        responses.GET,
+        f"{DATACITE_API}/{doi}",
+        json={
+            "data": {
+                "attributes": {
+                    "types": {
+                        "resourceType": "Software",
+                        "resourceTypeGeneral": "Software",
+                    },
+                    "publisher": "Zenodo",
+                }
+            }
+        },
+    )
+
+
+def _mock_classify_as_crossref_component(doi: str) -> None:
+    """Mock RA + Crossref so classify_doi sees a component (figure/table)."""
+    responses.add(
+        responses.GET,
+        f"{DOI_RA_API}/{doi}",
+        json=[{"DOI": doi, "RA": "Crossref"}],
+    )
+    responses.add(
+        responses.GET,
+        f"https://api.crossref.org/works/{doi}",
+        json={"message": {"type": "component", "publisher": "Test"}},
     )
 
 
@@ -128,6 +167,28 @@ class TestGetAbstractClassificationGate:
         result = get_abstract(doi)
         assert result.abstract is None
         assert "not a publication" in result.error
+        assert result.attempts == []
+
+    @responses.activate
+    def test_datacite_software_refused(self) -> None:
+        """DataCite Software DOI — unmapped NMDC category but clearly not a publication."""
+        doi = "10.5281/zenodo.1234567"
+        _mock_classify_as_datacite_software(doi)
+        result = get_abstract(doi)
+        assert result.abstract is None
+        assert "Software" in result.error
+        assert "not a publication type" in result.error
+        assert result.attempts == []
+
+    @responses.activate
+    def test_crossref_component_refused(self) -> None:
+        """Crossref component (figure/table) — not a publication."""
+        doi = "10.1038/s41564-020-00861-0.fig1"
+        _mock_classify_as_crossref_component(doi)
+        result = get_abstract(doi)
+        assert result.abstract is None
+        assert "component" in result.error
+        assert "not a publication type" in result.error
         assert result.attempts == []
 
     @responses.activate
