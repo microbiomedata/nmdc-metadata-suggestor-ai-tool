@@ -4,6 +4,27 @@
 **Branch:** `1597-publisher-api-abstract-text`
 **Issues:** #1597 (abstract text), #1598 (PDF bytes)
 
+## Summary
+
+This document describes how we classify DOIs for NMDC metadata ingestion.
+A DOI can point to a publication, dataset, award, or other resource — and
+the same DOI may be registered with Crossref, DataCite, or another agency.
+We classify along 5 orthogonal axes (type, agency, publisher, content level,
+fetching mechanism), map external resource types to NMDC's 4-value
+`DoiCategoryEnum`, and use the result to gate abstract retrieval so we
+don't waste API calls on non-publication DOIs.
+
+## Table of Contents
+
+1. [Classification Axes](#1-classification-axes)
+2. [Value Provenance](#2-value-provenance-what-is-canonical-vs-ad-hoc)
+3. [Relationship to Olivia's Branch](#3-relationship-to-olivias-branch)
+4. [API Credentials and Environment Variables](#4-api-credentials-and-environment-variables)
+5. [Test Fixture](#5-test-fixture)
+6. [CLI / Makefile Targets](#6-cli--makefile-targets)
+7. [Abstract Retrieval Waterfall](#7-abstract-retrieval-waterfall)
+8. [Full Text Retrieval — Scope and Limitations](#8-full-text-retrieval--scope-and-limitations)
+
 ---
 
 ## 1. Classification Axes
@@ -73,7 +94,7 @@ the resourceTypeGeneral section of the DataCite PDF."
 | **Type→Category mapping sets** (`CROSSREF_PUBLICATION_TYPES`, `DATACITE_PUBLICATION_TYPES`, etc.) | `doi_utils.py` | nmdc-schema does NOT define which external types map to which DoiCategoryEnum value. Historically, NMDC assigned `doi_category` manually per-DOI in schema migrators (e.g., `migrator_from_8_1_to_9_0`). Our mapping automates this. |
 | **5-axes framework** | This document | Analytical framing to avoid conflating independent concerns (e.g., publisher vs registration agency vs resource type). |
 | **Content levels (L1/L1a/L2/L3)** | This document | Shorthand for what a fetching pipeline can expect to retrieve. |
-| **`DoiClassification` model** | `doi_utils.py` | Pydantic model combining axes 1-3 plus NMDC category inference. Not from any standard. |
+| **`DoiClassification` model** | `models/doi.py` | Pydantic model combining axes 1-3 plus NMDC category inference. Not from any standard. |
 
 ### What the ad-hoc mappings deliberately exclude
 
@@ -106,7 +127,8 @@ Our branch (`1597-publisher-api-abstract-text`) adds:
 
 - `publication_ingestion/doi_utils.py` — DOI validation, classification, NMDC
   category inference (operates upstream of Olivia's retrieval code)
-- `publication_ingestion/doi_cli.py` — CLI for interactive testing
+- `cli/doi_cli.py` — CLI for interactive testing (separate from business logic)
+- `models/doi.py` — `DoiCategory` enum, `DoiValidation`, `DoiClassification`, `AbstractResult` models
 - `models/publication.py` — refined `Publication` model (see merge notes below)
 
 ### Publication model: merge strategy
@@ -207,10 +229,11 @@ See `tests/fixtures/README.md` for detailed provenance documentation.
 | `make test` | Run all unit tests (mocked, no network) |
 | `make lint` | Run ruff + mypy |
 
-**Note:** The `doi_cli.py` module and Makefile targets exist for development-time
-interactive testing. They also serve as documentation for how to call the
-equivalent functions programmatically. They may be removed once the DOI triage
-layer is stable and integrated into the retrieval pipelines.
+**Note:** The `cli/doi_cli.py` module and Makefile targets exist for
+development-time interactive testing. Business logic lives in
+`publication_ingestion/doi_utils.py` and `abstract_retriever.py`;
+the CLI is a thin wrapper. These targets may be removed once the DOI
+triage layer is integrated into the API.
 
 ---
 
@@ -280,6 +303,15 @@ downstream code know whether the text may have parsing artifacts:
 | `jats_xml` | Crossref, content negotiation | Strip `<jats:p>`, `<jats:italic>`, etc. via XML parser; unescape HTML entities | Structured sub-sections within abstracts are flattened to a single string |
 | `plain_text` | PubMed efetch, Crossref (when no tags present) | Return as-is (after `.strip()`) | None — text is already clean |
 | `citeproc_json` | Content negotiation (when no JATS tags) | Return as-is | None — text is already clean |
+
+**Why OpenAlex uses an inverted index:** The format is optimized for search
+indexing — you can find which abstracts contain a given word without
+reconstructing the full text, and it compresses well since common words
+aren't stored repeatedly.  The tradeoff is that reconstruction is lossy:
+punctuation attached to words (e.g. `"soil,"` at position 82) survives, but
+any non-space whitespace or formatting in the original is lost.  This is why
+`AbstractResult` exposes both `abstract` (reconstructed plain text) and
+`raw_abstract` (the original JSON-serialized inverted index).
 
 Detection is simple: if the raw string contains `<`, we classify it as
 `jats_xml` and strip tags; otherwise it's `plain_text` (Crossref) or

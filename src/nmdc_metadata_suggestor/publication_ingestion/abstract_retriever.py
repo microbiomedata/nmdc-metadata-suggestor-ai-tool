@@ -1,15 +1,7 @@
 """Retrieve publication abstracts via a multi-source waterfall.
 
-Tries each source in order and returns the first abstract found:
-
-    1. OpenAlex  — best coverage, longest abstracts
-    2. Crossref  — fallback for DOIs not yet in OpenAlex
-    3. PubMed    — catches Nature/Elsevier holdouts (~86% biomedical coverage)
-    4. Content negotiation — universal last resort
-
-Before hitting any API, the DOI is classified. If the DOI is not a
-publication (e.g., dataset, award), the function refuses
-gracefully and returns an error message instead of wasting API calls.
+See ``docs/doi-classification-design.md`` §7 for design rationale,
+waterfall order, and format classification details.
 
 Programmatic usage::
 
@@ -34,12 +26,11 @@ import re
 import xml.etree.ElementTree as ET
 
 import requests
-from pydantic import BaseModel
 
+from nmdc_metadata_suggestor.models.doi import AbstractResult, DoiClassification
 from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
     DEFAULT_TIMEOUT,
     USER_AGENT,
-    DoiClassification,
     classify_doi,
     normalize_doi,
 )
@@ -77,52 +68,19 @@ PUBMED_ID_CONVERTER = "https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/"
 PUBMED_EFETCH = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
 
 
-class AbstractResult(BaseModel):
-    """Result of an abstract retrieval attempt.
-
-    Attributes:
-        doi: The normalized DOI that was looked up.
-        abstract: The abstract as clean plain text (tags stripped, entities
-            unescaped, inverted index reconstructed), or None if not found.
-        raw_abstract: The abstract exactly as the API returned it, before any
-            parsing or stripping. For OpenAlex this is the JSON-serialized
-            inverted index; for Crossref/content negotiation it may contain
-            JATS XML tags; for PubMed it equals ``abstract`` (already plain
-            text). Use this when you need the original markup or structure.
-        source: Which source provided the abstract
-            (``"openalex"``, ``"crossref"``, ``"pubmed"``, ``"content_negotiation"``).
-        content_format: The raw format of the response before parsing:
-
-            - ``"inverted_index"`` — OpenAlex ``{word: [positions...]}``
-              (reconstructed; may lose punctuation spacing)
-            - ``"jats_xml"`` — JATS XML tags stripped (Crossref, content negotiation)
-            - ``"plain_text"`` — already clean text (PubMed efetch, or Crossref/
-              content negotiation when no XML tags were present)
-            - ``"citeproc_json"`` — Citeproc JSON ``abstract`` field (content
-              negotiation, when no JATS tags detected)
-            - ``None`` — no abstract was found
-
-        pmid: PubMed ID, populated only when PubMed was the source.
-        attempts: Sources tried in order, for debugging.
-        error: Human-readable error if the DOI was refused or all sources failed.
-    """
-
-    doi: str
-    abstract: str | None = None
-    raw_abstract: str | None = None
-    source: str | None = None
-    content_format: str | None = None
-    pmid: str | None = None
-    attempts: list[str] = []
-    error: str | None = None
-
-
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
 
-def get_abstract(doi: str, skip_classification: bool = False) -> AbstractResult:
+ALL_SOURCES = ("openalex", "crossref", "pubmed", "content_negotiation")
+
+
+def get_abstract(
+    doi: str,
+    skip_classification: bool = False,
+    sources: list[str] | None = None,
+) -> AbstractResult:
     """Try each source in waterfall order, return the first abstract found.
 
     Before fetching, classifies the DOI and checks that it is a publication.
@@ -132,14 +90,21 @@ def get_abstract(doi: str, skip_classification: bool = False) -> AbstractResult:
 
     Args:
         doi: A DOI string in any common format (bare, URL, ``doi:`` prefix).
-        skip_classification: If True, skip DOI validation/classification and
-            go straight to the waterfall. Useful when the caller has already
-            verified the DOI type.
+        skip_classification: If True, skip DOI classification and go straight
+            to the waterfall. Useful when the caller has already verified the
+            DOI type.
+        sources: Which sources to try, in order. Defaults to all four:
+            ``["openalex", "crossref", "pubmed", "content_negotiation"]``.
+            Pass a subset to skip sources or change the order, e.g.
+            ``sources=["crossref", "pubmed"]`` to skip OpenAlex.
 
     Returns:
         AbstractResult with the abstract text and metadata, or an error.
     """
     doi = normalize_doi(doi)
+
+    if sources is None:
+        sources = list(ALL_SOURCES)
 
     if not skip_classification:
         classification = classify_doi(doi)
@@ -149,58 +114,13 @@ def get_abstract(doi: str, skip_classification: bool = False) -> AbstractResult:
 
     attempts: list[str] = []
 
-    # 1. OpenAlex
-    attempts.append("openalex")
-    text, raw, fmt = _try_openalex(doi)
-    if text:
-        return AbstractResult(
-            doi=doi,
-            abstract=text,
-            raw_abstract=raw,
-            source="openalex",
-            content_format=fmt,
-            attempts=attempts,
-        )
-
-    # 2. Crossref
-    attempts.append("crossref")
-    text, raw, fmt = _try_crossref(doi)
-    if text:
-        return AbstractResult(
-            doi=doi,
-            abstract=text,
-            raw_abstract=raw,
-            source="crossref",
-            content_format=fmt,
-            attempts=attempts,
-        )
-
-    # 3. PubMed
-    attempts.append("pubmed")
-    text, pmid = _try_pubmed(doi)
-    if text:
-        return AbstractResult(
-            doi=doi,
-            abstract=text,
-            raw_abstract=text,
-            source="pubmed",
-            content_format="plain_text",
-            pmid=pmid,
-            attempts=attempts,
-        )
-
-    # 4. Content negotiation
-    attempts.append("content_negotiation")
-    text, raw, fmt = _try_content_negotiation(doi)
-    if text:
-        return AbstractResult(
-            doi=doi,
-            abstract=text,
-            raw_abstract=raw,
-            source="content_negotiation",
-            content_format=fmt,
-            attempts=attempts,
-        )
+    for source in sources:
+        if source not in _SOURCE_FETCHERS:
+            continue
+        attempts.append(source)
+        result = _SOURCE_FETCHERS[source](doi, attempts)
+        if result is not None:
+            return result
 
     return AbstractResult(doi=doi, attempts=attempts, error="No abstract found in any source")
 
@@ -241,13 +161,84 @@ def _check_classification_gate(c: DoiClassification) -> str | None:
 
     # Check Crossref type (catches unmapped non-publications)
     if c.resource_type and c.resource_type in CROSSREF_NON_PUBLICATION_TYPES:
-        return f"DOI has Crossref type={c.resource_type!r}, " "which is not a publication type."
+        return f"DOI has Crossref type={c.resource_type!r}, which is not a publication type."
 
     return None
 
 
 # ---------------------------------------------------------------------------
-# Per-source fetchers
+# Source dispatch — maps source names to waterfall step functions.
+# Each returns AbstractResult on success, None to try the next source.
+# ---------------------------------------------------------------------------
+
+
+def _fetch_openalex(doi: str, attempts: list[str]) -> AbstractResult | None:
+    text, raw, fmt = _try_openalex(doi)
+    if text:
+        return AbstractResult(
+            doi=doi,
+            abstract=text,
+            raw_abstract=raw,
+            source="openalex",
+            content_format=fmt,
+            attempts=attempts,
+        )
+    return None
+
+
+def _fetch_crossref(doi: str, attempts: list[str]) -> AbstractResult | None:
+    text, raw, fmt = _try_crossref(doi)
+    if text:
+        return AbstractResult(
+            doi=doi,
+            abstract=text,
+            raw_abstract=raw,
+            source="crossref",
+            content_format=fmt,
+            attempts=attempts,
+        )
+    return None
+
+
+def _fetch_pubmed(doi: str, attempts: list[str]) -> AbstractResult | None:
+    text, pmid = _try_pubmed(doi)
+    if text:
+        return AbstractResult(
+            doi=doi,
+            abstract=text,
+            raw_abstract=text,
+            source="pubmed",
+            content_format="plain_text",
+            pmid=pmid,
+            attempts=attempts,
+        )
+    return None
+
+
+def _fetch_content_negotiation(doi: str, attempts: list[str]) -> AbstractResult | None:
+    text, raw, fmt = _try_content_negotiation(doi)
+    if text:
+        return AbstractResult(
+            doi=doi,
+            abstract=text,
+            raw_abstract=raw,
+            source="content_negotiation",
+            content_format=fmt,
+            attempts=attempts,
+        )
+    return None
+
+
+_SOURCE_FETCHERS = {
+    "openalex": _fetch_openalex,
+    "crossref": _fetch_crossref,
+    "pubmed": _fetch_pubmed,
+    "content_negotiation": _fetch_content_negotiation,
+}
+
+
+# ---------------------------------------------------------------------------
+# Per-source fetchers (low-level HTTP + parsing)
 # ---------------------------------------------------------------------------
 
 
@@ -305,12 +296,12 @@ def _try_crossref(doi: str) -> tuple[str | None, str | None, str | None]:
 
 
 def _try_pubmed(doi: str) -> tuple[str | None, str | None]:
-    """Fetch abstract from PubMed via DOI → PMID → efetch.
+    """Fetch abstract from PubMed via DOI -> PMID -> efetch.
 
     Returns:
         (abstract_text, pmid) tuple. Both are None if PubMed has no record.
     """
-    # Step 1: DOI → PMID via ID converter
+    # Step 1: DOI -> PMID via ID converter
     try:
         response = requests.get(
             PUBMED_ID_CONVERTER,
@@ -330,7 +321,7 @@ def _try_pubmed(doi: str) -> tuple[str | None, str | None]:
     except (requests.RequestException, ValueError):
         return None, None
 
-    # Step 2: PMID → abstract via efetch
+    # Step 2: PMID -> abstract via efetch
     try:
         response = requests.get(
             PUBMED_EFETCH,
@@ -386,11 +377,21 @@ def _try_content_negotiation(doi: str) -> tuple[str | None, str | None, str | No
 def decode_inverted_abstract(inverted_index: dict[str, list[int]]) -> str:
     """Reconstruct plain text from an OpenAlex inverted abstract index.
 
-    OpenAlex stores abstracts as ``{word: [position_0, position_1, ...]}``.
-    We rebuild the original text by placing each word at its position(s).
+    OpenAlex stores abstracts as ``{word: [position_0, position_1, ...]}``,
+    e.g. ``{"While": [0, 140], "in": [6, 181, 191]}``.  This format is
+    optimized for search indexing — you can find which abstracts contain a
+    word without reconstructing the full text, and it compresses well since
+    common words aren't stored repeatedly.
+
+    We rebuild the original text by placing each word at its position(s) and
+    joining with spaces.  This is technically lossy: punctuation attached to
+    words (``"soil,"`` at position 82) survives, but any non-space whitespace
+    or formatting in the original is lost.  That's why ``AbstractResult``
+    exposes both ``abstract`` (reconstructed) and ``raw_abstract`` (the
+    original JSON-serialized inverted index).
 
     Args:
-        inverted_index: Mapping of word → list of integer positions.
+        inverted_index: Mapping of word -> list of integer positions.
 
     Returns:
         Reconstructed abstract as a single string.

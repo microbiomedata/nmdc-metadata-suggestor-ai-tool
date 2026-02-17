@@ -61,7 +61,7 @@ docker-shell: ## Open shell in development container
 run: ## Run the application locally
 	uv run nmdc-suggestor
 
-DOI_CLI = uv run python -m nmdc_metadata_suggestor.publication_ingestion.doi_cli
+DOI_CLI = uv run python -m nmdc_metadata_suggestor.cli.doi_cli
 
 validate-doi: ## Validate a DOI (usage: make validate-doi DOI=10.1038/s41564-020-00861-0)
 	$(DOI_CLI) validate $(DOI)
@@ -72,8 +72,8 @@ classify-doi: ## Classify a DOI (usage: make classify-doi DOI=10.1038/s41564-020
 classify-fixture: ## Classify all DOIs in the test fixture
 	$(DOI_CLI) classify-fixture
 
-get-abstract: ## Fetch abstract for a DOI (usage: make get-abstract DOI=10.1038/... [OUT=abstracts/])
-	$(DOI_CLI) get-abstract $(DOI) $(OUT)
+get-abstract: ## Fetch abstract for a DOI (usage: make get-abstract DOI=10.1038/... [OUT=abstracts/] [SOURCES=crossref,pubmed])
+	$(DOI_CLI) get-abstract $(DOI) $(OUT) $(if $(SOURCES),sources=$(SOURCES))
 
 get-abstracts: ## Fetch abstracts for all publication DOIs in the fixture
 	$(DOI_CLI) get-abstracts

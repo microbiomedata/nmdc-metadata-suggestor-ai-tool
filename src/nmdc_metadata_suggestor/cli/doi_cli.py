@@ -60,14 +60,19 @@ def cmd_classify_fixture() -> None:
     _print_json(results)
 
 
-def cmd_get_abstract(raw_doi: str, out_dir: str | None = None) -> None:
+def cmd_get_abstract(
+    raw_doi: str, out_dir: str | None = None, sources: list[str] | None = None
+) -> None:
     """Fetch the abstract for a single DOI and print or save it.
 
     If *out_dir* is provided, writes the result JSON to a file in that
     directory named ``{doi_slug}.json``. Otherwise prints to stdout.
+
+    If *sources* is provided, only those sources are tried (in the given
+    order). Otherwise the default waterfall is used.
     """
     doi = normalize_doi(raw_doi)
-    result = get_abstract(doi)
+    result = get_abstract(doi, sources=sources)
     dump = result.model_dump()
 
     if result.error:
@@ -154,8 +159,14 @@ def main() -> None:
         if len(sys.argv) < 3:
             print("Error: DOI argument required", file=sys.stderr)
             sys.exit(1)
-        out_dir = sys.argv[3] if len(sys.argv) > 3 else None
-        cmd_get_abstract(sys.argv[2], out_dir)
+        out_dir = None
+        sources = None
+        for arg in sys.argv[3:]:
+            if arg.startswith("sources="):
+                sources = arg[len("sources=") :].split(",")
+            else:
+                out_dir = arg
+        cmd_get_abstract(sys.argv[2], out_dir, sources)
     elif command == "get-abstracts":
         out_dir = sys.argv[2] if len(sys.argv) > 2 else "abstracts"
         cmd_get_abstracts(out_dir)

@@ -1,34 +1,19 @@
 """Utilities for DOI validation, normalization, and classification.
 
-Provides functions to:
-- Normalize DOI strings (strip URLs, prefixes, whitespace)
-- Validate DOIs via the DOI Handle API
-- Detect registration agency (Crossref vs DataCite) via doi.org/doiRA/
-- Classify DOIs by resource type using agency-specific APIs
-- Infer NMDC DoiCategoryEnum values from classification results
-
-Prior art:
-- CultureBotAI/MicroGrowAgents scripts/doi_validation/validate_failed_dois.py
-  (Crossref/Semantic Scholar/Unpaywall waterfall; no Handle API or DataCite)
-- cmungall/aurelian src/aurelian/utils/doi_fetcher.py
-  (Crossref metadata + Unpaywall OA PDF discovery)
-- contextualizer-ai/artl-mcp src/artl_mcp/utils/identifier_utils.py
-  (DOI/PMID/PMCID normalization and type detection; no Handle API validation,
-  no RA detection, no classification)
-
-See also:
-- DOI Handle API: https://doi.org/api/handles/
-- Registration agency detection: https://doi.org/doiRA/
-- Crossref types: https://api.crossref.org/types
-- DataCite resourceTypeGeneral: https://datacite-metadata-schema.readthedocs.io/
-- NMDC DoiCategoryEnum: https://microbiomedata.github.io/nmdc-schema/DoiCategoryEnum/
+See ``docs/doi-classification-design.md`` for design rationale, value
+provenance, and the full list of unmapped types.
 """
 
 import os
 import re
 
 import requests
-from pydantic import BaseModel
+
+from nmdc_metadata_suggestor.models.doi import (
+    DoiCategory,
+    DoiClassification,
+    DoiValidation,
+)
 
 # API endpoints
 DOI_HANDLE_API = "https://doi.org/api/handles"
@@ -49,102 +34,49 @@ DOI_PATTERN = re.compile(r"^10\.\d{4,9}/\S+$")
 # ---------------------------------------------------------------------------
 # Mapping: external resource types -> NMDC DoiCategoryEnum
 #
-# Provenance of the three layers:
-#
-# 1. EXTERNAL CANONICAL — values returned by Crossref and DataCite APIs.
-#    - Crossref "type" field: 30 values at https://api.crossref.org/types
-#    - DataCite "resourceTypeGeneral": 33 values defined in DataCite Metadata
-#      Schema 4.6 (Dec 2024).  Full list at
-#      https://datacite-metadata-schema.readthedocs.io/
-#    These are authoritative; we use them as-is and never invent new ones.
-#
-# 2. NMDC CANONICAL — the DoiCategoryEnum in nmdc-schema, defined in
-#    src/schema/basic_slots.yaml with exactly 4 permissible values:
-#      award_doi, dataset_doi, publication_doi, data_management_plan_doi
-#    The schema cites the DataCite PDF (resourceTypeGeneral, pp 48-53) and
-#    https://api.crossref.org/types as inspiration via see_also links.
-#    Ref: https://microbiomedata.github.io/nmdc-schema/DoiCategoryEnum/
-#
-# 3. AD-HOC MAPPING (this file) — which external types map to which NMDC
-#    category.  nmdc-schema does NOT define this mapping; it only links to
-#    the external vocabularies.  Historically NMDC has assigned doi_category
-#    manually per-DOI in schema migrators (e.g. migrator_from_8_1_to_9_0).
-#    The sets below are our best-effort mapping.  They are conservative:
-#    types not listed return None rather than guessing.
-#
-#    Unmapped Crossref types (return None):
-#      component, standard, report-component, other, ...
-#    Unmapped DataCite types (return None):
-#      Software, Workflow, ComputationalNotebook, Instrument,
-#      PhysicalObject, Collection, Image, ...
-#    These could plausibly be publication_doi or dataset_doi but the right
-#    NMDC category is ambiguous, so we leave them for human review.
+# Keys are canonical values from Crossref/DataCite APIs.
+# Values are DoiCategory enum members (mirrors nmdc-schema DoiCategoryEnum).
+# Types not listed here return None (ambiguous, requires human review).
+# See docs/doi-classification-design.md §2 for provenance and unmapped types.
 # ---------------------------------------------------------------------------
 
-# Crossref type -> NMDC DoiCategoryEnum
-# Source values: https://api.crossref.org/types (external canonical)
-CROSSREF_PUBLICATION_TYPES = {
-    "journal-article",
-    "book",
-    "book-chapter",
-    "book-section",
-    "book-part",
-    "proceedings-article",
-    "posted-content",  # preprints (bioRxiv, medRxiv)
-    "report",
-    "dissertation",
-    "monograph",
-    "reference-entry",
-    "peer-review",
+CROSSREF_TYPE_TO_NMDC: dict[str, DoiCategory] = {
+    # Publications
+    "journal-article": DoiCategory.PUBLICATION,
+    "book": DoiCategory.PUBLICATION,
+    "book-chapter": DoiCategory.PUBLICATION,
+    "book-section": DoiCategory.PUBLICATION,
+    "book-part": DoiCategory.PUBLICATION,
+    "proceedings-article": DoiCategory.PUBLICATION,
+    "posted-content": DoiCategory.PUBLICATION,  # preprints (bioRxiv, medRxiv)
+    "report": DoiCategory.PUBLICATION,
+    "dissertation": DoiCategory.PUBLICATION,
+    "monograph": DoiCategory.PUBLICATION,
+    "reference-entry": DoiCategory.PUBLICATION,
+    "peer-review": DoiCategory.PUBLICATION,
+    # Datasets
+    "dataset": DoiCategory.DATASET,
+    # Awards
+    "grant": DoiCategory.AWARD,
 }
-CROSSREF_DATASET_TYPES = {"dataset"}
-CROSSREF_AWARD_TYPES = {"grant"}
 
-# DataCite resourceTypeGeneral -> NMDC DoiCategoryEnum
-# Source values: DataCite Metadata Schema 4.6 (external canonical)
-DATACITE_PUBLICATION_TYPES = {
-    "JournalArticle",
-    "Book",
-    "BookChapter",
-    "ConferencePaper",
-    "Dissertation",
-    "Preprint",
-    "Report",
-    "Text",
+DATACITE_TYPE_TO_NMDC: dict[str, DoiCategory] = {
+    # Publications (keyed on resourceTypeGeneral)
+    "JournalArticle": DoiCategory.PUBLICATION,
+    "Book": DoiCategory.PUBLICATION,
+    "BookChapter": DoiCategory.PUBLICATION,
+    "ConferencePaper": DoiCategory.PUBLICATION,
+    "Dissertation": DoiCategory.PUBLICATION,
+    "Preprint": DoiCategory.PUBLICATION,
+    "Report": DoiCategory.PUBLICATION,
+    "Text": DoiCategory.PUBLICATION,
+    # Datasets
+    "Dataset": DoiCategory.DATASET,
+    # Awards
+    "Award": DoiCategory.AWARD,
+    # Data Management Plans
+    "OutputManagementPlan": DoiCategory.DATA_MANAGEMENT_PLAN,
 }
-DATACITE_DATASET_TYPES = {"Dataset"}
-DATACITE_AWARD_TYPES = {"Award"}  # added in DataCite Schema 4.6, Dec 2024
-DATACITE_DMP_TYPES = {"OutputManagementPlan"}
-
-
-class DoiValidation(BaseModel):
-    """Result of DOI validation via the Handle API."""
-
-    doi: str
-    is_valid: bool
-    handle_response_code: int | None = None
-    error: str | None = None
-
-
-class DoiClassification(BaseModel):
-    """Classification of a DOI along multiple axes.
-
-    Axes (see docs/doi-classification-design.md):
-    1. Resource Type — what does the DOI point to?
-    2. Registration Agency — Crossref or DataCite
-    3. Publisher/Source — who publishes the content?
-    Plus: inferred NMDC DoiCategoryEnum value
-    """
-
-    doi: str
-    is_valid: bool
-    registration_agency: str | None = None
-    resource_type: str | None = None
-    resource_type_general: str | None = None
-    publisher: str | None = None
-    prefix: str | None = None
-    inferred_nmdc_category: str | None = None
-    error: str | None = None
 
 
 def normalize_doi(raw: str) -> str:
@@ -251,9 +183,9 @@ def infer_nmdc_category(
 ) -> str | None:
     """Infer the NMDC DoiCategoryEnum value from API-provided type information.
 
-    Maps Crossref work types and DataCite resourceTypeGeneral to one of:
-    ``publication_doi``, ``dataset_doi``, ``award_doi``,
-    ``data_management_plan_doi``, or ``None`` (unmappable).
+    Maps Crossref work types and DataCite resourceTypeGeneral values to
+    :class:`~nmdc_metadata_suggestor.models.doi.DoiCategory` members.
+    Returns ``None`` for unmapped types (see design doc §2 for the full list).
 
     Args:
         registration_agency: ``"Crossref"`` or ``"DataCite"``.
@@ -264,21 +196,13 @@ def infer_nmdc_category(
         NMDC DoiCategoryEnum string or ``None``.
     """
     if registration_agency == "Crossref" and resource_type:
-        if resource_type in CROSSREF_PUBLICATION_TYPES:
-            return "publication_doi"
-        if resource_type in CROSSREF_DATASET_TYPES:
-            return "dataset_doi"
-        if resource_type in CROSSREF_AWARD_TYPES:
-            return "award_doi"
+        cat = CROSSREF_TYPE_TO_NMDC.get(resource_type)
+        if cat is not None:
+            return cat.value
     if registration_agency == "DataCite" and resource_type_general:
-        if resource_type_general in DATACITE_PUBLICATION_TYPES:
-            return "publication_doi"
-        if resource_type_general in DATACITE_DATASET_TYPES:
-            return "dataset_doi"
-        if resource_type_general in DATACITE_AWARD_TYPES:
-            return "award_doi"
-        if resource_type_general in DATACITE_DMP_TYPES:
-            return "data_management_plan_doi"
+        cat = DATACITE_TYPE_TO_NMDC.get(resource_type_general)
+        if cat is not None:
+            return cat.value
     return None
 
 
