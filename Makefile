@@ -1,4 +1,4 @@
-.PHONY: help install dev-install test test-integration lint format clean docker-build docker-run docker-dev validate-doi classify-doi classify-fixture get-abstract get-abstracts
+.PHONY: help dev-install test test-integration lint format clean docker-build docker-run docker-dev validate-doi classify-doi classify-fixture get-abstract get-abstracts
 
 help: ## Show this help message
 	@echo "Usage: make [target]"
