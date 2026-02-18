@@ -38,3 +38,4 @@ class Publication(BaseModel):
     pmid: str | None = Field(None, description="PubMed ID")
     urls: list[HttpUrl] | None = Field(None, description="URLs to the publication or resource")
     abstract: str | None = Field(None, description="Publication abstract text")
+    error: str | None = Field(None, description="Error message if retrieval failed")

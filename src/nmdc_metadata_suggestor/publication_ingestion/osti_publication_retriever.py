@@ -12,14 +12,26 @@ from nmdc_metadata_suggestor.models.doi import AbstractResult
 
 # API endpoints
 OSTI_API_URL = "https://www.osti.gov/api/v1/records"
-NEW_OSTI_API_UR = "https://www.osti.gov/elink2api/#tag/records/operation/getRecords"
 CROSSREF_API_URL = "https://api.crossref.org/v1/works"
 EUROPEPMC_API_URL = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
-# need to build a waterfall of calls for osti 
 # Timeouts
 DEFAULT_TIMEOUT = 30
 
 
+def query_osti_by_doi(osti_doi: str) -> Dict[str, Any]:
+    """Query OSTI API for a given DOI and return the JSON response."""
+    # strip to just the Osti ID
+    osti_id = osti_doi.split("/")[-1]
+    osti_url = f"{OSTI_API_URL}/{osti_id}"
+
+    response = requests.get(
+        osti_url,
+        timeout=DEFAULT_TIMEOUT,
+        headers={"User-Agent": "NMDC Metadata Suggestor (mailto:support@microbiomedata.org)"}
+    )
+    response.raise_for_status()
+    return response.json()
+    
 def retrieve_doi_info_from_osti(doi: str) -> AbstractResult:
     """
     Retrieve abstract from OSTI API using a DOI.
@@ -28,25 +40,11 @@ def retrieve_doi_info_from_osti(doi: str) -> AbstractResult:
         doi: Digital Object Identifier (e.g., "10.15485/1729719")
         
     Returns:
-        AbstractResult containing the abstract/description from OSTI
-        
-    Raises:
-        requests.exceptions.RequestException: If API request fails
+        AbstractResult containing the abstract/description from OSTI.
+        If an error occurs, returns AbstractResult with error field populated.
     """
-    # strip to just the Osti ID
-    osti_id = doi.split("/")[-1]
-    osti_url = f"{OSTI_API_URL}/{osti_id}"
-    
     try:
-        response = requests.get(
-            osti_url,
-            timeout=DEFAULT_TIMEOUT,
-            headers={"User-Agent": "NMDC Metadata Suggestor (mailto:support@microbiomedata.org)"}
-        )
-        response.raise_for_status()
-        
-        data = response.json()
-        
+        data = query_osti_by_doi(osti_doi=doi)
         # check results
         if not data or len(data) == 0:
             return AbstractResult(
@@ -72,27 +70,9 @@ def retrieve_doi_info_from_osti(doi: str) -> AbstractResult:
                 doi=doi,
                 error="No abstract/description found in OSTI record"
             )
-        
-    except requests.exceptions.Timeout:
-        return AbstractResult(
-            doi=doi,
-            error=f"OSTI API request timed out for DOI: {doi}"
-        )
-    except requests.exceptions.HTTPError as e:
-        if e.response.status_code == 404:
-            return AbstractResult(
-                doi=doi,
-                error=f"DOI not found in OSTI: {doi}"
-            )
-        return AbstractResult(
-            doi=doi,
-            error=f"OSTI API request failed with status {e.response.status_code}: {str(e)}"
-        )
     except Exception as e:
-        return AbstractResult(
-            doi=doi,
-            error=f"Failed to retrieve DOI information from OSTI: {str(e)}"
-        )
+        return AbstractResult(doi=doi, error=str(e))
+        
     
 def retrieve_pdf_link_from_osti_doi(doi: str) -> Publication:
     """Retrieve publication information including PDF links from OSTI API using a DOI.
@@ -101,28 +81,18 @@ def retrieve_pdf_link_from_osti_doi(doi: str) -> Publication:
         doi: Digital Object Identifier (e.g., "10.15485/1729719")
         
     Returns:
-        Publication object with abstract, URLs, and associated publication DOI
-        
-    Raises:
-        requests.exceptions.RequestException: If API request fails
+        Publication object with abstract, URLs, and associated publication DOI.
+        If an error occurs, returns Publication with error field populated.
     """
-    # strip to just the Osti ID
-    osti_id = doi.split("/")[-1]
-    osti_url = f"{OSTI_API_URL}/{osti_id}"
-    
     try:
-        response = requests.get(
-            osti_url,
-            timeout=DEFAULT_TIMEOUT,
-            headers={"User-Agent": "NMDC Metadata Suggestor (mailto:support@microbiomedata.org)"}
-        )
-        response.raise_for_status()
-        
-        data = response.json()
+        data = query_osti_by_doi(doi)
         
         # Check if we got any results
         if not data or len(data) == 0:
-            raise ValueError(f"No publication found in OSTI for DOI: {doi}")
+            return Publication(
+                doi=doi,
+                error=f"No publication found in OSTI for DOI: {doi}"
+            )
         
         # get the record
         record = data[0] if isinstance(data, list) else data
@@ -159,19 +129,10 @@ def retrieve_pdf_link_from_osti_doi(doi: str) -> Publication:
                 abstract=record.get("description")
             )
         
-    except requests.exceptions.Timeout:
-        raise requests.exceptions.RequestException(
-            f"OSTI API request timed out for DOI: {doi}"
-        )
-    except requests.exceptions.HTTPError as e:
-        if e.response.status_code == 404:
-            raise ValueError(f"DOI not found in OSTI: {doi}")
-        raise requests.exceptions.RequestException(
-            f"OSTI API request failed with status {e.response.status_code}: {str(e)}"
-        )
     except Exception as e:
-        raise requests.exceptions.RequestException(
-            f"Failed to retrieve DOI information from OSTI: {str(e)}"
+        return Publication(
+            doi=doi,
+            error=f"Failed to retrieve DOI information from OSTI: {str(e)}"
         )
     
 def retrieve_pdf_link_from_crossref(id: str) -> Dict[str, Any]:
@@ -208,7 +169,7 @@ def retrieve_pdf_link_from_pmc(doi: str) -> Dict[str, Any]:
         doi: Digital Object Identifier
         
     Returns:
-        Dict including PDF URL if available and pmcid
+        Dict with pdf_url, pmcid, and optional error keys
     """
     try:
         params = {
@@ -228,32 +189,21 @@ def retrieve_pdf_link_from_pmc(doi: str) -> Dict[str, Any]:
             article = data["resultList"]["result"][0]
             pdf_url = None
             
-            # Check for PDF
+            # Check for PDF links in the article metadata from Europe PMC
             if article.get("isOpenAccess") == "Y" and article.get("fullTextUrlList"):
                 for url_entry in article["fullTextUrlList"].get("fullTextUrl", []):
                     if url_entry.get("documentStyle") == "pdf":
                         pdf_url = url_entry.get("url")
                         break
             
-            # Try PMC ID for PDF
+            # If no PDF link found, try PMC ID for PDF
             if not pdf_url and article.get("pmcid"):
                 pmcid = article["pmcid"]
                 pdf_url = f"https://www.ncbi.nlm.nih.gov/pmc/articles/{pmcid}/pdf/"
             
             return {"pdf_url": pdf_url, "pmcid": article.get("pmcid")}
         
-        return {"error": "No results found"}
+        return {"pdf_url": None, "pmcid": None, "error": "No results found"}
         
     except Exception as e:
-        return {"error": str(e)}
-
-
-if __name__ == "__main__":
-    doi = ["10.15485/2478895", "10.15485/1729719", "10.15485/1603775"]
-    # Test abstract retrieval
-    abstract_result = retrieve_doi_info_from_osti(doi[0])
-    print("Abstract Result:", abstract_result)
-    
-    # Test full publication retrieval
-    pub_result = retrieve_pdf_link_from_osti_doi(doi[0])
-    print("\nPublication Result:", pub_result)
+        return {"pdf_url": None, "pmcid": None, "error": str(e)}
