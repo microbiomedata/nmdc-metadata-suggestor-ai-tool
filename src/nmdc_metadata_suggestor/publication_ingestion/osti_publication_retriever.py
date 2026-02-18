@@ -32,7 +32,7 @@ def query_osti_by_doi(osti_doi: str) -> dict:
         headers={"User-Agent": "NMDC Metadata Suggestor (mailto:support@microbiomedata.org)"},
     )
     response.raise_for_status()
-    return response.json() # type: ignore
+    return response.json()  # type: ignore
 
 
 def retrieve_doi_info_from_osti(doi: str) -> AbstractResult:
@@ -166,7 +166,7 @@ def retrieve_pdf_link_from_pmc(doi: str) -> dict[str, Any]:
     """
     try:
         params = {"query": f'DOI:"{doi}"', "format": "json", "pageSize": 1}
-        response = requests.get(EUROPEPMC_API_URL, params=params, timeout=DEFAULT_TIMEOUT) # type: ignore
+        response = requests.get(EUROPEPMC_API_URL, params=params, timeout=DEFAULT_TIMEOUT)  # type: ignore
         response.raise_for_status()
         data = response.json()
 
