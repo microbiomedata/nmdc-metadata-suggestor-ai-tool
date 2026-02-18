@@ -7,36 +7,110 @@ This module provides direct API-based retrieval of publication abstracts and ful
 from typing import Any, Dict
 import requests
 from nmdc_metadata_suggestor.models.publication import Publication
+from nmdc_metadata_suggestor.models.doi import AbstractResult
 
 
 # API endpoints
 OSTI_API_URL = "https://www.osti.gov/api/v1/records"
+NEW_OSTI_API_UR = "https://www.osti.gov/elink2api/#tag/records/operation/getRecords"
 CROSSREF_API_URL = "https://api.crossref.org/v1/works"
 EUROPEPMC_API_URL = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
-
+# need to build a waterfall of calls for osti 
 # Timeouts
 DEFAULT_TIMEOUT = 30
 
 
-def retrieve_doi_info_from_osti(doi: str) -> Publication:
-    """Retrieve publication information from OSTI API using a DOI.
+def retrieve_doi_info_from_osti(doi: str) -> AbstractResult:
+    """
+    Retrieve abstract from OSTI API using a DOI.
     
     Args:
         doi: Digital Object Identifier (e.g., "10.15485/1729719")
         
     Returns:
-        Dictionary containing publication information. Response fields from here https://www.osti.gov/api/v1/docs. 
+        AbstractResult containing the abstract/description from OSTI
         
     Raises:
         requests.exceptions.RequestException: If API request fails
     """
-
     # strip to just the Osti ID
     osti_id = doi.split("/")[-1]
     osti_url = f"{OSTI_API_URL}/{osti_id}"
     
     try:
-
+        response = requests.get(
+            osti_url,
+            timeout=DEFAULT_TIMEOUT,
+            headers={"User-Agent": "NMDC Metadata Suggestor (mailto:support@microbiomedata.org)"}
+        )
+        response.raise_for_status()
+        
+        data = response.json()
+        
+        # check results
+        if not data or len(data) == 0:
+            return AbstractResult(
+                doi=doi,
+                error=f"No publication found in OSTI for DOI: {doi}"
+            )
+        
+        # get the record
+        record = data[0] if isinstance(data, list) else data
+        abstract = record.get("description")
+        
+        if abstract:
+            return AbstractResult(
+                doi=doi,
+                abstract=abstract,
+                raw_abstract=abstract,
+                source="osti",
+                content_format="plain_text",
+                attempts=["osti"]
+            )
+        else:
+            return AbstractResult(
+                doi=doi,
+                error="No abstract/description found in OSTI record"
+            )
+        
+    except requests.exceptions.Timeout:
+        return AbstractResult(
+            doi=doi,
+            error=f"OSTI API request timed out for DOI: {doi}"
+        )
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 404:
+            return AbstractResult(
+                doi=doi,
+                error=f"DOI not found in OSTI: {doi}"
+            )
+        return AbstractResult(
+            doi=doi,
+            error=f"OSTI API request failed with status {e.response.status_code}: {str(e)}"
+        )
+    except Exception as e:
+        return AbstractResult(
+            doi=doi,
+            error=f"Failed to retrieve DOI information from OSTI: {str(e)}"
+        )
+    
+def retrieve_pdf_link_from_osti_doi(doi: str) -> Publication:
+    """Retrieve publication information including PDF links from OSTI API using a DOI.
+    
+    Args:
+        doi: Digital Object Identifier (e.g., "10.15485/1729719")
+        
+    Returns:
+        Publication object with abstract, URLs, and associated publication DOI
+        
+    Raises:
+        requests.exceptions.RequestException: If API request fails
+    """
+    # strip to just the Osti ID
+    osti_id = doi.split("/")[-1]
+    osti_url = f"{OSTI_API_URL}/{osti_id}"
+    
+    try:
         response = requests.get(
             osti_url,
             timeout=DEFAULT_TIMEOUT,
@@ -52,29 +126,30 @@ def retrieve_doi_info_from_osti(doi: str) -> Publication:
         
         # get the record
         record = data[0] if isinstance(data, list) else data
+        
         # we can see if the record is a publication or not. If not, we can just return the description.
-        if record["product_type"] == "Journal Article":
+        if record.get("product_type") == "Journal Article":
             # get the JA DOI
             ja_doi = record.get("doi")
-            crossef_pdf_links = retrieve_pdf_link_from_crossref(ja_doi)
-            if len(crossef_pdf_links.get("pdf_links")) != 0:
+            crossref_pdf_links = retrieve_pdf_link_from_crossref(ja_doi)
+            
+            if len(crossref_pdf_links.get("pdf_links", [])) != 0:
                 pub = Publication(
-                    source = "Crossref",
+                    source="Crossref",
                     doi=doi,
                     associated_publication_doi=ja_doi,
-                    urls=crossef_pdf_links.get("pdf_links"),
+                    urls=crossref_pdf_links.get("pdf_links"),
                     abstract=record.get("description")
                 )
-                
             else:
                 # try pmc
                 pmc_pdf_info = retrieve_pdf_link_from_pmc(ja_doi)
                 pub = Publication(
-                    source = "PMC" if pmc_pdf_info.get("pdf_url") else None,
+                    source="PMC" if pmc_pdf_info.get("pdf_url") else None,
                     doi=doi,
                     associated_publication_doi=ja_doi,
                     pmid=pmc_pdf_info.get("pmid"),
-                    urls=record.get("urls"),
+                    urls=[pmc_pdf_info.get("pdf_url")] if pmc_pdf_info.get("pdf_url") else None,
                     abstract=record.get("description")
                 )
             return pub
@@ -83,7 +158,6 @@ def retrieve_doi_info_from_osti(doi: str) -> Publication:
                 doi=doi,
                 abstract=record.get("description")
             )
-        
         
     except requests.exceptions.Timeout:
         raise requests.exceptions.RequestException(
@@ -176,5 +250,10 @@ def retrieve_pdf_link_from_pmc(doi: str) -> Dict[str, Any]:
 
 if __name__ == "__main__":
     doi = ["10.15485/2478895", "10.15485/1729719", "10.15485/1603775"]
-    info = retrieve_doi_info_from_osti(doi[0])
-    print(info)
+    # Test abstract retrieval
+    abstract_result = retrieve_doi_info_from_osti(doi[0])
+    print("Abstract Result:", abstract_result)
+    
+    # Test full publication retrieval
+    pub_result = retrieve_pdf_link_from_osti_doi(doi[0])
+    print("\nPublication Result:", pub_result)

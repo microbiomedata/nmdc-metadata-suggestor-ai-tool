@@ -72,8 +72,7 @@ PUBMED_EFETCH = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
 # Public API
 # ---------------------------------------------------------------------------
 
-
-ALL_SOURCES = ("openalex", "crossref", "pubmed", "content_negotiation")
+ALL_SOURCES = ("openalex", "crossref", "pubmed", "content_negotiation", "osti")
 
 
 def get_abstract(
@@ -93,14 +92,16 @@ def get_abstract(
         skip_classification: If True, skip DOI classification and go straight
             to the waterfall. Useful when the caller has already verified the
             DOI type.
-        sources: Which sources to try, in order. Defaults to all four:
-            ``["openalex", "crossref", "pubmed", "content_negotiation"]``.
+        sources: Which sources to try, in order. Defaults to all five:
+            ``["openalex", "crossref", "pubmed", "content_negotiation", "osti"]``.
             Pass a subset to skip sources or change the order, e.g.
             ``sources=["crossref", "pubmed"]`` to skip OpenAlex.
 
     Returns:
         AbstractResult with the abstract text and metadata, or an error.
     """
+    # TODO : Is it better practice if we know a certain DOI prefix will go to a certain source to just call that source directly instead of going through the whole waterfall? 
+    # For example, if we know an OSTI DOI will only be found via the OSTI source, should we just call that function directly instead of going through the whole waterfall and checking each source in order? Does this work the same with openalx and crossref?
     doi = normalize_doi(doi)
 
     if sources is None:
@@ -171,6 +172,37 @@ def _check_classification_gate(c: DoiClassification) -> str | None:
 # Each returns AbstractResult on success, None to try the next source.
 # ---------------------------------------------------------------------------
 
+def _fetch_osti(doi: str, attempts: list[str]) -> AbstractResult | None:
+    """
+    Fetch abstract from OSTI (for OSTI DOIs only).
+    
+    Args:
+        doi: A DOI string in any common format (bare, URL, ``doi:`` prefix).
+        attempts: List of sources attempted so far (for metadata only, not used to control flow since this is only called if "osti" is in sources).
+    
+    Returns:
+        AbstractResult containing the abstract/description from OSTI, or an error if the DOI is not found in OSTI or if the API request fails.
+    """
+    if not doi.startswith("10.15485/"):  # OSTI prefix
+        return None
+    
+    try:
+        from nmdc_metadata_suggestor.publication_ingestion.osti_publication_retriever import (
+            retrieve_doi_info_from_osti
+        )
+        pub = retrieve_doi_info_from_osti(doi)
+        if pub.abstract:
+            return AbstractResult(
+                doi=doi,
+                abstract=pub.abstract,
+                raw_abstract=pub.abstract,
+                source="osti",
+                content_format="plain_text",
+                attempts=attempts,
+            )
+    except Exception:
+        pass
+    return None
 
 def _fetch_openalex(doi: str, attempts: list[str]) -> AbstractResult | None:
     text, raw, fmt = _try_openalex(doi)
@@ -234,6 +266,7 @@ _SOURCE_FETCHERS = {
     "crossref": _fetch_crossref,
     "pubmed": _fetch_pubmed,
     "content_negotiation": _fetch_content_negotiation,
+    "osti": _fetch_osti,
 }
 
 
