@@ -13,7 +13,9 @@ class Publication(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    doi: str | None = Field(default=None, description="Bare DOI string (e.g. 10.1038/s41564-020-00861-0)")
+    doi: str | None = Field(
+        default=None, description="Bare DOI string (e.g. 10.1038/s41564-020-00861-0)"
+    )
     doi_category: str | None = Field(
         default=None,
         description=(
@@ -38,6 +40,8 @@ class Publication(BaseModel):
         ),
     )
     pmid: str | None = Field(default=None, description="PubMed ID")
-    urls: list[HttpUrl] | None = Field(default=None, description="URLs to the publication or resource")
+    urls: list[HttpUrl] | None = Field(
+        default=None, description="URLs to the publication or resource"
+    )
     abstract: str | None = Field(default=None, description="Publication abstract text")
     error: str | None = Field(default=None, description="Error message if retrieval failed")

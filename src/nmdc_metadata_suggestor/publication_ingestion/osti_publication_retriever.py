@@ -97,7 +97,7 @@ def retrieve_pdf_link_from_osti_doi(doi: str) -> Publication:
             ja_doi = record.get("doi")
             if not ja_doi:
                 return Publication(doi=doi, error="Journal Article record missing DOI")
-            
+
             crossref_pdf_links = retrieve_pdf_link_from_crossref(ja_doi)
 
             if len(crossref_pdf_links.get("pdf_links", [])) != 0:
