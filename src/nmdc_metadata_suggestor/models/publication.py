@@ -1,6 +1,6 @@
 """Publication model for DOI-resolved metadata."""
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 
 class Publication(BaseModel):
@@ -11,9 +11,11 @@ class Publication(BaseModel):
     than OSTI-specific metadata so it works for any registration agency.
     """
 
-    doi: str | None = Field(None, description="Bare DOI string (e.g. 10.1038/s41564-020-00861-0)")
+    model_config = ConfigDict(extra="forbid")
+
+    doi: str | None = Field(default=None, description="Bare DOI string (e.g. 10.1038/s41564-020-00861-0)")
     doi_category: str | None = Field(
-        None,
+        default=None,
         description=(
             "NMDC DoiCategoryEnum value: publication_doi, dataset_doi, "
             "award_doi, or data_management_plan_doi.  "
@@ -21,21 +23,21 @@ class Publication(BaseModel):
         ),
     )
     registration_agency: str | None = Field(
-        None,
+        default=None,
         description="DOI registration agency: Crossref, DataCite, mEDRA, etc.",
     )
     source: str | None = Field(
-        None,
+        default=None,
         description="Source from which metadata/PDF was retrieved (e.g. crossref, pubmed, osti)",
     )
     associated_publication_doi: str | None = Field(
-        None,
+        default=None,
         description=(
             "DOI of an associated publication "
             "(e.g. the journal article linked from a dataset record)."
         ),
     )
-    pmid: str | None = Field(None, description="PubMed ID")
-    urls: list[HttpUrl] | None = Field(None, description="URLs to the publication or resource")
-    abstract: str | None = Field(None, description="Publication abstract text")
-    error: str | None = Field(None, description="Error message if retrieval failed")
+    pmid: str | None = Field(default=None, description="PubMed ID")
+    urls: list[HttpUrl] | None = Field(default=None, description="URLs to the publication or resource")
+    abstract: str | None = Field(default=None, description="Publication abstract text")
+    error: str | None = Field(default=None, description="Error message if retrieval failed")

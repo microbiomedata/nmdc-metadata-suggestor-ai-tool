@@ -27,11 +27,10 @@ def download_pdf_to_tempfile(url: str) -> str:
         return temp_file.name
 
     except requests.exceptions.RequestException as e:
-        print(f"Error during download: {e}")
         if "temp_file" in locals() and not temp_file.closed:
             temp_file.close()
             os.remove(temp_file.name)
-        return None
+        return f"Error during download: {e}"
 
 
 if __name__ == "__main__":

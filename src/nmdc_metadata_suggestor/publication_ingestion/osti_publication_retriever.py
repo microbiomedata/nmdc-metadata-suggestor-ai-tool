@@ -20,7 +20,7 @@ EUROPEPMC_API_URL = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
 DEFAULT_TIMEOUT = 30
 
 
-def query_osti_by_doi(osti_doi: str) -> dict[str, Any]:
+def query_osti_by_doi(osti_doi: str) -> dict:
     """Query OSTI API for a given DOI and return the JSON response."""
     # strip to just the Osti ID
     osti_id = osti_doi.split("/")[-1]
@@ -32,7 +32,7 @@ def query_osti_by_doi(osti_doi: str) -> dict[str, Any]:
         headers={"User-Agent": "NMDC Metadata Suggestor (mailto:support@microbiomedata.org)"},
     )
     response.raise_for_status()
-    return response.json()
+    return response.json() # type: ignore
 
 
 def retrieve_doi_info_from_osti(doi: str) -> AbstractResult:
@@ -95,6 +95,9 @@ def retrieve_pdf_link_from_osti_doi(doi: str) -> Publication:
         if record.get("product_type") == "Journal Article":
             # get the JA DOI
             ja_doi = record.get("doi")
+            if not ja_doi:
+                return Publication(doi=doi, error="Journal Article record missing DOI")
+            
             crossref_pdf_links = retrieve_pdf_link_from_crossref(ja_doi)
 
             if len(crossref_pdf_links.get("pdf_links", [])) != 0:
@@ -108,12 +111,13 @@ def retrieve_pdf_link_from_osti_doi(doi: str) -> Publication:
             else:
                 # try pmc
                 pmc_pdf_info = retrieve_pdf_link_from_pmc(ja_doi)
+                pdf_url = pmc_pdf_info.get("pdf_url")
                 pub = Publication(
-                    source="PMC" if pmc_pdf_info.get("pdf_url") else None,
+                    source="PMC" if pdf_url else None,
                     doi=doi,
                     associated_publication_doi=ja_doi,
                     pmid=pmc_pdf_info.get("pmid"),
-                    urls=[pmc_pdf_info.get("pdf_url")] if pmc_pdf_info.get("pdf_url") else None,
+                    urls=[pdf_url] if pdf_url else None,  # type: ignore[list-item]
                     abstract=record.get("description"),
                 )
             return pub
@@ -162,7 +166,7 @@ def retrieve_pdf_link_from_pmc(doi: str) -> dict[str, Any]:
     """
     try:
         params = {"query": f'DOI:"{doi}"', "format": "json", "pageSize": 1}
-        response = requests.get(EUROPEPMC_API_URL, params=params, timeout=DEFAULT_TIMEOUT)
+        response = requests.get(EUROPEPMC_API_URL, params=params, timeout=DEFAULT_TIMEOUT) # type: ignore
         response.raise_for_status()
         data = response.json()
 
