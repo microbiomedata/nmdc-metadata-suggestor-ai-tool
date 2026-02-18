@@ -75,17 +75,28 @@ nmdc-metadata-suggestor-ai-tool/
 ├── src/
 │   └── nmdc_metadata_suggestor/
 │       ├── __init__.py
-│       ├── main.py           # Main entry point
-│       ├── config.py          # Configuration management
-│       └── llm_client.py      # LLM client interface
-├── tests/                     # Test files
-├── config/                    # Additional configuration files
-├── pyproject.toml            # Project dependencies and metadata
-├── Dockerfile                # Production Docker image
-├── Dockerfile.dev            # Development Docker image
-├── docker-compose.yml        # Docker Compose configuration
-├── .env.example              # Example environment variables
-└── README.md                 # This file
+│       ├── main.py                          # Main entry point
+│       ├── llm_client.py                    # LLM client for AI interactions
+│       ├── cli/
+│       │   ├── __init__.py
+│       │   └── doi_cli.py                   # CLI for DOI operations
+│       ├── models/
+│       │   ├── __init__.py
+│       │   ├── doi.py                       # DOI data models
+│       │   └── publication.py               # Publication data models
+│       └── publication_ingestion/
+│           ├── __init__.py
+│           ├── abstract_retriever.py        # Abstract retrieval logic
+│           └── doi_utils.py                 # DOI utilities
+├── tests/                                    # Test files
+├── scripts/                                  # Vertex AI test scripts
+├── docs/                                     # Documentation
+├── pyproject.toml                            # Project dependencies and metadata
+├── Dockerfile                                # Production Docker image
+├── Dockerfile.dev                            # Development Docker image
+├── docker-compose.yml                        # Docker Compose configuration
+├── .env.example                              # Example environment variables
+└── README.md                                 # This file
 ```
 
 ### Running Tests
