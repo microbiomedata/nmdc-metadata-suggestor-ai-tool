@@ -100,8 +100,11 @@ def get_abstract(
     Returns:
         AbstractResult with the abstract text and metadata, or an error.
     """
-    # TODO : Is it better practice if we know a certain DOI prefix will go to a certain source to just call that source directly instead of going through the whole waterfall? 
-    # For example, if we know an OSTI DOI will only be found via the OSTI source, should we just call that function directly instead of going through the whole waterfall and checking each source in order? Does this work the same with openalx and crossref?
+    # TODO : Is it better practice if we know a certain DOI prefix will go to a
+    # certain source to just call that source directly instead of going through the whole waterfall?
+    # For example, if we know an OSTI DOI will only be found via the OSTI source,
+    # should we just call that function directly instead of going through the whole waterfall
+    # and checking each source in order? Does this work the same with openalx and crossref?
     doi = normalize_doi(doi)
 
     if sources is None:
@@ -172,24 +175,26 @@ def _check_classification_gate(c: DoiClassification) -> str | None:
 # Each returns AbstractResult on success, None to try the next source.
 # ---------------------------------------------------------------------------
 
+
 def _fetch_osti(doi: str, attempts: list[str]) -> AbstractResult | None:
     """
     Fetch abstract from OSTI (for OSTI DOIs only).
-    
+
     Args:
         doi: A DOI string in any common format (bare, URL, ``doi:`` prefix).
-        attempts: List of sources attempted so far (for metadata only, not used to control flow since this is only called if "osti" is in sources).
-    
+        attempts: List of sources attempted so far
+
     Returns:
-        AbstractResult containing the abstract/description from OSTI, or an error if the DOI is not found in OSTI or if the API request fails.
+        AbstractResult containing the abstract/description from OSTI, or an error.
     """
     if not doi.startswith("10.15485/"):  # OSTI prefix
         return None
-    
+
     try:
         from nmdc_metadata_suggestor.publication_ingestion.osti_publication_retriever import (
-            retrieve_doi_info_from_osti
+            retrieve_doi_info_from_osti,
         )
+
         pub = retrieve_doi_info_from_osti(doi)
         if pub.abstract:
             return AbstractResult(
@@ -203,6 +208,7 @@ def _fetch_osti(doi: str, attempts: list[str]) -> AbstractResult | None:
     except Exception:
         pass
     return None
+
 
 def _fetch_openalex(doi: str, attempts: list[str]) -> AbstractResult | None:
     text, raw, fmt = _try_openalex(doi)

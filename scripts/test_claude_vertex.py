@@ -52,11 +52,10 @@ import os
 import re
 import sys
 
-from dotenv import load_dotenv
-from google.oauth2 import service_account
 import google.auth.transport.requests
 import requests as http_requests
-
+from dotenv import load_dotenv
+from google.oauth2 import service_account
 
 OLS_API_BASE = "https://www.ebi.ac.uk/ols4/api"
 

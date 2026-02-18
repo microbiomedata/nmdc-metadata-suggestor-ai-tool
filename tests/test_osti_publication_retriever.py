@@ -6,9 +6,9 @@ import responses
 from nmdc_metadata_suggestor.models.doi import AbstractResult
 from nmdc_metadata_suggestor.models.publication import Publication
 from nmdc_metadata_suggestor.publication_ingestion.osti_publication_retriever import (
-    OSTI_API_URL,
     CROSSREF_API_URL,
     EUROPEPMC_API_URL,
+    OSTI_API_URL,
     retrieve_doi_info_from_osti,
     retrieve_pdf_link_from_osti_doi,
 )
@@ -29,16 +29,16 @@ def test_retrieve_abstract_success():
     """Retrieve abstract successfully from OSTI."""
     doi = "10.15485/1729719"
     abstract_text = "This is a test abstract."
-    
+
     responses.add(
         responses.GET,
         f"{OSTI_API_URL}/1729719",
         json=[{"doi": doi, "description": abstract_text}],
         status=200,
     )
-    
+
     result = retrieve_doi_info_from_osti(doi)
-    
+
     assert isinstance(result, AbstractResult)
     assert result.abstract == abstract_text
     assert result.source == "osti"
@@ -49,16 +49,16 @@ def test_retrieve_abstract_success():
 def test_retrieve_abstract_no_description():
     """Handle OSTI record with no description."""
     doi = "10.15485/1234567"
-    
+
     responses.add(
         responses.GET,
         f"{OSTI_API_URL}/1234567",
         json=[{"doi": doi}],
         status=200,
     )
-    
+
     result = retrieve_doi_info_from_osti(doi)
-    
+
     assert result.abstract is None
     assert "No abstract/description found" in result.error
 
@@ -67,15 +67,15 @@ def test_retrieve_abstract_no_description():
 def test_retrieve_abstract_404():
     """Handle 404 error from OSTI API."""
     doi = "10.15485/9999999"
-    
+
     responses.add(
         responses.GET,
         f"{OSTI_API_URL}/9999999",
         status=404,
     )
-    
+
     result = retrieve_doi_info_from_osti(doi=doi)
-    
+
     assert result.abstract is None
     assert result.error is not None
 
@@ -87,31 +87,29 @@ def test_retrieve_publication_journal_article():
     ja_doi = "10.1038/s41564-020-00861-0"
     abstract_text = "Test abstract."
     pdf_url = "https://example.com/article.pdf"
-    
+
     responses.add(
         responses.GET,
         f"{OSTI_API_URL}/1234567",
-        json=[{
-            "product_type": "Journal Article",
-            "doi": ja_doi,
-            "description": abstract_text,
-        }],
+        json=[
+            {
+                "product_type": "Journal Article",
+                "doi": ja_doi,
+                "description": abstract_text,
+            }
+        ],
         status=200,
     )
-    
+
     responses.add(
         responses.GET,
         f"{CROSSREF_API_URL}/{ja_doi}",
-        json={
-            "message": {
-                "link": [{"URL": pdf_url, "content-type": "application/pdf"}]
-            }
-        },
+        json={"message": {"link": [{"URL": pdf_url, "content-type": "application/pdf"}]}},
         status=200,
     )
-    
+
     result = retrieve_pdf_link_from_osti_doi(osti_doi)
-    
+
     assert isinstance(result, Publication)
     assert result.doi == osti_doi
     assert result.associated_publication_doi == ja_doi
@@ -123,20 +121,22 @@ def test_retrieve_publication_journal_article():
 def test_retrieve_publication_dataset():
     """Handle dataset product type."""
     doi = "10.15485/1729719"
-    
+
     responses.add(
         responses.GET,
         f"{OSTI_API_URL}/1729719",
-        json=[{
-            "product_type": "Dataset",
-            "doi": doi,
-            "description": "Dataset description.",
-        }],
+        json=[
+            {
+                "product_type": "Dataset",
+                "doi": doi,
+                "description": "Dataset description.",
+            }
+        ],
         status=200,
     )
-    
+
     result = retrieve_pdf_link_from_osti_doi(doi)
-    
+
     assert result.doi == doi
     assert result.associated_publication_doi is None
     assert result.urls is None
@@ -148,38 +148,36 @@ def test_retrieve_publication_pmc_fallback():
     osti_doi = "10.15485/1234567"
     ja_doi = "10.1038/s41564-020-00861-0"
     pmcid = "PMC1234567"
-    
+
     responses.add(
         responses.GET,
         f"{OSTI_API_URL}/1234567",
-        json=[{
-            "product_type": "Journal Article",
-            "doi": ja_doi,
-            "description": "Abstract.",
-        }],
+        json=[
+            {
+                "product_type": "Journal Article",
+                "doi": ja_doi,
+                "description": "Abstract.",
+            }
+        ],
         status=200,
     )
-    
+
     responses.add(
         responses.GET,
         f"{CROSSREF_API_URL}/{ja_doi}",
         json={"message": {"link": []}},
         status=200,
     )
-    
+
     responses.add(
         responses.GET,
         EUROPEPMC_API_URL,
-        json={
-            "resultList": {
-                "result": [{"pmcid": pmcid, "isOpenAccess": "Y"}]
-            }
-        },
+        json={"resultList": {"result": [{"pmcid": pmcid, "isOpenAccess": "Y"}]}},
         status=200,
     )
-    
+
     result = retrieve_pdf_link_from_osti_doi(osti_doi)
-    
+
     assert result.source == "PMC"
     assert f"https://www.ncbi.nlm.nih.gov/pmc/articles/{pmcid}/pdf/" in str(result.urls)
 
@@ -188,15 +186,15 @@ def test_retrieve_publication_pmc_fallback():
 def test_retrieve_publication_404():
     """Handle 404 error for publication retrieval."""
     doi = "10.15485/9999999"
-    
+
     responses.add(
         responses.GET,
         f"{OSTI_API_URL}/9999999",
         status=404,
     )
-    
+
     result = retrieve_pdf_link_from_osti_doi(doi)
-    
+
     assert isinstance(result, Publication)
     assert result.doi == doi
     assert result.error is not None
@@ -212,7 +210,7 @@ def test_retrieve_publication_404():
 def test_abstract_retrieval_real_dois():
     """Test abstract retrieval with all three real OSTI DOIs."""
     results = {}
-    
+
     for doi in OSTI_DOIS:
         result = retrieve_doi_info_from_osti(doi)
         results[doi] = result
@@ -220,7 +218,7 @@ def test_abstract_retrieval_real_dois():
         assert result.doi == doi
         # Either success with abstract or clean error
         assert result.abstract or result.error
-    
+
     # At least one should have an abstract
     successful = [r for r in results.values() if r.abstract]
     assert len(successful) >= 1
@@ -242,7 +240,7 @@ def test_invalid_osti_doi():
     """Test handling of invalid OSTI DOI."""
     doi = "10.15485/9999999999"
     result = retrieve_doi_info_from_osti(doi)
-    
+
     assert result.abstract is None
     assert result.error is not None
 
