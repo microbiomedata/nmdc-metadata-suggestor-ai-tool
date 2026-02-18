@@ -307,7 +307,7 @@ class TestGetAbstractWaterfall:
         result = get_abstract(doi)
         assert result.abstract is None
         assert result.error == "No abstract found in any source"
-        assert len(result.attempts) == 4
+        assert len(result.attempts) == len(ALL_SOURCES)
 
     @responses.activate
     def test_network_errors_waterfall_continues(self) -> None:
@@ -336,7 +336,7 @@ class TestGetAbstractWaterfall:
         )
         result = get_abstract(doi)
         assert result.abstract is None
-        assert len(result.attempts) == 4
+        assert len(result.attempts) == len(ALL_SOURCES)
 
     @responses.activate
     def test_attempts_tracking(self) -> None:
@@ -528,7 +528,7 @@ class TestSourceSelection:
 
     def test_all_sources_constant(self) -> None:
         """ALL_SOURCES has the expected default order."""
-        assert ALL_SOURCES == ("openalex", "crossref", "pubmed", "content_negotiation")
+        assert ALL_SOURCES == ("openalex", "crossref", "pubmed", "content_negotiation", "osti")
 
     @responses.activate
     def test_default_sources_same_as_before(self) -> None:
@@ -540,7 +540,7 @@ class TestSourceSelection:
         responses.add(responses.GET, PUBMED_ID_CONVERTER, json={"records": []})
         responses.add(responses.GET, f"https://doi.org/{doi}", json={})
         result = get_abstract(doi)
-        assert result.attempts == ["openalex", "crossref", "pubmed", "content_negotiation"]
+        assert result.attempts == ["openalex", "crossref", "pubmed", "content_negotiation", "osti"]
 
 
 # ---------------------------------------------------------------------------
