@@ -27,9 +27,9 @@ def query_osti_by_doi(osti_doi: str) -> dict:
     First queries the new E2 API, and if that fails, falls back to the original API.
     """
     params = {
-            "doi": osti_doi,
-        }
-    headers={"User-Agent": "NMDC Metadata Suggestor (mailto:support@microbiomedata.org)"}
+        "doi": osti_doi,
+    }
+    headers = {"User-Agent": "NMDC Metadata Suggestor (mailto:support@microbiomedata.org)"}
     try:
         osti_url = f"{OSTI_E2_API_URL}"
         response = requests.get(
@@ -40,11 +40,11 @@ def query_osti_by_doi(osti_doi: str) -> dict:
         )
         response.raise_for_status()
         return response.json()  # type: ignore
-    
+
     except requests.RequestException:
         # Fallback to the original API if the E2 API fails
         osti_url = f"{OSTI_API_URL}"
-        
+
         response = requests.get(
             osti_url,
             timeout=DEFAULT_TIMEOUT,
@@ -212,10 +212,3 @@ def retrieve_pdf_link_from_pmc(doi: str) -> dict[str, Any]:
 
     except Exception as e:
         return {"pdf_url": None, "pmcid": None, "error": str(e)}
-
-if __name__ == "__main__":
-    # Example usage
-    # test_doi = "10.25983/CBI/3016059"
-    test_doi = "10.15485/1234567"
-    result = retrieve_doi_info_from_osti(test_doi)
-    print(result)

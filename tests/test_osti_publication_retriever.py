@@ -9,6 +9,7 @@ from nmdc_metadata_suggestor.publication_ingestion.osti_publication_retriever im
     CROSSREF_API_URL,
     EUROPEPMC_API_URL,
     OSTI_API_URL,
+    OSTI_E2_API_URL,
     retrieve_doi_info_from_osti,
     retrieve_pdf_link_from_osti_doi,
 )
@@ -32,7 +33,7 @@ def test_retrieve_abstract_success():
 
     responses.add(
         responses.GET,
-        f"{OSTI_API_URL}/1729719",
+        OSTI_E2_API_URL,
         json=[{"doi": doi, "description": abstract_text}],
         status=200,
     )
@@ -52,7 +53,7 @@ def test_retrieve_abstract_no_description():
 
     responses.add(
         responses.GET,
-        f"{OSTI_API_URL}/1234567",
+        OSTI_E2_API_URL,
         json=[{"doi": doi}],
         status=200,
     )
@@ -70,7 +71,12 @@ def test_retrieve_abstract_404():
 
     responses.add(
         responses.GET,
-        f"{OSTI_API_URL}/9999999",
+        OSTI_E2_API_URL,
+        status=404,
+    )
+    responses.add(
+        responses.GET,
+        OSTI_API_URL,
         status=404,
     )
 
@@ -90,7 +96,7 @@ def test_retrieve_publication_journal_article():
 
     responses.add(
         responses.GET,
-        f"{OSTI_API_URL}/1234567",
+        OSTI_E2_API_URL,
         json=[
             {
                 "product_type": "Journal Article",
@@ -124,7 +130,7 @@ def test_retrieve_publication_dataset():
 
     responses.add(
         responses.GET,
-        f"{OSTI_API_URL}/1729719",
+        OSTI_E2_API_URL,
         json=[
             {
                 "product_type": "Dataset",
@@ -151,7 +157,7 @@ def test_retrieve_publication_pmc_fallback():
 
     responses.add(
         responses.GET,
-        f"{OSTI_API_URL}/1234567",
+        OSTI_E2_API_URL,
         json=[
             {
                 "product_type": "Journal Article",
@@ -189,7 +195,12 @@ def test_retrieve_publication_404():
 
     responses.add(
         responses.GET,
-        f"{OSTI_API_URL}/9999999",
+        OSTI_E2_API_URL,
+        status=404,
+    )
+    responses.add(
+        responses.GET,
+        OSTI_API_URL,
         status=404,
     )
 
@@ -222,6 +233,18 @@ def test_abstract_retrieval_real_dois():
     # At least one should have an abstract
     successful = [r for r in results.values() if r.abstract]
     assert len(successful) >= 1
+
+
+@integration
+def test_waterfall():
+    """Test full waterfall retrieval with all three real OSTI DOIs."""
+    # doi that is in the v1 but not in E2
+    doi = "10.15485/1234567"
+    result = retrieve_doi_info_from_osti(doi)
+    assert isinstance(result, AbstractResult)
+    assert result.doi == doi
+    # Should have abstract or error (but not raise exception)
+    assert result.abstract
 
 
 @integration
