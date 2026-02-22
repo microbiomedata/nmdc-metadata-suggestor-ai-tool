@@ -10,6 +10,7 @@ dependencies = [
     "google-auth>=2.0.0",
     "requests>=2.31.0",
     "google-genai>=1.62.0",
+    "openai>=2.21.0",
 ]
 
 [project.optional-dependencies]

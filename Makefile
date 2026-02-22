@@ -21,13 +21,13 @@ test: ## Run unit tests (mocked, no network)
 test-integration: ## Run integration tests against real APIs
 	uv run pytest -m integration
 
-lint: ## Run linters
-	uv run ruff check src tests
-	uv run mypy src
+lint: ## Run linters but ignore the system prompt in system_prompt.py
+	uv run ruff check src tests --exclude src/nmdc_metadata_suggestor/system_prompt.py
+	uv run mypy src 
 
-format: ## Format code
+format: ## Format code but ignore the system prompt in system_prompt.py
 	uv run black src tests
-	uv run ruff check --fix src tests
+	uv run ruff check --fix src tests --exclude src/nmdc_metadata_suggestor/system_prompt.py
 
 clean: ## Clean up generated files
 	rm -rf .pytest_cache

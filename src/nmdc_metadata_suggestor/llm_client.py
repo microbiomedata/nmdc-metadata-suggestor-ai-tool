@@ -62,14 +62,13 @@ class LLMClient:
         self.credentials_file = credentials_file or CREDENTIALS_FILE
         if provider == "pnnl":
             # load ai incubator key from env
-            AI_INCUBATOR_KEY = os.environ.get("AI_INCUBATOR_KEY")
-            BASE_URL = os.environ.get("AI_INCUBATOR_BASE_URL")
-            if not AI_INCUBATOR_KEY or not BASE_URL:
+            self.AI_INCUBATOR_KEY = os.environ.get("AI_INCUBATOR_KEY")
+            self.BASE_URL = os.environ.get("AI_INCUBATOR_BASE_URL")
+            if not self.AI_INCUBATOR_KEY or not self.BASE_URL:
                 raise RuntimeError(
-                    "AI_INCUBATOR_KEY or AI_INCUBATOR_BASE_URL is not set in environment variables. "
-                    "Set them in your .env to the values of your AI Incubator API key and base URL."
+                    "AI_INCUBATOR_KEY or AI_INCUBATOR_BASE_URL is not set "
+                    "in environment variables."
                 )
-            
 
         if provider == "gemini":
             self._gemini_client = genai.Client(
@@ -110,19 +109,58 @@ class LLMClient:
                 max_tokens=max_tokens,
                 temperature=temperature,
             )
-        
+
     def _generate_pnnl(
         self,
-        prompt: str,
+        content: list[dict[str, str]] | str,
         *,
-        model: str | None = None,
-        system: str | None = None,
+        model: str | None = "gpt-5-project",
+        pdf_files: list[str] | None = None,
+        abstract: str | None = None,
+        extra_info: list[str] | None = None,
         max_tokens: int = 4096,
         temperature: float = 0.4,
     ) -> str:
-        """Placeholder for PNNL LLM generation logic."""
-        raise NotImplementedError("PNNL provider is not implemented yet.")
-    
+        import base64
+
+        from openai import OpenAI
+
+        from .system_prompt import system_prompt
+
+        client = OpenAI(base_url=self.BASE_URL, api_key=self.AI_INCUBATOR_KEY)
+        # load the pdf bytes and encode to base64
+        pdf_file_data = []
+        if pdf_files:
+            for pdf_file in pdf_files:
+                with open(pdf_file, "rb") as f:
+                    pdf_bytes = f.read()
+                    encoded = base64.standard_b64encode(pdf_bytes).decode("utf-8")
+                    pdf_file_data.append(encoded)
+
+        content = [
+            {"role": "system", "content": system_prompt},
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_file",
+                        "filename": f"file_{i}.pdf",
+                        "file_data": pdf_file_data[i],
+                    }
+                    for i in range(len(pdf_files or []))
+                ]
+                + [{"type": "input_text", "text": abstract or ""}]
+                + [{"type": "input_text", "text": info} for info in extra_info or []]
+                + (
+                    content
+                    if isinstance(content, list)
+                    else [{"type": "input_text", "text": content}]
+                ),
+            },
+        ]
+        response = client.responses.create(model=model, input=content)
+        return response.output_text
+
     def _generate_gemini(
         self,
         prompt: str,
