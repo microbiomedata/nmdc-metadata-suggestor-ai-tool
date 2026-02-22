@@ -53,13 +53,23 @@ class LLMClient:
         region: str | None = None,
         credentials_file: str | None = None,
     ) -> None:
-        if provider not in ("gemini", "claude"):
-            raise ValueError(f"Unknown provider '{provider}'. Use 'gemini' or 'claude'.")
+        if provider not in ("gemini", "claude", "pnnl"):
+            raise ValueError(f"Unknown provider '{provider}'. Use 'gemini', 'claude', or 'pnnl'.")
 
         self.provider = provider
         self.project = project or PROJECT_ID
         self.region = region or (GEMINI_REGION if provider == "gemini" else REGION)
         self.credentials_file = credentials_file or CREDENTIALS_FILE
+        if provider == "pnnl":
+            # load ai incubator key from env
+            AI_INCUBATOR_KEY = os.environ.get("AI_INCUBATOR_KEY")
+            BASE_URL = os.environ.get("AI_INCUBATOR_BASE_URL")
+            if not AI_INCUBATOR_KEY or not BASE_URL:
+                raise RuntimeError(
+                    "AI_INCUBATOR_KEY or AI_INCUBATOR_BASE_URL is not set in environment variables. "
+                    "Set them in your .env to the values of your AI Incubator API key and base URL."
+                )
+            
 
         if provider == "gemini":
             self._gemini_client = genai.Client(
@@ -84,14 +94,35 @@ class LLMClient:
                 max_tokens=max_tokens,
                 temperature=temperature,
             )
-        return self._generate_claude(
-            prompt,
-            model=model,
-            system=system,
-            max_tokens=max_tokens,
-            temperature=temperature,
-        )
-
+        elif self.provider == "claude":
+            return self._generate_claude(
+                prompt,
+                model=model,
+                system=system,
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
+        elif self.provider == "pnnl":
+            return self._generate_pnnl(
+                prompt,
+                model=model,
+                system=system,
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
+        
+    def _generate_pnnl(
+        self,
+        prompt: str,
+        *,
+        model: str | None = None,
+        system: str | None = None,
+        max_tokens: int = 4096,
+        temperature: float = 0.4,
+    ) -> str:
+        """Placeholder for PNNL LLM generation logic."""
+        raise NotImplementedError("PNNL provider is not implemented yet.")
+    
     def _generate_gemini(
         self,
         prompt: str,
