@@ -27,7 +27,8 @@ DATACITE_API = "https://api.datacite.org/dois"
 
 DEFAULT_TIMEOUT = 15
 DEFAULT_RETRY_ATTEMPTS = int(os.environ.get("NMDC_HTTP_RETRY_ATTEMPTS", "3"))
-DEFAULT_RETRY_BACKOFF_SECONDS = float(os.environ.get("NMDC_HTTP_RETRY_BACKOFF_SECONDS", "0.25"))
+# Default backoff is 0 to avoid introducing real sleep delays by default (e.g., in tests).
+DEFAULT_RETRY_BACKOFF_SECONDS = float(os.environ.get("NMDC_HTTP_RETRY_BACKOFF_SECONDS", "0"))
 RETRY_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
 SESSION_POOL_CONNECTIONS = int(os.environ.get("NMDC_HTTP_POOL_CONNECTIONS", "20"))
 SESSION_POOL_MAXSIZE = int(os.environ.get("NMDC_HTTP_POOL_MAXSIZE", "100"))
