@@ -6,11 +6,13 @@ Unit tests mock HTTP with ``responses``; integration tests hit real APIs.
 
 import json
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 import responses
 from requests.exceptions import ConnectionError as RequestsConnectionError
 
+import nmdc_metadata_suggestor.publication_ingestion.doi_utils as doi_utils
 from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
     CROSSREF_API,
     DATACITE_API,
@@ -20,6 +22,7 @@ from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
     detect_registration_agency,
     infer_nmdc_category,
     normalize_doi,
+    request_with_retry,
     validate_doi,
 )
 
@@ -153,6 +156,58 @@ def test_infer_nmdc_category(
     agency: str | None, rtype: str | None, rtype_general: str | None, expected: str | None
 ) -> None:
     assert infer_nmdc_category(agency, rtype, rtype_general) == expected
+
+
+# ---------------------------------------------------------------------------
+# request_with_retry — unit tests for retry/connection hygiene
+# ---------------------------------------------------------------------------
+
+
+def test_request_with_retry_closes_retry_response(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Retryable responses are closed before the next retry attempt."""
+    first = Mock()
+    first.status_code = 503
+    first.headers = {}
+    first.close = Mock()
+
+    second = Mock()
+    second.status_code = 200
+    second.headers = {}
+    second.close = Mock()
+
+    request_mock = Mock(side_effect=[first, second])
+    monkeypatch.setattr(doi_utils._HTTP_SESSION, "request", request_mock)
+    monkeypatch.setattr(doi_utils.time, "sleep", Mock())
+
+    result = request_with_retry("GET", "https://example.org", max_attempts=2, backoff_seconds=0)
+
+    assert result is second
+    assert request_mock.call_count == 2
+    first.close.assert_called_once_with()
+    second.close.assert_not_called()
+
+
+def test_request_with_retry_closes_exception_response(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Exception-attached responses are closed before retrying."""
+    transient_response = Mock()
+    transient_response.close = Mock()
+
+    transient_exc = RequestsConnectionError("temporary failure")
+    transient_exc.response = transient_response
+
+    success = Mock()
+    success.status_code = 200
+    success.headers = {}
+    success.close = Mock()
+
+    request_mock = Mock(side_effect=[transient_exc, success])
+    monkeypatch.setattr(doi_utils._HTTP_SESSION, "request", request_mock)
+    monkeypatch.setattr(doi_utils.time, "sleep", Mock())
+
+    result = request_with_retry("GET", "https://example.org", max_attempts=2, backoff_seconds=0)
+
+    assert result is success
+    transient_response.close.assert_called_once_with()
 
 
 # ---------------------------------------------------------------------------

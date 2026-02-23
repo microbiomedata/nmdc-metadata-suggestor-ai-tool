@@ -86,12 +86,15 @@ def request_with_retry(
             delay = _retry_delay_seconds(
                 response.headers.get("Retry-After"), attempt, backoff_seconds
             )
+            _close_response_quietly(response)
+            response = None
             if delay > 0:
                 time.sleep(delay)
         except requests.RequestException as exc:
             last_exception = exc
             if attempt == max_attempts:
                 raise
+            _close_response_quietly(getattr(exc, "response", None))
             delay = backoff_seconds * (2 ** (attempt - 1))
             if delay > 0:
                 time.sleep(delay)
@@ -116,6 +119,16 @@ def _retry_delay_seconds(retry_after: str | None, attempt: int, backoff_seconds:
             pass
 
     return backoff_seconds * (2 ** (attempt - 1))
+
+
+def _close_response_quietly(response: requests.Response | None) -> None:
+    """Close an HTTP response while suppressing close-time errors."""
+    if response is None:
+        return
+    try:
+        response.close()
+    except requests.RequestException:
+        return
 
 
 # ---------------------------------------------------------------------------
