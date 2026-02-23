@@ -31,6 +31,7 @@ JGI_SEARCH_API = "https://files.jgi.doe.gov/search/"
 KBASE_SEARCH_API = "https://kbase.us/services/searchapi2/rpc"
 CYVERSE_METADATA_API = "https://de.cyverse.org/terrain/filesystem/metadata"
 CYVERSE_METADATA_SEARCH_API = f"{CYVERSE_METADATA_API}/search"
+PROXI_DATASETS_API = "https://proteomecentral.proteomexchange.org/api/proxi/v0.1/datasets"
 ZENODO_API = "https://zenodo.org/api/records"
 
 TARGET_PROVIDER_PREFIXES: dict[str, str] = {
@@ -66,6 +67,7 @@ ALL_SOURCES = (
     "figshare",
     "jgi",
     "kbase",
+    "massive",
     "cyverse",
     "zenodo",
     "datacite",
@@ -218,6 +220,17 @@ def _fetch_kbase(doi: str, provider: str | None, attempts: list[str]) -> DoiCont
     return _build_result(doi, provider, "kbase", attempts, text, raw, kind)
 
 
+def _fetch_massive(
+    doi: str, provider: str | None, attempts: list[str]
+) -> DoiContextResult | None:
+    """Fetch and wrap context from MassIVE via ProteomeCentral PROXI."""
+    context = _try_massive(doi)
+    if context is None:
+        return None
+    text, raw, kind = context
+    return _build_result(doi, provider, "massive", attempts, text, raw, kind)
+
+
 def _fetch_cyverse(
     doi: str, provider: str | None, attempts: list[str]
 ) -> DoiContextResult | None:
@@ -283,6 +296,7 @@ _SOURCE_FETCHERS = {
     "figshare": _fetch_figshare,
     "jgi": _fetch_jgi,
     "kbase": _fetch_kbase,
+    "massive": _fetch_massive,
     "cyverse": _fetch_cyverse,
     "zenodo": _fetch_zenodo,
     "datacite": _fetch_datacite,
@@ -290,7 +304,17 @@ _SOURCE_FETCHERS = {
     "content_negotiation": _fetch_content_negotiation,
 }
 
-_PROVIDER_API_SOURCES = {"edi", "emsl", "ess-dive", "figshare", "jgi", "kbase", "cyverse", "zenodo"}
+_PROVIDER_API_SOURCES = {
+    "edi",
+    "emsl",
+    "ess-dive",
+    "figshare",
+    "jgi",
+    "kbase",
+    "massive",
+    "cyverse",
+    "zenodo",
+}
 
 
 def _try_edi(doi: str) -> tuple[str, str] | None:
@@ -437,6 +461,26 @@ def _try_kbase(doi: str) -> tuple[str, str, str] | None:
     if context is None:
         return None
     return context
+
+
+def _try_massive(doi: str) -> tuple[str, str, str] | None:
+    """Return cleaned/raw context from MassIVE via ProteomeCentral dataset lookup."""
+    for accession in _collect_massive_accession_candidates(doi):
+        payload = _fetch_proxi_dataset(accession)
+        if payload is None:
+            continue
+        context = _extract_massive_context(payload)
+        if context is not None:
+            return context
+
+    for accession in _search_proxi_accessions_by_doi(doi):
+        payload = _fetch_proxi_dataset(accession)
+        if payload is None:
+            continue
+        context = _extract_massive_context(payload)
+        if context is not None:
+            return context
+    return None
 
 
 def _try_cyverse(doi: str) -> tuple[str, str, str] | None:
@@ -638,6 +682,171 @@ def _extract_kbase_context(
         cleaned = _clean_text(best_title)
         if cleaned:
             return cleaned, best_title, "description"
+    return None
+
+
+def _collect_massive_accession_candidates(doi: str) -> list[str]:
+    """Collect likely ProteomeXchange/MassIVE dataset accessions for a DOI."""
+    candidates: list[str] = []
+    seen: set[str] = set()
+
+    direct = _extract_massive_accessions(doi)
+    for accession in direct:
+        if accession not in seen:
+            seen.add(accession)
+            candidates.append(accession)
+
+    location = _resolve_doi_redirect_location(doi)
+    if location is not None:
+        for accession in _extract_massive_accessions(location):
+            if accession not in seen:
+                seen.add(accession)
+                candidates.append(accession)
+
+    return candidates
+
+
+def _resolve_doi_redirect_location(doi: str) -> str | None:
+    """Resolve DOI redirect location without following downstream redirects."""
+    try:
+        response = requests.get(
+            f"{DOI_CONTENT_NEGOTIATION_API}/{doi}",
+            headers={"User-Agent": USER_AGENT},
+            timeout=DEFAULT_TIMEOUT,
+            allow_redirects=False,
+        )
+    except requests.RequestException:
+        return None
+
+    if response.status_code not in {301, 302, 303, 307, 308}:
+        return None
+
+    location = response.headers.get("Location")
+    if not isinstance(location, str) or not location.strip():
+        return None
+    return location
+
+
+def _extract_massive_accessions(text: str) -> list[str]:
+    """Extract unique ProteomeXchange/MassIVE accession tokens from text."""
+    matches = re.findall(r"(PXD\d{6,}|MSV\d{6,})", text.upper())
+    seen: set[str] = set()
+    accessions: list[str] = []
+    for match in matches:
+        if match in seen:
+            continue
+        seen.add(match)
+        accessions.append(match)
+    return accessions
+
+
+def _search_proxi_accessions_by_doi(doi: str) -> list[str]:
+    """Search PROXI dataset rows for publication cells mentioning the DOI."""
+    query_values = [doi, f"https://doi.org/{doi}", f"doi:{doi}"]
+    seen: set[str] = set()
+    accessions: list[str] = []
+
+    for publication_query in query_values:
+        rows = _fetch_proxi_dataset_rows(publication_query)
+        for row in rows:
+            accession = _extract_proxi_row_accession_for_doi(row, doi)
+            if accession is None or accession in seen:
+                continue
+            seen.add(accession)
+            accessions.append(accession)
+
+    return accessions
+
+
+def _fetch_proxi_dataset_rows(publication_query: str) -> list[list[object]]:
+    """Return PROXI dataset table rows for a publication-filtered query."""
+    try:
+        response = requests.get(
+            PROXI_DATASETS_API,
+            params={
+                "publication": publication_query,
+                "repository": "MassIVE",
+                "resultType": "full",
+                "pageSize": 100,
+                "pageNumber": 1,
+            },
+            headers={"User-Agent": USER_AGENT},
+            timeout=DEFAULT_TIMEOUT,
+        )
+        if response.status_code != 200:
+            return []
+        payload = response.json()
+    except (requests.RequestException, ValueError):
+        return []
+
+    datasets = payload.get("datasets")
+    if not isinstance(datasets, list):
+        return []
+
+    rows: list[list[object]] = []
+    for row in datasets:
+        if isinstance(row, list):
+            rows.append(row)
+    return rows
+
+
+def _extract_proxi_row_accession_for_doi(row: list[object], doi: str) -> str | None:
+    """Return a dataset accession if the PROXI result row references the DOI."""
+    if not row:
+        return None
+
+    accession = row[0] if len(row) > 0 else None
+    publication_cell = row[7] if len(row) > 7 else None
+    if not isinstance(accession, str):
+        return None
+    if not isinstance(publication_cell, str):
+        return None
+    if not _text_mentions_doi(publication_cell, doi):
+        return None
+
+    cleaned_accession = accession.strip().upper()
+    if not cleaned_accession:
+        return None
+    return cleaned_accession
+
+
+def _fetch_proxi_dataset(accession: str) -> dict[str, object] | None:
+    """Fetch a PROXI dataset detail document by accession/identifier."""
+    try:
+        response = requests.get(
+            f"{PROXI_DATASETS_API}/{accession}",
+            headers={"User-Agent": USER_AGENT},
+            timeout=DEFAULT_TIMEOUT,
+        )
+        if response.status_code != 200:
+            return None
+        payload = response.json()
+    except (requests.RequestException, ValueError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+
+    status = payload.get("status")
+    if isinstance(status, str) and status.lower() == "error":
+        return None
+    return payload
+
+
+def _extract_massive_context(payload: dict[str, object]) -> tuple[str, str, str] | None:
+    """Extract MassIVE context from PROXI dataset details."""
+    for key in ("description", "datasetSummary"):
+        value = payload.get(key)
+        if not isinstance(value, str) or not value.strip():
+            continue
+        cleaned = _clean_text(value)
+        if cleaned:
+            return cleaned, value, "description"
+
+    title = payload.get("title")
+    if isinstance(title, str) and title.strip():
+        cleaned = _clean_text(title)
+        if cleaned:
+            return cleaned, title, "description"
     return None
 
 

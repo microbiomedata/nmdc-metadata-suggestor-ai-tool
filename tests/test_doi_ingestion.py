@@ -13,6 +13,7 @@ from nmdc_metadata_suggestor.doi_ingestion.main import (
     ESS_DIVE_API,
     JGI_SEARCH_API,
     KBASE_SEARCH_API,
+    PROXI_DATASETS_API,
     ZENODO_API,
     get_doi_description_or_abstract,
 )
@@ -287,6 +288,81 @@ def test_kbase_miss_falls_back_to_datacite() -> None:
     assert result.source == "datacite"
     assert result.provider == "kbase"
     assert result.attempts == ["kbase", "datacite"]
+
+
+@responses.activate
+def test_massive_provider_api_description_wins() -> None:
+    """Resolve MassIVE DOI via DOI redirect plus ProteomeCentral dataset details."""
+    doi = "10.25345/C5FX7482Q"
+    accession = "MSV000093271"
+    responses.add(
+        responses.GET,
+        f"{DOI_CONTENT_NEGOTIATION_API}/{doi}",
+        status=302,
+        headers={"Location": f"https://massive.ucsd.edu/ProteoSAFe/dataset.jsp?accession={accession}"},
+    )
+    responses.add(
+        responses.GET,
+        f"{PROXI_DATASETS_API}/{accession}",
+        json={
+            "title": "MassIVE dataset title",
+            "description": "MassIVE dataset description text.",
+        },
+    )
+
+    result = get_doi_description_or_abstract(doi)
+    assert result.context == "MassIVE dataset description text."
+    assert result.context_type == "description"
+    assert result.source == "massive"
+    assert result.provider == "massive"
+    assert result.attempts == ["massive"]
+
+
+@responses.activate
+def test_massive_proxi_miss_falls_back_to_datacite() -> None:
+    """If MassIVE resolver cannot retrieve dataset detail, continue waterfall."""
+    doi = "10.25345/C5FX7482Q"
+    accession = "MSV000093271"
+    responses.add(
+        responses.GET,
+        f"{DOI_CONTENT_NEGOTIATION_API}/{doi}",
+        status=302,
+        headers={"Location": f"https://massive.ucsd.edu/ProteoSAFe/dataset.jsp?accession={accession}"},
+    )
+    responses.add(
+        responses.GET,
+        f"{PROXI_DATASETS_API}/{accession}",
+        json={"status": "ERROR", "description": "Identifier not reserved"},
+    )
+    responses.add(
+        responses.GET,
+        f"{PROXI_DATASETS_API}",
+        json={"datasets": [], "status": {"status": "OK"}},
+    )
+    responses.add(
+        responses.GET,
+        f"{DATACITE_API}/{doi}",
+        json={
+            "data": {
+                "attributes": {
+                    "publisher": "MassIVE",
+                    "descriptions": [
+                        {
+                            "descriptionType": "Abstract",
+                            "description": "DataCite fallback for MassIVE DOI",
+                        }
+                    ],
+                }
+            }
+        },
+    )
+
+    result = get_doi_description_or_abstract(doi)
+    assert result.context == "DataCite fallback for MassIVE DOI"
+    assert result.context_type == "abstract"
+    assert result.source == "datacite"
+    assert result.provider == "massive"
+    assert result.attempts == ["massive", "datacite"]
 
 
 @responses.activate
