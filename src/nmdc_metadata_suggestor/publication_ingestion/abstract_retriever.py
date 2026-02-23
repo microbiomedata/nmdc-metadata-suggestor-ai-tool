@@ -27,10 +27,18 @@ import xml.etree.ElementTree as ET
 
 import requests
 
+from nmdc_metadata_suggestor.constants import (
+    CITEPROC_JSON_ACCEPT,
+    CROSSREF_API_URL,
+    DEFAULT_TIMEOUT,
+    DOI_RESOLVER_URL,
+    OPENALEX_API_URL,
+    PUBMED_EFETCH,
+    PUBMED_ID_CONVERTER,
+    USER_AGENT,
+)
 from nmdc_metadata_suggestor.models.doi import AbstractResult, DoiClassification
 from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
-    DEFAULT_TIMEOUT,
-    USER_AGENT,
     classify_doi,
     normalize_doi,
 )
@@ -61,11 +69,7 @@ CROSSREF_NON_PUBLICATION_TYPES = {
     "component",
 }
 
-# API endpoints
-OPENALEX_API = "https://api.openalex.org/works"
-CROSSREF_API = "https://api.crossref.org/works"
-PUBMED_ID_CONVERTER = "https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/"
-PUBMED_EFETCH = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
+# Back-compat aliases used within this module
 
 
 # ---------------------------------------------------------------------------
@@ -292,7 +296,7 @@ def _try_openalex(doi: str) -> tuple[str | None, str | None, str | None]:
     """
     try:
         response = requests.get(
-            f"{OPENALEX_API}/https://doi.org/{doi}",
+            f"{OPENALEX_API_URL}/https://doi.org/{doi}",
             headers={"User-Agent": USER_AGENT},
             timeout=DEFAULT_TIMEOUT,
         )
@@ -318,7 +322,7 @@ def _try_crossref(doi: str) -> tuple[str | None, str | None, str | None]:
     """
     try:
         response = requests.get(
-            f"{CROSSREF_API}/{doi}",
+            f"{CROSSREF_API_URL}/{doi}",
             headers={"User-Agent": USER_AGENT},
             timeout=DEFAULT_TIMEOUT,
         )
@@ -389,9 +393,9 @@ def _try_content_negotiation(doi: str) -> tuple[str | None, str | None, str | No
     """
     try:
         response = requests.get(
-            f"https://doi.org/{doi}",
+            f"{DOI_RESOLVER_URL}/{doi}",
             headers={
-                "Accept": "application/vnd.citationstyles.csl+json",
+                "Accept": CITEPROC_JSON_ACCEPT,
                 "User-Agent": USER_AGENT,
             },
             timeout=DEFAULT_TIMEOUT,
