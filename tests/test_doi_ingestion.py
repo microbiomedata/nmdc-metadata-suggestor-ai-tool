@@ -1138,6 +1138,60 @@ def test_provider_miss_falls_back_to_datacite() -> None:
 
 
 @responses.activate
+def test_source_errors_include_upstream_http_codes() -> None:
+    """Capture per-source HTTP status details for pipeline retry/alert handling."""
+    doi = "10.5281/zenodo.7406532"
+    responses.add(responses.GET, ZENODO_API, status=503, json={"detail": "Service unavailable"})
+    responses.add(responses.GET, f"{DATACITE_API}/{doi}", status=502, json={})
+    responses.add(responses.GET, f"{CROSSREF_API}/{doi}", status=429, json={})
+    responses.add(
+        responses.GET,
+        f"{DOI_CONTENT_NEGOTIATION_API}/{doi}",
+        status=503,
+        json={},
+    )
+
+    result = get_doi_description_or_abstract(doi)
+    assert result.context is None
+    assert result.error == "No description or abstract found in any source"
+    assert result.attempts == ["zenodo", "datacite", "crossref", "content_negotiation"]
+    assert "HTTP 503" in result.source_errors["zenodo"]
+    assert "HTTP 502" in result.source_errors["datacite"]
+    assert "HTTP 429" in result.source_errors["crossref"]
+    assert "HTTP 503" in result.source_errors["content_negotiation"]
+
+
+@responses.activate
+def test_source_errors_preserved_on_successful_fallback() -> None:
+    """Keep upstream source failure detail even when a later source succeeds."""
+    doi = "10.5281/zenodo.7406532"
+    responses.add(responses.GET, ZENODO_API, status=503, json={"detail": "Service unavailable"})
+    responses.add(
+        responses.GET,
+        f"{DATACITE_API}/{doi}",
+        json={
+            "data": {
+                "attributes": {
+                    "publisher": "Zenodo",
+                    "descriptions": [
+                        {
+                            "descriptionType": "Other",
+                            "description": "Datacite description fallback",
+                        }
+                    ],
+                }
+            }
+        },
+    )
+
+    result = get_doi_description_or_abstract(doi)
+    assert result.context == "Datacite description fallback"
+    assert result.source == "datacite"
+    assert result.attempts == ["zenodo", "datacite"]
+    assert "HTTP 503" in result.source_errors["zenodo"]
+
+
+@responses.activate
 def test_ess_dive_api_abstract_wins() -> None:
     """Return ESS-DIVE abstract immediately when provider API resolves it."""
     doi = "10.15485/1729719"

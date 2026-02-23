@@ -2,7 +2,7 @@
 
 import requests
 
-from nmdc_metadata_suggestor.doi_ingestion.common import clean_text
+from nmdc_metadata_suggestor.doi_ingestion.common import append_error, clean_text
 from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
     DEFAULT_TIMEOUT,
     USER_AGENT,
@@ -12,7 +12,7 @@ from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
 ZENODO_API = "https://zenodo.org/api/records"
 
 
-def try_zenodo(doi: str) -> str | None:
+def try_zenodo(doi: str, errors: list[str] | None = None) -> str | None:
     """Return Zenodo description text for a DOI if present."""
     query = f'doi:"{doi}" OR conceptdoi:"{doi}"'
     try:
@@ -23,13 +23,19 @@ def try_zenodo(doi: str) -> str | None:
             timeout=DEFAULT_TIMEOUT,
         )
         if response.status_code != 200:
+            append_error(errors, f"Zenodo API returned HTTP {response.status_code}")
             return None
         payload = response.json()
-    except (requests.RequestException, ValueError):
+    except requests.RequestException as exc:
+        append_error(errors, f"Zenodo API request failed: {exc.__class__.__name__}")
+        return None
+    except ValueError:
+        append_error(errors, "Zenodo API returned invalid JSON")
         return None
 
     hits = payload.get("hits", {}).get("hits", [])
     if not isinstance(hits, list):
+        append_error(errors, "Zenodo response missing hits list")
         return None
 
     matching_hits = [hit for hit in hits if _zenodo_hit_matches_doi(hit, doi)]
@@ -47,6 +53,7 @@ def try_zenodo(doi: str) -> str | None:
             cleaned = clean_text(description)
             if cleaned:
                 return cleaned
+    append_error(errors, "Zenodo response contained no usable description")
     return None
 
 

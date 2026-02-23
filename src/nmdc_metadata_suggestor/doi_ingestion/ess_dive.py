@@ -5,7 +5,7 @@ import xml.etree.ElementTree as ET
 
 import requests
 
-from nmdc_metadata_suggestor.doi_ingestion.common import clean_text, find_first_text
+from nmdc_metadata_suggestor.doi_ingestion.common import append_error, clean_text, find_first_text
 from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
     DEFAULT_TIMEOUT,
     USER_AGENT,
@@ -16,7 +16,7 @@ ESS_DIVE_API = "https://api.ess-dive.lbl.gov/packages"
 DATAONE_CN_SOLR_API = "https://cn.dataone.org/cn/v2/query/solr/"
 
 
-def try_ess_dive(doi: str) -> tuple[str, str] | None:
+def try_ess_dive(doi: str, errors: list[str] | None = None) -> tuple[str, str] | None:
     """Return ``(text, kind)`` from ESS-DIVE if available."""
     try:
         response = requests.get(
@@ -33,17 +33,24 @@ def try_ess_dive(doi: str) -> tuple[str, str] | None:
                 cleaned = clean_text(text)
                 if cleaned:
                     return cleaned, "abstract" if key == "abstract" else "description"
+        else:
+            append_error(errors, f"ESS-DIVE API returned HTTP {response.status_code}")
     except (requests.RequestException, ValueError):
-        pass
+        append_error(errors, "ESS-DIVE API request failed")
 
     # ESS-DIVE's Dataset API may require auth for anonymous callers.
-    return _try_ess_dive_dataone(doi)
+    context = _try_ess_dive_dataone(doi, errors=errors)
+    if context is None:
+        append_error(errors, "ESS-DIVE DataONE fallback returned no usable context")
+    return context
 
 
-def _try_ess_dive_dataone(doi: str) -> tuple[str, str] | None:
+def _try_ess_dive_dataone(
+    doi: str, errors: list[str] | None = None
+) -> tuple[str, str] | None:
     """Return ESS-DIVE context from DataONE's public Solr index by DOI."""
     for query in _build_ess_dive_dataone_queries(doi):
-        docs = _fetch_dataone_solr_docs(query)
+        docs = _fetch_dataone_solr_docs(query, errors=errors)
         if not docs:
             continue
         context = _extract_ess_dive_dataone_context(docs, doi)
@@ -70,7 +77,9 @@ def _build_ess_dive_dataone_queries(doi: str) -> list[str]:
     return queries
 
 
-def _fetch_dataone_solr_docs(query: str) -> list[dict[str, object]]:
+def _fetch_dataone_solr_docs(
+    query: str, errors: list[str] | None = None
+) -> list[dict[str, object]]:
     """Fetch DataONE Solr docs for a query string."""
     try:
         response = requests.get(
@@ -87,9 +96,11 @@ def _fetch_dataone_solr_docs(query: str) -> list[dict[str, object]]:
             timeout=DEFAULT_TIMEOUT,
         )
         if response.status_code != 200:
+            append_error(errors, f"DataONE Solr returned HTTP {response.status_code}")
             return []
         return _parse_dataone_solr_docs(response.text)
-    except requests.RequestException:
+    except requests.RequestException as exc:
+        append_error(errors, f"DataONE Solr request failed: {exc.__class__.__name__}")
         return []
 
 

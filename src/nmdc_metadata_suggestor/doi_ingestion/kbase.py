@@ -4,14 +4,14 @@ import re
 
 import requests
 
-from nmdc_metadata_suggestor.doi_ingestion.common import clean_text, text_mentions_doi
+from nmdc_metadata_suggestor.doi_ingestion.common import append_error, clean_text, text_mentions_doi
 from nmdc_metadata_suggestor.publication_ingestion.doi_utils import DEFAULT_TIMEOUT, USER_AGENT
 
 KBASE_SEARCH_API = "https://kbase.us/services/searchapi2/rpc"
 KBASE_WORKSPACE_API = "https://kbase.us/services/ws"
 
 
-def try_kbase(doi: str) -> tuple[str, str, str] | None:
+def try_kbase(doi: str, errors: list[str] | None = None) -> tuple[str, str, str] | None:
     """Return cleaned/raw context from KBase narrative search and workspace refs."""
     payload = {
         "jsonrpc": "2.0",
@@ -37,20 +37,29 @@ def try_kbase(doi: str) -> tuple[str, str, str] | None:
             timeout=DEFAULT_TIMEOUT,
         )
         if response.status_code != 200:
+            append_error(errors, f"KBase search API returned HTTP {response.status_code}")
             return None
         data = response.json()
-    except (requests.RequestException, ValueError):
+    except requests.RequestException as exc:
+        append_error(errors, f"KBase search API request failed: {exc.__class__.__name__}")
+        return None
+    except ValueError:
+        append_error(errors, "KBase search API returned invalid JSON")
         return None
 
     result = data.get("result")
     if not isinstance(result, dict):
+        append_error(errors, "KBase search API response missing result object")
         return None
 
     context = _extract_kbase_context(result, doi)
     if context is not None:
         return context
 
-    return _try_kbase_workspace_ref(doi)
+    workspace_context = _try_kbase_workspace_ref(doi, errors=errors)
+    if workspace_context is None:
+        append_error(errors, "KBase APIs returned no matching abstract/description")
+    return workspace_context
 
 
 def _extract_kbase_context(
@@ -110,10 +119,13 @@ def _extract_kbase_context(
     return None
 
 
-def _try_kbase_workspace_ref(doi: str) -> tuple[str, str, str] | None:
+def _try_kbase_workspace_ref(
+    doi: str, errors: list[str] | None = None
+) -> tuple[str, str, str] | None:
     """Return context from KBase workspace object info inferred from DOI token."""
     workspace_tokens = _extract_kbase_workspace_tokens(doi)
     if workspace_tokens is None:
+        append_error(errors, "Could not extract KBase workspace token from DOI")
         return None
     wsid, token = workspace_tokens
 
@@ -128,7 +140,7 @@ def _try_kbase_workspace_ref(doi: str) -> tuple[str, str, str] | None:
         if ref in seen:
             continue
         seen.add(ref)
-        info = _fetch_kbase_object_info(ref)
+        info = _fetch_kbase_object_info(ref, errors=errors)
         if info is None:
             continue
         context = _extract_kbase_object_info_context(info)
@@ -145,7 +157,7 @@ def _extract_kbase_workspace_tokens(doi: str) -> tuple[str, str] | None:
     return match.group(1), match.group(2)
 
 
-def _fetch_kbase_object_info(ref: str) -> list[object] | None:
+def _fetch_kbase_object_info(ref: str, errors: list[str] | None = None) -> list[object] | None:
     """Fetch KBase workspace object info tuple by object reference."""
     payload = {
         "version": "1.1",
@@ -161,12 +173,21 @@ def _fetch_kbase_object_info(ref: str) -> list[object] | None:
             timeout=DEFAULT_TIMEOUT,
         )
         if response.status_code != 200:
+            append_error(errors, f"KBase workspace API returned HTTP {response.status_code}")
             return None
         data = response.json()
-    except (requests.RequestException, ValueError):
+    except requests.RequestException as exc:
+        append_error(errors, f"KBase workspace API request failed: {exc.__class__.__name__}")
+        return None
+    except ValueError:
+        append_error(errors, "KBase workspace API returned invalid JSON")
         return None
 
-    if not isinstance(data, dict) or "error" in data:
+    if not isinstance(data, dict):
+        append_error(errors, "KBase workspace API response not an object")
+        return None
+    if "error" in data:
+        append_error(errors, f"KBase workspace API error for ref {ref}")
         return None
 
     result = data.get("result")

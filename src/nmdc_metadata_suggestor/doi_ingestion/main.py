@@ -96,7 +96,8 @@ ALL_SOURCES = (
 )
 
 
-Fetcher = Callable[[str, str | None, list[str]], DoiContextResult | None]
+SourceErrors = dict[str, str]
+Fetcher = Callable[[str, str | None, list[str], SourceErrors], DoiContextResult | None]
 
 
 def get_doi_description_or_abstract(
@@ -112,12 +113,13 @@ def get_doi_description_or_abstract(
         sources = _default_source_order(provider)
 
     attempts: list[str] = []
+    source_errors: SourceErrors = {}
     for source in sources:
         fetcher = _SOURCE_FETCHERS.get(source)
         if fetcher is None:
             continue
         attempts.append(source)
-        result = fetcher(doi, provider, attempts)
+        result = fetcher(doi, provider, attempts, source_errors)
         if result is not None:
             return result
 
@@ -125,6 +127,7 @@ def get_doi_description_or_abstract(
         doi=doi,
         provider=provider,
         attempts=attempts,
+        source_errors=source_errors,
         error="No description or abstract found in any source",
     )
 
@@ -158,6 +161,7 @@ def _build_result(
     provider: str | None,
     source: str,
     attempts: list[str],
+    source_errors: SourceErrors,
     context: str,
     raw_context: str,
     context_type: str,
@@ -171,119 +175,185 @@ def _build_result(
         provider=provider,
         source=source,
         attempts=attempts,
+        source_errors=source_errors,
     )
 
 
-def _fetch_ess_dive(doi: str, provider: str | None, attempts: list[str]) -> DoiContextResult | None:
+def _record_source_error(
+    source_errors: SourceErrors, source: str, errors: list[str] | None
+) -> None:
+    """Store joined per-source error details for downstream observability."""
+    if not errors:
+        return
+    source_errors[source] = "; ".join(errors)
+
+
+def _fetch_ess_dive(
+    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
+) -> DoiContextResult | None:
     """Fetch and wrap context from ESS-DIVE-specific API."""
-    context = try_ess_dive(doi)
+    errors: list[str] = []
+    context = try_ess_dive(doi, errors=errors)
     if context is None:
+        _record_source_error(source_errors, "ess-dive", errors)
         return None
     text, kind = context
-    return _build_result(doi, provider, "ess-dive", attempts, text, text, kind)
+    return _build_result(doi, provider, "ess-dive", attempts, source_errors, text, text, kind)
 
 
-def _fetch_edi(doi: str, provider: str | None, attempts: list[str]) -> DoiContextResult | None:
+def _fetch_edi(
+    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
+) -> DoiContextResult | None:
     """Fetch and wrap context from EDI's PASTA API."""
-    context = try_edi(doi)
+    errors: list[str] = []
+    context = try_edi(doi, errors=errors)
     if context is None:
+        _record_source_error(source_errors, "edi", errors)
         return None
     text, kind = context
-    return _build_result(doi, provider, "edi", attempts, text, text, kind)
+    return _build_result(doi, provider, "edi", attempts, source_errors, text, text, kind)
 
 
-def _fetch_emsl(doi: str, provider: str | None, attempts: list[str]) -> DoiContextResult | None:
+def _fetch_emsl(
+    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
+) -> DoiContextResult | None:
     """Fetch and wrap context from EMSL project API."""
-    context = try_emsl(doi)
+    errors: list[str] = []
+    context = try_emsl(doi, errors=errors)
     if context is None:
+        _record_source_error(source_errors, "emsl", errors)
         return None
     text, raw, kind = context
-    return _build_result(doi, provider, "emsl", attempts, text, raw, kind)
+    return _build_result(doi, provider, "emsl", attempts, source_errors, text, raw, kind)
 
 
-def _fetch_figshare(doi: str, provider: str | None, attempts: list[str]) -> DoiContextResult | None:
+def _fetch_figshare(
+    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
+) -> DoiContextResult | None:
     """Fetch and wrap context from Figshare-specific API."""
-    text = try_figshare(doi)
+    errors: list[str] = []
+    text = try_figshare(doi, errors=errors)
     if text is None:
+        _record_source_error(source_errors, "figshare", errors)
         return None
-    return _build_result(doi, provider, "figshare", attempts, text, text, "description")
+    return _build_result(
+        doi, provider, "figshare", attempts, source_errors, text, text, "description"
+    )
 
 
-def _fetch_jgi(doi: str, provider: str | None, attempts: list[str]) -> DoiContextResult | None:
+def _fetch_jgi(
+    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
+) -> DoiContextResult | None:
     """Fetch and wrap context from JGI search API."""
-    context = try_jgi(doi)
+    errors: list[str] = []
+    context = try_jgi(doi, errors=errors)
     if context is None:
+        _record_source_error(source_errors, "jgi", errors)
         return None
     text, raw, kind = context
-    return _build_result(doi, provider, "jgi", attempts, text, raw, kind)
+    return _build_result(doi, provider, "jgi", attempts, source_errors, text, raw, kind)
 
 
-def _fetch_kbase(doi: str, provider: str | None, attempts: list[str]) -> DoiContextResult | None:
+def _fetch_kbase(
+    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
+) -> DoiContextResult | None:
     """Fetch and wrap context from KBase APIs."""
-    context = try_kbase(doi)
+    errors: list[str] = []
+    context = try_kbase(doi, errors=errors)
     if context is None:
+        _record_source_error(source_errors, "kbase", errors)
         return None
     text, raw, kind = context
-    return _build_result(doi, provider, "kbase", attempts, text, raw, kind)
+    return _build_result(doi, provider, "kbase", attempts, source_errors, text, raw, kind)
 
 
-def _fetch_massive(doi: str, provider: str | None, attempts: list[str]) -> DoiContextResult | None:
+def _fetch_massive(
+    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
+) -> DoiContextResult | None:
     """Fetch and wrap context from MassIVE via ProteomeCentral PROXI."""
-    context = try_massive(doi)
+    errors: list[str] = []
+    context = try_massive(doi, errors=errors)
     if context is None:
+        _record_source_error(source_errors, "massive", errors)
         return None
     text, raw, kind = context
-    return _build_result(doi, provider, "massive", attempts, text, raw, kind)
+    return _build_result(doi, provider, "massive", attempts, source_errors, text, raw, kind)
 
 
-def _fetch_cyverse(doi: str, provider: str | None, attempts: list[str]) -> DoiContextResult | None:
+def _fetch_cyverse(
+    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
+) -> DoiContextResult | None:
     """Fetch and wrap context from CyVerse Terrain metadata APIs."""
-    context = try_cyverse(doi)
+    errors: list[str] = []
+    context = try_cyverse(doi, errors=errors)
     if context is None:
+        _record_source_error(source_errors, "cyverse", errors)
         return None
     text, raw, kind = context
-    return _build_result(doi, provider, "cyverse", attempts, text, raw, kind)
+    return _build_result(doi, provider, "cyverse", attempts, source_errors, text, raw, kind)
 
 
-def _fetch_zenodo(doi: str, provider: str | None, attempts: list[str]) -> DoiContextResult | None:
+def _fetch_zenodo(
+    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
+) -> DoiContextResult | None:
     """Fetch and wrap context from Zenodo-specific API."""
-    text = try_zenodo(doi)
+    errors: list[str] = []
+    text = try_zenodo(doi, errors=errors)
     if text is None:
+        _record_source_error(source_errors, "zenodo", errors)
         return None
-    return _build_result(doi, provider, "zenodo", attempts, text, text, "description")
+    return _build_result(
+        doi, provider, "zenodo", attempts, source_errors, text, text, "description"
+    )
 
 
-def _fetch_datacite(doi: str, provider: str | None, attempts: list[str]) -> DoiContextResult | None:
+def _fetch_datacite(
+    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
+) -> DoiContextResult | None:
     """Fetch and wrap context from DataCite metadata."""
-    context = _try_datacite(doi)
+    errors: list[str] = []
+    context = _try_datacite(doi, errors=errors)
     if context is None:
+        _record_source_error(source_errors, "datacite", errors)
         return None
 
     text, raw, kind, publisher = context
     inferred_provider = provider or _infer_provider_from_text(publisher)
-    return _build_result(doi, inferred_provider, "datacite", attempts, text, raw, kind)
+    return _build_result(
+        doi, inferred_provider, "datacite", attempts, source_errors, text, raw, kind
+    )
 
 
-def _fetch_crossref(doi: str, provider: str | None, attempts: list[str]) -> DoiContextResult | None:
+def _fetch_crossref(
+    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
+) -> DoiContextResult | None:
     """Fetch and wrap context from Crossref metadata."""
-    context = _try_crossref(doi)
+    errors: list[str] = []
+    context = _try_crossref(doi, errors=errors)
     if context is None:
+        _record_source_error(source_errors, "crossref", errors)
         return None
 
     text, raw, kind, publisher = context
     inferred_provider = provider or _infer_provider_from_text(publisher)
-    return _build_result(doi, inferred_provider, "crossref", attempts, text, raw, kind)
+    return _build_result(
+        doi, inferred_provider, "crossref", attempts, source_errors, text, raw, kind
+    )
 
 
 def _fetch_content_negotiation(
-    doi: str, provider: str | None, attempts: list[str]
+    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
 ) -> DoiContextResult | None:
     """Fetch and wrap context via DOI content negotiation."""
-    context = _try_content_negotiation(doi)
+    errors: list[str] = []
+    context = _try_content_negotiation(doi, errors=errors)
     if context is None:
+        _record_source_error(source_errors, "content_negotiation", errors)
         return None
     text, raw, kind = context
-    return _build_result(doi, provider, "content_negotiation", attempts, text, raw, kind)
+    return _build_result(
+        doi, provider, "content_negotiation", attempts, source_errors, text, raw, kind
+    )
 
 
 _SOURCE_FETCHERS: dict[str, Fetcher] = {
@@ -314,7 +384,9 @@ _PROVIDER_API_SOURCES = {
 }
 
 
-def _try_datacite(doi: str) -> tuple[str, str, str, str | None] | None:
+def _try_datacite(
+    doi: str, errors: list[str] | None = None
+) -> tuple[str, str, str, str | None] | None:
     """Return cleaned/raw text from DataCite descriptions, preferring abstract."""
     try:
         response = requests.get(
@@ -323,21 +395,35 @@ def _try_datacite(doi: str) -> tuple[str, str, str, str | None] | None:
             timeout=DEFAULT_TIMEOUT,
         )
         if response.status_code != 200:
+            if errors is not None:
+                errors.append(f"DataCite API returned HTTP {response.status_code}")
             return None
         attrs = response.json().get("data", {}).get("attributes", {})
         descriptions = attrs.get("descriptions")
         publisher = attrs.get("publisher")
         if not isinstance(descriptions, list):
+            if errors is not None:
+                errors.append("DataCite response missing descriptions")
             return None
-    except (requests.RequestException, ValueError):
+    except requests.RequestException as exc:
+        if errors is not None:
+            errors.append(f"DataCite API request failed: {exc.__class__.__name__}")
+        return None
+    except ValueError:
+        if errors is not None:
+            errors.append("DataCite API returned invalid JSON")
         return None
 
     preferred = _pick_datacite_description(descriptions)
     if preferred is None:
+        if errors is not None:
+            errors.append("DataCite contained no usable description entries")
         return None
     raw, kind = preferred
     cleaned = clean_text(raw)
     if not cleaned:
+        if errors is not None:
+            errors.append("DataCite context was empty after cleaning")
         return None
     return cleaned, raw, kind, publisher if isinstance(publisher, str) else None
 
@@ -367,7 +453,9 @@ def _pick_datacite_description(descriptions: list[object]) -> tuple[str, str] | 
     return None
 
 
-def _try_crossref(doi: str) -> tuple[str, str, str, str | None] | None:
+def _try_crossref(
+    doi: str, errors: list[str] | None = None
+) -> tuple[str, str, str, str | None] | None:
     """Return Crossref abstract text and publisher metadata if available."""
     try:
         response = requests.get(
@@ -376,22 +464,36 @@ def _try_crossref(doi: str) -> tuple[str, str, str, str | None] | None:
             timeout=DEFAULT_TIMEOUT,
         )
         if response.status_code != 200:
+            if errors is not None:
+                errors.append(f"Crossref API returned HTTP {response.status_code}")
             return None
         message = response.json().get("message", {})
-    except (requests.RequestException, ValueError):
+    except requests.RequestException as exc:
+        if errors is not None:
+            errors.append(f"Crossref API request failed: {exc.__class__.__name__}")
+        return None
+    except ValueError:
+        if errors is not None:
+            errors.append("Crossref API returned invalid JSON")
         return None
 
     raw = message.get("abstract")
     publisher = message.get("publisher")
     if not isinstance(raw, str) or not raw.strip():
+        if errors is not None:
+            errors.append("Crossref response contained no abstract")
         return None
     cleaned = strip_jats_xml(raw)
     if not cleaned:
+        if errors is not None:
+            errors.append("Crossref abstract was empty after cleaning")
         return None
     return cleaned, raw, "abstract", publisher if isinstance(publisher, str) else None
 
 
-def _try_content_negotiation(doi: str) -> tuple[str, str, str] | None:
+def _try_content_negotiation(
+    doi: str, errors: list[str] | None = None
+) -> tuple[str, str, str] | None:
     """Return context from CSL JSON content negotiation (abstract then note)."""
     try:
         response = requests.get(
@@ -403,9 +505,17 @@ def _try_content_negotiation(doi: str) -> tuple[str, str, str] | None:
             timeout=DEFAULT_TIMEOUT,
         )
         if response.status_code != 200:
+            if errors is not None:
+                errors.append(f"DOI content negotiation returned HTTP {response.status_code}")
             return None
         payload = response.json()
-    except (requests.RequestException, ValueError):
+    except requests.RequestException as exc:
+        if errors is not None:
+            errors.append(f"DOI content negotiation request failed: {exc.__class__.__name__}")
+        return None
+    except ValueError:
+        if errors is not None:
+            errors.append("DOI content negotiation returned invalid JSON")
         return None
 
     abstract = payload.get("abstract")
@@ -419,4 +529,6 @@ def _try_content_negotiation(doi: str) -> tuple[str, str, str] | None:
         cleaned = clean_text(note)
         if cleaned:
             return cleaned, note, "description"
+    if errors is not None:
+        errors.append("DOI content negotiation contained no abstract/note")
     return None

@@ -5,7 +5,7 @@ Data classes for DOI validation, classification, and abstract retrieval.
 
 from enum import StrEnum
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class DoiCategory(StrEnum):
@@ -106,6 +106,7 @@ class DoiContextResult(BaseModel):
         provider: Repository/provider inferred from DOI prefix or publisher metadata.
         source: API source that returned the context (e.g. ``"datacite"``, ``"zenodo"``).
         attempts: Sources tried in order.
+        source_errors: Source-specific failure details captured during lookup.
         error: Human-readable error when no context could be retrieved.
     """
 
@@ -116,4 +117,5 @@ class DoiContextResult(BaseModel):
     provider: str | None = None
     source: str | None = None
     attempts: list[str] = []
+    source_errors: dict[str, str] = Field(default_factory=dict)
     error: str | None = None

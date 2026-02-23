@@ -7,6 +7,14 @@ import xml.etree.ElementTree as ET
 from nmdc_metadata_suggestor.publication_ingestion.abstract_retriever import strip_jats_xml
 
 
+def append_error(errors: list[str] | None, message: str) -> None:
+    """Append a unique error message to a mutable collector."""
+    if errors is None:
+        return
+    if message not in errors:
+        errors.append(message)
+
+
 def clean_text(text: str) -> str:
     """Normalize text by stripping markup/entities and collapsing whitespace."""
     cleaned = strip_jats_xml(text)

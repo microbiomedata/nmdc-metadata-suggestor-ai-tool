@@ -4,7 +4,7 @@ import re
 
 import requests
 
-from nmdc_metadata_suggestor.doi_ingestion.common import clean_text, text_mentions_doi
+from nmdc_metadata_suggestor.doi_ingestion.common import append_error, clean_text, text_mentions_doi
 from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
     DATACITE_API,
     DEFAULT_TIMEOUT,
@@ -15,28 +15,34 @@ DOI_CONTENT_NEGOTIATION_API = "https://doi.org"
 PROXI_DATASETS_API = "https://proteomecentral.proteomexchange.org/api/proxi/v0.1/datasets"
 
 
-def try_massive(doi: str) -> tuple[str, str, str] | None:
+def try_massive(doi: str, errors: list[str] | None = None) -> tuple[str, str, str] | None:
     """Return cleaned/raw context from MassIVE via ProteomeCentral lookups."""
-    for accession in _collect_massive_accession_candidates(doi):
-        payload = _fetch_proxi_dataset(accession)
+    for accession in _collect_massive_accession_candidates(doi, errors=errors):
+        payload = _fetch_proxi_dataset(accession, errors=errors)
         if payload is None:
             continue
         context = _extract_massive_context(payload)
         if context is not None:
             return context
 
-    for accession in _search_proxi_accessions_by_doi(doi):
-        payload = _fetch_proxi_dataset(accession)
+    for accession in _search_proxi_accessions_by_doi(doi, errors=errors):
+        payload = _fetch_proxi_dataset(accession, errors=errors)
         if payload is None:
             continue
         context = _extract_massive_context(payload)
         if context is not None:
             return context
 
-    return _extract_massive_context_from_datacite_titles(doi)
+    context = _extract_massive_context_from_datacite_titles(doi, errors=errors)
+    if context is not None:
+        return context
+    append_error(errors, "MassIVE/PROXI lookup returned no usable context")
+    return None
 
 
-def _collect_massive_accession_candidates(doi: str) -> list[str]:
+def _collect_massive_accession_candidates(
+    doi: str, errors: list[str] | None = None
+) -> list[str]:
     """Collect likely ProteomeXchange/MassIVE accessions for a DOI."""
     candidates: list[str] = []
     seen: set[str] = set()
@@ -46,7 +52,7 @@ def _collect_massive_accession_candidates(doi: str) -> list[str]:
             seen.add(accession)
             candidates.append(accession)
 
-    location = _resolve_doi_redirect_location(doi)
+    location = _resolve_doi_redirect_location(doi, errors=errors)
     if location is not None:
         for accession in _extract_massive_accessions(location):
             if accession not in seen:
@@ -56,7 +62,7 @@ def _collect_massive_accession_candidates(doi: str) -> list[str]:
     return candidates
 
 
-def _resolve_doi_redirect_location(doi: str) -> str | None:
+def _resolve_doi_redirect_location(doi: str, errors: list[str] | None = None) -> str | None:
     """Resolve DOI redirect location without following downstream redirects."""
     try:
         response = requests.get(
@@ -65,10 +71,12 @@ def _resolve_doi_redirect_location(doi: str) -> str | None:
             timeout=DEFAULT_TIMEOUT,
             allow_redirects=False,
         )
-    except requests.RequestException:
+    except requests.RequestException as exc:
+        append_error(errors, f"DOI redirect lookup failed: {exc.__class__.__name__}")
         return None
 
     if response.status_code not in {301, 302, 303, 307, 308}:
+        append_error(errors, f"DOI redirect lookup returned HTTP {response.status_code}")
         return None
 
     location = response.headers.get("Location")
@@ -90,14 +98,16 @@ def _extract_massive_accessions(text: str) -> list[str]:
     return accessions
 
 
-def _search_proxi_accessions_by_doi(doi: str) -> list[str]:
+def _search_proxi_accessions_by_doi(
+    doi: str, errors: list[str] | None = None
+) -> list[str]:
     """Search PROXI dataset rows for publication cells mentioning the DOI."""
     query_values = [doi, f"https://doi.org/{doi}", f"doi:{doi}"]
     seen: set[str] = set()
     accessions: list[str] = []
 
     for publication_query in query_values:
-        rows = _fetch_proxi_dataset_rows(publication_query)
+        rows = _fetch_proxi_dataset_rows(publication_query, errors=errors)
         for row in rows:
             accession = _extract_proxi_row_accession_for_doi(row, doi)
             if accession is None or accession in seen:
@@ -108,7 +118,9 @@ def _search_proxi_accessions_by_doi(doi: str) -> list[str]:
     return accessions
 
 
-def _fetch_proxi_dataset_rows(publication_query: str) -> list[list[object]]:
+def _fetch_proxi_dataset_rows(
+    publication_query: str, errors: list[str] | None = None
+) -> list[list[object]]:
     """Return PROXI dataset table rows for a publication-filtered query."""
     try:
         response = requests.get(
@@ -124,9 +136,14 @@ def _fetch_proxi_dataset_rows(publication_query: str) -> list[list[object]]:
             timeout=DEFAULT_TIMEOUT,
         )
         if response.status_code != 200:
+            append_error(errors, f"PROXI dataset rows request returned HTTP {response.status_code}")
             return []
         payload = response.json()
-    except (requests.RequestException, ValueError):
+    except requests.RequestException as exc:
+        append_error(errors, f"PROXI dataset rows request failed: {exc.__class__.__name__}")
+        return []
+    except ValueError:
+        append_error(errors, "PROXI dataset rows request returned invalid JSON")
         return []
 
     datasets = payload.get("datasets")
@@ -160,7 +177,9 @@ def _extract_proxi_row_accession_for_doi(row: list[object], doi: str) -> str | N
     return cleaned_accession
 
 
-def _fetch_proxi_dataset(accession: str) -> dict[str, object] | None:
+def _fetch_proxi_dataset(
+    accession: str, errors: list[str] | None = None
+) -> dict[str, object] | None:
     """Fetch detailed dataset metadata for a ProteomeXchange accession."""
     try:
         response = requests.get(
@@ -169,9 +188,14 @@ def _fetch_proxi_dataset(accession: str) -> dict[str, object] | None:
             timeout=DEFAULT_TIMEOUT,
         )
         if response.status_code != 200:
+            append_error(errors, f"PROXI dataset request returned HTTP {response.status_code}")
             return None
         payload = response.json()
-    except (requests.RequestException, ValueError):
+    except requests.RequestException as exc:
+        append_error(errors, f"PROXI dataset request failed: {exc.__class__.__name__}")
+        return None
+    except ValueError:
+        append_error(errors, "PROXI dataset request returned invalid JSON")
         return None
 
     if isinstance(payload, dict):
@@ -205,7 +229,9 @@ def _extract_massive_context(payload: dict[str, object]) -> tuple[str, str, str]
     return None
 
 
-def _extract_massive_context_from_datacite_titles(doi: str) -> tuple[str, str, str] | None:
+def _extract_massive_context_from_datacite_titles(
+    doi: str, errors: list[str] | None = None
+) -> tuple[str, str, str] | None:
     """Fallback: derive MassIVE context from DataCite subtitle/title metadata."""
     try:
         response = requests.get(
@@ -214,9 +240,14 @@ def _extract_massive_context_from_datacite_titles(doi: str) -> tuple[str, str, s
             timeout=DEFAULT_TIMEOUT,
         )
         if response.status_code != 200:
+            append_error(errors, f"DataCite API returned HTTP {response.status_code}")
             return None
         attrs = response.json().get("data", {}).get("attributes", {})
-    except (requests.RequestException, ValueError):
+    except requests.RequestException as exc:
+        append_error(errors, f"DataCite API request failed: {exc.__class__.__name__}")
+        return None
+    except ValueError:
+        append_error(errors, "DataCite API returned invalid JSON")
         return None
 
     titles = attrs.get("titles")

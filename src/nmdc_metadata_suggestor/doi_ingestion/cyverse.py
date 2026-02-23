@@ -2,17 +2,18 @@
 
 import requests
 
-from nmdc_metadata_suggestor.doi_ingestion.common import clean_text
+from nmdc_metadata_suggestor.doi_ingestion.common import append_error, clean_text
 from nmdc_metadata_suggestor.publication_ingestion.doi_utils import DEFAULT_TIMEOUT, USER_AGENT
 
 CYVERSE_METADATA_API = "https://de.cyverse.org/terrain/filesystem/metadata"
 CYVERSE_METADATA_SEARCH_API = f"{CYVERSE_METADATA_API}/search"
 
 
-def try_cyverse(doi: str) -> tuple[str, str, str] | None:
+def try_cyverse(doi: str, errors: list[str] | None = None) -> tuple[str, str, str] | None:
     """Return cleaned/raw context from CyVerse Terrain metadata."""
-    metadata_avus = _search_cyverse_metadata_for_doi(doi)
+    metadata_avus = _search_cyverse_metadata_for_doi(doi, errors=errors)
     if not metadata_avus:
+        append_error(errors, "CyVerse metadata search returned no AVUs")
         return None
 
     context = _extract_cyverse_context(metadata_avus, doi)
@@ -20,16 +21,19 @@ def try_cyverse(doi: str) -> tuple[str, str, str] | None:
         return context
 
     for target_id in _extract_cyverse_target_ids(metadata_avus):
-        target_avus = _fetch_cyverse_target_metadata(target_id)
+        target_avus = _fetch_cyverse_target_metadata(target_id, errors=errors)
         if not target_avus:
             continue
         context = _extract_cyverse_context(target_avus, doi)
         if context is not None:
             return context
+    append_error(errors, "CyVerse metadata contained no usable abstract/description")
     return None
 
 
-def _search_cyverse_metadata_for_doi(doi: str) -> list[dict[str, object]]:
+def _search_cyverse_metadata_for_doi(
+    doi: str, errors: list[str] | None = None
+) -> list[dict[str, object]]:
     """Search CyVerse metadata AVUs for DOI references."""
     try:
         response = requests.post(
@@ -39,15 +43,22 @@ def _search_cyverse_metadata_for_doi(doi: str) -> list[dict[str, object]]:
             timeout=DEFAULT_TIMEOUT,
         )
         if response.status_code != 200:
+            append_error(errors, f"CyVerse metadata search returned HTTP {response.status_code}")
             return []
         payload = response.json()
-    except (requests.RequestException, ValueError):
+    except requests.RequestException as exc:
+        append_error(errors, f"CyVerse metadata search failed: {exc.__class__.__name__}")
+        return []
+    except ValueError:
+        append_error(errors, "CyVerse metadata search returned invalid JSON")
         return []
 
     return _extract_cyverse_avu_list(payload)
 
 
-def _fetch_cyverse_target_metadata(target_id: str) -> list[dict[str, object]]:
+def _fetch_cyverse_target_metadata(
+    target_id: str, errors: list[str] | None = None
+) -> list[dict[str, object]]:
     """Fetch AVUs for a specific CyVerse metadata target id."""
     try:
         response = requests.get(
@@ -57,9 +68,14 @@ def _fetch_cyverse_target_metadata(target_id: str) -> list[dict[str, object]]:
             timeout=DEFAULT_TIMEOUT,
         )
         if response.status_code != 200:
+            append_error(errors, f"CyVerse target metadata returned HTTP {response.status_code}")
             return []
         payload = response.json()
-    except (requests.RequestException, ValueError):
+    except requests.RequestException as exc:
+        append_error(errors, f"CyVerse target metadata request failed: {exc.__class__.__name__}")
+        return []
+    except ValueError:
+        append_error(errors, "CyVerse target metadata returned invalid JSON")
         return []
 
     return _extract_cyverse_avu_list(payload)

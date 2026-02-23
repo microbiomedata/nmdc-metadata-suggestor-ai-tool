@@ -4,7 +4,7 @@ import re
 
 import requests
 
-from nmdc_metadata_suggestor.doi_ingestion.common import clean_text
+from nmdc_metadata_suggestor.doi_ingestion.common import append_error, clean_text
 from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
     DEFAULT_TIMEOUT,
     USER_AGENT,
@@ -14,7 +14,7 @@ from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
 JGI_SEARCH_API = "https://files.jgi.doe.gov/search/"
 
 
-def try_jgi(doi: str) -> tuple[str, str, str] | None:
+def try_jgi(doi: str, errors: list[str] | None = None) -> tuple[str, str, str] | None:
     """Return cleaned/raw context from JGI search response."""
     query_candidates: list[tuple[str, bool]] = []
 
@@ -41,15 +41,21 @@ def try_jgi(doi: str) -> tuple[str, str, str] | None:
                 timeout=DEFAULT_TIMEOUT,
             )
             if response.status_code != 200:
+                append_error(errors, f"JGI API returned HTTP {response.status_code}")
                 continue
             payload = response.json()
-        except (requests.RequestException, ValueError):
+        except requests.RequestException as exc:
+            append_error(errors, f"JGI API request failed: {exc.__class__.__name__}")
+            continue
+        except ValueError:
+            append_error(errors, "JGI API returned invalid JSON")
             continue
 
         context = _extract_jgi_context(payload, doi)
         if context is not None:
             return context
 
+    append_error(errors, "JGI API returned no matching abstract/description")
     return None
 
 
