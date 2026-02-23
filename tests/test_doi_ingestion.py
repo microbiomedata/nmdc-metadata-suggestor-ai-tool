@@ -14,6 +14,7 @@ All tests in this file mock HTTP with ``responses`` and avoid live API calls.
 import json
 import re
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 import responses
@@ -1000,6 +1001,100 @@ def test_zenodo_provider_api_is_used_first() -> None:
 
     result = get_doi_description_or_abstract(doi)
     assert result.context == "Zenodo dataset description."
+    assert result.context_type == "description"
+    assert result.source == "zenodo"
+    assert result.provider == "zenodo"
+    assert result.attempts == ["zenodo"]
+
+
+@responses.activate
+def test_zenodo_concept_doi_query_prefers_zenodo_over_datacite() -> None:
+    """Resolve Zenodo concept DOI using conceptdoi-aware query instead of fallback."""
+    doi = "10.5281/zenodo.7406532"
+
+    def zenodo_callback(request: responses.Call) -> tuple[int, dict[str, str], str]:
+        parsed_qs = parse_qs(urlparse(request.url).query)
+        query = parsed_qs.get("q", [""])[0]
+        if 'conceptdoi:"10.5281/zenodo.7406532"' in query:
+            body = {
+                "hits": {
+                    "hits": [
+                        {
+                            "doi": "10.5281/zenodo.15328215",
+                            "conceptdoi": "10.5281/zenodo.7406532",
+                            "metadata": {
+                                "doi": "10.5281/zenodo.15328215",
+                                "description": "Zenodo concept DOI description text.",
+                            },
+                        }
+                    ]
+                }
+            }
+            return 200, {"Content-Type": "application/json"}, json.dumps(body)
+        return 200, {"Content-Type": "application/json"}, json.dumps({"hits": {"hits": []}})
+
+    responses.add_callback(
+        responses.GET,
+        ZENODO_API,
+        callback=zenodo_callback,
+        content_type="application/json",
+    )
+    responses.add(
+        responses.GET,
+        f"{DATACITE_API}/{doi}",
+        json={
+            "data": {
+                "attributes": {
+                    "publisher": "Zenodo",
+                    "descriptions": [
+                        {
+                            "descriptionType": "Other",
+                            "description": "Datacite fallback should not be used",
+                        }
+                    ],
+                }
+            }
+        },
+    )
+
+    result = get_doi_description_or_abstract(doi)
+    assert result.context == "Zenodo concept DOI description text."
+    assert result.context_type == "description"
+    assert result.source == "zenodo"
+    assert result.provider == "zenodo"
+    assert result.attempts == ["zenodo"]
+
+
+@responses.activate
+def test_zenodo_prefers_hit_matching_requested_doi() -> None:
+    """Choose matching Zenodo hit when mixed search results are returned."""
+    doi = "10.5281/zenodo.18746325"
+    responses.add(
+        responses.GET,
+        ZENODO_API,
+        json={
+            "hits": {
+                "hits": [
+                    {
+                        "doi": "10.5281/zenodo.11111111",
+                        "conceptdoi": "10.5281/zenodo.11111110",
+                        "metadata": {"description": "Wrong Zenodo hit"},
+                    },
+                    {
+                        "doi": "10.5281/zenodo.18746326",
+                        "conceptdoi": "10.5281/zenodo.18746325",
+                        "metadata": {
+                            "doi": "10.5281/zenodo.18746326",
+                            "description": "Matching Zenodo concept DOI description.",
+                        },
+                    },
+                ]
+            }
+        },
+    )
+
+    result = get_doi_description_or_abstract(doi)
+    assert result.context == "Matching Zenodo concept DOI description."
     assert result.context_type == "description"
     assert result.source == "zenodo"
     assert result.provider == "zenodo"
