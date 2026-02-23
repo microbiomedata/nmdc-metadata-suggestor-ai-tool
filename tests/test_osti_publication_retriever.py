@@ -3,13 +3,15 @@
 import pytest
 import responses
 
-from nmdc_metadata_suggestor.models.doi import AbstractResult
-from nmdc_metadata_suggestor.models.publication import Publication
-from nmdc_metadata_suggestor.publication_ingestion.osti_publication_retriever import (
+from nmdc_metadata_suggestor.constants import (
     CROSSREF_API_URL,
     EUROPEPMC_API_URL,
     OSTI_API_URL,
     OSTI_E2_API_URL,
+)
+from nmdc_metadata_suggestor.models.doi import AbstractResult
+from nmdc_metadata_suggestor.models.publication import Publication
+from nmdc_metadata_suggestor.publication_ingestion.osti_publication_retriever import (
     retrieve_doi_info_from_osti,
     retrieve_pdf_link_from_osti_doi,
 )
@@ -61,7 +63,7 @@ def test_retrieve_abstract_no_description():
     result = retrieve_doi_info_from_osti(doi)
 
     assert result.abstract is None
-    assert "No abstract/description found" in result.error
+    assert result.error is not None and "No abstract/description found" in result.error
 
 
 @responses.activate
@@ -244,7 +246,7 @@ def test_waterfall():
     assert isinstance(result, AbstractResult)
     assert result.doi == doi
     # Should have abstract or error (but not raise exception)
-    assert result.abstract
+    assert result.abstract or result.error
 
 
 @integration
