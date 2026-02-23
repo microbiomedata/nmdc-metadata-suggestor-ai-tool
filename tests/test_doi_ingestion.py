@@ -31,6 +31,7 @@ from nmdc_metadata_suggestor.doi_ingestion.main import (
     FIGSHARE_COLLECTIONS_API,
     JGI_SEARCH_API,
     KBASE_SEARCH_API,
+    KBASE_WORKSPACE_API,
     PROXI_DATASETS_API,
     ZENODO_API,
     get_doi_description_or_abstract,
@@ -627,6 +628,21 @@ def test_kbase_miss_falls_back_to_datacite() -> None:
         json={"jsonrpc": "2.0", "id": "1", "result": {"count": 0, "hits": [], "aggregations": {}}},
     )
     responses.add(
+        responses.POST,
+        KBASE_WORKSPACE_API,
+        json={"error": {"message": "Object not found"}},
+    )
+    responses.add(
+        responses.POST,
+        KBASE_WORKSPACE_API,
+        json={"error": {"message": "Object not found"}},
+    )
+    responses.add(
+        responses.POST,
+        KBASE_WORKSPACE_API,
+        json={"error": {"message": "Object not found"}},
+    )
+    responses.add(
         responses.GET,
         f"{DATACITE_API}/{doi}",
         json={
@@ -650,6 +666,110 @@ def test_kbase_miss_falls_back_to_datacite() -> None:
     assert result.source == "datacite"
     assert result.provider == "kbase"
     assert result.attempts == ["kbase", "datacite"]
+
+
+@responses.activate
+def test_kbase_workspace_narrative_name_used_when_search_misses() -> None:
+    """Use KBase workspace object metadata when narrative search returns no hits."""
+    doi = "10.25982/156785.278/2588866"
+    responses.add(
+        responses.POST,
+        KBASE_SEARCH_API,
+        json={"jsonrpc": "2.0", "id": "1", "result": {"count": 0, "hits": [], "aggregations": {}}},
+    )
+    responses.add(
+        responses.POST,
+        KBASE_WORKSPACE_API,
+        json={
+            "version": "1.1",
+            "result": [
+                {
+                    "infos": [
+                        [
+                            278,
+                            "Narrative.1694710832822",
+                            "KBaseNarrative.Narrative-4.0",
+                            "2023-09-14T00:00:00+0000",
+                            1,
+                            "pwdna",
+                            156785,
+                            "pwdna:narrative_1694710832822",
+                            "checksum",
+                            1,
+                            {
+                                "description": "",
+                                "name": "Produced Water DNA Database",
+                                "ws_name": "pwdna:narrative_1694710832822",
+                            },
+                        ]
+                    ]
+                }
+            ],
+        },
+    )
+
+    result = get_doi_description_or_abstract(doi)
+    assert result.context == "Produced Water DNA Database"
+    assert result.context_type == "description"
+    assert result.source == "kbase"
+    assert result.provider == "kbase"
+    assert result.attempts == ["kbase"]
+
+
+@responses.activate
+def test_kbase_workspace_object_metadata_summary_used_when_name_is_technical() -> None:
+    """Build useful context from workspace metadata when object name is technical."""
+    doi = "10.25982/200311.171/3014786"
+    responses.add(
+        responses.POST,
+        KBASE_SEARCH_API,
+        json={"jsonrpc": "2.0", "id": "1", "result": {"count": 0, "hits": [], "aggregations": {}}},
+    )
+    responses.add(
+        responses.POST,
+        KBASE_WORKSPACE_API,
+        json={"error": {"message": "Object not found"}},
+    )
+    responses.add(
+        responses.POST,
+        KBASE_WORKSPACE_API,
+        json={
+            "version": "1.1",
+            "result": [
+                {
+                    "infos": [
+                        [
+                            171,
+                            "22_output__TCS_genomes",
+                            "KBaseGenomeAnnotations.Assembly-5.1",
+                            "2024-12-10T00:00:00+0000",
+                            1,
+                            "schatun",
+                            200311,
+                            "ws",
+                            "checksum",
+                            1,
+                            {
+                                "Size": "10721312",
+                                "N Contigs": "96",
+                                "GC content": "0.57327",
+                            },
+                        ]
+                    ]
+                }
+            ],
+        },
+    )
+
+    result = get_doi_description_or_abstract(doi)
+    assert "22 output TCS genomes" in result.context
+    assert "type KBaseGenomeAnnotations.Assembly-5.1" in result.context
+    assert "Size=10721312" in result.context
+    assert "N Contigs=96" in result.context
+    assert result.context_type == "description"
+    assert result.source == "kbase"
+    assert result.provider == "kbase"
+    assert result.attempts == ["kbase"]
 
 
 @responses.activate
@@ -970,6 +1090,21 @@ def test_all_sources_miss_returns_clean_error() -> None:
         responses.POST,
         KBASE_SEARCH_API,
         json={"jsonrpc": "2.0", "id": "1", "result": {"count": 0, "hits": [], "aggregations": {}}},
+    )
+    responses.add(
+        responses.POST,
+        KBASE_WORKSPACE_API,
+        json={"error": {"message": "Object not found"}},
+    )
+    responses.add(
+        responses.POST,
+        KBASE_WORKSPACE_API,
+        json={"error": {"message": "Object not found"}},
+    )
+    responses.add(
+        responses.POST,
+        KBASE_WORKSPACE_API,
+        json={"error": {"message": "Object not found"}},
     )
     responses.add(
         responses.GET,
