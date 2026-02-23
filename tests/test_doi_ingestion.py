@@ -4,6 +4,8 @@ import responses
 
 from nmdc_metadata_suggestor.doi_ingestion.main import (
     CROSSREF_API,
+    CYVERSE_METADATA_API,
+    CYVERSE_METADATA_SEARCH_API,
     DATACITE_API,
     DOI_CONTENT_NEGOTIATION_API,
     EDI_DOI_API,
@@ -285,6 +287,73 @@ def test_kbase_miss_falls_back_to_datacite() -> None:
     assert result.source == "datacite"
     assert result.provider == "kbase"
     assert result.attempts == ["kbase", "datacite"]
+
+
+@responses.activate
+def test_cyverse_provider_api_abstract_wins() -> None:
+    """Resolve CyVerse DOI via Terrain metadata and return abstract text."""
+    doi = "10.17504/cyverse.dataset.12345"
+    target_id = "7cfd91a9-2e07-4224-9c5b-26a04ce24122"
+    responses.add(
+        responses.POST,
+        CYVERSE_METADATA_SEARCH_API,
+        json={"avus": [{"attr": "dc.identifier.doi", "value": doi, "target_id": target_id}]},
+    )
+    responses.add(
+        responses.GET,
+        CYVERSE_METADATA_API,
+        json={
+            "avus": [
+                {
+                    "attr": "dc.description.abstract",
+                    "value": "CyVerse dataset abstract text.",
+                    "target_id": target_id,
+                }
+            ]
+        },
+    )
+
+    result = get_doi_description_or_abstract(doi)
+    assert result.context == "CyVerse dataset abstract text."
+    assert result.context_type == "abstract"
+    assert result.source == "cyverse"
+    assert result.provider == "cyverse"
+    assert result.attempts == ["cyverse"]
+
+
+@responses.activate
+def test_cyverse_miss_falls_back_to_datacite() -> None:
+    """If CyVerse API has no matching metadata, continue waterfall to DataCite."""
+    doi = "10.17504/cyverse.dataset.67890"
+    responses.add(
+        responses.POST,
+        CYVERSE_METADATA_SEARCH_API,
+        json={"avus": []},
+    )
+    responses.add(
+        responses.GET,
+        f"{DATACITE_API}/{doi}",
+        json={
+            "data": {
+                "attributes": {
+                    "publisher": "CyVerse",
+                    "descriptions": [
+                        {
+                            "descriptionType": "Abstract",
+                            "description": "DataCite fallback for CyVerse DOI",
+                        }
+                    ],
+                }
+            }
+        },
+    )
+
+    result = get_doi_description_or_abstract(doi)
+    assert result.context == "DataCite fallback for CyVerse DOI"
+    assert result.context_type == "abstract"
+    assert result.source == "datacite"
+    assert result.provider == "cyverse"
+    assert result.attempts == ["cyverse", "datacite"]
 
 
 @responses.activate
