@@ -36,6 +36,7 @@ from nmdc_metadata_suggestor.constants import (
     PUBMED_EFETCH,
     PUBMED_ID_CONVERTER,
     USER_AGENT,
+    ALL_SOURCES,
 )
 from nmdc_metadata_suggestor.models.doi import AbstractResult, DoiClassification
 from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
@@ -75,8 +76,6 @@ CROSSREF_NON_PUBLICATION_TYPES = {
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
-
-ALL_SOURCES = ("openalex", "crossref", "pubmed", "content_negotiation", "osti")
 
 
 def get_abstract(

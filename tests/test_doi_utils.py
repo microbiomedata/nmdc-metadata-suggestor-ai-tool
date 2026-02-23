@@ -12,8 +12,6 @@ import responses
 from requests.exceptions import ConnectionError as RequestsConnectionError
 
 from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
-    CROSSREF_API,
-    DATACITE_API,
     DOI_HANDLE_API,
     DOI_RA_API,
     classify_doi,
@@ -22,6 +20,7 @@ from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
     normalize_doi,
     validate_doi,
 )
+from nmdc_metadata_suggestor.constants import CROSSREF_API_URL, DATACITE_API_URL
 
 FIXTURE_PATH = Path(__file__).parent / "fixtures" / "doi_test_cases.json"
 
@@ -165,7 +164,7 @@ def _mock_crossref(doi: str, resource_type: str, publisher: str = "Test") -> Non
     responses.add(responses.GET, f"{DOI_RA_API}/{doi}", json=[{"DOI": doi, "RA": "Crossref"}])
     responses.add(
         responses.GET,
-        f"{CROSSREF_API}/{doi}",
+        f"{CROSSREF_API_URL}/{doi}",
         json={"message": {"type": resource_type, "publisher": publisher}},
     )
 
@@ -180,7 +179,7 @@ def _mock_datacite(
     responses.add(responses.GET, f"{DOI_RA_API}/{doi}", json=[{"DOI": doi, "RA": "DataCite"}])
     responses.add(
         responses.GET,
-        f"{DATACITE_API}/{doi}",
+        f"{DATACITE_API_URL}/{doi}",
         json={
             "data": {
                 "attributes": {
@@ -242,7 +241,7 @@ class TestClassifyDoi:
         """RA detected but Crossref API fails — DOI is still valid, just unclassified."""
         doi = "10.1038/s41564-020-00861-0"
         responses.add(responses.GET, f"{DOI_RA_API}/{doi}", json=[{"DOI": doi, "RA": "Crossref"}])
-        responses.add(responses.GET, f"{CROSSREF_API}/{doi}", body=RequestsConnectionError("down"))
+        responses.add(responses.GET, f"{CROSSREF_API_URL}/{doi}", body=RequestsConnectionError("down"))
         result = classify_doi(doi)
         assert result.is_valid is True
         assert result.registration_agency == "Crossref"

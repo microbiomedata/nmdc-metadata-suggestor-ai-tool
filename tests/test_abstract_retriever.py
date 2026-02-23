@@ -9,18 +9,19 @@ from requests.exceptions import ConnectionError as RequestsConnectionError
 
 from nmdc_metadata_suggestor.models.doi import AbstractResult
 from nmdc_metadata_suggestor.publication_ingestion.abstract_retriever import (
-    ALL_SOURCES,
-    CROSSREF_API,
-    OPENALEX_API,
-    PUBMED_EFETCH,
-    PUBMED_ID_CONVERTER,
     decode_inverted_abstract,
     get_abstract,
     strip_jats_xml,
 )
-from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
-    DATACITE_API,
+
+from nmdc_metadata_suggestor.constants import (
+    OPENALEX_API_URL,
+    DATACITE_API_URL,
+    CROSSREF_API_URL,
+    ALL_SOURCES,
     DOI_RA_API,
+    PUBMED_EFETCH,
+    PUBMED_ID_CONVERTER,
 )
 
 integration = pytest.mark.integration
@@ -70,7 +71,7 @@ def _mock_classify_as_datacite_software(doi: str) -> None:
     )
     responses.add(
         responses.GET,
-        f"{DATACITE_API}/{doi}",
+        f"{DATACITE_API_URL}/{doi}",
         json={
             "data": {
                 "attributes": {
@@ -197,8 +198,8 @@ class TestGetAbstractClassificationGate:
         """skip_classification=True goes straight to waterfall."""
         doi = SAMPLE_DOI
         # Only mock OpenAlex (no classification mocks), and have it return nothing
-        responses.add(responses.GET, f"{OPENALEX_API}/https://doi.org/{doi}", json={})
-        responses.add(responses.GET, f"{CROSSREF_API}/{doi}", json={"message": {}})
+        responses.add(responses.GET, f"{OPENALEX_API_URL}/https://doi.org/{doi}", json={})
+        responses.add(responses.GET, f"{CROSSREF_API_URL}/{doi}", json={"message": {}})
         responses.add(responses.GET, PUBMED_ID_CONVERTER, json={"records": []})
         responses.add(responses.GET, f"https://doi.org/{doi}", status=404)
         result = get_abstract(doi, skip_classification=True)
@@ -216,7 +217,7 @@ class TestGetAbstractWaterfall:
         _mock_classify_as_publication(doi)
         responses.add(
             responses.GET,
-            f"{OPENALEX_API}/https://doi.org/{doi}",
+            f"{OPENALEX_API_URL}/https://doi.org/{doi}",
             json={"abstract_inverted_index": {"Hello": [0], "world": [1]}},
         )
         result = get_abstract(doi)
@@ -232,11 +233,11 @@ class TestGetAbstractWaterfall:
         doi = SAMPLE_DOI
         _mock_classify_as_publication(doi)
         # OpenAlex miss
-        responses.add(responses.GET, f"{OPENALEX_API}/https://doi.org/{doi}", json={})
+        responses.add(responses.GET, f"{OPENALEX_API_URL}/https://doi.org/{doi}", json={})
         # Crossref hit
         responses.add(
             responses.GET,
-            f"{CROSSREF_API}/{doi}",
+            f"{CROSSREF_API_URL}/{doi}",
             json={"message": {"abstract": "<jats:p>Crossref abstract.</jats:p>"}},
         )
         result = get_abstract(doi)
@@ -252,9 +253,9 @@ class TestGetAbstractWaterfall:
         doi = SAMPLE_DOI
         _mock_classify_as_publication(doi)
         # OpenAlex miss
-        responses.add(responses.GET, f"{OPENALEX_API}/https://doi.org/{doi}", json={})
+        responses.add(responses.GET, f"{OPENALEX_API_URL}/https://doi.org/{doi}", json={})
         # Crossref miss
-        responses.add(responses.GET, f"{CROSSREF_API}/{doi}", json={"message": {}})
+        responses.add(responses.GET, f"{CROSSREF_API_URL}/{doi}", json={"message": {}})
         # PubMed ID converter
         responses.add(
             responses.GET,
@@ -277,9 +278,9 @@ class TestGetAbstractWaterfall:
         doi = SAMPLE_DOI
         _mock_classify_as_publication(doi)
         # OpenAlex miss
-        responses.add(responses.GET, f"{OPENALEX_API}/https://doi.org/{doi}", json={})
+        responses.add(responses.GET, f"{OPENALEX_API_URL}/https://doi.org/{doi}", json={})
         # Crossref miss
-        responses.add(responses.GET, f"{CROSSREF_API}/{doi}", json={"message": {}})
+        responses.add(responses.GET, f"{CROSSREF_API_URL}/{doi}", json={"message": {}})
         # PubMed miss
         responses.add(responses.GET, PUBMED_ID_CONVERTER, json={"records": []})
         # Content negotiation hit
@@ -300,8 +301,8 @@ class TestGetAbstractWaterfall:
         """All sources return nothing — graceful None."""
         doi = SAMPLE_DOI
         _mock_classify_as_publication(doi)
-        responses.add(responses.GET, f"{OPENALEX_API}/https://doi.org/{doi}", json={})
-        responses.add(responses.GET, f"{CROSSREF_API}/{doi}", json={"message": {}})
+        responses.add(responses.GET, f"{OPENALEX_API_URL}/https://doi.org/{doi}", json={})
+        responses.add(responses.GET, f"{CROSSREF_API_URL}/{doi}", json={"message": {}})
         responses.add(responses.GET, PUBMED_ID_CONVERTER, json={"records": []})
         responses.add(responses.GET, f"https://doi.org/{doi}", json={})
         result = get_abstract(doi)
@@ -316,12 +317,12 @@ class TestGetAbstractWaterfall:
         _mock_classify_as_publication(doi)
         responses.add(
             responses.GET,
-            f"{OPENALEX_API}/https://doi.org/{doi}",
+            f"{OPENALEX_API_URL}/https://doi.org/{doi}",
             body=RequestsConnectionError("down"),
         )
         responses.add(
             responses.GET,
-            f"{CROSSREF_API}/{doi}",
+            f"{OPENALEX_API_URL}/{doi}",
             body=RequestsConnectionError("down"),
         )
         responses.add(
@@ -343,10 +344,10 @@ class TestGetAbstractWaterfall:
         """The attempts list records what was tried, in order."""
         doi = SAMPLE_DOI
         _mock_classify_as_publication(doi)
-        responses.add(responses.GET, f"{OPENALEX_API}/https://doi.org/{doi}", json={})
+        responses.add(responses.GET, f"{OPENALEX_API_URL}/https://doi.org/{doi}", json={})
         responses.add(
             responses.GET,
-            f"{CROSSREF_API}/{doi}",
+            f"{CROSSREF_API_URL}/{doi}",
             json={"message": {"abstract": "<jats:p>Found it.</jats:p>"}},
         )
         result = get_abstract(doi)
@@ -376,10 +377,10 @@ class TestContentFormatClassification:
         """Crossref abstract without XML tags → plain_text, raw == abstract."""
         doi = SAMPLE_DOI
         _mock_classify_as_publication(doi)
-        responses.add(responses.GET, f"{OPENALEX_API}/https://doi.org/{doi}", json={})
+        responses.add(responses.GET, f"{OPENALEX_API_URL}/https://doi.org/{doi}", json={})
         responses.add(
             responses.GET,
-            f"{CROSSREF_API}/{doi}",
+            f"{CROSSREF_API_URL}/{doi}",
             json={"message": {"abstract": "A plain text abstract with no XML."}},
         )
         result = get_abstract(doi)
@@ -392,11 +393,11 @@ class TestContentFormatClassification:
         """Crossref JATS → abstract is stripped but raw_abstract has original XML."""
         doi = SAMPLE_DOI
         _mock_classify_as_publication(doi)
-        responses.add(responses.GET, f"{OPENALEX_API}/https://doi.org/{doi}", json={})
+        responses.add(responses.GET, f"{OPENALEX_API_URL}/https://doi.org/{doi}", json={})
         jats = "<jats:p>An <jats:italic>important</jats:italic> finding.</jats:p>"
         responses.add(
             responses.GET,
-            f"{CROSSREF_API}/{doi}",
+            f"{CROSSREF_API_URL}/{doi}",
             json={"message": {"abstract": jats}},
         )
         result = get_abstract(doi)
@@ -408,8 +409,8 @@ class TestContentFormatClassification:
         """Content negotiation JATS → raw_abstract has original tags."""
         doi = SAMPLE_DOI
         _mock_classify_as_publication(doi)
-        responses.add(responses.GET, f"{OPENALEX_API}/https://doi.org/{doi}", json={})
-        responses.add(responses.GET, f"{CROSSREF_API}/{doi}", json={"message": {}})
+        responses.add(responses.GET, f"{OPENALEX_API_URL}/https://doi.org/{doi}", json={})
+        responses.add(responses.GET, f"{CROSSREF_API_URL}/{doi}", json={"message": {}})
         responses.add(responses.GET, PUBMED_ID_CONVERTER, json={"records": []})
         jats = "<jats:p>Tagged abstract.</jats:p>"
         responses.add(
@@ -430,7 +431,7 @@ class TestContentFormatClassification:
         inverted = {"Hello": [0], "world": [1]}
         responses.add(
             responses.GET,
-            f"{OPENALEX_API}/https://doi.org/{doi}",
+            f"{OPENALEX_API_URL}/https://doi.org/{doi}",
             json={"abstract_inverted_index": inverted},
         )
         result = get_abstract(doi)
@@ -455,7 +456,7 @@ class TestSourceSelection:
         _mock_classify_as_publication(doi)
         responses.add(
             responses.GET,
-            f"{CROSSREF_API}/{doi}",
+            f"{CROSSREF_API_URL}/{doi}",
             json={"message": {"abstract": "<jats:p>Crossref only.</jats:p>"}},
         )
         result = get_abstract(doi, sources=["crossref"])
@@ -487,13 +488,13 @@ class TestSourceSelection:
         _mock_classify_as_publication(doi)
         responses.add(
             responses.GET,
-            f"{CROSSREF_API}/{doi}",
+            f"{CROSSREF_API_URL}/{doi}",
             json={"message": {"abstract": "Crossref first."}},
         )
         # OpenAlex is mocked but should never be reached
         responses.add(
             responses.GET,
-            f"{OPENALEX_API}/https://doi.org/{doi}",
+            f"{OPENALEX_API_URL}/https://doi.org/{doi}",
             json={"abstract_inverted_index": {"Should": [0], "not": [1], "reach": [2]}},
         )
         result = get_abstract(doi, sources=["crossref", "openalex"])
@@ -505,8 +506,8 @@ class TestSourceSelection:
         """Two sources tried, both miss — error and correct attempts list."""
         doi = SAMPLE_DOI
         _mock_classify_as_publication(doi)
-        responses.add(responses.GET, f"{OPENALEX_API}/https://doi.org/{doi}", json={})
-        responses.add(responses.GET, f"{CROSSREF_API}/{doi}", json={"message": {}})
+        responses.add(responses.GET, f"{OPENALEX_API_URL}/https://doi.org/{doi}", json={})
+        responses.add(responses.GET, f"{CROSSREF_API_URL}/{doi}", json={"message": {}})
         result = get_abstract(doi, sources=["openalex", "crossref"])
         assert result.abstract is None
         assert result.error == "No abstract found in any source"
@@ -519,7 +520,7 @@ class TestSourceSelection:
         _mock_classify_as_publication(doi)
         responses.add(
             responses.GET,
-            f"{CROSSREF_API}/{doi}",
+            f"{CROSSREF_API_URL}/{doi}",
             json={"message": {"abstract": "Found it."}},
         )
         result = get_abstract(doi, sources=["bogus", "crossref"])
@@ -535,8 +536,8 @@ class TestSourceSelection:
         """No sources= arg gives the same behavior as the original waterfall."""
         doi = SAMPLE_DOI
         _mock_classify_as_publication(doi)
-        responses.add(responses.GET, f"{OPENALEX_API}/https://doi.org/{doi}", json={})
-        responses.add(responses.GET, f"{CROSSREF_API}/{doi}", json={"message": {}})
+        responses.add(responses.GET, f"{OPENALEX_API_URL}/https://doi.org/{doi}", json={})
+        responses.add(responses.GET, f"{CROSSREF_API_URL}/{doi}", json={"message": {}})
         responses.add(responses.GET, PUBMED_ID_CONVERTER, json={"records": []})
         responses.add(responses.GET, f"https://doi.org/{doi}", json={})
         result = get_abstract(doi)

@@ -8,6 +8,10 @@ Environment-variable overrides are noted inline.
 
 import os
 import re
+# ---------------------------------------------------------------------------
+# Supported sources for abstract and publication retrieval
+# ---------------------------------------------------------------------------
+ALL_SOURCES = ("openalex", "crossref", "pubmed", "content_negotiation", "osti")
 
 # ---------------------------------------------------------------------------
 # Contact / User-Agent
