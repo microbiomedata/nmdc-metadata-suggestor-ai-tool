@@ -75,17 +75,28 @@ nmdc-metadata-suggestor-ai-tool/
 ├── src/
 │   └── nmdc_metadata_suggestor/
 │       ├── __init__.py
-│       ├── main.py           # Main entry point
-│       ├── config.py          # Configuration management
-│       └── llm_client.py      # LLM client interface
-├── tests/                     # Test files
-├── config/                    # Additional configuration files
-├── pyproject.toml            # Project dependencies and metadata
-├── Dockerfile                # Production Docker image
-├── Dockerfile.dev            # Development Docker image
-├── docker-compose.yml        # Docker Compose configuration
-├── .env.example              # Example environment variables
-└── README.md                 # This file
+│       ├── main.py                          # Main entry point
+│       ├── llm_client.py                    # LLM client for AI interactions
+│       ├── cli/
+│       │   ├── __init__.py
+│       │   └── doi_cli.py                   # CLI for DOI operations
+│       ├── models/
+│       │   ├── __init__.py
+│       │   ├── doi.py                       # DOI data models
+│       │   └── publication.py               # Publication data models
+│       └── publication_ingestion/
+│           ├── __init__.py
+│           ├── abstract_retriever.py        # Abstract retrieval logic
+│           └── doi_utils.py                 # DOI utilities
+├── tests/                                    # Test files
+├── scripts/                                  # Vertex AI test scripts
+├── docs/                                     # Documentation
+├── pyproject.toml                            # Project dependencies and metadata
+├── Dockerfile                                # Production Docker image
+├── Dockerfile.dev                            # Development Docker image
+├── docker-compose.yml                        # Docker Compose configuration
+├── .env.example                              # Example environment variables
+└── README.md                                 # This file
 ```
 
 ### Running Tests
@@ -127,39 +138,13 @@ uv add --dev package-name
 uv sync
 ```
 
-## Using the LLM Client
-
-The application includes a flexible LLM client that supports both OpenAI and Anthropic:
-
-```python
-from nmdc_metadata_suggestor.llm_client import LLMClient
-
-# Initialize client (defaults to OpenAI)
-client = LLMClient(provider="openai")
-
-# Generate a response
-response = client.generate("Your prompt here")
-print(response)
-
-# Use Anthropic instead
-client = LLMClient(provider="anthropic")
-response = client.generate("Your prompt here", model="claude-3-5-sonnet-20241022")
-
-# Async usage
-response = await client.generate_async("Your prompt here")
-```
-
 ## Configuration
 
 Configuration is managed through environment variables or a `.env` file. See `.env.example` for available options:
 
-- `OPENAI_API_KEY`: Your OpenAI API key
-- `ANTHROPIC_API_KEY`: Your Anthropic API key
 - `DEFAULT_MODEL`: Default LLM model to use
 - `MAX_TOKENS`: Maximum tokens for LLM responses
 - `TEMPERATURE`: Temperature for LLM responses (0.0-1.0)
-- `LOG_LEVEL`: Logging level (DEBUG, INFO, WARNING, ERROR)
-- `DEBUG`: Enable debug mode (true/false)
 
 ## Docker Development Workflow
 
