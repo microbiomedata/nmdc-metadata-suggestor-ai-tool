@@ -5,6 +5,13 @@ import re
 import xml.etree.ElementTree as ET
 
 from nmdc_metadata_suggestor.publication_ingestion.abstract_retriever import strip_jats_xml
+from nmdc_metadata_suggestor.publication_ingestion.doi_utils import normalize_doi
+
+DOI_REFERENCE_PATTERN = re.compile(
+    r"(?:https?://doi\.org/|doi:)?10\.\d{4,9}/\S+",
+    re.IGNORECASE,
+)
+TRAILING_DOI_DELIMITERS = ".,;:]}>\"'"
 
 
 def append_error(errors: list[str] | None, message: str) -> None:
@@ -54,16 +61,21 @@ def extract_first_xml_text(root: ET.Element, tags: set[str]) -> str | None:
 
 
 def text_mentions_doi(text: str, requested_doi: str) -> bool:
-    """Return True when text appears to reference the requested DOI."""
-    lowered = text.lower()
-    requested = requested_doi.lower()
-    doi_variants = {
-        requested,
-        f"doi:{requested}",
-        f"https://doi.org/{requested}",
-        f"http://doi.org/{requested}",
-    }
-    return any(variant in lowered for variant in doi_variants)
+    """Return True when text contains an exact DOI reference match."""
+    requested_normalized = normalize_doi(requested_doi).lower()
+    for match in DOI_REFERENCE_PATTERN.finditer(text):
+        candidate = _strip_trailing_doi_delimiters(match.group(0))
+        if normalize_doi(candidate).lower() == requested_normalized:
+            return True
+    return False
+
+
+def _strip_trailing_doi_delimiters(token: str) -> str:
+    """Trim surrounding punctuation that commonly follows DOI references in text."""
+    trimmed = token.rstrip(TRAILING_DOI_DELIMITERS)
+    while trimmed.endswith(")") and trimmed.count(")") > trimmed.count("("):
+        trimmed = trimmed[:-1]
+    return trimmed
 
 
 def _local_name(tag: str) -> str:

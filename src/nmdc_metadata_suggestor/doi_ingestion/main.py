@@ -8,15 +8,15 @@ from collections.abc import Callable
 
 import requests
 
-import nmdc_metadata_suggestor.doi_ingestion.cyverse as cyverse_resolver
-import nmdc_metadata_suggestor.doi_ingestion.edi as edi_resolver
-import nmdc_metadata_suggestor.doi_ingestion.emsl as emsl_resolver
-import nmdc_metadata_suggestor.doi_ingestion.ess_dive as ess_dive_resolver
-import nmdc_metadata_suggestor.doi_ingestion.figshare as figshare_resolver
-import nmdc_metadata_suggestor.doi_ingestion.jgi as jgi_resolver
-import nmdc_metadata_suggestor.doi_ingestion.kbase as kbase_resolver
-import nmdc_metadata_suggestor.doi_ingestion.massive as massive_resolver
-import nmdc_metadata_suggestor.doi_ingestion.zenodo as zenodo_resolver
+from nmdc_metadata_suggestor.constants import (
+    CITEPROC_JSON_ACCEPT,
+    CROSSREF_API_URL,
+    DATACITE_API_URL,
+    DEFAULT_TIMEOUT,
+    DOI_CONTENT_NEGOTIATION_API,
+    DOI_PATTERN,
+    USER_AGENT,
+)
 from nmdc_metadata_suggestor.doi_ingestion.common import clean_text
 from nmdc_metadata_suggestor.doi_ingestion.cyverse import try_cyverse
 from nmdc_metadata_suggestor.doi_ingestion.edi import try_edi
@@ -30,30 +30,9 @@ from nmdc_metadata_suggestor.doi_ingestion.zenodo import try_zenodo
 from nmdc_metadata_suggestor.models.doi import DoiContextResult
 from nmdc_metadata_suggestor.publication_ingestion.abstract_retriever import strip_jats_xml
 from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
-    CROSSREF_API,
-    DATACITE_API,
-    DEFAULT_TIMEOUT,
-    DOI_PATTERN,
-    USER_AGENT,
     normalize_doi,
     request_with_retry,
 )
-
-# Re-export endpoint constants for tests and external callers.
-EDI_DOI_API = edi_resolver.EDI_DOI_API
-EMSL_PROJECTS_API = emsl_resolver.EMSL_PROJECTS_API
-ESS_DIVE_API = ess_dive_resolver.ESS_DIVE_API
-DATAONE_CN_SOLR_API = ess_dive_resolver.DATAONE_CN_SOLR_API
-FIGSHARE_API = figshare_resolver.FIGSHARE_API
-FIGSHARE_COLLECTIONS_API = figshare_resolver.FIGSHARE_COLLECTIONS_API
-JGI_SEARCH_API = jgi_resolver.JGI_SEARCH_API
-KBASE_SEARCH_API = kbase_resolver.KBASE_SEARCH_API
-KBASE_WORKSPACE_API = kbase_resolver.KBASE_WORKSPACE_API
-DOI_CONTENT_NEGOTIATION_API = massive_resolver.DOI_CONTENT_NEGOTIATION_API
-PROXI_DATASETS_API = massive_resolver.PROXI_DATASETS_API
-CYVERSE_METADATA_API = cyverse_resolver.CYVERSE_METADATA_API
-CYVERSE_METADATA_SEARCH_API = cyverse_resolver.CYVERSE_METADATA_SEARCH_API
-ZENODO_API = zenodo_resolver.ZENODO_API
 
 TARGET_PROVIDER_PREFIXES: dict[str, str] = {
     "10.6073": "edi",
@@ -390,7 +369,7 @@ def _try_datacite(
     try:
         response = request_with_retry(
             "GET",
-            f"{DATACITE_API}/{doi}",
+            f"{DATACITE_API_URL}/{doi}",
             headers={"User-Agent": USER_AGENT},
             timeout=DEFAULT_TIMEOUT,
         )
@@ -460,7 +439,7 @@ def _try_crossref(
     try:
         response = request_with_retry(
             "GET",
-            f"{CROSSREF_API}/{doi}",
+            f"{CROSSREF_API_URL}/{doi}",
             headers={"User-Agent": USER_AGENT},
             timeout=DEFAULT_TIMEOUT,
         )
@@ -501,7 +480,7 @@ def _try_content_negotiation(
             "GET",
             f"{DOI_CONTENT_NEGOTIATION_API}/{doi}",
             headers={
-                "Accept": "application/vnd.citationstyles.csl+json",
+                "Accept": CITEPROC_JSON_ACCEPT,
                 "User-Agent": USER_AGENT,
             },
             timeout=DEFAULT_TIMEOUT,

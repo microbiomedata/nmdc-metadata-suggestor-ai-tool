@@ -4,10 +4,13 @@ import re
 
 import requests
 
-from nmdc_metadata_suggestor.constants import DOI_CONTENT_NEGOTIATION_API, PROXI_DATASETS_API
+from nmdc_metadata_suggestor.constants import (
+    DATACITE_API_URL,
+    DOI_CONTENT_NEGOTIATION_API,
+    PROXI_DATASETS_API,
+)
 from nmdc_metadata_suggestor.doi_ingestion.common import append_error, clean_text, text_mentions_doi
 from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
-    DATACITE_API,
     DEFAULT_TIMEOUT,
     USER_AGENT,
     request_with_retry,
@@ -234,7 +237,7 @@ def _extract_massive_context_from_datacite_titles(
     try:
         response = request_with_retry(
             "GET",
-            f"{DATACITE_API}/{doi}",
+            f"{DATACITE_API_URL}/{doi}",
             headers={"User-Agent": USER_AGENT},
             timeout=DEFAULT_TIMEOUT,
         )

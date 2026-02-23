@@ -21,11 +21,12 @@ from urllib.parse import parse_qs, urlparse
 import pytest
 import responses
 
-from nmdc_metadata_suggestor.doi_ingestion.main import (
-    CROSSREF_API,
+from nmdc_metadata_suggestor.constants import (
+    CROSSREF_API_URL as CROSSREF_API,
+)
+from nmdc_metadata_suggestor.constants import (
     CYVERSE_METADATA_API,
     CYVERSE_METADATA_SEARCH_API,
-    DATACITE_API,
     DATAONE_CN_SOLR_API,
     DOI_CONTENT_NEGOTIATION_API,
     EDI_DOI_API,
@@ -38,6 +39,12 @@ from nmdc_metadata_suggestor.doi_ingestion.main import (
     KBASE_WORKSPACE_API,
     PROXI_DATASETS_API,
     ZENODO_API,
+)
+from nmdc_metadata_suggestor.constants import (
+    DATACITE_API_URL as DATACITE_API,
+)
+from nmdc_metadata_suggestor.doi_ingestion.common import text_mentions_doi
+from nmdc_metadata_suggestor.doi_ingestion.main import (
     get_doi_description_or_abstract,
 )
 from nmdc_metadata_suggestor.publication_ingestion.doi_utils import DEFAULT_RETRY_ATTEMPTS
@@ -1265,6 +1272,39 @@ def test_all_sources_miss_returns_clean_error() -> None:
     assert result.error == "No description or abstract found in any source"
     assert result.provider == "kbase"
     assert result.attempts == ["kbase", "datacite", "crossref", "content_negotiation"]
+
+
+# ---------------------------------------------------------------------------
+# DOI matching helpers
+# ---------------------------------------------------------------------------
+
+
+def test_text_mentions_doi_matches_exact_variants() -> None:
+    """Exact DOI references should match across bare, doi:, and URL forms."""
+    requested = "10.1038/s41564-020-00861-0"
+    text = (
+        "References: doi:10.1038/s41564-020-00861-0 and "
+        "https://doi.org/10.1038/s41564-020-00861-0."
+    )
+    assert text_mentions_doi(text, requested) is True
+
+
+def test_text_mentions_doi_handles_trailing_parenthesis() -> None:
+    """Trailing punctuation after DOI references should not prevent matching."""
+    requested = "10.1016/0038-0717(85)90144-0"
+    text = "Methods (https://doi.org/10.1016/0038-0717(85)90144-0)."
+    assert text_mentions_doi(text, requested) is True
+
+
+def test_text_mentions_doi_rejects_longer_suffix_match() -> None:
+    """Prefix-only matches must not count as DOI matches."""
+    assert text_mentions_doi("See 10.1234/abcd", "10.1234/abc") is False
+    assert text_mentions_doi("See 10.1234/abc123", "10.1234/abc") is False
+
+
+def test_text_mentions_doi_rejects_dot_extended_suffix_match() -> None:
+    """Token continuation via punctuation should not match a shorter DOI."""
+    assert text_mentions_doi("See 10.1234/abc.def", "10.1234/abc") is False
 
 
 # ---------------------------------------------------------------------------
