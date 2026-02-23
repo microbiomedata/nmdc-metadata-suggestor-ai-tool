@@ -3,17 +3,17 @@
 import pytest
 import responses
 
+from nmdc_metadata_suggestor.constants import (
+    CROSSREF_API_URL,
+    EUROPEPMC_API_URL,
+    OSTI_API_URL,
+    OSTI_E2_API_URL,
+)
 from nmdc_metadata_suggestor.models.doi import AbstractResult
 from nmdc_metadata_suggestor.models.publication import Publication
 from nmdc_metadata_suggestor.publication_ingestion.osti_publication_retriever import (
     retrieve_doi_info_from_osti,
     retrieve_pdf_link_from_osti_doi,
-)
-from nmdc_metadata_suggestor.constants import (
-        CROSSREF_API_URL,
-        EUROPEPMC_API_URL,
-        OSTI_API_URL,
-        OSTI_E2_API_URL,
 )
 
 integration = pytest.mark.integration

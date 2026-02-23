@@ -8,6 +8,7 @@ Environment-variable overrides are noted inline.
 
 import os
 import re
+
 # ---------------------------------------------------------------------------
 # Supported sources for abstract and publication retrieval
 # ---------------------------------------------------------------------------

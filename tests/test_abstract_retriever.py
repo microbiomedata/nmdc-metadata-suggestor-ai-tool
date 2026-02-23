@@ -7,21 +7,20 @@ import pytest
 import responses
 from requests.exceptions import ConnectionError as RequestsConnectionError
 
+from nmdc_metadata_suggestor.constants import (
+    ALL_SOURCES,
+    CROSSREF_API_URL,
+    DATACITE_API_URL,
+    DOI_RA_API,
+    OPENALEX_API_URL,
+    PUBMED_EFETCH,
+    PUBMED_ID_CONVERTER,
+)
 from nmdc_metadata_suggestor.models.doi import AbstractResult
 from nmdc_metadata_suggestor.publication_ingestion.abstract_retriever import (
     decode_inverted_abstract,
     get_abstract,
     strip_jats_xml,
-)
-
-from nmdc_metadata_suggestor.constants import (
-    OPENALEX_API_URL,
-    DATACITE_API_URL,
-    CROSSREF_API_URL,
-    ALL_SOURCES,
-    DOI_RA_API,
-    PUBMED_EFETCH,
-    PUBMED_ID_CONVERTER,
 )
 
 integration = pytest.mark.integration

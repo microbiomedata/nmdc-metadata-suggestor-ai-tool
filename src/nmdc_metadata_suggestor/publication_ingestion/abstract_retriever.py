@@ -28,6 +28,7 @@ import xml.etree.ElementTree as ET
 import requests
 
 from nmdc_metadata_suggestor.constants import (
+    ALL_SOURCES,
     CITEPROC_JSON_ACCEPT,
     CROSSREF_API_URL,
     DEFAULT_TIMEOUT,
@@ -36,7 +37,6 @@ from nmdc_metadata_suggestor.constants import (
     PUBMED_EFETCH,
     PUBMED_ID_CONVERTER,
     USER_AGENT,
-    ALL_SOURCES,
 )
 from nmdc_metadata_suggestor.models.doi import AbstractResult, DoiClassification
 from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
