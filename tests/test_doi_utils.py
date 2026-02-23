@@ -210,6 +210,36 @@ def test_request_with_retry_closes_exception_response(monkeypatch: pytest.Monkey
     transient_response.close.assert_called_once_with()
 
 
+def test_retry_delay_seconds_caps_large_retry_after(caplog: pytest.LogCaptureFixture) -> None:
+    """Large Retry-After values are capped and logged."""
+    with caplog.at_level("WARNING"):
+        delay = doi_utils._retry_delay_seconds(
+            retry_after="999",
+            attempt=1,
+            backoff_seconds=0.5,
+            max_retry_delay_seconds=2,
+        )
+    assert delay == 2
+    assert "capping delay" in caplog.text
+
+
+def test_retry_delay_seconds_caps_far_future_retry_after_date(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Far-future Retry-After dates are capped and logged."""
+    monkeypatch.setattr(doi_utils.time, "time", Mock(return_value=1_700_000_000.0))
+    with caplog.at_level("WARNING"):
+        delay = doi_utils._retry_delay_seconds(
+            retry_after="Wed, 21 Oct 2099 07:28:00 GMT",
+            attempt=1,
+            backoff_seconds=0.5,
+            max_retry_delay_seconds=5,
+        )
+    assert delay == 5
+    assert "capping delay" in caplog.text
+
+
 # ---------------------------------------------------------------------------
 # classify_doi — mocked RA + agency APIs
 # ---------------------------------------------------------------------------

@@ -4,6 +4,7 @@ See ``docs/doi-classification-design.md`` for design rationale, value
 provenance, and the full list of unmapped types.
 """
 
+import logging
 import os
 import re
 import time
@@ -29,6 +30,7 @@ DEFAULT_TIMEOUT = 15
 DEFAULT_RETRY_ATTEMPTS = int(os.environ.get("NMDC_HTTP_RETRY_ATTEMPTS", "3"))
 # Default backoff is 0 to avoid introducing real sleep delays by default (e.g., in tests).
 DEFAULT_RETRY_BACKOFF_SECONDS = float(os.environ.get("NMDC_HTTP_RETRY_BACKOFF_SECONDS", "0"))
+MAX_RETRY_DELAY_SECONDS = float(os.environ.get("NMDC_HTTP_MAX_RETRY_DELAY_SECONDS", "30"))
 RETRY_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
 SESSION_POOL_CONNECTIONS = int(os.environ.get("NMDC_HTTP_POOL_CONNECTIONS", "20"))
 SESSION_POOL_MAXSIZE = int(os.environ.get("NMDC_HTTP_POOL_MAXSIZE", "100"))
@@ -40,6 +42,7 @@ USER_AGENT = f"NMDCMetadataSuggestor/0.1 (mailto:{CONTACT_EMAIL})"
 
 # DOI syntax: prefix (10.NNNN+) / suffix (any non-whitespace)
 DOI_PATTERN = re.compile(r"^10\.\d{4,9}/\S+$")
+LOGGER = logging.getLogger(__name__)
 
 _HTTP_SESSION = requests.Session()
 _HTTP_ADAPTER = HTTPAdapter(
@@ -58,6 +61,7 @@ def request_with_retry(
     max_attempts: int = DEFAULT_RETRY_ATTEMPTS,
     retry_status_codes: set[int] | frozenset[int] = RETRY_STATUS_CODES,
     backoff_seconds: float = DEFAULT_RETRY_BACKOFF_SECONDS,
+    max_retry_delay_seconds: float = MAX_RETRY_DELAY_SECONDS,
     timeout: int = DEFAULT_TIMEOUT,
     **request_kwargs: Any,
 ) -> requests.Response:
@@ -85,7 +89,10 @@ def request_with_retry(
                 return response
 
             delay = _retry_delay_seconds(
-                response.headers.get("Retry-After"), attempt, backoff_seconds
+                response.headers.get("Retry-After"),
+                attempt,
+                backoff_seconds,
+                max_retry_delay_seconds,
             )
             _close_response_quietly(response)
             response = None
@@ -96,7 +103,9 @@ def request_with_retry(
             if attempt == max_attempts:
                 raise
             _close_response_quietly(getattr(exc, "response", None))
-            delay = backoff_seconds * (2 ** (attempt - 1))
+            delay = _cap_retry_delay_seconds(
+                backoff_seconds * (2 ** (attempt - 1)), max_retry_delay_seconds
+            )
             if delay > 0:
                 time.sleep(delay)
 
@@ -107,19 +116,40 @@ def request_with_retry(
     raise RuntimeError("request_with_retry exited without response or exception")
 
 
-def _retry_delay_seconds(retry_after: str | None, attempt: int, backoff_seconds: float) -> float:
+def _retry_delay_seconds(
+    retry_after: str | None,
+    attempt: int,
+    backoff_seconds: float,
+    max_retry_delay_seconds: float,
+) -> float:
     """Return retry delay from Retry-After header or exponential fallback."""
     if isinstance(retry_after, str) and retry_after.strip():
         retry_after_value = retry_after.strip()
         if retry_after_value.isdigit():
-            return max(0.0, float(retry_after_value))
+            return _cap_retry_delay_seconds(float(retry_after_value), max_retry_delay_seconds)
         try:
             retry_dt = parsedate_to_datetime(retry_after_value)
-            return max(0.0, retry_dt.timestamp() - time.time())
+            delay = max(0.0, retry_dt.timestamp() - time.time())
+            return _cap_retry_delay_seconds(delay, max_retry_delay_seconds)
         except (TypeError, ValueError):
             pass
 
-    return backoff_seconds * (2 ** (attempt - 1))
+    return _cap_retry_delay_seconds(backoff_seconds * (2 ** (attempt - 1)), max_retry_delay_seconds)
+
+
+def _cap_retry_delay_seconds(delay_seconds: float, max_retry_delay_seconds: float) -> float:
+    """Cap retry delay and log if a source-provided value exceeds the configured maximum."""
+    delay_seconds = max(0.0, delay_seconds)
+    if max_retry_delay_seconds < 0:
+        return delay_seconds
+    if delay_seconds > max_retry_delay_seconds:
+        LOGGER.warning(
+            "Retry delay %.2fs exceeds max %.2fs; capping delay",
+            delay_seconds,
+            max_retry_delay_seconds,
+        )
+        return max_retry_delay_seconds
+    return delay_seconds
 
 
 def _close_response_quietly(response: requests.Response | None) -> None:
