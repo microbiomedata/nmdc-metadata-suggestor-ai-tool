@@ -244,7 +244,7 @@ def test_waterfall():
     assert isinstance(result, AbstractResult)
     assert result.doi == doi
     # Should have abstract or error (but not raise exception)
-    assert result.abstract
+    assert result.abstract or result.error
 
 
 @integration
