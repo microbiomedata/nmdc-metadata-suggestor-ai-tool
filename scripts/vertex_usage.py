@@ -12,7 +12,7 @@ import json
 import subprocess
 import sys
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 # Pricing per 1M tokens (USD)
 # Source: https://platform.claude.com/docs/en/about-claude/pricing
@@ -59,7 +59,7 @@ def get_access_token():
 
 def query_token_usage(project_id, days):
     token = get_access_token()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start = now - timedelta(days=days)
 
     url = (
@@ -199,11 +199,11 @@ def main():
         print(f"{'TOTAL':<28} {'':>14} {'':>14} {'':>12} {'':>12} {'$' + f'{grand_total:.4f}':>12}")
 
     # Pricing note
-    print(f"\nNote: Costs are estimates based on published API pricing.")
-    print(f"      Cache read tokens are priced at 0.1x base input rate.")
-    print(f"      Cache write tokens are priced at 1.25x (5min) or 2x (1hr) base input rate.")
-    print(f"      Vertex AI regional endpoints may include a 10% premium.")
-    print(f"      Actual billing may differ — check Cloud Billing for exact costs.")
+    print("\nNote: Costs are estimates based on published API pricing.")
+    print("      Cache read tokens are priced at 0.1x base input rate.")
+    print("      Cache write tokens are priced at 1.25x (5min) or 2x (1hr) base input rate.")
+    print("      Vertex AI regional endpoints may include a 10% premium.")
+    print("      Actual billing may differ — check Cloud Billing for exact costs.")
 
 
 if __name__ == "__main__":

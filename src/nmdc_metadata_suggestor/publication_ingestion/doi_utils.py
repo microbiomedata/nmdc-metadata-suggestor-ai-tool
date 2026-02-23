@@ -4,32 +4,25 @@ See ``docs/doi-classification-design.md`` for design rationale, value
 provenance, and the full list of unmapped types.
 """
 
-import os
 import re
 
 import requests
 
+from nmdc_metadata_suggestor.constants import (
+    CROSSREF_API_URL,
+    DATACITE_API_URL,
+    DEFAULT_TIMEOUT,
+    DOI_HANDLE_API,
+    DOI_PATTERN,
+    DOI_RA_API,
+    HANDLE_RESPONSE_SUCCESS,
+    USER_AGENT,
+)
 from nmdc_metadata_suggestor.models.doi import (
     DoiCategory,
     DoiClassification,
     DoiValidation,
 )
-
-# API endpoints
-DOI_HANDLE_API = "https://doi.org/api/handles"
-DOI_RA_API = "https://doi.org/doiRA"
-CROSSREF_API = "https://api.crossref.org/works"
-DATACITE_API = "https://api.datacite.org/dois"
-
-DEFAULT_TIMEOUT = 15
-
-# Contact email for API User-Agent headers (Crossref polite pool, OpenAlex).
-# Read from environment; falls back to the NMDC default.
-CONTACT_EMAIL = os.environ.get("CONTACT_EMAIL", "support@microbiomedata.org")
-USER_AGENT = f"NMDCMetadataSuggestor/0.1 (mailto:{CONTACT_EMAIL})"
-
-# DOI syntax: prefix (10.NNNN+) / suffix (any non-whitespace)
-DOI_PATTERN = re.compile(r"^10\.\d{4,9}/\S+$")
 
 # ---------------------------------------------------------------------------
 # Mapping: external resource types -> NMDC DoiCategoryEnum
@@ -139,9 +132,9 @@ def validate_doi(doi: str) -> DoiValidation:
         code = data.get("responseCode")
         return DoiValidation(
             doi=doi,
-            is_valid=code == 1,
+            is_valid=code == HANDLE_RESPONSE_SUCCESS,
             handle_response_code=code,
-            error=None if code == 1 else f"Handle API responseCode={code}",
+            error=None if code == HANDLE_RESPONSE_SUCCESS else f"Handle API responseCode={code}",
         )
     except (requests.RequestException, ValueError) as e:
         return DoiValidation(doi=doi, is_valid=False, error=f"Request failed: {e}")
@@ -252,7 +245,7 @@ def _classify_crossref(doi: str, prefix: str | None, ra: str) -> DoiClassificati
     """Classify a Crossref DOI by querying the Crossref API."""
     try:
         response = requests.get(
-            f"{CROSSREF_API}/{doi}",
+            f"{CROSSREF_API_URL}/{doi}",
             timeout=DEFAULT_TIMEOUT,
             headers={"User-Agent": USER_AGENT},
         )
@@ -282,7 +275,7 @@ def _classify_datacite(doi: str, prefix: str | None, ra: str) -> DoiClassificati
     """Classify a DataCite DOI by querying the DataCite API."""
     try:
         response = requests.get(
-            f"{DATACITE_API}/{doi}",
+            f"{DATACITE_API_URL}/{doi}",
             timeout=DEFAULT_TIMEOUT,
             headers={"User-Agent": USER_AGENT},
         )

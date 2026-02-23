@@ -58,8 +58,8 @@ import os
 import re
 import sys
 
-from dotenv import load_dotenv
 import requests as http_requests
+from dotenv import load_dotenv
 
 try:
     from google import genai
@@ -268,7 +268,7 @@ def print_validation(results: list[dict]) -> None:
         status = "PASS" if (r["id_valid"] and r["label_matches"]) else "FAIL"
         print(f"  [{status}] {r['envo_id']}")
         if not r["id_valid"]:
-            print(f"         ID not found in OLS")
+            print("         ID not found in OLS")
         elif not r["label_matches"]:
             print(f"         Model label:  {r['model_label']}")
             print(f"         OLS label:    {r['ols_label']}")
