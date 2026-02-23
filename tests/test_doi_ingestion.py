@@ -1317,6 +1317,57 @@ def test_ess_dive_api_401_uses_dataone_fallback() -> None:
 
 
 @responses.activate
+def test_ess_dive_dataone_rejects_doctype_xml_and_falls_back_to_datacite() -> None:
+    """Reject DataONE XML with DTD/entity declarations and continue waterfall."""
+    doi = "10.15485/1729719"
+    responses.add(responses.GET, ESS_DIVE_API, status=401, json={"detail": "Unauthorized"})
+
+    unsafe_xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        "<!DOCTYPE response [<!ENTITY xxe 'unsafe'>]>"
+        "<response><result name='response' numFound='1' start='0'>"
+        "<doc>"
+        "<str name='id'>ess-dive-unsafe-xml</str>"
+        "<str name='seriesId'>doi:10.15485/1729719</str>"
+        "<str name='datasource'>urn:node:ESS_DIVE</str>"
+        "<arr name='abstract'><str>This should be ignored.</str></arr>"
+        "</doc>"
+        "</result></response>"
+    )
+    for _ in range(3):
+        responses.add(
+            responses.GET,
+            DATAONE_CN_SOLR_API,
+            body=unsafe_xml,
+            content_type="application/xml",
+        )
+    responses.add(
+        responses.GET,
+        f"{DATACITE_API}/{doi}",
+        json={
+            "data": {
+                "attributes": {
+                    "publisher": "ESS-DIVE",
+                    "descriptions": [
+                        {
+                            "descriptionType": "Abstract",
+                            "description": "DataCite fallback after unsafe DataONE XML",
+                        }
+                    ],
+                }
+            }
+        },
+    )
+
+    result = get_doi_description_or_abstract(doi)
+    assert result.context == "DataCite fallback after unsafe DataONE XML"
+    assert result.context_type == "abstract"
+    assert result.source == "datacite"
+    assert result.provider == "ess-dive"
+    assert result.attempts == ["ess-dive", "datacite"]
+
+
+@responses.activate
 def test_ess_dive_dataone_query_tries_uppercase_variant_for_wtr_dois() -> None:
     """Retry DataONE query with uppercase DOI variant for WTR-style series IDs."""
     doi = "10.21952/wtr/1573029"

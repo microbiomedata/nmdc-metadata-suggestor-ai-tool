@@ -1,5 +1,6 @@
 """ESS-DIVE DOI resolver."""
 
+import os
 import re
 import xml.etree.ElementTree as ET
 
@@ -15,6 +16,8 @@ from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
 
 ESS_DIVE_API = "https://api.ess-dive.lbl.gov/packages"
 DATAONE_CN_SOLR_API = "https://cn.dataone.org/cn/v2/query/solr/"
+MAX_DATAONE_SOLR_XML_CHARS = int(os.environ.get("NMDC_DATAONE_SOLR_MAX_XML_CHARS", "2000000"))
+_UNSAFE_XML_DECLARATION_PATTERN = re.compile(r"<!\s*(?:DOCTYPE|ENTITY)\b", re.IGNORECASE)
 
 
 def try_ess_dive(doi: str, errors: list[str] | None = None) -> tuple[str, str] | None:
@@ -106,7 +109,18 @@ def _fetch_dataone_solr_docs(
 
 
 def _parse_dataone_solr_docs(xml_text: str) -> list[dict[str, object]]:
-    """Parse DataONE Solr XML response into a list of document dictionaries."""
+    """Parse DataONE Solr XML response into a list of document dictionaries.
+
+    For safety when parsing untrusted XML, this rejects oversized payloads and
+    any payload containing DTD/entity declarations before calling ElementTree.
+    """
+    if not isinstance(xml_text, str):
+        return []
+    if len(xml_text) > MAX_DATAONE_SOLR_XML_CHARS:
+        return []
+    if _UNSAFE_XML_DECLARATION_PATTERN.search(xml_text):
+        return []
+
     try:
         root = ET.fromstring(xml_text)
     except ET.ParseError:
