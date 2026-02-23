@@ -81,6 +81,9 @@ class LLMClient:
         *,
         model: str | None = None,
         system: str | None = None,
+        pdf_files: list[str] | None = None,
+        abstract: str | None = None,
+        extra_info: list[str] | None = None,
         max_tokens: int = 4096,
         temperature: float = 0.4,
     ) -> str:
@@ -102,19 +105,22 @@ class LLMClient:
                 temperature=temperature,
             )
         elif self.provider == "pnnl":
+            # Temporary file created at: /var/folders/99/jyl1l2vd0wbdnjp_zhfhqb1w0000gn/T/tmpo_7fyjsz.pdf
             return self._generate_pnnl(
-                prompt,
+                content=prompt,
                 model=model,
-                system=system,
                 max_tokens=max_tokens,
                 temperature=temperature,
+                pdf_files=pdf_files,
+                abstract=abstract,
+                extra_info=extra_info,
             )
 
     def _generate_pnnl(
         self,
         content: list[dict[str, str]] | str,
         *,
-        model: str | None = "gpt-5-project",
+        model: str | None,
         pdf_files: list[str] | None = None,
         abstract: str | None = None,
         extra_info: list[str] | None = None,
@@ -127,6 +133,7 @@ class LLMClient:
 
         from .system_prompt import system_prompt
 
+        model = model or "gpt-5.2-project"
         client = OpenAI(base_url=self.BASE_URL, api_key=self.AI_INCUBATOR_KEY)
         # load the pdf bytes and encode to base64
         pdf_file_data = []
@@ -135,7 +142,7 @@ class LLMClient:
                 with open(pdf_file, "rb") as f:
                     pdf_bytes = f.read()
                     encoded = base64.standard_b64encode(pdf_bytes).decode("utf-8")
-                    pdf_file_data.append(encoded)
+                    pdf_file_data.append(f"data:application/pdf;base64,{encoded}")
 
         content = [
             {"role": "system", "content": system_prompt},
