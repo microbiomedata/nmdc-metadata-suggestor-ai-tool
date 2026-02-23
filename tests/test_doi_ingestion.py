@@ -12,6 +12,7 @@ All tests in this file mock HTTP with ``responses`` and avoid live API calls.
 """
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -35,6 +36,9 @@ from nmdc_metadata_suggestor.doi_ingestion.main import (
 )
 
 FIXTURE_PATH = Path(__file__).parent / "fixtures" / "doi_test_cases.json"
+REAL_WORLD_SOURCE_FIXTURE_PATH = (
+    Path(__file__).parent / "fixtures" / "doi_resolver_source_examples.json"
+)
 
 _FIXTURE_PROVIDER_TO_SOURCE: dict[str, str] = {
     "ESS-DIVE": "ess-dive",
@@ -71,6 +75,27 @@ def _load_fixture_provider_cases() -> list[tuple[str, str]]:
 FIXTURE_PROVIDER_CASES = _load_fixture_provider_cases()
 
 
+def _load_real_world_source_cases() -> list[dict[str, str]]:
+    """Load curated real-world DOI cases grouped by resolver source."""
+    with open(REAL_WORLD_SOURCE_FIXTURE_PATH) as f:
+        cases = json.load(f)["cases"]
+
+    normalized: list[dict[str, str]] = []
+    for case in cases:
+        source = case.get("source")
+        doi = case.get("doi")
+        route = case.get("route")
+        if not isinstance(source, str) or not isinstance(doi, str):
+            continue
+        if not isinstance(route, str):
+            route = "default"
+        normalized.append({"source": source, "doi": doi, "route": route})
+    return normalized
+
+
+REAL_WORLD_SOURCE_CASES = _load_real_world_source_cases()
+
+
 def _mock_provider_resolver_hit(source: str, doi: str) -> None:
     """Register minimal mocks that make one provider resolver return context."""
     if source == "edi":
@@ -95,9 +120,11 @@ def _mock_provider_resolver_hit(source: str, doi: str) -> None:
         return
 
     if source == "emsl":
+        match = re.search(r"\.proj\.\d{4}\.(\d+)(?:/|$)", doi)
+        project_id = match.group(1) if match is not None else "48483"
         responses.add(
             responses.GET,
-            f"{EMSL_PROJECTS_API}/48483",
+            f"{EMSL_PROJECTS_API}/{project_id}",
             json={"award_doi": doi, "abstract": "Fixture EMSL abstract."},
         )
         return
@@ -177,6 +204,28 @@ def _mock_provider_resolver_hit(source: str, doi: str) -> None:
         )
         return
 
+    if source == "cyverse":
+        target_id = "7cfd91a9-2e07-4224-9c5b-26a04ce24122"
+        responses.add(
+            responses.POST,
+            CYVERSE_METADATA_SEARCH_API,
+            json={"avus": [{"attr": "dc.identifier.doi", "value": doi, "target_id": target_id}]},
+        )
+        responses.add(
+            responses.GET,
+            CYVERSE_METADATA_API,
+            json={
+                "avus": [
+                    {
+                        "attr": "dc.description.abstract",
+                        "value": "Fixture CyVerse abstract.",
+                        "target_id": target_id,
+                    }
+                ]
+            },
+        )
+        return
+
     raise AssertionError(f"Unsupported fixture-mapped source: {source}")
 
 
@@ -195,6 +244,58 @@ def test_fixture_provider_dois_use_expected_resolvers(doi: str, expected_source:
     assert result.source == expected_source
     assert result.provider == expected_source
     assert result.attempts == [expected_source]
+
+
+def test_real_world_source_fixture_coverage() -> None:
+    """Fixture includes all dedicated DOI resolver sources with multiple cases."""
+    expected_sources = {
+        "edi",
+        "emsl",
+        "ess-dive",
+        "figshare",
+        "jgi",
+        "kbase",
+        "massive",
+        "zenodo",
+        "cyverse",
+    }
+    fixture_sources = {case["source"] for case in REAL_WORLD_SOURCE_CASES}
+    assert expected_sources <= fixture_sources
+
+    for source in expected_sources:
+        count = sum(1 for case in REAL_WORLD_SOURCE_CASES if case["source"] == source)
+        assert count >= 2, f"Expected at least two fixture cases for source '{source}'"
+
+    for case in REAL_WORLD_SOURCE_CASES:
+        assert case["doi"].startswith("10."), f"Expected DOI syntax for fixture case: {case}"
+        assert case["route"] in {"default", "explicit"}
+
+
+@pytest.mark.parametrize(
+    "case",
+    REAL_WORLD_SOURCE_CASES,
+    ids=[f"{case['source']}:{case['doi']}" for case in REAL_WORLD_SOURCE_CASES],
+)
+@responses.activate
+def test_real_world_source_cases_use_expected_resolver(case: dict[str, str]) -> None:
+    """Real-world source fixture cases route into their intended resolver."""
+    source = case["source"]
+    doi = case["doi"]
+    route = case["route"]
+
+    _mock_provider_resolver_hit(source, doi)
+
+    if route == "explicit":
+        result = get_doi_description_or_abstract(doi, sources=[source])
+    else:
+        result = get_doi_description_or_abstract(doi)
+
+    assert result.context is not None
+    assert result.source == source
+    assert result.attempts == [source]
+
+    if route == "default":
+        assert result.provider == source
 
 
 def test_invalid_doi_rejected_without_attempts() -> None:
