@@ -24,6 +24,7 @@ from nmdc_metadata_suggestor.doi_ingestion.main import (
     CYVERSE_METADATA_API,
     CYVERSE_METADATA_SEARCH_API,
     DATACITE_API,
+    DATAONE_CN_SOLR_API,
     DOI_CONTENT_NEGOTIATION_API,
     EDI_DOI_API,
     EMSL_PROJECTS_API,
@@ -1147,6 +1148,139 @@ def test_ess_dive_api_abstract_wins() -> None:
     assert result.source == "ess-dive"
     assert result.provider == "ess-dive"
     assert result.attempts == ["ess-dive"]
+
+
+@responses.activate
+def test_ess_dive_api_401_uses_dataone_fallback() -> None:
+    """Use DataONE ESS_DIVE index when ESS-DIVE packages API is unauthorized."""
+    doi = "10.15485/1729719"
+    responses.add(responses.GET, ESS_DIVE_API, status=401, json={"detail": "Unauthorized"})
+    responses.add(
+        responses.GET,
+        DATAONE_CN_SOLR_API,
+        body=(
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            "<response><result name='response' numFound='1' start='0'>"
+            "<doc>"
+            "<str name='id'>ess-dive-abc-20260101</str>"
+            "<str name='seriesId'>doi:10.15485/1729719</str>"
+            "<str name='datasource'>urn:node:ESS_DIVE</str>"
+            "<arr name='abstract'><str>ESS-DIVE DataONE abstract text.</str></arr>"
+            "</doc>"
+            "</result></response>"
+        ),
+        content_type="application/xml",
+    )
+
+    result = get_doi_description_or_abstract(doi)
+    assert result.context == "ESS-DIVE DataONE abstract text."
+    assert result.context_type == "abstract"
+    assert result.source == "ess-dive"
+    assert result.provider == "ess-dive"
+    assert result.attempts == ["ess-dive"]
+
+
+@responses.activate
+def test_ess_dive_dataone_query_tries_uppercase_variant_for_wtr_dois() -> None:
+    """Retry DataONE query with uppercase DOI variant for WTR-style series IDs."""
+    doi = "10.21952/wtr/1573029"
+    responses.add(responses.GET, ESS_DIVE_API, status=401, json={"detail": "Unauthorized"})
+
+    empty_xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        "<response><result name='response' numFound='0' start='0'></result></response>"
+    )
+    hit_xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        "<response><result name='response' numFound='1' start='0'>"
+        "<doc>"
+        "<str name='id'>ess-dive-wtr-20260101</str>"
+        "<str name='seriesId'>doi:10.21952/WTR/1573029</str>"
+        "<str name='datasource'>urn:node:ESS_DIVE</str>"
+        "<arr name='abstract'><str>ESS-DIVE WTR abstract text.</str></arr>"
+        "</doc>"
+        "</result></response>"
+    )
+
+    def dataone_callback(request: responses.Call) -> tuple[int, dict[str, str], str]:
+        query = parse_qs(urlparse(request.url).query).get("q", [""])[0]
+        if "10.21952/wtr/1573029" in query:
+            return 200, {"Content-Type": "application/xml"}, empty_xml
+        if "10.21952/WTR/1573029" in query:
+            return 200, {"Content-Type": "application/xml"}, hit_xml
+        return 200, {"Content-Type": "application/xml"}, empty_xml
+
+    responses.add_callback(
+        responses.GET,
+        DATAONE_CN_SOLR_API,
+        callback=dataone_callback,
+        content_type="application/xml",
+    )
+
+    result = get_doi_description_or_abstract(doi)
+    assert result.context == "ESS-DIVE WTR abstract text."
+    assert result.context_type == "abstract"
+    assert result.source == "ess-dive"
+    assert result.provider == "ess-dive"
+    assert result.attempts == ["ess-dive"]
+
+
+@responses.activate
+def test_ess_dive_miss_falls_back_to_datacite() -> None:
+    """If ESS-DIVE API and DataONE miss, continue waterfall to DataCite."""
+    doi = "10.15485/1729719"
+    responses.add(responses.GET, ESS_DIVE_API, status=401, json={"detail": "Unauthorized"})
+    responses.add(
+        responses.GET,
+        DATAONE_CN_SOLR_API,
+        body=(
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            "<response><result name='response' numFound='0' start='0'></result></response>"
+        ),
+        content_type="application/xml",
+    )
+    responses.add(
+        responses.GET,
+        DATAONE_CN_SOLR_API,
+        body=(
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            "<response><result name='response' numFound='0' start='0'></result></response>"
+        ),
+        content_type="application/xml",
+    )
+    responses.add(
+        responses.GET,
+        DATAONE_CN_SOLR_API,
+        body=(
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            "<response><result name='response' numFound='0' start='0'></result></response>"
+        ),
+        content_type="application/xml",
+    )
+    responses.add(
+        responses.GET,
+        f"{DATACITE_API}/{doi}",
+        json={
+            "data": {
+                "attributes": {
+                    "publisher": "ESS-DIVE",
+                    "descriptions": [
+                        {
+                            "descriptionType": "Abstract",
+                            "description": "DataCite fallback for ESS-DIVE DOI",
+                        }
+                    ],
+                }
+            }
+        },
+    )
+
+    result = get_doi_description_or_abstract(doi)
+    assert result.context == "DataCite fallback for ESS-DIVE DOI"
+    assert result.context_type == "abstract"
+    assert result.source == "datacite"
+    assert result.provider == "ess-dive"
+    assert result.attempts == ["ess-dive", "datacite"]
 
 
 @responses.activate
