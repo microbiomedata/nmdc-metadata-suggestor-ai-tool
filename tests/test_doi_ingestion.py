@@ -645,6 +645,53 @@ def test_massive_proxi_miss_falls_back_to_datacite() -> None:
 
 
 @responses.activate
+def test_massive_uses_datacite_title_context_when_proxi_fails() -> None:
+    """Use DataCite subtitle/title context within MassIVE resolver as a fallback."""
+    doi = "10.25345/c5kk94s01"
+    accession = "MSV000100938"
+    responses.add(
+        responses.GET,
+        f"{DOI_CONTENT_NEGOTIATION_API}/{doi}",
+        status=302,
+        headers={"Location": f"https://massive.ucsd.edu/ProteoSAFe/dataset.jsp?accession={accession}"},
+    )
+    responses.add(
+        responses.GET,
+        f"{PROXI_DATASETS_API}/{accession}",
+        json={"status": "ERROR", "description": "Identifier not reserved"},
+    )
+    responses.add(
+        responses.GET,
+        PROXI_DATASETS_API,
+        json={"datasets": [], "status": {"status": "OK"}},
+    )
+    responses.add(
+        responses.GET,
+        f"{DATACITE_API}/{doi}",
+        json={
+            "data": {
+                "attributes": {
+                    "titles": [
+                        {"title": "MassIVE dataset title"},
+                        {
+                            "titleType": "Subtitle",
+                            "title": "Detailed MassIVE subtitle context from DataCite.",
+                        },
+                    ]
+                }
+            }
+        },
+    )
+
+    result = get_doi_description_or_abstract(doi)
+    assert result.context == "Detailed MassIVE subtitle context from DataCite."
+    assert result.context_type == "description"
+    assert result.source == "massive"
+    assert result.provider == "massive"
+    assert result.attempts == ["massive"]
+
+
+@responses.activate
 def test_cyverse_provider_api_abstract_wins() -> None:
     """Resolve CyVerse DOI via Terrain metadata and return abstract text."""
     doi = "10.17504/cyverse.dataset.12345"
@@ -709,6 +756,23 @@ def test_cyverse_miss_falls_back_to_datacite() -> None:
     assert result.source == "datacite"
     assert result.provider == "cyverse"
     assert result.attempts == ["cyverse", "datacite"]
+
+
+@responses.activate
+def test_cyverse_explicit_source_no_context_returns_clean_error() -> None:
+    """Explicit CyVerse-only lookup should fail cleanly when metadata has no context."""
+    doi = "10.7946/p22k7v"
+    responses.add(
+        responses.POST,
+        CYVERSE_METADATA_SEARCH_API,
+        json={"avus": []},
+    )
+
+    result = get_doi_description_or_abstract(doi, sources=["cyverse"])
+    assert result.context is None
+    assert result.source is None
+    assert result.error == "No description or abstract found in any source"
+    assert result.attempts == ["cyverse"]
 
 
 @responses.activate
@@ -785,6 +849,34 @@ def test_ess_dive_api_abstract_wins() -> None:
     assert result.source == "ess-dive"
     assert result.provider == "ess-dive"
     assert result.attempts == ["ess-dive"]
+
+
+@responses.activate
+def test_jgi_live_failure_pattern_returns_clean_no_context() -> None:
+    """If JGI and all fallbacks miss, return clean error with provider-aware attempts."""
+    doi = "10.25585/1488274"
+    responses.add(
+        responses.GET,
+        JGI_SEARCH_API,
+        json={"proposals": [], "organisms": []},
+    )
+    responses.add(
+        responses.GET,
+        f"{DATACITE_API}/{doi}",
+        json={"data": {"attributes": {"descriptions": []}}},
+    )
+    responses.add(responses.GET, f"{CROSSREF_API}/{doi}", json={"message": {}})
+    responses.add(
+        responses.GET,
+        f"{DOI_CONTENT_NEGOTIATION_API}/{doi}",
+        json={},
+    )
+
+    result = get_doi_description_or_abstract(doi)
+    assert result.context is None
+    assert result.provider == "jgi"
+    assert result.error == "No description or abstract found in any source"
+    assert result.attempts == ["jgi", "datacite", "crossref", "content_negotiation"]
 
 
 @responses.activate

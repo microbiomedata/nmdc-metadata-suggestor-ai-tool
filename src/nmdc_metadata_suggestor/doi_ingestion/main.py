@@ -480,6 +480,10 @@ def _try_massive(doi: str) -> tuple[str, str, str] | None:
         context = _extract_massive_context(payload)
         if context is not None:
             return context
+
+    datacite_context = _extract_massive_context_from_datacite_titles(doi)
+    if datacite_context is not None:
+        return datacite_context
     return None
 
 
@@ -847,6 +851,49 @@ def _extract_massive_context(payload: dict[str, object]) -> tuple[str, str, str]
         cleaned = _clean_text(title)
         if cleaned:
             return cleaned, title, "description"
+    return None
+
+
+def _extract_massive_context_from_datacite_titles(doi: str) -> tuple[str, str, str] | None:
+    """Fallback to DataCite title metadata when MassIVE APIs do not return context."""
+    try:
+        response = requests.get(
+            f"{DATACITE_API}/{doi}",
+            headers={"User-Agent": USER_AGENT},
+            timeout=DEFAULT_TIMEOUT,
+        )
+        if response.status_code != 200:
+            return None
+        attrs = response.json().get("data", {}).get("attributes", {})
+    except (requests.RequestException, ValueError):
+        return None
+
+    titles = attrs.get("titles")
+    if not isinstance(titles, list):
+        return None
+
+    subtitle_candidate: str | None = None
+    title_candidate: str | None = None
+    for item in titles:
+        if not isinstance(item, dict):
+            continue
+        raw_title = item.get("title")
+        if not isinstance(raw_title, str) or not raw_title.strip():
+            continue
+
+        title_type = item.get("titleType")
+        if isinstance(title_type, str) and title_type.lower() == "subtitle":
+            if subtitle_candidate is None:
+                subtitle_candidate = raw_title
+        elif title_candidate is None:
+            title_candidate = raw_title
+
+    for raw in (subtitle_candidate, title_candidate):
+        if raw is None:
+            continue
+        cleaned = _clean_text(raw)
+        if cleaned:
+            return cleaned, raw, "description"
     return None
 
 
