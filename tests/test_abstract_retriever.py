@@ -557,9 +557,9 @@ class TestSourceSelection:
 def test_get_abstract_real_aslo_doi() -> None:
     """10.4319 — ASLO (limnology/oceanography) journal article."""
     result = get_abstract("10.4319/lom.2008.6.230")
-    assert result.abstract is not None, (
-        f"No abstract found: {result.error} (tried {result.attempts})"
-    )
+    assert (
+        result.abstract is not None
+    ), f"No abstract found: {result.error} (tried {result.attempts})"
     assert len(result.abstract) > 50
     assert result.source is not None
     assert result.raw_abstract is not None
@@ -570,9 +570,9 @@ def test_get_abstract_real_aslo_doi() -> None:
 def test_get_abstract_real_nature_doi() -> None:
     """10.1038 — Nature journal article."""
     result = get_abstract("10.1038/s41564-020-00861-0")
-    assert result.abstract is not None, (
-        f"No abstract found: {result.error} (tried {result.attempts})"
-    )
+    assert (
+        result.abstract is not None
+    ), f"No abstract found: {result.error} (tried {result.attempts})"
     assert len(result.abstract) > 100
     assert result.raw_abstract is not None
     assert result.content_format is not None
@@ -582,9 +582,9 @@ def test_get_abstract_real_nature_doi() -> None:
 def test_get_abstract_real_frontiers_doi() -> None:
     """10.3389 — Frontiers journal article."""
     result = get_abstract("10.3389/fsoil.2023.1120425")
-    assert result.abstract is not None, (
-        f"No abstract found: {result.error} (tried {result.attempts})"
-    )
+    assert (
+        result.abstract is not None
+    ), f"No abstract found: {result.error} (tried {result.attempts})"
     assert len(result.abstract) > 100
     assert result.source in ("openalex", "crossref")
     assert result.raw_abstract is not None
