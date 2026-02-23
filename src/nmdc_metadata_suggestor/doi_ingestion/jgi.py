@@ -120,12 +120,12 @@ def _extract_jgi_context(payload: object, requested_doi: str) -> tuple[str, str,
 def _jgi_entry_matches_doi(entry: dict[str, object], requested_doi: str) -> bool:
     """Return True when DOI-bearing JGI entry matches the requested DOI."""
     doi_keys = ("doi", "award_doi", "proposal_doi")
-    seen_any = False
     for key in doi_keys:
         value = entry.get(key)
         if not isinstance(value, str) or not value.strip():
             continue
-        seen_any = True
         if normalize_doi(value) == requested_doi:
             return True
-    return not seen_any
+    # Only treat entries with an explicitly matching DOI as matches.
+    # If no DOI fields are present, this entry should not match the requested DOI.
+    return False

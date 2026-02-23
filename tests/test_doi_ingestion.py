@@ -589,6 +589,44 @@ def test_jgi_mismatch_falls_back_to_datacite() -> None:
 
 
 @responses.activate
+def test_jgi_missing_doi_fields_falls_back_to_datacite() -> None:
+    """If JGI proposals omit DOI keys, treat as non-match and continue waterfall."""
+    doi = "10.25585/1487763"
+    responses.add(
+        responses.GET,
+        JGI_SEARCH_API,
+        json={
+            "proposals": [{"lay_description": "Unrelated result without DOI fields"}],
+            "organisms": [],
+        },
+    )
+    responses.add(
+        responses.GET,
+        f"{DATACITE_API}/{doi}",
+        json={
+            "data": {
+                "attributes": {
+                    "publisher": "JGI",
+                    "descriptions": [
+                        {
+                            "descriptionType": "Abstract",
+                            "description": "DataCite fallback for DOI-missing JGI result",
+                        }
+                    ],
+                }
+            }
+        },
+    )
+
+    result = get_doi_description_or_abstract(doi)
+    assert result.context == "DataCite fallback for DOI-missing JGI result"
+    assert result.context_type == "abstract"
+    assert result.source == "datacite"
+    assert result.provider == "jgi"
+    assert result.attempts == ["jgi", "datacite"]
+
+
+@responses.activate
 def test_kbase_provider_api_description_wins() -> None:
     """Resolve KBase DOI via narrative search and return narrative description text."""
     doi = "10.25982/109073.30/1895615"
