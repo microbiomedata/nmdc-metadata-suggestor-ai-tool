@@ -27,6 +27,7 @@ EDI_DOI_API = "https://pasta.lternet.edu/package/doi"
 EMSL_PROJECTS_API = "https://api.emsl.pnnl.gov/external/projects"
 ESS_DIVE_API = "https://api.ess-dive.lbl.gov/packages"
 FIGSHARE_API = "https://api.figshare.com/v2/articles"
+JGI_SEARCH_API = "https://files.jgi.doe.gov/search/"
 ZENODO_API = "https://zenodo.org/api/records"
 
 TARGET_PROVIDER_PREFIXES: dict[str, str] = {
@@ -59,6 +60,7 @@ ALL_SOURCES = (
     "emsl",
     "ess-dive",
     "figshare",
+    "jgi",
     "zenodo",
     "datacite",
     "crossref",
@@ -192,6 +194,15 @@ def _fetch_figshare(
     return _build_result(doi, provider, "figshare", attempts, text, text, "description")
 
 
+def _fetch_jgi(doi: str, provider: str | None, attempts: list[str]) -> DoiContextResult | None:
+    """Fetch and wrap context from JGI search API."""
+    context = _try_jgi(doi)
+    if context is None:
+        return None
+    text, raw, kind = context
+    return _build_result(doi, provider, "jgi", attempts, text, raw, kind)
+
+
 def _fetch_zenodo(
     doi: str, provider: str | None, attempts: list[str]
 ) -> DoiContextResult | None:
@@ -244,13 +255,14 @@ _SOURCE_FETCHERS = {
     "emsl": _fetch_emsl,
     "ess-dive": _fetch_ess_dive,
     "figshare": _fetch_figshare,
+    "jgi": _fetch_jgi,
     "zenodo": _fetch_zenodo,
     "datacite": _fetch_datacite,
     "crossref": _fetch_crossref,
     "content_negotiation": _fetch_content_negotiation,
 }
 
-_PROVIDER_API_SOURCES = {"edi", "emsl", "ess-dive", "figshare", "zenodo"}
+_PROVIDER_API_SOURCES = {"edi", "emsl", "ess-dive", "figshare", "jgi", "zenodo"}
 
 
 def _try_edi(doi: str) -> tuple[str, str] | None:
@@ -319,6 +331,45 @@ def _try_emsl(doi: str) -> tuple[str, str, str] | None:
     return None
 
 
+def _try_jgi(doi: str) -> tuple[str, str, str] | None:
+    """Return cleaned/raw context from JGI search response."""
+    query_candidates: list[tuple[str, bool]] = []
+
+    project_query = _extract_jgi_project_query(doi)
+    if project_query:
+        query_candidates.append((project_query, True))
+    query_candidates.append((doi, False))
+
+    seen_queries: set[str] = set()
+    for query_value, use_project_field in query_candidates:
+        if query_value in seen_queries:
+            continue
+        seen_queries.add(query_value)
+
+        params: dict[str, str] = {"q": query_value, "api_version": "2", "x": "10", "p": "1"}
+        if use_project_field:
+            params["f"] = "project_id"
+
+        try:
+            response = requests.get(
+                JGI_SEARCH_API,
+                params=params,
+                headers={"User-Agent": USER_AGENT},
+                timeout=DEFAULT_TIMEOUT,
+            )
+            if response.status_code != 200:
+                continue
+            payload = response.json()
+        except (requests.RequestException, ValueError):
+            continue
+
+        context = _extract_jgi_context(payload, doi)
+        if context is not None:
+            return context
+
+    return None
+
+
 def _try_ess_dive(doi: str) -> tuple[str, str] | None:
     """Return (text, kind) from ESS-DIVE if available."""
     try:
@@ -371,6 +422,77 @@ def _extract_emsl_project_id(doi: str) -> str | None:
     if match is None:
         return None
     return match.group(1)
+
+
+def _extract_jgi_project_query(doi: str) -> str | None:
+    """Extract likely JGI project identifier from DOI suffix."""
+    match = re.match(r"^10\.25585/([^/\s]+)", doi)
+    if match is None:
+        return None
+    token = match.group(1).strip()
+    if not token:
+        return None
+    # JGI dataset DOIs commonly use a numeric identifier here.
+    numeric = re.search(r"\d{4,}", token)
+    if numeric is not None:
+        return numeric.group(0)
+    return token
+
+
+def _extract_jgi_context(payload: object, requested_doi: str) -> tuple[str, str, str] | None:
+    """Extract preferred context text from JGI search payload."""
+    if not isinstance(payload, dict):
+        return None
+
+    proposals = payload.get("proposals")
+    if isinstance(proposals, list):
+        for proposal in proposals:
+            if not isinstance(proposal, dict):
+                continue
+            if not _jgi_entry_matches_doi(proposal, requested_doi):
+                continue
+
+            for key in ("abstract", "lay_description", "description"):
+                value = proposal.get(key)
+                if isinstance(value, str) and value.strip():
+                    cleaned = _clean_text(value)
+                    if cleaned:
+                        kind = "abstract" if key == "abstract" else "description"
+                        return cleaned, value, kind
+
+            for key in ("title", "project_name", "name"):
+                value = proposal.get(key)
+                if isinstance(value, str) and value.strip():
+                    cleaned = _clean_text(value)
+                    if cleaned:
+                        return cleaned, value, "description"
+
+    organisms = payload.get("organisms")
+    if isinstance(organisms, list):
+        for organism in organisms:
+            if not isinstance(organism, dict):
+                continue
+            for key in ("title", "name"):
+                value = organism.get(key)
+                if isinstance(value, str) and value.strip():
+                    cleaned = _clean_text(value)
+                    if cleaned:
+                        return cleaned, value, "description"
+    return None
+
+
+def _jgi_entry_matches_doi(entry: dict[str, object], requested_doi: str) -> bool:
+    """Return True when DOI-bearing JGI entry matches the requested DOI."""
+    doi_keys = ("doi", "award_doi", "proposal_doi")
+    seen_any = False
+    for key in doi_keys:
+        value = entry.get(key)
+        if not isinstance(value, str) or not value.strip():
+            continue
+        seen_any = True
+        if normalize_doi(value) == requested_doi:
+            return True
+    return not seen_any
 
 
 def _try_figshare(doi: str) -> str | None:

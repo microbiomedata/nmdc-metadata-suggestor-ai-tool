@@ -9,6 +9,7 @@ from nmdc_metadata_suggestor.doi_ingestion.main import (
     EDI_DOI_API,
     EMSL_PROJECTS_API,
     ESS_DIVE_API,
+    JGI_SEARCH_API,
     ZENODO_API,
     get_doi_description_or_abstract,
 )
@@ -137,6 +138,71 @@ def test_emsl_mismatch_falls_back_to_datacite() -> None:
     assert result.source == "datacite"
     assert result.provider == "emsl"
     assert result.attempts == ["emsl", "datacite"]
+
+
+@responses.activate
+def test_jgi_provider_api_lay_description_wins() -> None:
+    """Resolve JGI DOI via project search and return lay description."""
+    doi = "10.25585/1487763"
+    responses.add(
+        responses.GET,
+        JGI_SEARCH_API,
+        json={
+            "proposals": [
+                {
+                    "doi": doi,
+                    "lay_description": "JGI lay description text.",
+                    "title": "Fallback title",
+                }
+            ],
+            "organisms": [],
+        },
+    )
+
+    result = get_doi_description_or_abstract(doi)
+    assert result.context == "JGI lay description text."
+    assert result.context_type == "description"
+    assert result.source == "jgi"
+    assert result.provider == "jgi"
+    assert result.attempts == ["jgi"]
+
+
+@responses.activate
+def test_jgi_mismatch_falls_back_to_datacite() -> None:
+    """If JGI response DOI does not match, continue waterfall to DataCite."""
+    doi = "10.25585/1487763"
+    responses.add(
+        responses.GET,
+        JGI_SEARCH_API,
+        json={
+            "proposals": [{"doi": "10.25585/9999999", "lay_description": "Wrong record"}],
+            "organisms": [],
+        },
+    )
+    responses.add(
+        responses.GET,
+        f"{DATACITE_API}/{doi}",
+        json={
+            "data": {
+                "attributes": {
+                    "publisher": "JGI",
+                    "descriptions": [
+                        {
+                            "descriptionType": "Abstract",
+                            "description": "DataCite fallback for JGI DOI",
+                        }
+                    ],
+                }
+            }
+        },
+    )
+
+    result = get_doi_description_or_abstract(doi)
+    assert result.context == "DataCite fallback for JGI DOI"
+    assert result.context_type == "abstract"
+    assert result.source == "datacite"
+    assert result.provider == "jgi"
+    assert result.attempts == ["jgi", "datacite"]
 
 
 @responses.activate
