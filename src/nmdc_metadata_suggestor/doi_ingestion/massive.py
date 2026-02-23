@@ -4,6 +4,7 @@ import re
 
 import requests
 
+from nmdc_metadata_suggestor.constants import DOI_CONTENT_NEGOTIATION_API, PROXI_DATASETS_API
 from nmdc_metadata_suggestor.doi_ingestion.common import append_error, clean_text, text_mentions_doi
 from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
     DATACITE_API,
@@ -11,9 +12,6 @@ from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
     USER_AGENT,
     request_with_retry,
 )
-
-DOI_CONTENT_NEGOTIATION_API = "https://doi.org"
-PROXI_DATASETS_API = "https://proteomecentral.proteomexchange.org/api/proxi/v0.1/datasets"
 
 
 def try_massive(doi: str, errors: list[str] | None = None) -> tuple[str, str, str] | None:

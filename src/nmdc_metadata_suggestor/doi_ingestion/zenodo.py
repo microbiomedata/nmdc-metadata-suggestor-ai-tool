@@ -2,6 +2,7 @@
 
 import requests
 
+from nmdc_metadata_suggestor.constants import ZENODO_API
 from nmdc_metadata_suggestor.doi_ingestion.common import append_error, clean_text
 from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
     DEFAULT_TIMEOUT,
@@ -9,8 +10,6 @@ from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
     normalize_doi,
     request_with_retry,
 )
-
-ZENODO_API = "https://zenodo.org/api/records"
 
 
 def try_zenodo(doi: str, errors: list[str] | None = None) -> str | None:

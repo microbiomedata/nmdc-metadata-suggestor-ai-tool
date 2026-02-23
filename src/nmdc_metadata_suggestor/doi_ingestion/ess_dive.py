@@ -1,11 +1,15 @@
 """ESS-DIVE DOI resolver."""
 
-import os
 import re
 import xml.etree.ElementTree as ET
 
 import requests
 
+from nmdc_metadata_suggestor.constants import (
+    DATAONE_CN_SOLR_API,
+    ESS_DIVE_API,
+    MAX_DATAONE_SOLR_XML_CHARS,
+)
 from nmdc_metadata_suggestor.doi_ingestion.common import append_error, clean_text, find_first_text
 from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
     DEFAULT_TIMEOUT,
@@ -14,9 +18,6 @@ from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
     request_with_retry,
 )
 
-ESS_DIVE_API = "https://api.ess-dive.lbl.gov/packages"
-DATAONE_CN_SOLR_API = "https://cn.dataone.org/cn/v2/query/solr/"
-MAX_DATAONE_SOLR_XML_CHARS = int(os.environ.get("NMDC_DATAONE_SOLR_MAX_XML_CHARS", "2000000"))
 _UNSAFE_XML_DECLARATION_PATTERN = re.compile(r"<!\s*(?:DOCTYPE|ENTITY)\b", re.IGNORECASE)
 
 

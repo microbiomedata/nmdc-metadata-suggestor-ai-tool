@@ -4,6 +4,7 @@ import re
 
 import requests
 
+from nmdc_metadata_suggestor.constants import JGI_SEARCH_API
 from nmdc_metadata_suggestor.doi_ingestion.common import append_error, clean_text
 from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
     DEFAULT_TIMEOUT,
@@ -11,8 +12,6 @@ from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
     normalize_doi,
     request_with_retry,
 )
-
-JGI_SEARCH_API = "https://files.jgi.doe.gov/search/"
 
 
 def try_jgi(doi: str, errors: list[str] | None = None) -> tuple[str, str, str] | None:

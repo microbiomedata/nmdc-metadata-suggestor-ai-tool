@@ -4,6 +4,7 @@ import re
 
 import requests
 
+from nmdc_metadata_suggestor.constants import EMSL_PROJECTS_API
 from nmdc_metadata_suggestor.doi_ingestion.common import append_error, clean_text
 from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
     DEFAULT_TIMEOUT,
@@ -11,8 +12,6 @@ from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
     normalize_doi,
     request_with_retry,
 )
-
-EMSL_PROJECTS_API = "https://api.emsl.pnnl.gov/external/projects"
 
 
 def try_emsl(doi: str, errors: list[str] | None = None) -> tuple[str, str, str] | None:

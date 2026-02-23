@@ -61,3 +61,25 @@ PMC_PDF_URL_TEMPLATE = "https://www.ncbi.nlm.nih.gov/pmc/articles/{pmcid}/pdf/"
 
 # Content negotiation
 CITEPROC_JSON_ACCEPT = "application/vnd.citationstyles.csl+json"
+
+# ---------------------------------------------------------------------------
+# DOI context resolver APIs
+# ---------------------------------------------------------------------------
+EDI_DOI_API = "https://pasta.lternet.edu/package/doi"
+EMSL_PROJECTS_API = "https://api.emsl.pnnl.gov/external/projects"
+ESS_DIVE_API = "https://api.ess-dive.lbl.gov/packages"
+DATAONE_CN_SOLR_API = "https://cn.dataone.org/cn/v2/query/solr/"
+FIGSHARE_API = "https://api.figshare.com/v2/articles"
+FIGSHARE_COLLECTIONS_API = "https://api.figshare.com/v2/collections"
+JGI_SEARCH_API = "https://files.jgi.doe.gov/search/"
+KBASE_SEARCH_API = "https://kbase.us/services/searchapi2/rpc"
+KBASE_WORKSPACE_API = "https://kbase.us/services/ws"
+DOI_CONTENT_NEGOTIATION_API = DOI_RESOLVER_URL
+PROXI_DATASETS_API = "https://proteomecentral.proteomexchange.org/api/proxi/v0.1/datasets"
+CYVERSE_METADATA_API = "https://de.cyverse.org/terrain/filesystem/metadata"
+CYVERSE_METADATA_SEARCH_API = f"{CYVERSE_METADATA_API}/search"
+ZENODO_API = "https://zenodo.org/api/records"
+
+# Safety limits for untrusted XML payloads in DOI resolvers.
+MAX_EDI_METADATA_XML_CHARS = int(os.environ.get("NMDC_EDI_MAX_XML_CHARS", "2000000"))
+MAX_DATAONE_SOLR_XML_CHARS = int(os.environ.get("NMDC_DATAONE_SOLR_MAX_XML_CHARS", "2000000"))

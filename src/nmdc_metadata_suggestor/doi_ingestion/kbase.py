@@ -4,15 +4,13 @@ import re
 
 import requests
 
+from nmdc_metadata_suggestor.constants import KBASE_SEARCH_API, KBASE_WORKSPACE_API
 from nmdc_metadata_suggestor.doi_ingestion.common import append_error, clean_text, text_mentions_doi
 from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
     DEFAULT_TIMEOUT,
     USER_AGENT,
     request_with_retry,
 )
-
-KBASE_SEARCH_API = "https://kbase.us/services/searchapi2/rpc"
-KBASE_WORKSPACE_API = "https://kbase.us/services/ws"
 
 
 def try_kbase(doi: str, errors: list[str] | None = None) -> tuple[str, str, str] | None:

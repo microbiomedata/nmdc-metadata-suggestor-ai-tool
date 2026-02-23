@@ -2,15 +2,13 @@
 
 import requests
 
+from nmdc_metadata_suggestor.constants import CYVERSE_METADATA_API, CYVERSE_METADATA_SEARCH_API
 from nmdc_metadata_suggestor.doi_ingestion.common import append_error, clean_text
 from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
     DEFAULT_TIMEOUT,
     USER_AGENT,
     request_with_retry,
 )
-
-CYVERSE_METADATA_API = "https://de.cyverse.org/terrain/filesystem/metadata"
-CYVERSE_METADATA_SEARCH_API = f"{CYVERSE_METADATA_API}/search"
 
 
 def try_cyverse(doi: str, errors: list[str] | None = None) -> tuple[str, str, str] | None:

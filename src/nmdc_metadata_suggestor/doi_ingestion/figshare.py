@@ -2,15 +2,13 @@
 
 import requests
 
+from nmdc_metadata_suggestor.constants import FIGSHARE_API, FIGSHARE_COLLECTIONS_API
 from nmdc_metadata_suggestor.doi_ingestion.common import append_error, clean_text
 from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
     DEFAULT_TIMEOUT,
     USER_AGENT,
     request_with_retry,
 )
-
-FIGSHARE_API = "https://api.figshare.com/v2/articles"
-FIGSHARE_COLLECTIONS_API = "https://api.figshare.com/v2/collections"
 
 
 def try_figshare(doi: str, errors: list[str] | None = None) -> str | None:
