@@ -10,6 +10,7 @@ from nmdc_metadata_suggestor.doi_ingestion.main import (
     EMSL_PROJECTS_API,
     ESS_DIVE_API,
     JGI_SEARCH_API,
+    KBASE_SEARCH_API,
     ZENODO_API,
     get_doi_description_or_abstract,
 )
@@ -206,6 +207,87 @@ def test_jgi_mismatch_falls_back_to_datacite() -> None:
 
 
 @responses.activate
+def test_kbase_provider_api_description_wins() -> None:
+    """Resolve KBase DOI via narrative search and return narrative description text."""
+    doi = "10.25982/109073.30/1895615"
+    responses.add(
+        responses.POST,
+        KBASE_SEARCH_API,
+        json={
+            "jsonrpc": "2.0",
+            "id": "1",
+            "result": {
+                "count": 1,
+                "hits": [
+                    {
+                        "index": "narrative_2",
+                        "id": "WS::109073:1",
+                        "doc": {
+                            "narrative_title": "KBase Narrative Title",
+                            "cells": [
+                                {"desc": "Small intro cell."},
+                                {
+                                    "desc": (
+                                        "Please cite this dataset as "
+                                        "doi:10.25982/109073.30/1895615. "
+                                        "This narrative describes sample collection and processing."
+                                    )
+                                },
+                            ],
+                            "creation_date": "2022-02-14T17:53:04+0000",
+                        },
+                    }
+                ],
+                "search_time": 12,
+                "aggregations": {},
+            },
+        },
+    )
+
+    result = get_doi_description_or_abstract(doi)
+    assert "Please cite this dataset" in result.context
+    assert result.context_type == "description"
+    assert result.source == "kbase"
+    assert result.provider == "kbase"
+    assert result.attempts == ["kbase"]
+
+
+@responses.activate
+def test_kbase_miss_falls_back_to_datacite() -> None:
+    """If KBase resolver finds no matching narratives, continue waterfall."""
+    doi = "10.25982/109073.30/1895615"
+    responses.add(
+        responses.POST,
+        KBASE_SEARCH_API,
+        json={"jsonrpc": "2.0", "id": "1", "result": {"count": 0, "hits": [], "aggregations": {}}},
+    )
+    responses.add(
+        responses.GET,
+        f"{DATACITE_API}/{doi}",
+        json={
+            "data": {
+                "attributes": {
+                    "publisher": "KBase",
+                    "descriptions": [
+                        {
+                            "descriptionType": "Abstract",
+                            "description": "DataCite fallback for KBase DOI",
+                        }
+                    ],
+                }
+            }
+        },
+    )
+
+    result = get_doi_description_or_abstract(doi)
+    assert result.context == "DataCite fallback for KBase DOI"
+    assert result.context_type == "abstract"
+    assert result.source == "datacite"
+    assert result.provider == "kbase"
+    assert result.attempts == ["kbase", "datacite"]
+
+
+@responses.activate
 def test_zenodo_provider_api_is_used_first() -> None:
     """For Zenodo-prefix DOIs, query Zenodo API before generic fallbacks."""
     doi = "10.5281/zenodo.7406532"
@@ -286,6 +368,11 @@ def test_all_sources_miss_returns_clean_error() -> None:
     """Return a clean no-context error with full attempted-source trace."""
     doi = "10.25982/109073.30/1895615"
     responses.add(
+        responses.POST,
+        KBASE_SEARCH_API,
+        json={"jsonrpc": "2.0", "id": "1", "result": {"count": 0, "hits": [], "aggregations": {}}},
+    )
+    responses.add(
         responses.GET,
         f"{DATACITE_API}/{doi}",
         json={"data": {"attributes": {"descriptions": []}}},
@@ -301,4 +388,4 @@ def test_all_sources_miss_returns_clean_error() -> None:
     assert result.context is None
     assert result.error == "No description or abstract found in any source"
     assert result.provider == "kbase"
-    assert result.attempts == ["datacite", "crossref", "content_negotiation"]
+    assert result.attempts == ["kbase", "datacite", "crossref", "content_negotiation"]

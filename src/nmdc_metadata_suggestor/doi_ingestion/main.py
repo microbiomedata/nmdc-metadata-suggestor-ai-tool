@@ -28,6 +28,7 @@ EMSL_PROJECTS_API = "https://api.emsl.pnnl.gov/external/projects"
 ESS_DIVE_API = "https://api.ess-dive.lbl.gov/packages"
 FIGSHARE_API = "https://api.figshare.com/v2/articles"
 JGI_SEARCH_API = "https://files.jgi.doe.gov/search/"
+KBASE_SEARCH_API = "https://kbase.us/services/searchapi2/rpc"
 ZENODO_API = "https://zenodo.org/api/records"
 
 TARGET_PROVIDER_PREFIXES: dict[str, str] = {
@@ -61,6 +62,7 @@ ALL_SOURCES = (
     "ess-dive",
     "figshare",
     "jgi",
+    "kbase",
     "zenodo",
     "datacite",
     "crossref",
@@ -203,6 +205,15 @@ def _fetch_jgi(doi: str, provider: str | None, attempts: list[str]) -> DoiContex
     return _build_result(doi, provider, "jgi", attempts, text, raw, kind)
 
 
+def _fetch_kbase(doi: str, provider: str | None, attempts: list[str]) -> DoiContextResult | None:
+    """Fetch and wrap context from KBase Search API."""
+    context = _try_kbase(doi)
+    if context is None:
+        return None
+    text, raw, kind = context
+    return _build_result(doi, provider, "kbase", attempts, text, raw, kind)
+
+
 def _fetch_zenodo(
     doi: str, provider: str | None, attempts: list[str]
 ) -> DoiContextResult | None:
@@ -256,13 +267,14 @@ _SOURCE_FETCHERS = {
     "ess-dive": _fetch_ess_dive,
     "figshare": _fetch_figshare,
     "jgi": _fetch_jgi,
+    "kbase": _fetch_kbase,
     "zenodo": _fetch_zenodo,
     "datacite": _fetch_datacite,
     "crossref": _fetch_crossref,
     "content_negotiation": _fetch_content_negotiation,
 }
 
-_PROVIDER_API_SOURCES = {"edi", "emsl", "ess-dive", "figshare", "jgi", "zenodo"}
+_PROVIDER_API_SOURCES = {"edi", "emsl", "ess-dive", "figshare", "jgi", "kbase", "zenodo"}
 
 
 def _try_edi(doi: str) -> tuple[str, str] | None:
@@ -368,6 +380,47 @@ def _try_jgi(doi: str) -> tuple[str, str, str] | None:
             return context
 
     return None
+
+
+def _try_kbase(doi: str) -> tuple[str, str, str] | None:
+    """Return cleaned/raw context from KBase narrative search by DOI."""
+    payload = {
+        "jsonrpc": "2.0",
+        "id": "1",
+        "method": "search_objects",
+        "params": {
+            "query": {"query_string": {"query": f'"{doi}"'}},
+            "indexes": ["narrative"],
+            "source": ["narrative_title", "cells.desc", "creation_date"],
+            "only_public": True,
+            "size": 10,
+            "from": 0,
+            "sort": [{"creation_date": {"order": "desc"}}],
+            "track_total_hits": False,
+        },
+    }
+
+    try:
+        response = requests.post(
+            KBASE_SEARCH_API,
+            json=payload,
+            headers={"User-Agent": USER_AGENT},
+            timeout=DEFAULT_TIMEOUT,
+        )
+        if response.status_code != 200:
+            return None
+        data = response.json()
+    except (requests.RequestException, ValueError):
+        return None
+
+    result = data.get("result")
+    if not isinstance(result, dict):
+        return None
+
+    context = _extract_kbase_context(result, doi)
+    if context is None:
+        return None
+    return context
 
 
 def _try_ess_dive(doi: str) -> tuple[str, str] | None:
@@ -493,6 +546,75 @@ def _jgi_entry_matches_doi(entry: dict[str, object], requested_doi: str) -> bool
         if normalize_doi(value) == requested_doi:
             return True
     return not seen_any
+
+
+def _extract_kbase_context(
+    result: dict[str, object], requested_doi: str
+) -> tuple[str, str, str] | None:
+    """Extract description context from KBase narrative search results."""
+    hits = result.get("hits")
+    if not isinstance(hits, list):
+        return None
+
+    best_matching_text: str | None = None
+    best_fallback_text: str | None = None
+    best_title: str | None = None
+
+    for hit in hits:
+        if not isinstance(hit, dict):
+            continue
+        doc = hit.get("doc")
+        if not isinstance(doc, dict):
+            continue
+
+        title = doc.get("narrative_title")
+        if best_title is None and isinstance(title, str) and title.strip():
+            best_title = title
+
+        cells = doc.get("cells")
+        if not isinstance(cells, list):
+            continue
+
+        for cell in cells:
+            if not isinstance(cell, dict):
+                continue
+            desc = cell.get("desc")
+            if not isinstance(desc, str) or not desc.strip():
+                continue
+
+            if _text_mentions_doi(desc, requested_doi):
+                if best_matching_text is None or len(desc) > len(best_matching_text):
+                    best_matching_text = desc
+            elif best_fallback_text is None or len(desc) > len(best_fallback_text):
+                best_fallback_text = desc
+
+    if best_matching_text:
+        cleaned = _clean_text(best_matching_text)
+        if cleaned:
+            return cleaned, best_matching_text, "description"
+
+    if best_fallback_text:
+        cleaned = _clean_text(best_fallback_text)
+        if cleaned:
+            return cleaned, best_fallback_text, "description"
+
+    if best_title:
+        cleaned = _clean_text(best_title)
+        if cleaned:
+            return cleaned, best_title, "description"
+    return None
+
+
+def _text_mentions_doi(text: str, requested_doi: str) -> bool:
+    """Return True when text appears to reference the requested DOI."""
+    lowered = text.lower()
+    doi_variants = {
+        requested_doi.lower(),
+        f"doi:{requested_doi.lower()}",
+        f"https://doi.org/{requested_doi.lower()}",
+        f"http://doi.org/{requested_doi.lower()}",
+    }
+    return any(variant in lowered for variant in doi_variants)
 
 
 def _try_figshare(doi: str) -> str | None:
