@@ -11,6 +11,7 @@ import requests
 
 from nmdc_metadata_suggestor.models.doi import AbstractResult
 from nmdc_metadata_suggestor.models.publication import Publication
+from nmdc_metadata_suggestor.publication_ingestion.doi_utils import USER_AGENT
 
 # API endpoints
 OSTI_API_URL = "https://www.osti.gov/api/v1/records"
@@ -29,7 +30,7 @@ def query_osti_by_doi(osti_doi: str) -> dict:
     params = {
         "doi": osti_doi,
     }
-    headers = {"User-Agent": "NMDC Metadata Suggestor (mailto:support@microbiomedata.org)"}
+    headers = {"User-Agent": USER_AGENT}
     try:
         osti_url = f"{OSTI_E2_API_URL}"
         response = requests.get(
@@ -161,7 +162,7 @@ def retrieve_pdf_link_from_crossref(id: str) -> dict[str, Any]:
         response = requests.get(
             f"{CROSSREF_API_URL}/{id}",
             timeout=DEFAULT_TIMEOUT,
-            headers={"User-Agent": "NMDC Metadata Suggestor (mailto:support@microbiomedata.org)"},
+            headers={"User-Agent": USER_AGENT},
         )
         response.raise_for_status()
         link_data = response.json()["message"]["link"]
