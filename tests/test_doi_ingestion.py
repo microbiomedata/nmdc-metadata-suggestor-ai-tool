@@ -94,6 +94,31 @@ def _load_real_world_source_cases() -> list[dict[str, str]]:
 
 
 REAL_WORLD_SOURCE_CASES = _load_real_world_source_cases()
+integration = pytest.mark.integration
+
+KNOWN_LIVE_NO_CONTEXT_DOIS = {
+    "10.25585/1488274",
+    "10.7946/p22k7v",
+}
+
+
+def _select_live_success_cases(cases: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Pick one likely-success live example per resolver source from fixture cases."""
+    selected: dict[str, dict[str, str]] = {}
+    for case in cases:
+        doi = case["doi"]
+        source = case["source"]
+        if doi in KNOWN_LIVE_NO_CONTEXT_DOIS:
+            continue
+        if source not in selected:
+            selected[source] = case
+    return list(selected.values())
+
+
+LIVE_SUCCESS_CASES = _select_live_success_cases(REAL_WORLD_SOURCE_CASES)
+LIVE_KNOWN_NO_CONTEXT_CASES = [
+    case for case in REAL_WORLD_SOURCE_CASES if case["doi"] in KNOWN_LIVE_NO_CONTEXT_DOIS
+]
 
 
 def _mock_provider_resolver_hit(source: str, doi: str) -> None:
@@ -905,3 +930,57 @@ def test_all_sources_miss_returns_clean_error() -> None:
     assert result.error == "No description or abstract found in any source"
     assert result.provider == "kbase"
     assert result.attempts == ["kbase", "datacite", "crossref", "content_negotiation"]
+
+
+# ---------------------------------------------------------------------------
+# Integration tests — hit real DOI/provider APIs, skip in CI by default
+# ---------------------------------------------------------------------------
+
+
+@integration
+@pytest.mark.parametrize(
+    "case",
+    LIVE_SUCCESS_CASES,
+    ids=[f"{case['source']}:{case['doi']}" for case in LIVE_SUCCESS_CASES],
+)
+def test_live_source_example_returns_context(case: dict[str, str]) -> None:
+    """Each source-routed live DOI should return context from provider API or fallback."""
+    doi = case["doi"]
+    source = case["source"]
+    route = case["route"]
+
+    if route == "explicit":
+        result = get_doi_description_or_abstract(doi, sources=[source])
+        assert result.attempts == [source]
+    else:
+        result = get_doi_description_or_abstract(doi)
+        assert result.attempts[0] == source
+        assert result.provider == source
+
+    assert result.context is not None, f"Expected context for {doi}; got error={result.error!r}"
+    assert result.source is not None
+    assert result.source in result.attempts
+    assert result.context_type in {"abstract", "description"}
+
+
+@integration
+@pytest.mark.parametrize(
+    "case",
+    LIVE_KNOWN_NO_CONTEXT_CASES,
+    ids=[f"{case['source']}:{case['doi']}" for case in LIVE_KNOWN_NO_CONTEXT_CASES],
+)
+def test_live_known_no_context_cases_fail_cleanly(case: dict[str, str]) -> None:
+    """Known live no-context DOIs should fail cleanly with explicit attempts."""
+    doi = case["doi"]
+    source = case["source"]
+    route = case["route"]
+
+    if route == "explicit":
+        result = get_doi_description_or_abstract(doi, sources=[source])
+        assert result.attempts == [source]
+    else:
+        result = get_doi_description_or_abstract(doi)
+        assert result.attempts[0] == source
+
+    assert result.context is None
+    assert result.error == "No description or abstract found in any source"
