@@ -1,0 +1,123 @@
+"""JGI DOI resolver."""
+
+import re
+
+import requests
+
+from nmdc_metadata_suggestor.doi_ingestion.common import clean_text
+from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
+    DEFAULT_TIMEOUT,
+    USER_AGENT,
+    normalize_doi,
+)
+
+JGI_SEARCH_API = "https://files.jgi.doe.gov/search/"
+
+
+def try_jgi(doi: str) -> tuple[str, str, str] | None:
+    """Return cleaned/raw context from JGI search response."""
+    query_candidates: list[tuple[str, bool]] = []
+
+    project_query = _extract_jgi_project_query(doi)
+    if project_query:
+        query_candidates.append((project_query, True))
+    query_candidates.append((doi, False))
+
+    seen_queries: set[str] = set()
+    for query_value, use_project_field in query_candidates:
+        if query_value in seen_queries:
+            continue
+        seen_queries.add(query_value)
+
+        params: dict[str, str] = {"q": query_value, "api_version": "2", "x": "10", "p": "1"}
+        if use_project_field:
+            params["f"] = "project_id"
+
+        try:
+            response = requests.get(
+                JGI_SEARCH_API,
+                params=params,
+                headers={"User-Agent": USER_AGENT},
+                timeout=DEFAULT_TIMEOUT,
+            )
+            if response.status_code != 200:
+                continue
+            payload = response.json()
+        except (requests.RequestException, ValueError):
+            continue
+
+        context = _extract_jgi_context(payload, doi)
+        if context is not None:
+            return context
+
+    return None
+
+
+def _extract_jgi_project_query(doi: str) -> str | None:
+    """Extract likely JGI project identifier from DOI suffix."""
+    match = re.match(r"^10\.25585/([^/\s]+)", doi)
+    if match is None:
+        return None
+    token = match.group(1).strip()
+    if not token:
+        return None
+    numeric = re.search(r"\d{4,}", token)
+    if numeric is not None:
+        return numeric.group(0)
+    return token
+
+
+def _extract_jgi_context(payload: object, requested_doi: str) -> tuple[str, str, str] | None:
+    """Extract preferred context text from JGI search payload."""
+    if not isinstance(payload, dict):
+        return None
+
+    proposals = payload.get("proposals")
+    if isinstance(proposals, list):
+        for proposal in proposals:
+            if not isinstance(proposal, dict):
+                continue
+            if not _jgi_entry_matches_doi(proposal, requested_doi):
+                continue
+
+            for key in ("abstract", "lay_description", "description"):
+                value = proposal.get(key)
+                if isinstance(value, str) and value.strip():
+                    cleaned = clean_text(value)
+                    if cleaned:
+                        kind = "abstract" if key == "abstract" else "description"
+                        return cleaned, value, kind
+
+            for key in ("title", "project_name", "name"):
+                value = proposal.get(key)
+                if isinstance(value, str) and value.strip():
+                    cleaned = clean_text(value)
+                    if cleaned:
+                        return cleaned, value, "description"
+
+    organisms = payload.get("organisms")
+    if isinstance(organisms, list):
+        for organism in organisms:
+            if not isinstance(organism, dict):
+                continue
+            for key in ("title", "name"):
+                value = organism.get(key)
+                if isinstance(value, str) and value.strip():
+                    cleaned = clean_text(value)
+                    if cleaned:
+                        return cleaned, value, "description"
+    return None
+
+
+def _jgi_entry_matches_doi(entry: dict[str, object], requested_doi: str) -> bool:
+    """Return True when DOI-bearing JGI entry matches the requested DOI."""
+    doi_keys = ("doi", "award_doi", "proposal_doi")
+    seen_any = False
+    for key in doi_keys:
+        value = entry.get(key)
+        if not isinstance(value, str) or not value.strip():
+            continue
+        seen_any = True
+        if normalize_doi(value) == requested_doi:
+            return True
+    return not seen_any

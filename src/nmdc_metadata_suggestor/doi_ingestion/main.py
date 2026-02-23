@@ -1,16 +1,32 @@
 """DOI description/abstract ingestion for repository-backed DOI providers.
 
-This module retrieves text context for LLM prompting from DOI records, with a
-waterfall that prioritizes provider APIs and then falls back to generic DOI
-metadata APIs.
+This module orchestrates source-specific DOI context resolvers and a generic
+waterfall (DataCite, Crossref, content negotiation).
 """
 
-import html
-import re
-import xml.etree.ElementTree as ET
+from collections.abc import Callable
 
 import requests
 
+import nmdc_metadata_suggestor.doi_ingestion.cyverse as cyverse_resolver
+import nmdc_metadata_suggestor.doi_ingestion.edi as edi_resolver
+import nmdc_metadata_suggestor.doi_ingestion.emsl as emsl_resolver
+import nmdc_metadata_suggestor.doi_ingestion.ess_dive as ess_dive_resolver
+import nmdc_metadata_suggestor.doi_ingestion.figshare as figshare_resolver
+import nmdc_metadata_suggestor.doi_ingestion.jgi as jgi_resolver
+import nmdc_metadata_suggestor.doi_ingestion.kbase as kbase_resolver
+import nmdc_metadata_suggestor.doi_ingestion.massive as massive_resolver
+import nmdc_metadata_suggestor.doi_ingestion.zenodo as zenodo_resolver
+from nmdc_metadata_suggestor.doi_ingestion.common import clean_text
+from nmdc_metadata_suggestor.doi_ingestion.cyverse import try_cyverse
+from nmdc_metadata_suggestor.doi_ingestion.edi import try_edi
+from nmdc_metadata_suggestor.doi_ingestion.emsl import try_emsl
+from nmdc_metadata_suggestor.doi_ingestion.ess_dive import try_ess_dive
+from nmdc_metadata_suggestor.doi_ingestion.figshare import try_figshare
+from nmdc_metadata_suggestor.doi_ingestion.jgi import try_jgi
+from nmdc_metadata_suggestor.doi_ingestion.kbase import try_kbase
+from nmdc_metadata_suggestor.doi_ingestion.massive import try_massive
+from nmdc_metadata_suggestor.doi_ingestion.zenodo import try_zenodo
 from nmdc_metadata_suggestor.models.doi import DoiContextResult
 from nmdc_metadata_suggestor.publication_ingestion.abstract_retriever import strip_jats_xml
 from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
@@ -22,20 +38,21 @@ from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
     normalize_doi,
 )
 
-DOI_CONTENT_NEGOTIATION_API = "https://doi.org"
-EDI_DOI_API = "https://pasta.lternet.edu/package/doi"
-EMSL_PROJECTS_API = "https://api.emsl.pnnl.gov/external/projects"
-ESS_DIVE_API = "https://api.ess-dive.lbl.gov/packages"
-DATAONE_CN_SOLR_API = "https://cn.dataone.org/cn/v2/query/solr/"
-FIGSHARE_API = "https://api.figshare.com/v2/articles"
-FIGSHARE_COLLECTIONS_API = "https://api.figshare.com/v2/collections"
-JGI_SEARCH_API = "https://files.jgi.doe.gov/search/"
-KBASE_SEARCH_API = "https://kbase.us/services/searchapi2/rpc"
-KBASE_WORKSPACE_API = "https://kbase.us/services/ws"
-CYVERSE_METADATA_API = "https://de.cyverse.org/terrain/filesystem/metadata"
-CYVERSE_METADATA_SEARCH_API = f"{CYVERSE_METADATA_API}/search"
-PROXI_DATASETS_API = "https://proteomecentral.proteomexchange.org/api/proxi/v0.1/datasets"
-ZENODO_API = "https://zenodo.org/api/records"
+# Re-export endpoint constants for tests and external callers.
+EDI_DOI_API = edi_resolver.EDI_DOI_API
+EMSL_PROJECTS_API = emsl_resolver.EMSL_PROJECTS_API
+ESS_DIVE_API = ess_dive_resolver.ESS_DIVE_API
+DATAONE_CN_SOLR_API = ess_dive_resolver.DATAONE_CN_SOLR_API
+FIGSHARE_API = figshare_resolver.FIGSHARE_API
+FIGSHARE_COLLECTIONS_API = figshare_resolver.FIGSHARE_COLLECTIONS_API
+JGI_SEARCH_API = jgi_resolver.JGI_SEARCH_API
+KBASE_SEARCH_API = kbase_resolver.KBASE_SEARCH_API
+KBASE_WORKSPACE_API = kbase_resolver.KBASE_WORKSPACE_API
+DOI_CONTENT_NEGOTIATION_API = massive_resolver.DOI_CONTENT_NEGOTIATION_API
+PROXI_DATASETS_API = massive_resolver.PROXI_DATASETS_API
+CYVERSE_METADATA_API = cyverse_resolver.CYVERSE_METADATA_API
+CYVERSE_METADATA_SEARCH_API = cyverse_resolver.CYVERSE_METADATA_SEARCH_API
+ZENODO_API = zenodo_resolver.ZENODO_API
 
 TARGET_PROVIDER_PREFIXES: dict[str, str] = {
     "10.6073": "edi",
@@ -79,19 +96,13 @@ ALL_SOURCES = (
 )
 
 
+Fetcher = Callable[[str, str | None, list[str]], DoiContextResult | None]
+
+
 def get_doi_description_or_abstract(
     doi: str, sources: list[str] | None = None
 ) -> DoiContextResult:
-    """Fetch abstract/description text for a DOI using a source waterfall.
-
-    Args:
-        doi: DOI in any common format.
-        sources: Optional explicit source order. Supported values are in
-            ``ALL_SOURCES``.
-
-    Returns:
-        DoiContextResult with the first abstract/description found.
-    """
+    """Fetch abstract/description text for a DOI using a source waterfall."""
     doi = normalize_doi(doi)
     if not DOI_PATTERN.match(doi):
         return DoiContextResult(doi=doi, error="Invalid DOI: Malformed DOI syntax")
@@ -127,15 +138,12 @@ def _default_source_order(provider: str | None) -> list[str]:
 
 def _infer_provider_from_doi(doi: str) -> str | None:
     """Infer a provider key from DOI prefix mapping."""
-    prefix_match = re.match(r"^(10\.\d{4,9})/", doi)
-    if not prefix_match:
-        return None
-    prefix = prefix_match.group(1)
+    prefix = doi.split("/", 1)[0] if "/" in doi else ""
     return TARGET_PROVIDER_PREFIXES.get(prefix)
 
 
 def _infer_provider_from_text(text: str | None) -> str | None:
-    """Infer a provider key from publisher/source text keywords."""
+    """Infer provider from publisher/source text keywords."""
     if not text:
         return None
     lowered = text.lower()
@@ -166,11 +174,9 @@ def _build_result(
     )
 
 
-def _fetch_ess_dive(
-    doi: str, provider: str | None, attempts: list[str]
-) -> DoiContextResult | None:
+def _fetch_ess_dive(doi: str, provider: str | None, attempts: list[str]) -> DoiContextResult | None:
     """Fetch and wrap context from ESS-DIVE-specific API."""
-    context = _try_ess_dive(doi)
+    context = try_ess_dive(doi)
     if context is None:
         return None
     text, kind = context
@@ -179,7 +185,7 @@ def _fetch_ess_dive(
 
 def _fetch_edi(doi: str, provider: str | None, attempts: list[str]) -> DoiContextResult | None:
     """Fetch and wrap context from EDI's PASTA API."""
-    context = _try_edi(doi)
+    context = try_edi(doi)
     if context is None:
         return None
     text, kind = context
@@ -188,18 +194,16 @@ def _fetch_edi(doi: str, provider: str | None, attempts: list[str]) -> DoiContex
 
 def _fetch_emsl(doi: str, provider: str | None, attempts: list[str]) -> DoiContextResult | None:
     """Fetch and wrap context from EMSL project API."""
-    context = _try_emsl(doi)
+    context = try_emsl(doi)
     if context is None:
         return None
     text, raw, kind = context
     return _build_result(doi, provider, "emsl", attempts, text, raw, kind)
 
 
-def _fetch_figshare(
-    doi: str, provider: str | None, attempts: list[str]
-) -> DoiContextResult | None:
+def _fetch_figshare(doi: str, provider: str | None, attempts: list[str]) -> DoiContextResult | None:
     """Fetch and wrap context from Figshare-specific API."""
-    text = _try_figshare(doi)
+    text = try_figshare(doi)
     if text is None:
         return None
     return _build_result(doi, provider, "figshare", attempts, text, text, "description")
@@ -207,7 +211,7 @@ def _fetch_figshare(
 
 def _fetch_jgi(doi: str, provider: str | None, attempts: list[str]) -> DoiContextResult | None:
     """Fetch and wrap context from JGI search API."""
-    context = _try_jgi(doi)
+    context = try_jgi(doi)
     if context is None:
         return None
     text, raw, kind = context
@@ -215,49 +219,41 @@ def _fetch_jgi(doi: str, provider: str | None, attempts: list[str]) -> DoiContex
 
 
 def _fetch_kbase(doi: str, provider: str | None, attempts: list[str]) -> DoiContextResult | None:
-    """Fetch and wrap context from KBase Search API."""
-    context = _try_kbase(doi)
+    """Fetch and wrap context from KBase APIs."""
+    context = try_kbase(doi)
     if context is None:
         return None
     text, raw, kind = context
     return _build_result(doi, provider, "kbase", attempts, text, raw, kind)
 
 
-def _fetch_massive(
-    doi: str, provider: str | None, attempts: list[str]
-) -> DoiContextResult | None:
+def _fetch_massive(doi: str, provider: str | None, attempts: list[str]) -> DoiContextResult | None:
     """Fetch and wrap context from MassIVE via ProteomeCentral PROXI."""
-    context = _try_massive(doi)
+    context = try_massive(doi)
     if context is None:
         return None
     text, raw, kind = context
     return _build_result(doi, provider, "massive", attempts, text, raw, kind)
 
 
-def _fetch_cyverse(
-    doi: str, provider: str | None, attempts: list[str]
-) -> DoiContextResult | None:
+def _fetch_cyverse(doi: str, provider: str | None, attempts: list[str]) -> DoiContextResult | None:
     """Fetch and wrap context from CyVerse Terrain metadata APIs."""
-    context = _try_cyverse(doi)
+    context = try_cyverse(doi)
     if context is None:
         return None
     text, raw, kind = context
     return _build_result(doi, provider, "cyverse", attempts, text, raw, kind)
 
 
-def _fetch_zenodo(
-    doi: str, provider: str | None, attempts: list[str]
-) -> DoiContextResult | None:
+def _fetch_zenodo(doi: str, provider: str | None, attempts: list[str]) -> DoiContextResult | None:
     """Fetch and wrap context from Zenodo-specific API."""
-    text = _try_zenodo(doi)
+    text = try_zenodo(doi)
     if text is None:
         return None
     return _build_result(doi, provider, "zenodo", attempts, text, text, "description")
 
 
-def _fetch_datacite(
-    doi: str, provider: str | None, attempts: list[str]
-) -> DoiContextResult | None:
+def _fetch_datacite(doi: str, provider: str | None, attempts: list[str]) -> DoiContextResult | None:
     """Fetch and wrap context from DataCite metadata."""
     context = _try_datacite(doi)
     if context is None:
@@ -268,9 +264,7 @@ def _fetch_datacite(
     return _build_result(doi, inferred_provider, "datacite", attempts, text, raw, kind)
 
 
-def _fetch_crossref(
-    doi: str, provider: str | None, attempts: list[str]
-) -> DoiContextResult | None:
+def _fetch_crossref(doi: str, provider: str | None, attempts: list[str]) -> DoiContextResult | None:
     """Fetch and wrap context from Crossref metadata."""
     context = _try_crossref(doi)
     if context is None:
@@ -292,7 +286,7 @@ def _fetch_content_negotiation(
     return _build_result(doi, provider, "content_negotiation", attempts, text, raw, kind)
 
 
-_SOURCE_FETCHERS = {
+_SOURCE_FETCHERS: dict[str, Fetcher] = {
     "edi": _fetch_edi,
     "emsl": _fetch_emsl,
     "ess-dive": _fetch_ess_dive,
@@ -320,1215 +314,6 @@ _PROVIDER_API_SOURCES = {
 }
 
 
-def _try_edi(doi: str) -> tuple[str, str] | None:
-    """Return (text, kind) from EDI PASTA metadata resolved by DOI."""
-    metadata_url = _resolve_edi_metadata_url(doi)
-    if metadata_url is None:
-        return None
-
-    try:
-        response = requests.get(
-            metadata_url,
-            headers={"User-Agent": USER_AGENT},
-            timeout=DEFAULT_TIMEOUT,
-        )
-        if response.status_code != 200:
-            return None
-        root = ET.fromstring(response.text)
-    except (requests.RequestException, ET.ParseError):
-        return None
-
-    abstract = _extract_first_xml_text(root, {"abstract"})
-    if abstract:
-        return abstract, "abstract"
-
-    description = _extract_first_xml_text(root, {"purpose", "description", "title"})
-    if description:
-        return description, "description"
-    return None
-
-
-def _try_emsl(doi: str) -> tuple[str, str, str] | None:
-    """Return cleaned/raw context from EMSL project details resolved by DOI."""
-    project_id = _extract_emsl_project_id(doi)
-    if project_id is None:
-        return None
-
-    try:
-        response = requests.get(
-            f"{EMSL_PROJECTS_API}/{project_id}",
-            headers={"User-Agent": USER_AGENT},
-            timeout=DEFAULT_TIMEOUT,
-        )
-        if response.status_code != 200:
-            return None
-        payload = response.json()
-    except (requests.RequestException, ValueError):
-        return None
-
-    award_doi = payload.get("award_doi")
-    if isinstance(award_doi, str) and award_doi:
-        if normalize_doi(award_doi) != doi:
-            return None
-
-    abstract = payload.get("abstract")
-    if isinstance(abstract, str) and abstract.strip():
-        cleaned = _clean_text(abstract)
-        if cleaned:
-            return cleaned, abstract, "abstract"
-
-    for key in ("title", "project_type"):
-        value = payload.get(key)
-        if isinstance(value, str) and value.strip():
-            cleaned = _clean_text(value)
-            if cleaned:
-                return cleaned, value, "description"
-    return None
-
-
-def _try_jgi(doi: str) -> tuple[str, str, str] | None:
-    """Return cleaned/raw context from JGI search response."""
-    query_candidates: list[tuple[str, bool]] = []
-
-    project_query = _extract_jgi_project_query(doi)
-    if project_query:
-        query_candidates.append((project_query, True))
-    query_candidates.append((doi, False))
-
-    seen_queries: set[str] = set()
-    for query_value, use_project_field in query_candidates:
-        if query_value in seen_queries:
-            continue
-        seen_queries.add(query_value)
-
-        params: dict[str, str] = {"q": query_value, "api_version": "2", "x": "10", "p": "1"}
-        if use_project_field:
-            params["f"] = "project_id"
-
-        try:
-            response = requests.get(
-                JGI_SEARCH_API,
-                params=params,
-                headers={"User-Agent": USER_AGENT},
-                timeout=DEFAULT_TIMEOUT,
-            )
-            if response.status_code != 200:
-                continue
-            payload = response.json()
-        except (requests.RequestException, ValueError):
-            continue
-
-        context = _extract_jgi_context(payload, doi)
-        if context is not None:
-            return context
-
-    return None
-
-
-def _try_kbase(doi: str) -> tuple[str, str, str] | None:
-    """Return cleaned/raw context from KBase narrative search by DOI."""
-    payload = {
-        "jsonrpc": "2.0",
-        "id": "1",
-        "method": "search_objects",
-        "params": {
-            "query": {"query_string": {"query": f'"{doi}"'}},
-            "indexes": ["narrative"],
-            "source": ["narrative_title", "cells.desc", "creation_date"],
-            "only_public": True,
-            "size": 10,
-            "from": 0,
-            "sort": [{"creation_date": {"order": "desc"}}],
-            "track_total_hits": False,
-        },
-    }
-
-    try:
-        response = requests.post(
-            KBASE_SEARCH_API,
-            json=payload,
-            headers={"User-Agent": USER_AGENT},
-            timeout=DEFAULT_TIMEOUT,
-        )
-        if response.status_code != 200:
-            return None
-        data = response.json()
-    except (requests.RequestException, ValueError):
-        return None
-
-    result = data.get("result")
-    if not isinstance(result, dict):
-        return None
-
-    context = _extract_kbase_context(result, doi)
-    if context is None:
-        context = _try_kbase_workspace_ref(doi)
-        if context is None:
-            return None
-    return context
-
-
-def _try_massive(doi: str) -> tuple[str, str, str] | None:
-    """Return cleaned/raw context from MassIVE via ProteomeCentral dataset lookup."""
-    for accession in _collect_massive_accession_candidates(doi):
-        payload = _fetch_proxi_dataset(accession)
-        if payload is None:
-            continue
-        context = _extract_massive_context(payload)
-        if context is not None:
-            return context
-
-    for accession in _search_proxi_accessions_by_doi(doi):
-        payload = _fetch_proxi_dataset(accession)
-        if payload is None:
-            continue
-        context = _extract_massive_context(payload)
-        if context is not None:
-            return context
-
-    datacite_context = _extract_massive_context_from_datacite_titles(doi)
-    if datacite_context is not None:
-        return datacite_context
-    return None
-
-
-def _try_cyverse(doi: str) -> tuple[str, str, str] | None:
-    """Return cleaned/raw context from CyVerse Terrain metadata."""
-    metadata_avus = _search_cyverse_metadata_for_doi(doi)
-    if not metadata_avus:
-        return None
-
-    context = _extract_cyverse_context(metadata_avus, doi)
-    if context is not None:
-        return context
-
-    for target_id in _extract_cyverse_target_ids(metadata_avus):
-        target_avus = _fetch_cyverse_target_metadata(target_id)
-        if not target_avus:
-            continue
-        context = _extract_cyverse_context(target_avus, doi)
-        if context is not None:
-            return context
-    return None
-
-
-def _try_ess_dive(doi: str) -> tuple[str, str] | None:
-    """Return (text, kind) from ESS-DIVE if available."""
-    try:
-        response = requests.get(
-            ESS_DIVE_API,
-            params={"doi": doi},
-            headers={"User-Agent": USER_AGENT},
-            timeout=DEFAULT_TIMEOUT,
-        )
-        if response.status_code == 200:
-            payload = response.json()
-            extracted = _find_first_text(payload, keys=("abstract", "description"))
-            if extracted is not None:
-                key, text = extracted
-                cleaned = _clean_text(text)
-                if cleaned:
-                    return cleaned, "abstract" if key == "abstract" else "description"
-    except (requests.RequestException, ValueError):
-        pass
-
-    # ESS-DIVE's Dataset API can require auth for anonymous callers; query the
-    # public DataONE index for ESS_DIVE records as a provider-specific fallback.
-    return _try_ess_dive_dataone(doi)
-
-
-def _try_ess_dive_dataone(doi: str) -> tuple[str, str] | None:
-    """Return ESS-DIVE context from DataONE's public Solr index by DOI."""
-    for query in _build_ess_dive_dataone_queries(doi):
-        docs = _fetch_dataone_solr_docs(query)
-        if not docs:
-            continue
-        context = _extract_ess_dive_dataone_context(docs, doi)
-        if context is not None:
-            return context
-    return None
-
-
-def _build_ess_dive_dataone_queries(doi: str) -> list[str]:
-    """Build DataONE Solr query candidates for an ESS-DIVE DOI."""
-    candidates: list[str] = [doi, doi.upper()]
-    suffix = doi.rsplit("/", 1)[-1]
-    if suffix and suffix not in candidates:
-        candidates.append(suffix)
-
-    queries: list[str] = []
-    seen: set[str] = set()
-    for candidate in candidates:
-        candidate = candidate.strip()
-        if not candidate or candidate in seen:
-            continue
-        seen.add(candidate)
-        queries.append(f'datasource:"urn:node:ESS_DIVE" AND seriesId:*{candidate}*')
-    return queries
-
-
-def _fetch_dataone_solr_docs(query: str) -> list[dict[str, object]]:
-    """Fetch DataONE Solr docs for a query string."""
-    try:
-        response = requests.get(
-            DATAONE_CN_SOLR_API,
-            params={
-                "q": query,
-                "rows": 25,
-                "fl": (
-                    "id,seriesId,title,abstract,description,summary,datasource,"
-                    "dateUploaded,datePublished"
-                ),
-            },
-            headers={"User-Agent": USER_AGENT},
-            timeout=DEFAULT_TIMEOUT,
-        )
-        if response.status_code != 200:
-            return []
-        return _parse_dataone_solr_docs(response.text)
-    except requests.RequestException:
-        return []
-
-
-def _parse_dataone_solr_docs(xml_text: str) -> list[dict[str, object]]:
-    """Parse DataONE Solr XML response into a list of document dicts."""
-    try:
-        root = ET.fromstring(xml_text)
-    except ET.ParseError:
-        return []
-
-    docs: list[dict[str, object]] = []
-    for doc in root.findall(".//doc"):
-        parsed: dict[str, object] = {}
-        for field in doc:
-            name = field.attrib.get("name")
-            if not isinstance(name, str) or not name:
-                continue
-            if field.tag == "arr":
-                values = [
-                    item.text.strip()
-                    for item in field
-                    if isinstance(item.text, str) and item.text.strip()
-                ]
-                if values:
-                    parsed[name] = values
-                continue
-
-            if isinstance(field.text, str) and field.text.strip():
-                parsed[name] = field.text.strip()
-        if parsed:
-            docs.append(parsed)
-    return docs
-
-
-def _extract_ess_dive_dataone_context(
-    docs: list[dict[str, object]], requested_doi: str
-) -> tuple[str, str] | None:
-    """Extract abstract/description context from DataONE ESS-DIVE docs."""
-    exact_matches: list[dict[str, object]] = []
-    fallback_matches: list[dict[str, object]] = []
-
-    for doc in docs:
-        datasource = _extract_dataone_doc_string(doc.get("datasource"))
-        if datasource and datasource != "urn:node:ESS_DIVE":
-            continue
-
-        series_id = _extract_dataone_doc_string(doc.get("seriesId"))
-        if _ess_dive_series_id_matches_doi(series_id, requested_doi):
-            exact_matches.append(doc)
-        else:
-            fallback_matches.append(doc)
-
-    for doc in _sort_dataone_docs_for_context(exact_matches or fallback_matches):
-        for key, kind in (
-            ("abstract", "abstract"),
-            ("description", "description"),
-            ("summary", "description"),
-            ("title", "description"),
-        ):
-            raw = _extract_dataone_doc_string(doc.get(key))
-            if not raw:
-                continue
-            cleaned = _clean_text(raw)
-            if cleaned:
-                return cleaned, kind
-    return None
-
-
-def _extract_dataone_doc_string(value: object) -> str | None:
-    """Return first non-empty string from a DataONE doc field value."""
-    if isinstance(value, str) and value.strip():
-        return value.strip()
-    if isinstance(value, list):
-        for item in value:
-            if isinstance(item, str) and item.strip():
-                return item.strip()
-    return None
-
-
-def _ess_dive_series_id_matches_doi(series_id: str | None, requested_doi: str) -> bool:
-    """Return True when DataONE seriesId corresponds to the requested DOI."""
-    if not isinstance(series_id, str) or not series_id.strip():
-        return False
-    normalized_series = normalize_doi(series_id.replace("doi:", "", 1)).lower()
-    return normalized_series == requested_doi.lower()
-
-
-def _sort_dataone_docs_for_context(docs: list[dict[str, object]]) -> list[dict[str, object]]:
-    """Sort DataONE docs by newest upload/publication timestamp first."""
-    return sorted(
-        docs,
-        key=lambda doc: (
-            _extract_dataone_doc_string(doc.get("dateUploaded")) or "",
-            _extract_dataone_doc_string(doc.get("datePublished")) or "",
-        ),
-        reverse=True,
-    )
-
-
-def _resolve_edi_metadata_url(doi: str) -> str | None:
-    """Resolve EDI metadata URL from an EDI DOI."""
-    try:
-        response = requests.get(
-            f"{EDI_DOI_API}/doi:{doi}",
-            headers={"User-Agent": USER_AGENT},
-            timeout=DEFAULT_TIMEOUT,
-        )
-        if response.status_code != 200:
-            return None
-    except requests.RequestException:
-        return None
-
-    for line in response.text.splitlines():
-        candidate = line.strip()
-        if "/package/metadata/eml/" in candidate:
-            return candidate
-    return None
-
-
-def _extract_emsl_project_id(doi: str) -> str | None:
-    """Extract EMSL project ID embedded in award DOI suffix."""
-    # Example: 10.46936/jejc.proj.2014.48483/60005501 -> 48483
-    match = re.search(r"\.proj\.\d{4}\.(\d+)(?:/|$)", doi)
-    if match is None:
-        return None
-    return match.group(1)
-
-
-def _extract_jgi_project_query(doi: str) -> str | None:
-    """Extract likely JGI project identifier from DOI suffix."""
-    match = re.match(r"^10\.25585/([^/\s]+)", doi)
-    if match is None:
-        return None
-    token = match.group(1).strip()
-    if not token:
-        return None
-    # JGI dataset DOIs commonly use a numeric identifier here.
-    numeric = re.search(r"\d{4,}", token)
-    if numeric is not None:
-        return numeric.group(0)
-    return token
-
-
-def _extract_jgi_context(payload: object, requested_doi: str) -> tuple[str, str, str] | None:
-    """Extract preferred context text from JGI search payload."""
-    if not isinstance(payload, dict):
-        return None
-
-    proposals = payload.get("proposals")
-    if isinstance(proposals, list):
-        for proposal in proposals:
-            if not isinstance(proposal, dict):
-                continue
-            if not _jgi_entry_matches_doi(proposal, requested_doi):
-                continue
-
-            for key in ("abstract", "lay_description", "description"):
-                value = proposal.get(key)
-                if isinstance(value, str) and value.strip():
-                    cleaned = _clean_text(value)
-                    if cleaned:
-                        kind = "abstract" if key == "abstract" else "description"
-                        return cleaned, value, kind
-
-            for key in ("title", "project_name", "name"):
-                value = proposal.get(key)
-                if isinstance(value, str) and value.strip():
-                    cleaned = _clean_text(value)
-                    if cleaned:
-                        return cleaned, value, "description"
-
-    organisms = payload.get("organisms")
-    if isinstance(organisms, list):
-        for organism in organisms:
-            if not isinstance(organism, dict):
-                continue
-            for key in ("title", "name"):
-                value = organism.get(key)
-                if isinstance(value, str) and value.strip():
-                    cleaned = _clean_text(value)
-                    if cleaned:
-                        return cleaned, value, "description"
-    return None
-
-
-def _jgi_entry_matches_doi(entry: dict[str, object], requested_doi: str) -> bool:
-    """Return True when DOI-bearing JGI entry matches the requested DOI."""
-    doi_keys = ("doi", "award_doi", "proposal_doi")
-    seen_any = False
-    for key in doi_keys:
-        value = entry.get(key)
-        if not isinstance(value, str) or not value.strip():
-            continue
-        seen_any = True
-        if normalize_doi(value) == requested_doi:
-            return True
-    return not seen_any
-
-
-def _extract_kbase_context(
-    result: dict[str, object], requested_doi: str
-) -> tuple[str, str, str] | None:
-    """Extract description context from KBase narrative search results."""
-    hits = result.get("hits")
-    if not isinstance(hits, list):
-        return None
-
-    best_matching_text: str | None = None
-    best_fallback_text: str | None = None
-    best_title: str | None = None
-
-    for hit in hits:
-        if not isinstance(hit, dict):
-            continue
-        doc = hit.get("doc")
-        if not isinstance(doc, dict):
-            continue
-
-        title = doc.get("narrative_title")
-        if best_title is None and isinstance(title, str) and title.strip():
-            best_title = title
-
-        cells = doc.get("cells")
-        if not isinstance(cells, list):
-            continue
-
-        for cell in cells:
-            if not isinstance(cell, dict):
-                continue
-            desc = cell.get("desc")
-            if not isinstance(desc, str) or not desc.strip():
-                continue
-
-            if _text_mentions_doi(desc, requested_doi):
-                if best_matching_text is None or len(desc) > len(best_matching_text):
-                    best_matching_text = desc
-            elif best_fallback_text is None or len(desc) > len(best_fallback_text):
-                best_fallback_text = desc
-
-    if best_matching_text:
-        cleaned = _clean_text(best_matching_text)
-        if cleaned:
-            return cleaned, best_matching_text, "description"
-
-    if best_fallback_text:
-        cleaned = _clean_text(best_fallback_text)
-        if cleaned:
-            return cleaned, best_fallback_text, "description"
-
-    if best_title:
-        cleaned = _clean_text(best_title)
-        if cleaned:
-            return cleaned, best_title, "description"
-    return None
-
-
-def _try_kbase_workspace_ref(doi: str) -> tuple[str, str, str] | None:
-    """Return context from KBase workspace object info inferred from DOI token."""
-    workspace_tokens = _extract_kbase_workspace_tokens(doi)
-    if workspace_tokens is None:
-        return None
-    wsid, token = workspace_tokens
-
-    candidate_refs = [
-        f"{wsid}/1/{token}",
-        f"{wsid}/{token}",
-        f"{wsid}/{token}/1",
-    ]
-
-    seen: set[str] = set()
-    for ref in candidate_refs:
-        if ref in seen:
-            continue
-        seen.add(ref)
-        info = _fetch_kbase_object_info(ref)
-        if info is None:
-            continue
-        context = _extract_kbase_object_info_context(info)
-        if context is not None:
-            return context
-    return None
-
-
-def _extract_kbase_workspace_tokens(doi: str) -> tuple[str, str] | None:
-    """Extract KBase workspace ID and object/version token from DOI."""
-    match = re.match(r"^10\.25982/(\d+)\.(\d+)(?:/|$)", doi)
-    if match is None:
-        return None
-    return match.group(1), match.group(2)
-
-
-def _fetch_kbase_object_info(ref: str) -> list[object] | None:
-    """Fetch KBase workspace object info tuple by object reference."""
-    payload = {
-        "version": "1.1",
-        "id": "1",
-        "method": "Workspace.get_object_info3",
-        "params": [{"objects": [{"ref": ref}], "includeMetadata": 1}],
-    }
-    try:
-        response = requests.post(
-            KBASE_WORKSPACE_API,
-            json=payload,
-            headers={"User-Agent": USER_AGENT},
-            timeout=DEFAULT_TIMEOUT,
-        )
-        if response.status_code != 200:
-            return None
-        data = response.json()
-    except (requests.RequestException, ValueError):
-        return None
-
-    if not isinstance(data, dict) or "error" in data:
-        return None
-
-    result = data.get("result")
-    if not isinstance(result, list) or not result:
-        return None
-
-    first_result = result[0]
-    if not isinstance(first_result, dict):
-        return None
-    infos = first_result.get("infos")
-    if not isinstance(infos, list) or not infos:
-        return None
-    info = infos[0]
-    if not isinstance(info, list):
-        return None
-    return info
-
-
-def _extract_kbase_object_info_context(info: list[object]) -> tuple[str, str, str] | None:
-    """Extract description context from a KBase workspace object info tuple."""
-    object_name = info[1] if len(info) > 1 else None
-    object_type = info[2] if len(info) > 2 else None
-    metadata = info[10] if len(info) > 10 else None
-
-    if not isinstance(metadata, dict):
-        metadata = {}
-
-    candidates: list[str] = []
-    for key in ("description", "name", "title", "narrative_nice_name"):
-        value = metadata.get(key)
-        if isinstance(value, str) and value.strip():
-            candidates.append(value)
-
-    if isinstance(object_name, str) and object_name.strip():
-        candidates.append(object_name)
-    if isinstance(object_type, str) and object_type.startswith("KBaseNarrative.Narrative"):
-        ws_name = metadata.get("ws_name")
-        if isinstance(ws_name, str) and ws_name.strip():
-            candidates.append(ws_name)
-
-    for raw in candidates:
-        cleaned = _clean_text(raw)
-        if not cleaned:
-            continue
-        if _is_uninformative_kbase_text(cleaned):
-            continue
-        return cleaned, raw, "description"
-
-    summary = _build_kbase_object_metadata_summary(object_name, object_type, metadata)
-    if summary is not None:
-        cleaned = _clean_text(summary)
-        if cleaned:
-            return cleaned, summary, "description"
-    return None
-
-
-def _is_uninformative_kbase_text(text: str) -> bool:
-    """Return True for technical KBase labels that are weak LLM context."""
-    lowered = text.lower().strip()
-    if not lowered:
-        return True
-    if lowered.startswith("narrative."):
-        return True
-    if "__" in text and " " not in text:
-        return True
-    return False
-
-
-def _build_kbase_object_metadata_summary(
-    object_name: object, object_type: object, metadata: dict[str, object]
-) -> str | None:
-    """Build a short description from KBase object metadata for non-narrative refs."""
-    if isinstance(object_type, str) and object_type.startswith("KBaseNarrative.Narrative"):
-        return None
-
-    summary_parts: list[str] = []
-    for key in ("Size", "N Contigs", "GC content"):
-        value = metadata.get(key)
-        if isinstance(value, str) and value.strip():
-            summary_parts.append(f"{key}={value.strip()}")
-
-    if not summary_parts:
-        return None
-
-    label = _humanize_kbase_object_name(object_name)
-    type_text = (
-        object_type.strip() if isinstance(object_type, str) and object_type.strip() else None
-    )
-
-    context_parts: list[str] = []
-    if label:
-        context_parts.append(label)
-    else:
-        context_parts.append("KBase object")
-    if type_text:
-        context_parts.append(f"type {type_text}")
-    context_parts.append(f"metadata: {', '.join(summary_parts)}")
-    return " ; ".join(context_parts)
-
-
-def _humanize_kbase_object_name(object_name: object) -> str | None:
-    """Convert KBase object names with separators into readable labels."""
-    if not isinstance(object_name, str):
-        return None
-    stripped = object_name.strip()
-    if not stripped:
-        return None
-    if stripped.lower().startswith("narrative."):
-        return None
-
-    humanized = re.sub(r"[_\-.]+", " ", stripped)
-    humanized = re.sub(r"\s+", " ", humanized).strip()
-    return humanized or None
-
-
-def _collect_massive_accession_candidates(doi: str) -> list[str]:
-    """Collect likely ProteomeXchange/MassIVE dataset accessions for a DOI."""
-    candidates: list[str] = []
-    seen: set[str] = set()
-
-    direct = _extract_massive_accessions(doi)
-    for accession in direct:
-        if accession not in seen:
-            seen.add(accession)
-            candidates.append(accession)
-
-    location = _resolve_doi_redirect_location(doi)
-    if location is not None:
-        for accession in _extract_massive_accessions(location):
-            if accession not in seen:
-                seen.add(accession)
-                candidates.append(accession)
-
-    return candidates
-
-
-def _resolve_doi_redirect_location(doi: str) -> str | None:
-    """Resolve DOI redirect location without following downstream redirects."""
-    try:
-        response = requests.get(
-            f"{DOI_CONTENT_NEGOTIATION_API}/{doi}",
-            headers={"User-Agent": USER_AGENT},
-            timeout=DEFAULT_TIMEOUT,
-            allow_redirects=False,
-        )
-    except requests.RequestException:
-        return None
-
-    if response.status_code not in {301, 302, 303, 307, 308}:
-        return None
-
-    location = response.headers.get("Location")
-    if not isinstance(location, str) or not location.strip():
-        return None
-    return location
-
-
-def _extract_massive_accessions(text: str) -> list[str]:
-    """Extract unique ProteomeXchange/MassIVE accession tokens from text."""
-    matches = re.findall(r"(PXD\d{6,}|MSV\d{6,})", text.upper())
-    seen: set[str] = set()
-    accessions: list[str] = []
-    for match in matches:
-        if match in seen:
-            continue
-        seen.add(match)
-        accessions.append(match)
-    return accessions
-
-
-def _search_proxi_accessions_by_doi(doi: str) -> list[str]:
-    """Search PROXI dataset rows for publication cells mentioning the DOI."""
-    query_values = [doi, f"https://doi.org/{doi}", f"doi:{doi}"]
-    seen: set[str] = set()
-    accessions: list[str] = []
-
-    for publication_query in query_values:
-        rows = _fetch_proxi_dataset_rows(publication_query)
-        for row in rows:
-            accession = _extract_proxi_row_accession_for_doi(row, doi)
-            if accession is None or accession in seen:
-                continue
-            seen.add(accession)
-            accessions.append(accession)
-
-    return accessions
-
-
-def _fetch_proxi_dataset_rows(publication_query: str) -> list[list[object]]:
-    """Return PROXI dataset table rows for a publication-filtered query."""
-    try:
-        response = requests.get(
-            PROXI_DATASETS_API,
-            params={
-                "publication": publication_query,
-                "repository": "MassIVE",
-                "resultType": "full",
-                "pageSize": 100,
-                "pageNumber": 1,
-            },
-            headers={"User-Agent": USER_AGENT},
-            timeout=DEFAULT_TIMEOUT,
-        )
-        if response.status_code != 200:
-            return []
-        payload = response.json()
-    except (requests.RequestException, ValueError):
-        return []
-
-    datasets = payload.get("datasets")
-    if not isinstance(datasets, list):
-        return []
-
-    rows: list[list[object]] = []
-    for row in datasets:
-        if isinstance(row, list):
-            rows.append(row)
-    return rows
-
-
-def _extract_proxi_row_accession_for_doi(row: list[object], doi: str) -> str | None:
-    """Return a dataset accession if the PROXI result row references the DOI."""
-    if not row:
-        return None
-
-    accession = row[0] if len(row) > 0 else None
-    publication_cell = row[7] if len(row) > 7 else None
-    if not isinstance(accession, str):
-        return None
-    if not isinstance(publication_cell, str):
-        return None
-    if not _text_mentions_doi(publication_cell, doi):
-        return None
-
-    cleaned_accession = accession.strip().upper()
-    if not cleaned_accession:
-        return None
-    return cleaned_accession
-
-
-def _fetch_proxi_dataset(accession: str) -> dict[str, object] | None:
-    """Fetch a PROXI dataset detail document by accession/identifier."""
-    try:
-        response = requests.get(
-            f"{PROXI_DATASETS_API}/{accession}",
-            headers={"User-Agent": USER_AGENT},
-            timeout=DEFAULT_TIMEOUT,
-        )
-        if response.status_code != 200:
-            return None
-        payload = response.json()
-    except (requests.RequestException, ValueError):
-        return None
-    if not isinstance(payload, dict):
-        return None
-
-    status = payload.get("status")
-    if isinstance(status, str) and status.lower() == "error":
-        return None
-    return payload
-
-
-def _extract_massive_context(payload: dict[str, object]) -> tuple[str, str, str] | None:
-    """Extract MassIVE context from PROXI dataset details."""
-    for key in ("description", "datasetSummary"):
-        value = payload.get(key)
-        if not isinstance(value, str) or not value.strip():
-            continue
-        cleaned = _clean_text(value)
-        if cleaned:
-            return cleaned, value, "description"
-
-    title = payload.get("title")
-    if isinstance(title, str) and title.strip():
-        cleaned = _clean_text(title)
-        if cleaned:
-            return cleaned, title, "description"
-    return None
-
-
-def _extract_massive_context_from_datacite_titles(doi: str) -> tuple[str, str, str] | None:
-    """Fallback to DataCite title metadata when MassIVE APIs do not return context."""
-    try:
-        response = requests.get(
-            f"{DATACITE_API}/{doi}",
-            headers={"User-Agent": USER_AGENT},
-            timeout=DEFAULT_TIMEOUT,
-        )
-        if response.status_code != 200:
-            return None
-        attrs = response.json().get("data", {}).get("attributes", {})
-    except (requests.RequestException, ValueError):
-        return None
-
-    titles = attrs.get("titles")
-    if not isinstance(titles, list):
-        return None
-
-    subtitle_candidate: str | None = None
-    title_candidate: str | None = None
-    for item in titles:
-        if not isinstance(item, dict):
-            continue
-        raw_title = item.get("title")
-        if not isinstance(raw_title, str) or not raw_title.strip():
-            continue
-
-        title_type = item.get("titleType")
-        if isinstance(title_type, str) and title_type.lower() == "subtitle":
-            if subtitle_candidate is None:
-                subtitle_candidate = raw_title
-        elif title_candidate is None:
-            title_candidate = raw_title
-
-    for raw in (subtitle_candidate, title_candidate):
-        if raw is None:
-            continue
-        cleaned = _clean_text(raw)
-        if cleaned:
-            return cleaned, raw, "description"
-    return None
-
-
-def _search_cyverse_metadata_for_doi(doi: str) -> list[dict[str, object]]:
-    """Search CyVerse metadata AVUs for records containing the DOI value."""
-    try:
-        response = requests.post(
-            CYVERSE_METADATA_SEARCH_API,
-            json={"value": [doi]},
-            headers={"User-Agent": USER_AGENT},
-            timeout=DEFAULT_TIMEOUT,
-        )
-        if response.status_code != 200:
-            return []
-        payload = response.json()
-    except (requests.RequestException, ValueError):
-        return []
-    return _extract_cyverse_avu_list(payload)
-
-
-def _fetch_cyverse_target_metadata(target_id: str) -> list[dict[str, object]]:
-    """Return metadata AVUs attached to a CyVerse target UUID."""
-    try:
-        response = requests.get(
-            CYVERSE_METADATA_API,
-            params={"target-id": target_id},
-            headers={"User-Agent": USER_AGENT},
-            timeout=DEFAULT_TIMEOUT,
-        )
-        if response.status_code != 200:
-            return []
-        payload = response.json()
-    except (requests.RequestException, ValueError):
-        return []
-    return _extract_cyverse_avu_list(payload)
-
-
-def _extract_cyverse_avu_list(payload: object) -> list[dict[str, object]]:
-    """Normalize CyVerse AVU response payloads into a list of AVU dicts."""
-    if isinstance(payload, dict):
-        avus = payload.get("avus")
-        if isinstance(avus, list):
-            return [item for item in avus if isinstance(item, dict)]
-        return []
-    if isinstance(payload, list):
-        return [item for item in payload if isinstance(item, dict)]
-    return []
-
-
-def _extract_cyverse_target_ids(avus: list[dict[str, object]]) -> list[str]:
-    """Collect unique target UUIDs from CyVerse AVU entries."""
-    seen: set[str] = set()
-    target_ids: list[str] = []
-    for avu in _iter_cyverse_avus(avus):
-        value = avu.get("target_id")
-        if not isinstance(value, str):
-            continue
-        target_id = value.strip()
-        if not target_id or target_id in seen:
-            continue
-        seen.add(target_id)
-        target_ids.append(target_id)
-    return target_ids
-
-
-def _extract_cyverse_context(
-    avus: list[dict[str, object]], requested_doi: str
-) -> tuple[str, str, str] | None:
-    """Choose best CyVerse metadata text from abstract/description-like AVUs."""
-    best_rank = 99
-    best_length = -1
-    best_context: tuple[str, str, str] | None = None
-
-    for avu in _iter_cyverse_avus(avus):
-        attr = avu.get("attr")
-        raw_value = avu.get("value")
-        if not isinstance(attr, str) or not isinstance(raw_value, str):
-            continue
-
-        cleaned = _clean_text(raw_value)
-        if not cleaned or _cyverse_value_is_requested_doi(cleaned, requested_doi):
-            continue
-
-        ranked = _rank_cyverse_context_attr(attr)
-        if ranked is None:
-            continue
-        rank, kind = ranked
-
-        if rank < best_rank or (rank == best_rank and len(cleaned) > best_length):
-            best_rank = rank
-            best_length = len(cleaned)
-            best_context = cleaned, raw_value, kind
-
-    return best_context
-
-
-def _iter_cyverse_avus(avus: list[dict[str, object]]) -> list[dict[str, object]]:
-    """Return AVUs and nested AVUs as a flattened list."""
-    flattened: list[dict[str, object]] = []
-    for avu in avus:
-        flattened.append(avu)
-        nested = avu.get("avus")
-        if not isinstance(nested, list):
-            continue
-        nested_avus = [item for item in nested if isinstance(item, dict)]
-        if nested_avus:
-            flattened.extend(_iter_cyverse_avus(nested_avus))
-    return flattened
-
-
-def _rank_cyverse_context_attr(attr: str) -> tuple[int, str] | None:
-    """Map CyVerse metadata attribute names to context extraction priority."""
-    lowered = attr.strip().lower()
-    if not lowered:
-        return None
-
-    if "abstract" in lowered:
-        return 0, "abstract"
-    if "description" in lowered:
-        return 1, "description"
-    if "summary" in lowered:
-        return 2, "description"
-    if "title" in lowered:
-        return 3, "description"
-    if "note" in lowered or "comment" in lowered:
-        return 4, "description"
-    return None
-
-
-def _cyverse_value_is_requested_doi(value: str, requested_doi: str) -> bool:
-    """Return True when a CyVerse metadata value is just the DOI identifier."""
-    lowered = value.strip().lower()
-    doi_value = requested_doi.lower()
-    if lowered in {
-        doi_value,
-        f"doi:{doi_value}",
-        f"https://doi.org/{doi_value}",
-        f"http://doi.org/{doi_value}",
-    }:
-        return True
-    return False
-
-
-def _text_mentions_doi(text: str, requested_doi: str) -> bool:
-    """Return True when text appears to reference the requested DOI."""
-    lowered = text.lower()
-    doi_variants = {
-        requested_doi.lower(),
-        f"doi:{requested_doi.lower()}",
-        f"https://doi.org/{requested_doi.lower()}",
-        f"http://doi.org/{requested_doi.lower()}",
-    }
-    return any(variant in lowered for variant in doi_variants)
-
-
-def _try_figshare(doi: str) -> str | None:
-    """Return Figshare context text for article/collection DOI if present."""
-    context = _try_figshare_entity_lookup(doi, FIGSHARE_API)
-    if context:
-        return context
-
-    context = _try_figshare_entity_lookup(doi, FIGSHARE_COLLECTIONS_API)
-    if context:
-        return context
-    return None
-
-
-def _try_figshare_entity_lookup(doi: str, endpoint: str) -> str | None:
-    """Lookup a Figshare entity list by DOI and extract context, including detail fetch."""
-    try:
-        response = requests.get(
-            endpoint,
-            params={"doi": doi},
-            headers={"User-Agent": USER_AGENT},
-            timeout=DEFAULT_TIMEOUT,
-        )
-        if response.status_code != 200:
-            return None
-        payload = response.json()
-    except (requests.RequestException, ValueError):
-        return None
-    return _extract_figshare_context_with_detail(payload, endpoint)
-
-
-def _extract_figshare_context_with_detail(payload: object, endpoint: str) -> str | None:
-    """Extract context from Figshare search payload, preferring detailed entity records."""
-    if isinstance(payload, dict):
-        candidates: list[dict[str, object]] = [payload]
-    elif isinstance(payload, list):
-        candidates = [item for item in payload if isinstance(item, dict)]
-    else:
-        candidates = []
-
-    for candidate in candidates:
-        detail = _fetch_figshare_detail(candidate, endpoint)
-        if detail is not None:
-            context = _extract_figshare_text(detail)
-            if context:
-                return context
-
-        context = _extract_figshare_text(candidate)
-        if context:
-            return context
-    return None
-
-
-def _fetch_figshare_detail(candidate: dict[str, object], endpoint: str) -> dict[str, object] | None:
-    """Fetch a detailed Figshare entity record when search payload is summary-only."""
-    detail_url = candidate.get("url_public_api")
-    if not isinstance(detail_url, str) or not detail_url.strip():
-        candidate_id = candidate.get("id")
-        if isinstance(candidate_id, int) or (
-            isinstance(candidate_id, str) and candidate_id.strip().isdigit()
-        ):
-            detail_url = f"{endpoint}/{candidate_id}"
-        else:
-            return None
-
-    try:
-        response = requests.get(
-            detail_url,
-            headers={"User-Agent": USER_AGENT},
-            timeout=DEFAULT_TIMEOUT,
-        )
-        if response.status_code != 200:
-            return None
-        payload = response.json()
-    except (requests.RequestException, ValueError):
-        return None
-
-    if isinstance(payload, dict):
-        return payload
-    return None
-
-
-def _extract_figshare_text(record: dict[str, object]) -> str | None:
-    """Extract best available context text from a Figshare entity record."""
-    for key in ("description", "resource_title", "title", "citation"):
-        value = record.get(key)
-        if not isinstance(value, str) or not value.strip():
-            continue
-        cleaned = _clean_text(value)
-        if cleaned:
-            return cleaned
-    return None
-
-
-def _zenodo_hit_matches_doi(hit: object, requested_doi: str) -> bool:
-    """Return True when a Zenodo hit DOI or concept DOI matches the request."""
-    if not isinstance(hit, dict):
-        return False
-    candidates: list[str] = []
-    for key in ("doi", "conceptdoi"):
-        value = hit.get(key)
-        if isinstance(value, str):
-            candidates.append(value)
-
-    metadata = hit.get("metadata")
-    if isinstance(metadata, dict):
-        metadata_doi = metadata.get("doi")
-        if isinstance(metadata_doi, str):
-            candidates.append(metadata_doi)
-
-    requested = requested_doi.lower()
-    for candidate in candidates:
-        normalized = normalize_doi(candidate).lower()
-        if normalized == requested:
-            return True
-    return False
-
-
-def _try_zenodo(doi: str) -> str | None:
-    """Return Zenodo description text for a DOI if present."""
-    query = f'doi:"{doi}" OR conceptdoi:"{doi}"'
-    try:
-        response = requests.get(
-            ZENODO_API,
-            params={"q": query},
-            headers={"User-Agent": USER_AGENT},
-            timeout=DEFAULT_TIMEOUT,
-        )
-        if response.status_code != 200:
-            return None
-        payload = response.json()
-    except (requests.RequestException, ValueError):
-        return None
-
-    hits = payload.get("hits", {}).get("hits", [])
-    if not isinstance(hits, list):
-        return None
-
-    matching_hits = [hit for hit in hits if _zenodo_hit_matches_doi(hit, doi)]
-    if not matching_hits:
-        matching_hits = hits
-
-    for hit in matching_hits:
-        if not isinstance(hit, dict):
-            continue
-        metadata = hit.get("metadata", {})
-        if not isinstance(metadata, dict):
-            continue
-        description = metadata.get("description")
-        if isinstance(description, str):
-            cleaned = _clean_text(description)
-            if cleaned:
-                return cleaned
-    return None
-
-
 def _try_datacite(doi: str) -> tuple[str, str, str, str | None] | None:
     """Return cleaned/raw text from DataCite descriptions, preferring abstract."""
     try:
@@ -1551,7 +336,7 @@ def _try_datacite(doi: str) -> tuple[str, str, str, str | None] | None:
     if preferred is None:
         return None
     raw, kind = preferred
-    cleaned = _clean_text(raw)
+    cleaned = clean_text(raw)
     if not cleaned:
         return None
     return cleaned, raw, kind, publisher if isinstance(publisher, str) else None
@@ -1631,54 +416,7 @@ def _try_content_negotiation(doi: str) -> tuple[str, str, str] | None:
 
     note = payload.get("note")
     if isinstance(note, str) and note.strip():
-        cleaned = _clean_text(note)
+        cleaned = clean_text(note)
         if cleaned:
             return cleaned, note, "description"
     return None
-
-
-def _find_first_text(payload: object, keys: tuple[str, ...]) -> tuple[str, str] | None:
-    """Recursively find the first non-empty string value for target keys."""
-    if isinstance(payload, dict):
-        for key in keys:
-            value = payload.get(key)
-            if isinstance(value, str) and value.strip():
-                return key, value
-        for value in payload.values():
-            found = _find_first_text(value, keys)
-            if found is not None:
-                return found
-    elif isinstance(payload, list):
-        for item in payload:
-            found = _find_first_text(item, keys)
-            if found is not None:
-                return found
-    return None
-
-
-def _extract_first_xml_text(root: ET.Element, tags: set[str]) -> str | None:
-    """Extract text from the first XML element whose localname is in tags."""
-    for element in root.iter():
-        if _local_name(element.tag) not in tags:
-            continue
-        raw = "".join(element.itertext())
-        cleaned = _clean_text(raw)
-        if cleaned:
-            return cleaned
-    return None
-
-
-def _local_name(tag: str) -> str:
-    """Return XML localname from namespaced tags."""
-    if "}" in tag:
-        return tag.split("}", 1)[1]
-    if ":" in tag:
-        return tag.split(":", 1)[1]
-    return tag
-
-
-def _clean_text(text: str) -> str:
-    """Normalize context text by stripping markup, entities, and extra whitespace."""
-    cleaned = strip_jats_xml(text)
-    cleaned = re.sub(r"\s+", " ", html.unescape(cleaned)).strip()
-    return cleaned
