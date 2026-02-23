@@ -27,10 +27,19 @@ import xml.etree.ElementTree as ET
 
 import requests
 
+from nmdc_metadata_suggestor.constants import (
+    ALL_SOURCES,
+    CITEPROC_JSON_ACCEPT,
+    CROSSREF_API_URL,
+    DEFAULT_TIMEOUT,
+    DOI_RESOLVER_URL,
+    OPENALEX_API_URL,
+    PUBMED_EFETCH,
+    PUBMED_ID_CONVERTER,
+    USER_AGENT,
+)
 from nmdc_metadata_suggestor.models.doi import AbstractResult, DoiClassification
 from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
-    DEFAULT_TIMEOUT,
-    USER_AGENT,
     classify_doi,
     normalize_doi,
 )
@@ -61,19 +70,12 @@ CROSSREF_NON_PUBLICATION_TYPES = {
     "component",
 }
 
-# API endpoints
-OPENALEX_API = "https://api.openalex.org/works"
-CROSSREF_API = "https://api.crossref.org/works"
-PUBMED_ID_CONVERTER = "https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/"
-PUBMED_EFETCH = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
+# Back-compat aliases used within this module
 
 
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
-
-
-ALL_SOURCES = ("openalex", "crossref", "pubmed", "content_negotiation")
 
 
 def get_abstract(
@@ -93,14 +95,19 @@ def get_abstract(
         skip_classification: If True, skip DOI classification and go straight
             to the waterfall. Useful when the caller has already verified the
             DOI type.
-        sources: Which sources to try, in order. Defaults to all four:
-            ``["openalex", "crossref", "pubmed", "content_negotiation"]``.
+        sources: Which sources to try, in order. Defaults to all five:
+            ``["openalex", "crossref", "pubmed", "content_negotiation", "osti"]``.
             Pass a subset to skip sources or change the order, e.g.
             ``sources=["crossref", "pubmed"]`` to skip OpenAlex.
 
     Returns:
         AbstractResult with the abstract text and metadata, or an error.
     """
+    # TODO : Is it better practice if we know a certain DOI prefix will go to a
+    # certain source to just call that source directly instead of going through the whole waterfall?
+    # For example, if we know an OSTI DOI will only be found via the OSTI source,
+    # should we just call that function directly instead of going through the whole waterfall
+    # and checking each source in order? Does this work the same with openalx and crossref?
     doi = normalize_doi(doi)
 
     if sources is None:
@@ -172,6 +179,40 @@ def _check_classification_gate(c: DoiClassification) -> str | None:
 # ---------------------------------------------------------------------------
 
 
+def _fetch_osti(doi: str, attempts: list[str]) -> AbstractResult | None:
+    """
+    Fetch abstract from OSTI (for OSTI DOIs only).
+
+    Args:
+        doi: A DOI string in any common format (bare, URL, ``doi:`` prefix).
+        attempts: List of sources attempted so far
+
+    Returns:
+        AbstractResult containing the abstract/description from OSTI, or an error.
+    """
+    if not doi.startswith("10.15485/"):  # OSTI prefix
+        return None
+
+    try:
+        from nmdc_metadata_suggestor.publication_ingestion.osti_publication_retriever import (
+            retrieve_doi_info_from_osti,
+        )
+
+        pub = retrieve_doi_info_from_osti(doi)
+        if pub.abstract:
+            return AbstractResult(
+                doi=doi,
+                abstract=pub.abstract,
+                raw_abstract=pub.abstract,
+                source="osti",
+                content_format="plain_text",
+                attempts=attempts,
+            )
+    except Exception:
+        pass
+    return None
+
+
 def _fetch_openalex(doi: str, attempts: list[str]) -> AbstractResult | None:
     text, raw, fmt = _try_openalex(doi)
     if text:
@@ -234,6 +275,7 @@ _SOURCE_FETCHERS = {
     "crossref": _fetch_crossref,
     "pubmed": _fetch_pubmed,
     "content_negotiation": _fetch_content_negotiation,
+    "osti": _fetch_osti,
 }
 
 
@@ -253,7 +295,7 @@ def _try_openalex(doi: str) -> tuple[str | None, str | None, str | None]:
     """
     try:
         response = requests.get(
-            f"{OPENALEX_API}/https://doi.org/{doi}",
+            f"{OPENALEX_API_URL}/https://doi.org/{doi}",
             headers={"User-Agent": USER_AGENT},
             timeout=DEFAULT_TIMEOUT,
         )
@@ -279,7 +321,7 @@ def _try_crossref(doi: str) -> tuple[str | None, str | None, str | None]:
     """
     try:
         response = requests.get(
-            f"{CROSSREF_API}/{doi}",
+            f"{CROSSREF_API_URL}/{doi}",
             headers={"User-Agent": USER_AGENT},
             timeout=DEFAULT_TIMEOUT,
         )
@@ -350,9 +392,9 @@ def _try_content_negotiation(doi: str) -> tuple[str | None, str | None, str | No
     """
     try:
         response = requests.get(
-            f"https://doi.org/{doi}",
+            f"{DOI_RESOLVER_URL}/{doi}",
             headers={
-                "Accept": "application/vnd.citationstyles.csl+json",
+                "Accept": CITEPROC_JSON_ACCEPT,
                 "User-Agent": USER_AGENT,
             },
             timeout=DEFAULT_TIMEOUT,

@@ -16,15 +16,13 @@ Usage:
   uv run python scripts/test_vertex_budget.py
 """
 
-import json
 import os
 import sys
 
-from dotenv import load_dotenv
-from google.oauth2 import service_account
 import google.auth.transport.requests
 import requests
-
+from dotenv import load_dotenv
+from google.oauth2 import service_account
 
 # Load .env file (picks up GOOGLE_APPLICATION_CREDENTIALS, project ID, region)
 load_dotenv()
