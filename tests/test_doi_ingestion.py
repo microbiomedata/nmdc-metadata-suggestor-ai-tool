@@ -467,6 +467,58 @@ def test_edi_provider_api_abstract_wins() -> None:
 
 
 @responses.activate
+def test_edi_unsafe_metadata_xml_falls_back_to_datacite() -> None:
+    """Reject unsafe EDI XML declarations and continue waterfall."""
+    doi = "10.6073/pasta/abc123"
+    metadata_url = "https://pasta.lternet.edu/package/metadata/eml/edi/123/1"
+    responses.add(
+        responses.GET,
+        f"{EDI_DOI_API}/doi:{doi}",
+        body=f"{metadata_url}\n",
+        content_type="text/plain",
+    )
+    responses.add(
+        responses.GET,
+        metadata_url,
+        body=(
+            "<?xml version='1.0' encoding='UTF-8'?>"
+            "<!DOCTYPE eml [<!ENTITY xxe 'unsafe'>]>"
+            "<eml:eml xmlns:eml='https://eml.ecoinformatics.org/eml-2.2.0'>"
+            "<dataset><abstract><para>"
+            "Unsafe abstract should be ignored."
+            "</para></abstract></dataset>"
+            "</eml:eml>"
+        ),
+        content_type="application/xml",
+    )
+    responses.add(
+        responses.GET,
+        f"{DATACITE_API}/{doi}",
+        json={
+            "data": {
+                "attributes": {
+                    "publisher": "Environmental Data Initiative",
+                    "descriptions": [
+                        {
+                            "descriptionType": "Abstract",
+                            "description": "DataCite fallback after unsafe EDI XML",
+                        }
+                    ],
+                }
+            }
+        },
+    )
+
+    result = get_doi_description_or_abstract(doi)
+    assert result.context == "DataCite fallback after unsafe EDI XML"
+    assert result.context_type == "abstract"
+    assert result.source == "datacite"
+    assert result.provider == "edi"
+    assert result.attempts == ["edi", "datacite"]
+    assert "unsafe declarations" in result.source_errors["edi"]
+
+
+@responses.activate
 def test_emsl_provider_api_abstract_wins() -> None:
     """Resolve EMSL award DOI to project details and return abstract text."""
     doi = "10.46936/jejc.proj.2014.48483/60005501"

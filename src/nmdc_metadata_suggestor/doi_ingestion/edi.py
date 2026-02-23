@@ -1,5 +1,7 @@
 """EDI DOI resolver."""
 
+import os
+import re
 import xml.etree.ElementTree as ET
 
 import requests
@@ -12,6 +14,8 @@ from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
 )
 
 EDI_DOI_API = "https://pasta.lternet.edu/package/doi"
+MAX_EDI_METADATA_XML_CHARS = int(os.environ.get("NMDC_EDI_MAX_XML_CHARS", "2000000"))
+_UNSAFE_XML_DECLARATION_PATTERN = re.compile(r"<!\s*(?:DOCTYPE|ENTITY)\b", re.IGNORECASE)
 
 
 def try_edi(doi: str, errors: list[str] | None = None) -> tuple[str, str] | None:
@@ -30,7 +34,14 @@ def try_edi(doi: str, errors: list[str] | None = None) -> tuple[str, str] | None
         if response.status_code != 200:
             append_error(errors, f"EDI metadata request returned HTTP {response.status_code}")
             return None
-        root = ET.fromstring(response.text)
+        xml_text = response.text
+        if len(xml_text) > MAX_EDI_METADATA_XML_CHARS:
+            append_error(errors, "EDI metadata XML exceeded size limit")
+            return None
+        if _UNSAFE_XML_DECLARATION_PATTERN.search(xml_text):
+            append_error(errors, "EDI metadata XML contains unsafe declarations")
+            return None
+        root = ET.fromstring(xml_text)
     except requests.RequestException as exc:
         append_error(errors, f"EDI metadata request failed: {exc.__class__.__name__}")
         return None
