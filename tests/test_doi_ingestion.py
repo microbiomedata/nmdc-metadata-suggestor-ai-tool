@@ -1,5 +1,20 @@
-"""Tests for DOI description/abstract ingestion waterfall."""
+"""Unit tests for DOI context ingestion and source-waterfall behavior.
 
+This module focuses on three test categories:
+1. Fixture-driven routing checks, using ``tests/fixtures/doi_test_cases.json``
+   to confirm provider DOIs are routed to the expected dedicated resolver.
+2. Provider-specific resolver behavior, with mocked API responses for sources
+   like EDI, EMSL, ESS-DIVE, JGI, KBase, MassIVE, CyVerse, Figshare, and Zenodo.
+3. Waterfall fallback/error behavior, ensuring clean fallback to generic DOI
+   sources (DataCite/Crossref/content negotiation) and clear errors on misses.
+
+All tests in this file mock HTTP with ``responses`` and avoid live API calls.
+"""
+
+import json
+from pathlib import Path
+
+import pytest
 import responses
 
 from nmdc_metadata_suggestor.doi_ingestion.main import (
@@ -11,12 +26,175 @@ from nmdc_metadata_suggestor.doi_ingestion.main import (
     EDI_DOI_API,
     EMSL_PROJECTS_API,
     ESS_DIVE_API,
+    FIGSHARE_API,
     JGI_SEARCH_API,
     KBASE_SEARCH_API,
     PROXI_DATASETS_API,
     ZENODO_API,
     get_doi_description_or_abstract,
 )
+
+FIXTURE_PATH = Path(__file__).parent / "fixtures" / "doi_test_cases.json"
+
+_FIXTURE_PROVIDER_TO_SOURCE: dict[str, str] = {
+    "ESS-DIVE": "ess-dive",
+    "JGI": "jgi",
+    "MassIVE": "massive",
+    "Zenodo": "zenodo",
+    "Figshare": "figshare",
+    "EDI (Environmental Data Initiative)": "edi",
+    "KBase": "kbase",
+    "EMSL/OSTI": "emsl",
+}
+
+
+def _load_fixture_provider_cases() -> list[tuple[str, str]]:
+    """Return (doi, source) pairs mapped from curated fixture provider names."""
+    with open(FIXTURE_PATH) as f:
+        test_cases = json.load(f)["test_cases"]
+
+    cases: list[tuple[str, str]] = []
+    for case in test_cases:
+        if not case.get("valid"):
+            continue
+        provider = case.get("provider")
+        doi = case.get("doi")
+        if not isinstance(provider, str) or not isinstance(doi, str):
+            continue
+        source = _FIXTURE_PROVIDER_TO_SOURCE.get(provider)
+        if source is None:
+            continue
+        cases.append((doi, source))
+    return cases
+
+
+FIXTURE_PROVIDER_CASES = _load_fixture_provider_cases()
+
+
+def _mock_provider_resolver_hit(source: str, doi: str) -> None:
+    """Register minimal mocks that make one provider resolver return context."""
+    if source == "edi":
+        metadata_url = "https://pasta.lternet.edu/package/metadata/eml/edi/123/1"
+        responses.add(
+            responses.GET,
+            f"{EDI_DOI_API}/doi:{doi}",
+            body=f"{metadata_url}\n",
+            content_type="text/plain",
+        )
+        responses.add(
+            responses.GET,
+            metadata_url,
+            body=(
+                "<?xml version='1.0' encoding='UTF-8'?>"
+                "<eml:eml xmlns:eml='https://eml.ecoinformatics.org/eml-2.2.0'>"
+                "<dataset><abstract><para>Fixture EDI abstract.</para></abstract></dataset>"
+                "</eml:eml>"
+            ),
+            content_type="application/xml",
+        )
+        return
+
+    if source == "emsl":
+        responses.add(
+            responses.GET,
+            f"{EMSL_PROJECTS_API}/48483",
+            json={"award_doi": doi, "abstract": "Fixture EMSL abstract."},
+        )
+        return
+
+    if source == "ess-dive":
+        responses.add(
+            responses.GET,
+            ESS_DIVE_API,
+            json={"data": [{"abstract": "Fixture ESS-DIVE abstract."}]},
+        )
+        return
+
+    if source == "figshare":
+        responses.add(
+            responses.GET,
+            FIGSHARE_API,
+            json=[{"description": "Fixture Figshare description."}],
+        )
+        return
+
+    if source == "jgi":
+        responses.add(
+            responses.GET,
+            JGI_SEARCH_API,
+            json={"proposals": [{"doi": doi, "abstract": "Fixture JGI abstract."}]},
+        )
+        return
+
+    if source == "kbase":
+        responses.add(
+            responses.POST,
+            KBASE_SEARCH_API,
+            json={
+                "jsonrpc": "2.0",
+                "id": "1",
+                "result": {
+                    "count": 1,
+                    "hits": [
+                        {
+                            "doc": {
+                                "cells": [
+                                    {
+                                        "desc": (
+                                            f"Citation: doi:{doi}. "
+                                            "Fixture KBase narrative context."
+                                        )
+                                    }
+                                ]
+                            }
+                        }
+                    ],
+                },
+            },
+        )
+        return
+
+    if source == "massive":
+        accession = "MSV000093271"
+        responses.add(
+            responses.GET,
+            f"{DOI_CONTENT_NEGOTIATION_API}/{doi}",
+            status=302,
+            headers={"Location": f"https://massive.ucsd.edu/ProteoSAFe/dataset.jsp?accession={accession}"},
+        )
+        responses.add(
+            responses.GET,
+            f"{PROXI_DATASETS_API}/{accession}",
+            json={"description": "Fixture MassIVE dataset description."},
+        )
+        return
+
+    if source == "zenodo":
+        responses.add(
+            responses.GET,
+            ZENODO_API,
+            json={"hits": {"hits": [{"metadata": {"description": "Fixture Zenodo description."}}]}},
+        )
+        return
+
+    raise AssertionError(f"Unsupported fixture-mapped source: {source}")
+
+
+@pytest.mark.parametrize(
+    "doi,expected_source",
+    FIXTURE_PROVIDER_CASES,
+    ids=[f"{source}:{doi}" for doi, source in FIXTURE_PROVIDER_CASES],
+)
+@responses.activate
+def test_fixture_provider_dois_use_expected_resolvers(doi: str, expected_source: str) -> None:
+    """Fixture provider DOIs should resolve via their specific source first."""
+    _mock_provider_resolver_hit(expected_source, doi)
+
+    result = get_doi_description_or_abstract(doi)
+    assert result.context is not None
+    assert result.source == expected_source
+    assert result.provider == expected_source
+    assert result.attempts == [expected_source]
 
 
 def test_invalid_doi_rejected_without_attempts() -> None:
