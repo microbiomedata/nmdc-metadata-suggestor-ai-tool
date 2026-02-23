@@ -28,6 +28,7 @@ from nmdc_metadata_suggestor.doi_ingestion.main import (
     EMSL_PROJECTS_API,
     ESS_DIVE_API,
     FIGSHARE_API,
+    FIGSHARE_COLLECTIONS_API,
     JGI_SEARCH_API,
     KBASE_SEARCH_API,
     PROXI_DATASETS_API,
@@ -358,6 +359,63 @@ def test_datacite_prefers_abstract_over_description() -> None:
     assert result.source == "datacite"
     assert result.provider == "edi"
     assert result.attempts == ["datacite"]
+
+
+@responses.activate
+def test_figshare_article_detail_used_when_summary_lacks_description() -> None:
+    """Fetch Figshare article detail by id when DOI search payload has no description."""
+    doi = "10.6084/m9.figshare.26988151"
+    responses.add(
+        responses.GET,
+        FIGSHARE_API,
+        json=[
+            {
+                "id": 26988151,
+                "title": "Summary title only",
+                "doi": "10.6084/m9.figshare.26988151.v1",
+            }
+        ],
+    )
+    responses.add(
+        responses.GET,
+        f"{FIGSHARE_API}/26988151",
+        json={"description": "Figshare detail description text."},
+    )
+
+    result = get_doi_description_or_abstract(doi)
+    assert result.context == "Figshare detail description text."
+    assert result.context_type == "description"
+    assert result.source == "figshare"
+    assert result.provider == "figshare"
+    assert result.attempts == ["figshare"]
+
+
+@responses.activate
+def test_figshare_collection_doi_uses_collection_api() -> None:
+    """Handle Figshare collection DOI by querying collection endpoints."""
+    doi = "10.6084/m9.figshare.c.7373842"
+    responses.add(
+        responses.GET,
+        FIGSHARE_API,
+        json=[],
+    )
+    responses.add(
+        responses.GET,
+        FIGSHARE_COLLECTIONS_API,
+        json=[{"id": 7373842, "title": "Collection summary title"}],
+    )
+    responses.add(
+        responses.GET,
+        f"{FIGSHARE_COLLECTIONS_API}/7373842",
+        json={"description": "Figshare collection description text."},
+    )
+
+    result = get_doi_description_or_abstract(doi)
+    assert result.context == "Figshare collection description text."
+    assert result.context_type == "description"
+    assert result.source == "figshare"
+    assert result.provider == "figshare"
+    assert result.attempts == ["figshare"]
 
 
 @responses.activate
