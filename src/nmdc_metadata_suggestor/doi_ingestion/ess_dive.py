@@ -47,9 +47,7 @@ def try_ess_dive(doi: str, errors: list[str] | None = None) -> tuple[str, str] |
     return context
 
 
-def _try_ess_dive_dataone(
-    doi: str, errors: list[str] | None = None
-) -> tuple[str, str] | None:
+def _try_ess_dive_dataone(doi: str, errors: list[str] | None = None) -> tuple[str, str] | None:
     """Return ESS-DIVE context from DataONE's public Solr index by DOI."""
     for query in _build_ess_dive_dataone_queries(doi):
         docs = _fetch_dataone_solr_docs(query, errors=errors)

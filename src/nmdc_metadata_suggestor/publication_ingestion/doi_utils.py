@@ -117,6 +117,7 @@ def _retry_delay_seconds(retry_after: str | None, attempt: int, backoff_seconds:
 
     return backoff_seconds * (2 ** (attempt - 1))
 
+
 # ---------------------------------------------------------------------------
 # Mapping: external resource types -> NMDC DoiCategoryEnum
 #

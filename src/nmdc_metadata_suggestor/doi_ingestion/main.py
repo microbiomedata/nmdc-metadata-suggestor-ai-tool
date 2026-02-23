@@ -101,9 +101,7 @@ SourceErrors = dict[str, str]
 Fetcher = Callable[[str, str | None, list[str], SourceErrors], DoiContextResult | None]
 
 
-def get_doi_description_or_abstract(
-    doi: str, sources: list[str] | None = None
-) -> DoiContextResult:
+def get_doi_description_or_abstract(doi: str, sources: list[str] | None = None) -> DoiContextResult:
     """Fetch abstract/description text for a DOI using a source waterfall."""
     doi = normalize_doi(doi)
     if not DOI_PATTERN.match(doi):

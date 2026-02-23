@@ -41,9 +41,7 @@ def try_massive(doi: str, errors: list[str] | None = None) -> tuple[str, str, st
     return None
 
 
-def _collect_massive_accession_candidates(
-    doi: str, errors: list[str] | None = None
-) -> list[str]:
+def _collect_massive_accession_candidates(doi: str, errors: list[str] | None = None) -> list[str]:
     """Collect likely ProteomeXchange/MassIVE accessions for a DOI."""
     candidates: list[str] = []
     seen: set[str] = set()
@@ -100,9 +98,7 @@ def _extract_massive_accessions(text: str) -> list[str]:
     return accessions
 
 
-def _search_proxi_accessions_by_doi(
-    doi: str, errors: list[str] | None = None
-) -> list[str]:
+def _search_proxi_accessions_by_doi(doi: str, errors: list[str] | None = None) -> list[str]:
     """Search PROXI dataset rows for publication cells mentioning the DOI."""
     query_values = [doi, f"https://doi.org/{doi}", f"doi:{doi}"]
     seen: set[str] = set()

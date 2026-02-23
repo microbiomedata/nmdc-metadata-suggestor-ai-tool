@@ -209,8 +209,7 @@ def _mock_provider_resolver_hit(source: str, doi: str) -> None:
                                 "cells": [
                                     {
                                         "desc": (
-                                            f"Citation: doi:{doi}. "
-                                            "Fixture KBase narrative context."
+                                            f"Citation: doi:{doi}. Fixture KBase narrative context."
                                         )
                                     }
                                 ]
@@ -228,7 +227,9 @@ def _mock_provider_resolver_hit(source: str, doi: str) -> None:
             responses.GET,
             f"{DOI_CONTENT_NEGOTIATION_API}/{doi}",
             status=302,
-            headers={"Location": f"https://massive.ucsd.edu/ProteoSAFe/dataset.jsp?accession={accession}"},
+            headers={
+                "Location": f"https://massive.ucsd.edu/ProteoSAFe/dataset.jsp?accession={accession}"
+            },
         )
         responses.add(
             responses.GET,
@@ -800,7 +801,9 @@ def test_massive_provider_api_description_wins() -> None:
         responses.GET,
         f"{DOI_CONTENT_NEGOTIATION_API}/{doi}",
         status=302,
-        headers={"Location": f"https://massive.ucsd.edu/ProteoSAFe/dataset.jsp?accession={accession}"},
+        headers={
+            "Location": f"https://massive.ucsd.edu/ProteoSAFe/dataset.jsp?accession={accession}"
+        },
     )
     responses.add(
         responses.GET,
@@ -828,7 +831,9 @@ def test_massive_proxi_miss_falls_back_to_datacite() -> None:
         responses.GET,
         f"{DOI_CONTENT_NEGOTIATION_API}/{doi}",
         status=302,
-        headers={"Location": f"https://massive.ucsd.edu/ProteoSAFe/dataset.jsp?accession={accession}"},
+        headers={
+            "Location": f"https://massive.ucsd.edu/ProteoSAFe/dataset.jsp?accession={accession}"
+        },
     )
     responses.add(
         responses.GET,
@@ -875,7 +880,9 @@ def test_massive_uses_datacite_title_context_when_proxi_fails() -> None:
         responses.GET,
         f"{DOI_CONTENT_NEGOTIATION_API}/{doi}",
         status=302,
-        headers={"Location": f"https://massive.ucsd.edu/ProteoSAFe/dataset.jsp?accession={accession}"},
+        headers={
+            "Location": f"https://massive.ucsd.edu/ProteoSAFe/dataset.jsp?accession={accession}"
+        },
     )
     responses.add(
         responses.GET,
