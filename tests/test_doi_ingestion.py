@@ -333,7 +333,8 @@ def test_invalid_doi_rejected_without_attempts() -> None:
     assert result.context is None
     assert result.attempts == []
     assert result.error is not None
-    assert "Invalid DOI" in result.error
+    error = result.error
+    assert "Invalid DOI" in error
 
 
 @responses.activate
@@ -613,7 +614,9 @@ def test_kbase_provider_api_description_wins() -> None:
     )
 
     result = get_doi_description_or_abstract(doi)
-    assert "Please cite this dataset" in result.context
+    context = result.context
+    assert context is not None
+    assert "Please cite this dataset" in context
     assert result.context_type == "description"
     assert result.source == "kbase"
     assert result.provider == "kbase"
@@ -764,10 +767,12 @@ def test_kbase_workspace_object_metadata_summary_used_when_name_is_technical() -
     )
 
     result = get_doi_description_or_abstract(doi)
-    assert "22 output TCS genomes" in result.context
-    assert "type KBaseGenomeAnnotations.Assembly-5.1" in result.context
-    assert "Size=10721312" in result.context
-    assert "N Contigs=96" in result.context
+    context = result.context
+    assert context is not None
+    assert "22 output TCS genomes" in context
+    assert "type KBaseGenomeAnnotations.Assembly-5.1" in context
+    assert "Size=10721312" in context
+    assert "N Contigs=96" in context
     assert result.context_type == "description"
     assert result.source == "kbase"
     assert result.provider == "kbase"
@@ -1381,7 +1386,8 @@ def test_live_source_example_returns_context(case: dict[str, str]) -> None:
 
     assert result.context is not None, f"Expected context for {doi}; got error={result.error!r}"
     assert result.source is not None
-    assert result.source in result.attempts
+    source_used = result.source
+    assert source_used in result.attempts
     assert result.context_type in {"abstract", "description"}
 
 
