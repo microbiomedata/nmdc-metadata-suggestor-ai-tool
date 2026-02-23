@@ -24,6 +24,7 @@ from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
 
 DOI_CONTENT_NEGOTIATION_API = "https://doi.org"
 EDI_DOI_API = "https://pasta.lternet.edu/package/doi"
+EMSL_PROJECTS_API = "https://api.emsl.pnnl.gov/external/projects"
 ESS_DIVE_API = "https://api.ess-dive.lbl.gov/packages"
 FIGSHARE_API = "https://api.figshare.com/v2/articles"
 ZENODO_API = "https://zenodo.org/api/records"
@@ -55,6 +56,7 @@ TARGET_PROVIDER_KEYWORDS: dict[str, str] = {
 
 ALL_SOURCES = (
     "edi",
+    "emsl",
     "ess-dive",
     "figshare",
     "zenodo",
@@ -171,6 +173,15 @@ def _fetch_edi(doi: str, provider: str | None, attempts: list[str]) -> DoiContex
     return _build_result(doi, provider, "edi", attempts, text, text, kind)
 
 
+def _fetch_emsl(doi: str, provider: str | None, attempts: list[str]) -> DoiContextResult | None:
+    """Fetch and wrap context from EMSL project API."""
+    context = _try_emsl(doi)
+    if context is None:
+        return None
+    text, raw, kind = context
+    return _build_result(doi, provider, "emsl", attempts, text, raw, kind)
+
+
 def _fetch_figshare(
     doi: str, provider: str | None, attempts: list[str]
 ) -> DoiContextResult | None:
@@ -230,6 +241,7 @@ def _fetch_content_negotiation(
 
 _SOURCE_FETCHERS = {
     "edi": _fetch_edi,
+    "emsl": _fetch_emsl,
     "ess-dive": _fetch_ess_dive,
     "figshare": _fetch_figshare,
     "zenodo": _fetch_zenodo,
@@ -238,7 +250,7 @@ _SOURCE_FETCHERS = {
     "content_negotiation": _fetch_content_negotiation,
 }
 
-_PROVIDER_API_SOURCES = {"edi", "ess-dive", "figshare", "zenodo"}
+_PROVIDER_API_SOURCES = {"edi", "emsl", "ess-dive", "figshare", "zenodo"}
 
 
 def _try_edi(doi: str) -> tuple[str, str] | None:
@@ -266,6 +278,44 @@ def _try_edi(doi: str) -> tuple[str, str] | None:
     description = _extract_first_xml_text(root, {"purpose", "description", "title"})
     if description:
         return description, "description"
+    return None
+
+
+def _try_emsl(doi: str) -> tuple[str, str, str] | None:
+    """Return cleaned/raw context from EMSL project details resolved by DOI."""
+    project_id = _extract_emsl_project_id(doi)
+    if project_id is None:
+        return None
+
+    try:
+        response = requests.get(
+            f"{EMSL_PROJECTS_API}/{project_id}",
+            headers={"User-Agent": USER_AGENT},
+            timeout=DEFAULT_TIMEOUT,
+        )
+        if response.status_code != 200:
+            return None
+        payload = response.json()
+    except (requests.RequestException, ValueError):
+        return None
+
+    award_doi = payload.get("award_doi")
+    if isinstance(award_doi, str) and award_doi:
+        if normalize_doi(award_doi) != doi:
+            return None
+
+    abstract = payload.get("abstract")
+    if isinstance(abstract, str) and abstract.strip():
+        cleaned = _clean_text(abstract)
+        if cleaned:
+            return cleaned, abstract, "abstract"
+
+    for key in ("title", "project_type"):
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            cleaned = _clean_text(value)
+            if cleaned:
+                return cleaned, value, "description"
     return None
 
 
@@ -312,6 +362,15 @@ def _resolve_edi_metadata_url(doi: str) -> str | None:
         if "/package/metadata/eml/" in candidate:
             return candidate
     return None
+
+
+def _extract_emsl_project_id(doi: str) -> str | None:
+    """Extract EMSL project ID embedded in award DOI suffix."""
+    # Example: 10.46936/jejc.proj.2014.48483/60005501 -> 48483
+    match = re.search(r"\.proj\.\d{4}\.(\d+)(?:/|$)", doi)
+    if match is None:
+        return None
+    return match.group(1)
 
 
 def _try_figshare(doi: str) -> str | None:

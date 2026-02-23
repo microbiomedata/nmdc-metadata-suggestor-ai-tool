@@ -7,6 +7,7 @@ from nmdc_metadata_suggestor.doi_ingestion.main import (
     DATACITE_API,
     DOI_CONTENT_NEGOTIATION_API,
     EDI_DOI_API,
+    EMSL_PROJECTS_API,
     ESS_DIVE_API,
     ZENODO_API,
     get_doi_description_or_abstract,
@@ -79,6 +80,63 @@ def test_edi_provider_api_abstract_wins() -> None:
     assert result.source == "edi"
     assert result.provider == "edi"
     assert result.attempts == ["edi"]
+
+
+@responses.activate
+def test_emsl_provider_api_abstract_wins() -> None:
+    """Resolve EMSL award DOI to project details and return abstract text."""
+    doi = "10.46936/jejc.proj.2014.48483/60005501"
+    responses.add(
+        responses.GET,
+        f"{EMSL_PROJECTS_API}/48483",
+        json={
+            "award_doi": doi,
+            "abstract": "EMSL project abstract text.",
+            "title": "Fallback title",
+        },
+    )
+
+    result = get_doi_description_or_abstract(doi)
+    assert result.context == "EMSL project abstract text."
+    assert result.context_type == "abstract"
+    assert result.source == "emsl"
+    assert result.provider == "emsl"
+    assert result.attempts == ["emsl"]
+
+
+@responses.activate
+def test_emsl_mismatch_falls_back_to_datacite() -> None:
+    """If EMSL project lookup DOI does not match, continue waterfall."""
+    doi = "10.46936/jejc.proj.2014.48483/60005501"
+    responses.add(
+        responses.GET,
+        f"{EMSL_PROJECTS_API}/48483",
+        json={"award_doi": "10.46936/jejc.proj.2014.99999/60000000", "abstract": "Wrong project"},
+    )
+    responses.add(
+        responses.GET,
+        f"{DATACITE_API}/{doi}",
+        json={
+            "data": {
+                "attributes": {
+                    "publisher": "EMSL",
+                    "descriptions": [
+                        {
+                            "descriptionType": "Abstract",
+                            "description": "DataCite fallback abstract",
+                        }
+                    ],
+                }
+            }
+        },
+    )
+
+    result = get_doi_description_or_abstract(doi)
+    assert result.context == "DataCite fallback abstract"
+    assert result.context_type == "abstract"
+    assert result.source == "datacite"
+    assert result.provider == "emsl"
+    assert result.attempts == ["emsl", "datacite"]
 
 
 @responses.activate
