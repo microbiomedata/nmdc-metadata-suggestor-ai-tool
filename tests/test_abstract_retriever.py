@@ -606,7 +606,7 @@ def test_get_abstract_real_elsevier_doi() -> None:
     else:
         # Known Elsevier holdout — all 4 sources tried, clean failure
         assert result.error == "No abstract found in any source"
-        assert len(result.attempts) == 4
+        assert len(result.attempts) == 5
 
 
 @integration
