@@ -110,11 +110,21 @@ def retrieve_pdf_link_from_osti_doi(doi: str) -> Publication:
 
         # get the record
         record = data[0] if isinstance(data, list) else data
-
-        # we can see if the record is a publication or not. If not, return the description.
+        
         if record.get("product_type") == "Journal Article":
+            # check if osti has a direct PDF link (only for journal articles)
+            if record.get("links"):
+                for link in record["links"]:
+                    if link.get("rel") == "fulltext":
+                        return Publication(
+                            source="osti",
+                            doi=doi,
+                            urls=[link.get("href")],
+                            abstract=record.get("description"),
+                        )
             # get the JA DOI
             ja_doi = record.get("doi")
+            # we can see if the record is a publication or not. If not, return the description.
             if not ja_doi:
                 return Publication(doi=doi, error="Journal Article record missing DOI")
 
