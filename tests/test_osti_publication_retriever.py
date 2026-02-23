@@ -61,7 +61,7 @@ def test_retrieve_abstract_no_description():
     result = retrieve_doi_info_from_osti(doi)
 
     assert result.abstract is None
-    assert "No abstract/description found" in result.error
+    assert result.error is not None and "No abstract/description found" in result.error
 
 
 @responses.activate
