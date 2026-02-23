@@ -13,7 +13,9 @@ All tests in this file mock HTTP with ``responses`` and avoid live API calls.
 
 import json
 import re
+from copy import deepcopy
 from pathlib import Path
+from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 import pytest
@@ -44,6 +46,8 @@ FIXTURE_PATH = Path(__file__).parent / "fixtures" / "doi_test_cases.json"
 REAL_WORLD_SOURCE_FIXTURE_PATH = (
     Path(__file__).parent / "fixtures" / "doi_resolver_source_examples.json"
 )
+XML_PAYLOAD_FIXTURE_PATH = Path(__file__).parent / "fixtures" / "doi_xml_payloads.json"
+JSON_PAYLOAD_FIXTURE_PATH = Path(__file__).parent / "fixtures" / "doi_response_payloads.json"
 
 _FIXTURE_PROVIDER_TO_SOURCE: dict[str, str] = {
     "ESS-DIVE": "ess-dive",
@@ -99,6 +103,49 @@ def _load_real_world_source_cases() -> list[dict[str, str]]:
 
 
 REAL_WORLD_SOURCE_CASES = _load_real_world_source_cases()
+
+
+def _load_xml_payload_fixtures() -> dict[str, str]:
+    """Load reusable XML payload fixtures used by resolver tests."""
+    with open(XML_PAYLOAD_FIXTURE_PATH) as f:
+        payloads = json.load(f)["payloads"]
+    return {str(key): str(value) for key, value in payloads.items()}
+
+
+XML_PAYLOAD_FIXTURES = _load_xml_payload_fixtures()
+
+
+def _load_json_payload_fixtures() -> dict[str, Any]:
+    """Load reusable JSON payload fixtures used by resolver tests."""
+    with open(JSON_PAYLOAD_FIXTURE_PATH) as f:
+        return json.load(f)["payloads"]
+
+
+def _replace_payload_placeholders(value: Any, replacements: dict[str, str]) -> Any:
+    """Recursively substitute ``{{placeholder}}`` strings in fixture payloads."""
+    if isinstance(value, dict):
+        return {
+            key: _replace_payload_placeholders(inner, replacements) for key, inner in value.items()
+        }
+    if isinstance(value, list):
+        return [_replace_payload_placeholders(inner, replacements) for inner in value]
+    if isinstance(value, str):
+        rendered = value
+        for key, replacement in replacements.items():
+            rendered = rendered.replace(f"{{{{{key}}}}}", replacement)
+        return rendered
+    return value
+
+
+def _json_payload(name: str, **replacements: str) -> Any:
+    """Return a deep-copied JSON fixture payload with optional placeholder substitutions."""
+    payload = deepcopy(JSON_PAYLOAD_FIXTURES[name])
+    if not replacements:
+        return payload
+    return _replace_payload_placeholders(payload, replacements)
+
+
+JSON_PAYLOAD_FIXTURES = _load_json_payload_fixtures()
 integration = pytest.mark.integration
 
 KNOWN_LIVE_NO_CONTEXT_DOIS = {
@@ -150,12 +197,7 @@ def _mock_provider_resolver_hit(source: str, doi: str) -> None:
         responses.add(
             responses.GET,
             metadata_url,
-            body=(
-                "<?xml version='1.0' encoding='UTF-8'?>"
-                "<eml:eml xmlns:eml='https://eml.ecoinformatics.org/eml-2.2.0'>"
-                "<dataset><abstract><para>Fixture EDI abstract.</para></abstract></dataset>"
-                "</eml:eml>"
-            ),
+            body=XML_PAYLOAD_FIXTURES["edi_fixture_abstract_xml"],
             content_type="application/xml",
         )
         return
@@ -166,7 +208,7 @@ def _mock_provider_resolver_hit(source: str, doi: str) -> None:
         responses.add(
             responses.GET,
             f"{EMSL_PROJECTS_API}/{project_id}",
-            json={"award_doi": doi, "abstract": "Fixture EMSL abstract."},
+            json=_json_payload("fixture_emsl_hit", doi=doi),
         )
         return
 
@@ -174,7 +216,7 @@ def _mock_provider_resolver_hit(source: str, doi: str) -> None:
         responses.add(
             responses.GET,
             ESS_DIVE_API,
-            json={"data": [{"abstract": "Fixture ESS-DIVE abstract."}]},
+            json=_json_payload("fixture_ess_dive_hit"),
         )
         return
 
@@ -182,7 +224,7 @@ def _mock_provider_resolver_hit(source: str, doi: str) -> None:
         responses.add(
             responses.GET,
             FIGSHARE_API,
-            json=[{"description": "Fixture Figshare description."}],
+            json=_json_payload("fixture_figshare_hit"),
         )
         return
 
@@ -190,7 +232,7 @@ def _mock_provider_resolver_hit(source: str, doi: str) -> None:
         responses.add(
             responses.GET,
             JGI_SEARCH_API,
-            json={"proposals": [{"doi": doi, "abstract": "Fixture JGI abstract."}]},
+            json=_json_payload("fixture_jgi_hit", doi=doi),
         )
         return
 
@@ -198,26 +240,7 @@ def _mock_provider_resolver_hit(source: str, doi: str) -> None:
         responses.add(
             responses.POST,
             KBASE_SEARCH_API,
-            json={
-                "jsonrpc": "2.0",
-                "id": "1",
-                "result": {
-                    "count": 1,
-                    "hits": [
-                        {
-                            "doc": {
-                                "cells": [
-                                    {
-                                        "desc": (
-                                            f"Citation: doi:{doi}. Fixture KBase narrative context."
-                                        )
-                                    }
-                                ]
-                            }
-                        }
-                    ],
-                },
-            },
+            json=_json_payload("fixture_kbase_hit", doi=doi),
         )
         return
 
@@ -234,7 +257,7 @@ def _mock_provider_resolver_hit(source: str, doi: str) -> None:
         responses.add(
             responses.GET,
             f"{PROXI_DATASETS_API}/{accession}",
-            json={"description": "Fixture MassIVE dataset description."},
+            json=_json_payload("fixture_massive_detail"),
         )
         return
 
@@ -242,7 +265,7 @@ def _mock_provider_resolver_hit(source: str, doi: str) -> None:
         responses.add(
             responses.GET,
             ZENODO_API,
-            json={"hits": {"hits": [{"metadata": {"description": "Fixture Zenodo description."}}]}},
+            json=_json_payload("fixture_zenodo_hit"),
         )
         return
 
@@ -251,20 +274,12 @@ def _mock_provider_resolver_hit(source: str, doi: str) -> None:
         responses.add(
             responses.POST,
             CYVERSE_METADATA_SEARCH_API,
-            json={"avus": [{"attr": "dc.identifier.doi", "value": doi, "target_id": target_id}]},
+            json=_json_payload("fixture_cyverse_search_hit", doi=doi, target_id=target_id),
         )
         responses.add(
             responses.GET,
             CYVERSE_METADATA_API,
-            json={
-                "avus": [
-                    {
-                        "attr": "dc.description.abstract",
-                        "value": "Fixture CyVerse abstract.",
-                        "target_id": target_id,
-                    }
-                ]
-            },
+            json=_json_payload("fixture_cyverse_metadata_hit", target_id=target_id),
         )
         return
 
@@ -357,17 +372,7 @@ def test_datacite_prefers_abstract_over_description() -> None:
     responses.add(
         responses.GET,
         f"{DATACITE_API}/{doi}",
-        json={
-            "data": {
-                "attributes": {
-                    "publisher": "Environmental Data Initiative",
-                    "descriptions": [
-                        {"descriptionType": "Other", "description": "Fallback description"},
-                        {"descriptionType": "Abstract", "description": "Primary abstract"},
-                    ],
-                }
-            }
-        },
+        json=_json_payload("datacite_prefers_abstract"),
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -385,18 +390,12 @@ def test_figshare_article_detail_used_when_summary_lacks_description() -> None:
     responses.add(
         responses.GET,
         FIGSHARE_API,
-        json=[
-            {
-                "id": 26988151,
-                "title": "Summary title only",
-                "doi": "10.6084/m9.figshare.26988151.v1",
-            }
-        ],
+        json=_json_payload("figshare_summary_article"),
     )
     responses.add(
         responses.GET,
         f"{FIGSHARE_API}/26988151",
-        json={"description": "Figshare detail description text."},
+        json=_json_payload("figshare_detail_description"),
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -414,17 +413,17 @@ def test_figshare_collection_doi_uses_collection_api() -> None:
     responses.add(
         responses.GET,
         FIGSHARE_API,
-        json=[],
+        json=_json_payload("figshare_empty_search"),
     )
     responses.add(
         responses.GET,
         FIGSHARE_COLLECTIONS_API,
-        json=[{"id": 7373842, "title": "Collection summary title"}],
+        json=_json_payload("figshare_collection_summary"),
     )
     responses.add(
         responses.GET,
         f"{FIGSHARE_COLLECTIONS_API}/7373842",
-        json={"description": "Figshare collection description text."},
+        json=_json_payload("figshare_collection_detail"),
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -449,12 +448,7 @@ def test_edi_provider_api_abstract_wins() -> None:
     responses.add(
         responses.GET,
         metadata_url,
-        body=(
-            "<?xml version='1.0' encoding='UTF-8'?>"
-            "<eml:eml xmlns:eml='https://eml.ecoinformatics.org/eml-2.2.0'>"
-            "<dataset><abstract><para>EDI abstract text.</para></abstract></dataset>"
-            "</eml:eml>"
-        ),
+        body=XML_PAYLOAD_FIXTURES["edi_provider_abstract_xml"],
         content_type="application/xml",
     )
 
@@ -480,33 +474,13 @@ def test_edi_unsafe_metadata_xml_falls_back_to_datacite() -> None:
     responses.add(
         responses.GET,
         metadata_url,
-        body=(
-            "<?xml version='1.0' encoding='UTF-8'?>"
-            "<!DOCTYPE eml [<!ENTITY xxe 'unsafe'>]>"
-            "<eml:eml xmlns:eml='https://eml.ecoinformatics.org/eml-2.2.0'>"
-            "<dataset><abstract><para>"
-            "Unsafe abstract should be ignored."
-            "</para></abstract></dataset>"
-            "</eml:eml>"
-        ),
+        body=XML_PAYLOAD_FIXTURES["edi_unsafe_metadata_xml"],
         content_type="application/xml",
     )
     responses.add(
         responses.GET,
         f"{DATACITE_API}/{doi}",
-        json={
-            "data": {
-                "attributes": {
-                    "publisher": "Environmental Data Initiative",
-                    "descriptions": [
-                        {
-                            "descriptionType": "Abstract",
-                            "description": "DataCite fallback after unsafe EDI XML",
-                        }
-                    ],
-                }
-            }
-        },
+        json=_json_payload("datacite_edi_after_unsafe_xml"),
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -525,11 +499,7 @@ def test_emsl_provider_api_abstract_wins() -> None:
     responses.add(
         responses.GET,
         f"{EMSL_PROJECTS_API}/48483",
-        json={
-            "award_doi": doi,
-            "abstract": "EMSL project abstract text.",
-            "title": "Fallback title",
-        },
+        json=_json_payload("emsl_provider_hit", doi=doi),
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -547,24 +517,12 @@ def test_emsl_mismatch_falls_back_to_datacite() -> None:
     responses.add(
         responses.GET,
         f"{EMSL_PROJECTS_API}/48483",
-        json={"award_doi": "10.46936/jejc.proj.2014.99999/60000000", "abstract": "Wrong project"},
+        json=_json_payload("emsl_mismatch_project"),
     )
     responses.add(
         responses.GET,
         f"{DATACITE_API}/{doi}",
-        json={
-            "data": {
-                "attributes": {
-                    "publisher": "EMSL",
-                    "descriptions": [
-                        {
-                            "descriptionType": "Abstract",
-                            "description": "DataCite fallback abstract",
-                        }
-                    ],
-                }
-            }
-        },
+        json=_json_payload("datacite_emsl_fallback"),
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -582,16 +540,7 @@ def test_jgi_provider_api_lay_description_wins() -> None:
     responses.add(
         responses.GET,
         JGI_SEARCH_API,
-        json={
-            "proposals": [
-                {
-                    "doi": doi,
-                    "lay_description": "JGI lay description text.",
-                    "title": "Fallback title",
-                }
-            ],
-            "organisms": [],
-        },
+        json=_json_payload("jgi_lay_description_hit", doi=doi),
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -609,27 +558,12 @@ def test_jgi_mismatch_falls_back_to_datacite() -> None:
     responses.add(
         responses.GET,
         JGI_SEARCH_API,
-        json={
-            "proposals": [{"doi": "10.25585/9999999", "lay_description": "Wrong record"}],
-            "organisms": [],
-        },
+        json=_json_payload("jgi_mismatch_payload"),
     )
     responses.add(
         responses.GET,
         f"{DATACITE_API}/{doi}",
-        json={
-            "data": {
-                "attributes": {
-                    "publisher": "JGI",
-                    "descriptions": [
-                        {
-                            "descriptionType": "Abstract",
-                            "description": "DataCite fallback for JGI DOI",
-                        }
-                    ],
-                }
-            }
-        },
+        json=_json_payload("datacite_jgi_fallback"),
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -647,27 +581,12 @@ def test_jgi_missing_doi_fields_falls_back_to_datacite() -> None:
     responses.add(
         responses.GET,
         JGI_SEARCH_API,
-        json={
-            "proposals": [{"lay_description": "Unrelated result without DOI fields"}],
-            "organisms": [],
-        },
+        json=_json_payload("jgi_missing_doi_payload"),
     )
     responses.add(
         responses.GET,
         f"{DATACITE_API}/{doi}",
-        json={
-            "data": {
-                "attributes": {
-                    "publisher": "JGI",
-                    "descriptions": [
-                        {
-                            "descriptionType": "Abstract",
-                            "description": "DataCite fallback for DOI-missing JGI result",
-                        }
-                    ],
-                }
-            }
-        },
+        json=_json_payload("datacite_jgi_missing_doi_fallback"),
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -685,35 +604,7 @@ def test_kbase_provider_api_description_wins() -> None:
     responses.add(
         responses.POST,
         KBASE_SEARCH_API,
-        json={
-            "jsonrpc": "2.0",
-            "id": "1",
-            "result": {
-                "count": 1,
-                "hits": [
-                    {
-                        "index": "narrative_2",
-                        "id": "WS::109073:1",
-                        "doc": {
-                            "narrative_title": "KBase Narrative Title",
-                            "cells": [
-                                {"desc": "Small intro cell."},
-                                {
-                                    "desc": (
-                                        "Please cite this dataset as "
-                                        "doi:10.25982/109073.30/1895615. "
-                                        "This narrative describes sample collection and processing."
-                                    )
-                                },
-                            ],
-                            "creation_date": "2022-02-14T17:53:04+0000",
-                        },
-                    }
-                ],
-                "search_time": 12,
-                "aggregations": {},
-            },
-        },
+        json=_json_payload("kbase_search_hit_description"),
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -733,39 +624,27 @@ def test_kbase_miss_falls_back_to_datacite() -> None:
     responses.add(
         responses.POST,
         KBASE_SEARCH_API,
-        json={"jsonrpc": "2.0", "id": "1", "result": {"count": 0, "hits": [], "aggregations": {}}},
+        json=_json_payload("kbase_search_empty"),
     )
     responses.add(
         responses.POST,
         KBASE_WORKSPACE_API,
-        json={"error": {"message": "Object not found"}},
+        json=_json_payload("kbase_workspace_not_found"),
     )
     responses.add(
         responses.POST,
         KBASE_WORKSPACE_API,
-        json={"error": {"message": "Object not found"}},
+        json=_json_payload("kbase_workspace_not_found"),
     )
     responses.add(
         responses.POST,
         KBASE_WORKSPACE_API,
-        json={"error": {"message": "Object not found"}},
+        json=_json_payload("kbase_workspace_not_found"),
     )
     responses.add(
         responses.GET,
         f"{DATACITE_API}/{doi}",
-        json={
-            "data": {
-                "attributes": {
-                    "publisher": "KBase",
-                    "descriptions": [
-                        {
-                            "descriptionType": "Abstract",
-                            "description": "DataCite fallback for KBase DOI",
-                        }
-                    ],
-                }
-            }
-        },
+        json=_json_payload("datacite_kbase_fallback"),
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -783,37 +662,12 @@ def test_kbase_workspace_narrative_name_used_when_search_misses() -> None:
     responses.add(
         responses.POST,
         KBASE_SEARCH_API,
-        json={"jsonrpc": "2.0", "id": "1", "result": {"count": 0, "hits": [], "aggregations": {}}},
+        json=_json_payload("kbase_search_empty"),
     )
     responses.add(
         responses.POST,
         KBASE_WORKSPACE_API,
-        json={
-            "version": "1.1",
-            "result": [
-                {
-                    "infos": [
-                        [
-                            278,
-                            "Narrative.1694710832822",
-                            "KBaseNarrative.Narrative-4.0",
-                            "2023-09-14T00:00:00+0000",
-                            1,
-                            "pwdna",
-                            156785,
-                            "pwdna:narrative_1694710832822",
-                            "checksum",
-                            1,
-                            {
-                                "description": "",
-                                "name": "Produced Water DNA Database",
-                                "ws_name": "pwdna:narrative_1694710832822",
-                            },
-                        ]
-                    ]
-                }
-            ],
-        },
+        json=_json_payload("kbase_workspace_name_result"),
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -831,42 +685,17 @@ def test_kbase_workspace_object_metadata_summary_used_when_name_is_technical() -
     responses.add(
         responses.POST,
         KBASE_SEARCH_API,
-        json={"jsonrpc": "2.0", "id": "1", "result": {"count": 0, "hits": [], "aggregations": {}}},
+        json=_json_payload("kbase_search_empty"),
     )
     responses.add(
         responses.POST,
         KBASE_WORKSPACE_API,
-        json={"error": {"message": "Object not found"}},
+        json=_json_payload("kbase_workspace_not_found"),
     )
     responses.add(
         responses.POST,
         KBASE_WORKSPACE_API,
-        json={
-            "version": "1.1",
-            "result": [
-                {
-                    "infos": [
-                        [
-                            171,
-                            "22_output__TCS_genomes",
-                            "KBaseGenomeAnnotations.Assembly-5.1",
-                            "2024-12-10T00:00:00+0000",
-                            1,
-                            "schatun",
-                            200311,
-                            "ws",
-                            "checksum",
-                            1,
-                            {
-                                "Size": "10721312",
-                                "N Contigs": "96",
-                                "GC content": "0.57327",
-                            },
-                        ]
-                    ]
-                }
-            ],
-        },
+        json=_json_payload("kbase_workspace_metadata_result"),
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -898,10 +727,7 @@ def test_massive_provider_api_description_wins() -> None:
     responses.add(
         responses.GET,
         f"{PROXI_DATASETS_API}/{accession}",
-        json={
-            "title": "MassIVE dataset title",
-            "description": "MassIVE dataset description text.",
-        },
+        json=_json_payload("massive_dataset_detail"),
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -928,29 +754,17 @@ def test_massive_proxi_miss_falls_back_to_datacite() -> None:
     responses.add(
         responses.GET,
         f"{PROXI_DATASETS_API}/{accession}",
-        json={"status": "ERROR", "description": "Identifier not reserved"},
+        json=_json_payload("proxi_error_not_reserved"),
     )
     responses.add(
         responses.GET,
         f"{PROXI_DATASETS_API}",
-        json={"datasets": [], "status": {"status": "OK"}},
+        json=_json_payload("proxi_empty_datasets"),
     )
     responses.add(
         responses.GET,
         f"{DATACITE_API}/{doi}",
-        json={
-            "data": {
-                "attributes": {
-                    "publisher": "MassIVE",
-                    "descriptions": [
-                        {
-                            "descriptionType": "Abstract",
-                            "description": "DataCite fallback for MassIVE DOI",
-                        }
-                    ],
-                }
-            }
-        },
+        json=_json_payload("datacite_massive_fallback"),
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -977,29 +791,17 @@ def test_massive_uses_datacite_title_context_when_proxi_fails() -> None:
     responses.add(
         responses.GET,
         f"{PROXI_DATASETS_API}/{accession}",
-        json={"status": "ERROR", "description": "Identifier not reserved"},
+        json=_json_payload("proxi_error_not_reserved"),
     )
     responses.add(
         responses.GET,
         PROXI_DATASETS_API,
-        json={"datasets": [], "status": {"status": "OK"}},
+        json=_json_payload("proxi_empty_datasets"),
     )
     responses.add(
         responses.GET,
         f"{DATACITE_API}/{doi}",
-        json={
-            "data": {
-                "attributes": {
-                    "titles": [
-                        {"title": "MassIVE dataset title"},
-                        {
-                            "titleType": "Subtitle",
-                            "title": "Detailed MassIVE subtitle context from DataCite.",
-                        },
-                    ]
-                }
-            }
-        },
+        json=_json_payload("datacite_massive_title_subtitle"),
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -1018,20 +820,12 @@ def test_cyverse_provider_api_abstract_wins() -> None:
     responses.add(
         responses.POST,
         CYVERSE_METADATA_SEARCH_API,
-        json={"avus": [{"attr": "dc.identifier.doi", "value": doi, "target_id": target_id}]},
+        json=_json_payload("fixture_cyverse_search_hit", doi=doi, target_id=target_id),
     )
     responses.add(
         responses.GET,
         CYVERSE_METADATA_API,
-        json={
-            "avus": [
-                {
-                    "attr": "dc.description.abstract",
-                    "value": "CyVerse dataset abstract text.",
-                    "target_id": target_id,
-                }
-            ]
-        },
+        json=_json_payload("cyverse_provider_metadata_hit", target_id=target_id),
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -1049,24 +843,12 @@ def test_cyverse_miss_falls_back_to_datacite() -> None:
     responses.add(
         responses.POST,
         CYVERSE_METADATA_SEARCH_API,
-        json={"avus": []},
+        json=_json_payload("cyverse_search_empty"),
     )
     responses.add(
         responses.GET,
         f"{DATACITE_API}/{doi}",
-        json={
-            "data": {
-                "attributes": {
-                    "publisher": "CyVerse",
-                    "descriptions": [
-                        {
-                            "descriptionType": "Abstract",
-                            "description": "DataCite fallback for CyVerse DOI",
-                        }
-                    ],
-                }
-            }
-        },
+        json=_json_payload("datacite_cyverse_fallback"),
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -1084,7 +866,7 @@ def test_cyverse_explicit_source_no_context_returns_clean_error() -> None:
     responses.add(
         responses.POST,
         CYVERSE_METADATA_SEARCH_API,
-        json={"avus": []},
+        json=_json_payload("cyverse_search_empty"),
     )
 
     result = get_doi_description_or_abstract(doi, sources=["cyverse"])
@@ -1101,17 +883,7 @@ def test_zenodo_provider_api_is_used_first() -> None:
     responses.add(
         responses.GET,
         ZENODO_API,
-        json={
-            "hits": {
-                "hits": [
-                    {
-                        "metadata": {
-                            "description": "<p>Zenodo dataset description.</p>",
-                        }
-                    }
-                ]
-            }
-        },
+        json=_json_payload("zenodo_description_html_hit"),
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -1131,22 +903,13 @@ def test_zenodo_concept_doi_query_prefers_zenodo_over_datacite() -> None:
         parsed_qs = parse_qs(urlparse(request.url).query)
         query = parsed_qs.get("q", [""])[0]
         if 'conceptdoi:"10.5281/zenodo.7406532"' in query:
-            body = {
-                "hits": {
-                    "hits": [
-                        {
-                            "doi": "10.5281/zenodo.15328215",
-                            "conceptdoi": "10.5281/zenodo.7406532",
-                            "metadata": {
-                                "doi": "10.5281/zenodo.15328215",
-                                "description": "Zenodo concept DOI description text.",
-                            },
-                        }
-                    ]
-                }
-            }
+            body = _json_payload("zenodo_concept_hit")
             return 200, {"Content-Type": "application/json"}, json.dumps(body)
-        return 200, {"Content-Type": "application/json"}, json.dumps({"hits": {"hits": []}})
+        return (
+            200,
+            {"Content-Type": "application/json"},
+            json.dumps(_json_payload("zenodo_empty_hits")),
+        )
 
     responses.add_callback(
         responses.GET,
@@ -1157,19 +920,7 @@ def test_zenodo_concept_doi_query_prefers_zenodo_over_datacite() -> None:
     responses.add(
         responses.GET,
         f"{DATACITE_API}/{doi}",
-        json={
-            "data": {
-                "attributes": {
-                    "publisher": "Zenodo",
-                    "descriptions": [
-                        {
-                            "descriptionType": "Other",
-                            "description": "Datacite fallback should not be used",
-                        }
-                    ],
-                }
-            }
-        },
+        json=_json_payload("datacite_zenodo_unused_fallback"),
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -1187,25 +938,7 @@ def test_zenodo_prefers_hit_matching_requested_doi() -> None:
     responses.add(
         responses.GET,
         ZENODO_API,
-        json={
-            "hits": {
-                "hits": [
-                    {
-                        "doi": "10.5281/zenodo.11111111",
-                        "conceptdoi": "10.5281/zenodo.11111110",
-                        "metadata": {"description": "Wrong Zenodo hit"},
-                    },
-                    {
-                        "doi": "10.5281/zenodo.18746326",
-                        "conceptdoi": "10.5281/zenodo.18746325",
-                        "metadata": {
-                            "doi": "10.5281/zenodo.18746326",
-                            "description": "Matching Zenodo concept DOI description.",
-                        },
-                    },
-                ]
-            }
-        },
+        json=_json_payload("zenodo_mixed_hits"),
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -1220,23 +953,11 @@ def test_zenodo_prefers_hit_matching_requested_doi() -> None:
 def test_provider_miss_falls_back_to_datacite() -> None:
     """Fall back to DataCite when provider-specific API has no context."""
     doi = "10.5281/zenodo.7406532"
-    responses.add(responses.GET, ZENODO_API, json={"hits": {"hits": []}})
+    responses.add(responses.GET, ZENODO_API, json=_json_payload("zenodo_empty_hits"))
     responses.add(
         responses.GET,
         f"{DATACITE_API}/{doi}",
-        json={
-            "data": {
-                "attributes": {
-                    "publisher": "Zenodo",
-                    "descriptions": [
-                        {
-                            "descriptionType": "Other",
-                            "description": "Datacite description fallback",
-                        }
-                    ],
-                }
-            }
-        },
+        json=_json_payload("datacite_zenodo_description_fallback"),
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -1254,7 +975,7 @@ def test_source_errors_include_upstream_http_codes() -> None:
         responses.GET,
         ZENODO_API,
         status=503,
-        json_payload={"detail": "Service unavailable"},
+        json_payload=_json_payload("service_unavailable_detail"),
     )
     _add_retriable_http_response(
         responses.GET,
@@ -1293,24 +1014,12 @@ def test_source_errors_preserved_on_successful_fallback() -> None:
         responses.GET,
         ZENODO_API,
         status=503,
-        json_payload={"detail": "Service unavailable"},
+        json_payload=_json_payload("service_unavailable_detail"),
     )
     responses.add(
         responses.GET,
         f"{DATACITE_API}/{doi}",
-        json={
-            "data": {
-                "attributes": {
-                    "publisher": "Zenodo",
-                    "descriptions": [
-                        {
-                            "descriptionType": "Other",
-                            "description": "Datacite description fallback",
-                        }
-                    ],
-                }
-            }
-        },
+        json=_json_payload("datacite_zenodo_description_fallback"),
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -1327,7 +1036,7 @@ def test_ess_dive_api_abstract_wins() -> None:
     responses.add(
         responses.GET,
         ESS_DIVE_API,
-        json={"data": [{"abstract": "ESS-DIVE abstract text"}]},
+        json=_json_payload("ess_dive_api_abstract"),
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -1342,21 +1051,16 @@ def test_ess_dive_api_abstract_wins() -> None:
 def test_ess_dive_api_401_uses_dataone_fallback() -> None:
     """Use DataONE ESS_DIVE index when ESS-DIVE packages API is unauthorized."""
     doi = "10.15485/1729719"
-    responses.add(responses.GET, ESS_DIVE_API, status=401, json={"detail": "Unauthorized"})
+    responses.add(
+        responses.GET,
+        ESS_DIVE_API,
+        status=401,
+        json=_json_payload("unauthorized_detail"),
+    )
     responses.add(
         responses.GET,
         DATAONE_CN_SOLR_API,
-        body=(
-            '<?xml version="1.0" encoding="UTF-8"?>'
-            "<response><result name='response' numFound='1' start='0'>"
-            "<doc>"
-            "<str name='id'>ess-dive-abc-20260101</str>"
-            "<str name='seriesId'>doi:10.15485/1729719</str>"
-            "<str name='datasource'>urn:node:ESS_DIVE</str>"
-            "<arr name='abstract'><str>ESS-DIVE DataONE abstract text.</str></arr>"
-            "</doc>"
-            "</result></response>"
-        ),
+        body=XML_PAYLOAD_FIXTURES["dataone_ess_dive_hit_xml"],
         content_type="application/xml",
     )
 
@@ -1372,43 +1076,24 @@ def test_ess_dive_api_401_uses_dataone_fallback() -> None:
 def test_ess_dive_dataone_rejects_doctype_xml_and_falls_back_to_datacite() -> None:
     """Reject DataONE XML with DTD/entity declarations and continue waterfall."""
     doi = "10.15485/1729719"
-    responses.add(responses.GET, ESS_DIVE_API, status=401, json={"detail": "Unauthorized"})
-
-    unsafe_xml = (
-        '<?xml version="1.0" encoding="UTF-8"?>'
-        "<!DOCTYPE response [<!ENTITY xxe 'unsafe'>]>"
-        "<response><result name='response' numFound='1' start='0'>"
-        "<doc>"
-        "<str name='id'>ess-dive-unsafe-xml</str>"
-        "<str name='seriesId'>doi:10.15485/1729719</str>"
-        "<str name='datasource'>urn:node:ESS_DIVE</str>"
-        "<arr name='abstract'><str>This should be ignored.</str></arr>"
-        "</doc>"
-        "</result></response>"
+    responses.add(
+        responses.GET,
+        ESS_DIVE_API,
+        status=401,
+        json=_json_payload("unauthorized_detail"),
     )
+
     for _ in range(3):
         responses.add(
             responses.GET,
             DATAONE_CN_SOLR_API,
-            body=unsafe_xml,
+            body=XML_PAYLOAD_FIXTURES["dataone_ess_dive_unsafe_xml"],
             content_type="application/xml",
         )
     responses.add(
         responses.GET,
         f"{DATACITE_API}/{doi}",
-        json={
-            "data": {
-                "attributes": {
-                    "publisher": "ESS-DIVE",
-                    "descriptions": [
-                        {
-                            "descriptionType": "Abstract",
-                            "description": "DataCite fallback after unsafe DataONE XML",
-                        }
-                    ],
-                }
-            }
-        },
+        json=_json_payload("datacite_ess_dive_after_unsafe_xml"),
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -1423,31 +1108,32 @@ def test_ess_dive_dataone_rejects_doctype_xml_and_falls_back_to_datacite() -> No
 def test_ess_dive_dataone_query_tries_uppercase_variant_for_wtr_dois() -> None:
     """Retry DataONE query with uppercase DOI variant for WTR-style series IDs."""
     doi = "10.21952/wtr/1573029"
-    responses.add(responses.GET, ESS_DIVE_API, status=401, json={"detail": "Unauthorized"})
-
-    empty_xml = (
-        '<?xml version="1.0" encoding="UTF-8"?>'
-        "<response><result name='response' numFound='0' start='0'></result></response>"
-    )
-    hit_xml = (
-        '<?xml version="1.0" encoding="UTF-8"?>'
-        "<response><result name='response' numFound='1' start='0'>"
-        "<doc>"
-        "<str name='id'>ess-dive-wtr-20260101</str>"
-        "<str name='seriesId'>doi:10.21952/WTR/1573029</str>"
-        "<str name='datasource'>urn:node:ESS_DIVE</str>"
-        "<arr name='abstract'><str>ESS-DIVE WTR abstract text.</str></arr>"
-        "</doc>"
-        "</result></response>"
+    responses.add(
+        responses.GET,
+        ESS_DIVE_API,
+        status=401,
+        json=_json_payload("unauthorized_detail"),
     )
 
     def dataone_callback(request: responses.Call) -> tuple[int, dict[str, str], str]:
         query = parse_qs(urlparse(request.url).query).get("q", [""])[0]
         if "10.21952/wtr/1573029" in query:
-            return 200, {"Content-Type": "application/xml"}, empty_xml
+            return (
+                200,
+                {"Content-Type": "application/xml"},
+                XML_PAYLOAD_FIXTURES["dataone_empty_result_xml"],
+            )
         if "10.21952/WTR/1573029" in query:
-            return 200, {"Content-Type": "application/xml"}, hit_xml
-        return 200, {"Content-Type": "application/xml"}, empty_xml
+            return (
+                200,
+                {"Content-Type": "application/xml"},
+                XML_PAYLOAD_FIXTURES["dataone_wtr_hit_xml"],
+            )
+        return (
+            200,
+            {"Content-Type": "application/xml"},
+            XML_PAYLOAD_FIXTURES["dataone_empty_result_xml"],
+        )
 
     responses.add_callback(
         responses.GET,
@@ -1468,50 +1154,34 @@ def test_ess_dive_dataone_query_tries_uppercase_variant_for_wtr_dois() -> None:
 def test_ess_dive_miss_falls_back_to_datacite() -> None:
     """If ESS-DIVE API and DataONE miss, continue waterfall to DataCite."""
     doi = "10.15485/1729719"
-    responses.add(responses.GET, ESS_DIVE_API, status=401, json={"detail": "Unauthorized"})
+    responses.add(
+        responses.GET,
+        ESS_DIVE_API,
+        status=401,
+        json=_json_payload("unauthorized_detail"),
+    )
     responses.add(
         responses.GET,
         DATAONE_CN_SOLR_API,
-        body=(
-            '<?xml version="1.0" encoding="UTF-8"?>'
-            "<response><result name='response' numFound='0' start='0'></result></response>"
-        ),
+        body=XML_PAYLOAD_FIXTURES["dataone_empty_result_xml"],
         content_type="application/xml",
     )
     responses.add(
         responses.GET,
         DATAONE_CN_SOLR_API,
-        body=(
-            '<?xml version="1.0" encoding="UTF-8"?>'
-            "<response><result name='response' numFound='0' start='0'></result></response>"
-        ),
+        body=XML_PAYLOAD_FIXTURES["dataone_empty_result_xml"],
         content_type="application/xml",
     )
     responses.add(
         responses.GET,
         DATAONE_CN_SOLR_API,
-        body=(
-            '<?xml version="1.0" encoding="UTF-8"?>'
-            "<response><result name='response' numFound='0' start='0'></result></response>"
-        ),
+        body=XML_PAYLOAD_FIXTURES["dataone_empty_result_xml"],
         content_type="application/xml",
     )
     responses.add(
         responses.GET,
         f"{DATACITE_API}/{doi}",
-        json={
-            "data": {
-                "attributes": {
-                    "publisher": "ESS-DIVE",
-                    "descriptions": [
-                        {
-                            "descriptionType": "Abstract",
-                            "description": "DataCite fallback for ESS-DIVE DOI",
-                        }
-                    ],
-                }
-            }
-        },
+        json=_json_payload("datacite_ess_dive_fallback"),
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -1529,18 +1199,20 @@ def test_jgi_live_failure_pattern_returns_clean_no_context() -> None:
     responses.add(
         responses.GET,
         JGI_SEARCH_API,
-        json={"proposals": [], "organisms": []},
+        json=_json_payload("jgi_empty_response"),
     )
     responses.add(
         responses.GET,
         f"{DATACITE_API}/{doi}",
-        json={"data": {"attributes": {"descriptions": []}}},
+        json=_json_payload("datacite_empty_descriptions"),
     )
-    responses.add(responses.GET, f"{CROSSREF_API}/{doi}", json={"message": {}})
+    responses.add(
+        responses.GET, f"{CROSSREF_API}/{doi}", json=_json_payload("crossref_empty_message")
+    )
     responses.add(
         responses.GET,
         f"{DOI_CONTENT_NEGOTIATION_API}/{doi}",
-        json={},
+        json=_json_payload("empty_object"),
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -1557,33 +1229,35 @@ def test_all_sources_miss_returns_clean_error() -> None:
     responses.add(
         responses.POST,
         KBASE_SEARCH_API,
-        json={"jsonrpc": "2.0", "id": "1", "result": {"count": 0, "hits": [], "aggregations": {}}},
+        json=_json_payload("kbase_search_empty"),
     )
     responses.add(
         responses.POST,
         KBASE_WORKSPACE_API,
-        json={"error": {"message": "Object not found"}},
+        json=_json_payload("kbase_workspace_not_found"),
     )
     responses.add(
         responses.POST,
         KBASE_WORKSPACE_API,
-        json={"error": {"message": "Object not found"}},
+        json=_json_payload("kbase_workspace_not_found"),
     )
     responses.add(
         responses.POST,
         KBASE_WORKSPACE_API,
-        json={"error": {"message": "Object not found"}},
+        json=_json_payload("kbase_workspace_not_found"),
     )
     responses.add(
         responses.GET,
         f"{DATACITE_API}/{doi}",
-        json={"data": {"attributes": {"descriptions": []}}},
+        json=_json_payload("datacite_empty_descriptions"),
     )
-    responses.add(responses.GET, f"{CROSSREF_API}/{doi}", json={"message": {}})
+    responses.add(
+        responses.GET, f"{CROSSREF_API}/{doi}", json=_json_payload("crossref_empty_message")
+    )
     responses.add(
         responses.GET,
         f"{DOI_CONTENT_NEGOTIATION_API}/{doi}",
-        json={},
+        json=_json_payload("empty_object"),
     )
 
     result = get_doi_description_or_abstract(doi)
