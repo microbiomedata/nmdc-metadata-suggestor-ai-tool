@@ -7,6 +7,7 @@ metadata APIs.
 
 import html
 import re
+import xml.etree.ElementTree as ET
 
 import requests
 
@@ -22,6 +23,7 @@ from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
 )
 
 DOI_CONTENT_NEGOTIATION_API = "https://doi.org"
+EDI_DOI_API = "https://pasta.lternet.edu/package/doi"
 ESS_DIVE_API = "https://api.ess-dive.lbl.gov/packages"
 FIGSHARE_API = "https://api.figshare.com/v2/articles"
 ZENODO_API = "https://zenodo.org/api/records"
@@ -52,6 +54,7 @@ TARGET_PROVIDER_KEYWORDS: dict[str, str] = {
 }
 
 ALL_SOURCES = (
+    "edi",
     "ess-dive",
     "figshare",
     "zenodo",
@@ -159,6 +162,15 @@ def _fetch_ess_dive(
     return _build_result(doi, provider, "ess-dive", attempts, text, text, kind)
 
 
+def _fetch_edi(doi: str, provider: str | None, attempts: list[str]) -> DoiContextResult | None:
+    """Fetch and wrap context from EDI's PASTA API."""
+    context = _try_edi(doi)
+    if context is None:
+        return None
+    text, kind = context
+    return _build_result(doi, provider, "edi", attempts, text, text, kind)
+
+
 def _fetch_figshare(
     doi: str, provider: str | None, attempts: list[str]
 ) -> DoiContextResult | None:
@@ -217,6 +229,7 @@ def _fetch_content_negotiation(
 
 
 _SOURCE_FETCHERS = {
+    "edi": _fetch_edi,
     "ess-dive": _fetch_ess_dive,
     "figshare": _fetch_figshare,
     "zenodo": _fetch_zenodo,
@@ -225,7 +238,35 @@ _SOURCE_FETCHERS = {
     "content_negotiation": _fetch_content_negotiation,
 }
 
-_PROVIDER_API_SOURCES = {"ess-dive", "figshare", "zenodo"}
+_PROVIDER_API_SOURCES = {"edi", "ess-dive", "figshare", "zenodo"}
+
+
+def _try_edi(doi: str) -> tuple[str, str] | None:
+    """Return (text, kind) from EDI PASTA metadata resolved by DOI."""
+    metadata_url = _resolve_edi_metadata_url(doi)
+    if metadata_url is None:
+        return None
+
+    try:
+        response = requests.get(
+            metadata_url,
+            headers={"User-Agent": USER_AGENT},
+            timeout=DEFAULT_TIMEOUT,
+        )
+        if response.status_code != 200:
+            return None
+        root = ET.fromstring(response.text)
+    except (requests.RequestException, ET.ParseError):
+        return None
+
+    abstract = _extract_first_xml_text(root, {"abstract"})
+    if abstract:
+        return abstract, "abstract"
+
+    description = _extract_first_xml_text(root, {"purpose", "description", "title"})
+    if description:
+        return description, "description"
+    return None
 
 
 def _try_ess_dive(doi: str) -> tuple[str, str] | None:
@@ -251,6 +292,26 @@ def _try_ess_dive(doi: str) -> tuple[str, str] | None:
     if not cleaned:
         return None
     return cleaned, "abstract" if key == "abstract" else "description"
+
+
+def _resolve_edi_metadata_url(doi: str) -> str | None:
+    """Resolve EDI metadata URL from an EDI DOI."""
+    try:
+        response = requests.get(
+            f"{EDI_DOI_API}/doi:{doi}",
+            headers={"User-Agent": USER_AGENT},
+            timeout=DEFAULT_TIMEOUT,
+        )
+        if response.status_code != 200:
+            return None
+    except requests.RequestException:
+        return None
+
+    for line in response.text.splitlines():
+        candidate = line.strip()
+        if "/package/metadata/eml/" in candidate:
+            return candidate
+    return None
 
 
 def _try_figshare(doi: str) -> str | None:
@@ -441,6 +502,27 @@ def _find_first_text(payload: object, keys: tuple[str, ...]) -> tuple[str, str] 
             if found is not None:
                 return found
     return None
+
+
+def _extract_first_xml_text(root: ET.Element, tags: set[str]) -> str | None:
+    """Extract text from the first XML element whose localname is in tags."""
+    for element in root.iter():
+        if _local_name(element.tag) not in tags:
+            continue
+        raw = "".join(element.itertext())
+        cleaned = _clean_text(raw)
+        if cleaned:
+            return cleaned
+    return None
+
+
+def _local_name(tag: str) -> str:
+    """Return XML localname from namespaced tags."""
+    if "}" in tag:
+        return tag.split("}", 1)[1]
+    if ":" in tag:
+        return tag.split(":", 1)[1]
+    return tag
 
 
 def _clean_text(text: str) -> str:

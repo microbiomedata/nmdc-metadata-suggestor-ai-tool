@@ -6,6 +6,7 @@ from nmdc_metadata_suggestor.doi_ingestion.main import (
     CROSSREF_API,
     DATACITE_API,
     DOI_CONTENT_NEGOTIATION_API,
+    EDI_DOI_API,
     ESS_DIVE_API,
     ZENODO_API,
     get_doi_description_or_abstract,
@@ -24,7 +25,7 @@ def test_invalid_doi_rejected_without_attempts() -> None:
 @responses.activate
 def test_datacite_prefers_abstract_over_description() -> None:
     """Use DataCite abstract when both abstract and description are present."""
-    doi = "10.6073/pasta/abc123"
+    doi = "10.1234/example-doi"
     responses.add(
         responses.GET,
         f"{DATACITE_API}/{doi}",
@@ -47,6 +48,37 @@ def test_datacite_prefers_abstract_over_description() -> None:
     assert result.source == "datacite"
     assert result.provider == "edi"
     assert result.attempts == ["datacite"]
+
+
+@responses.activate
+def test_edi_provider_api_abstract_wins() -> None:
+    """Resolve EDI DOI to EML metadata and extract abstract text first."""
+    doi = "10.6073/pasta/abc123"
+    metadata_url = "https://pasta.lternet.edu/package/metadata/eml/edi/123/1"
+    responses.add(
+        responses.GET,
+        f"{EDI_DOI_API}/doi:{doi}",
+        body=f"{metadata_url}\n",
+        content_type="text/plain",
+    )
+    responses.add(
+        responses.GET,
+        metadata_url,
+        body=(
+            "<?xml version='1.0' encoding='UTF-8'?>"
+            "<eml:eml xmlns:eml='https://eml.ecoinformatics.org/eml-2.2.0'>"
+            "<dataset><abstract><para>EDI abstract text.</para></abstract></dataset>"
+            "</eml:eml>"
+        ),
+        content_type="application/xml",
+    )
+
+    result = get_doi_description_or_abstract(doi)
+    assert result.context == "EDI abstract text."
+    assert result.context_type == "abstract"
+    assert result.source == "edi"
+    assert result.provider == "edi"
+    assert result.attempts == ["edi"]
 
 
 @responses.activate
