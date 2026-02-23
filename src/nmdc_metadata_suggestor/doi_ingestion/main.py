@@ -36,6 +36,7 @@ from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
     DOI_PATTERN,
     USER_AGENT,
     normalize_doi,
+    request_with_retry,
 )
 
 # Re-export endpoint constants for tests and external callers.
@@ -389,7 +390,8 @@ def _try_datacite(
 ) -> tuple[str, str, str, str | None] | None:
     """Return cleaned/raw text from DataCite descriptions, preferring abstract."""
     try:
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             f"{DATACITE_API}/{doi}",
             headers={"User-Agent": USER_AGENT},
             timeout=DEFAULT_TIMEOUT,
@@ -458,7 +460,8 @@ def _try_crossref(
 ) -> tuple[str, str, str, str | None] | None:
     """Return Crossref abstract text and publisher metadata if available."""
     try:
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             f"{CROSSREF_API}/{doi}",
             headers={"User-Agent": USER_AGENT},
             timeout=DEFAULT_TIMEOUT,
@@ -496,7 +499,8 @@ def _try_content_negotiation(
 ) -> tuple[str, str, str] | None:
     """Return context from CSL JSON content negotiation (abstract then note)."""
     try:
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             f"{DOI_CONTENT_NEGOTIATION_API}/{doi}",
             headers={
                 "Accept": "application/vnd.citationstyles.csl+json",

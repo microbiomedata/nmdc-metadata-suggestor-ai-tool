@@ -9,6 +9,7 @@ from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
     DATACITE_API,
     DEFAULT_TIMEOUT,
     USER_AGENT,
+    request_with_retry,
 )
 
 DOI_CONTENT_NEGOTIATION_API = "https://doi.org"
@@ -65,7 +66,8 @@ def _collect_massive_accession_candidates(
 def _resolve_doi_redirect_location(doi: str, errors: list[str] | None = None) -> str | None:
     """Resolve DOI redirect location without following downstream redirects."""
     try:
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             f"{DOI_CONTENT_NEGOTIATION_API}/{doi}",
             headers={"User-Agent": USER_AGENT},
             timeout=DEFAULT_TIMEOUT,
@@ -123,7 +125,8 @@ def _fetch_proxi_dataset_rows(
 ) -> list[list[object]]:
     """Return PROXI dataset table rows for a publication-filtered query."""
     try:
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             PROXI_DATASETS_API,
             params={
                 "publication": publication_query,
@@ -182,7 +185,8 @@ def _fetch_proxi_dataset(
 ) -> dict[str, object] | None:
     """Fetch detailed dataset metadata for a ProteomeXchange accession."""
     try:
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             f"{PROXI_DATASETS_API}/{accession}",
             headers={"User-Agent": USER_AGENT},
             timeout=DEFAULT_TIMEOUT,
@@ -234,7 +238,8 @@ def _extract_massive_context_from_datacite_titles(
 ) -> tuple[str, str, str] | None:
     """Fallback: derive MassIVE context from DataCite subtitle/title metadata."""
     try:
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             f"{DATACITE_API}/{doi}",
             headers={"User-Agent": USER_AGENT},
             timeout=DEFAULT_TIMEOUT,

@@ -10,6 +10,7 @@ from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
     DEFAULT_TIMEOUT,
     USER_AGENT,
     normalize_doi,
+    request_with_retry,
 )
 
 ESS_DIVE_API = "https://api.ess-dive.lbl.gov/packages"
@@ -19,7 +20,8 @@ DATAONE_CN_SOLR_API = "https://cn.dataone.org/cn/v2/query/solr/"
 def try_ess_dive(doi: str, errors: list[str] | None = None) -> tuple[str, str] | None:
     """Return ``(text, kind)`` from ESS-DIVE if available."""
     try:
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             ESS_DIVE_API,
             params={"doi": doi},
             headers={"User-Agent": USER_AGENT},
@@ -82,7 +84,8 @@ def _fetch_dataone_solr_docs(
 ) -> list[dict[str, object]]:
     """Fetch DataONE Solr docs for a query string."""
     try:
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             DATAONE_CN_SOLR_API,
             params={
                 "q": query,

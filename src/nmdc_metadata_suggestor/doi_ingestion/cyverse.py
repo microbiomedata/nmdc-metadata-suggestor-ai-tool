@@ -3,7 +3,11 @@
 import requests
 
 from nmdc_metadata_suggestor.doi_ingestion.common import append_error, clean_text
-from nmdc_metadata_suggestor.publication_ingestion.doi_utils import DEFAULT_TIMEOUT, USER_AGENT
+from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
+    DEFAULT_TIMEOUT,
+    USER_AGENT,
+    request_with_retry,
+)
 
 CYVERSE_METADATA_API = "https://de.cyverse.org/terrain/filesystem/metadata"
 CYVERSE_METADATA_SEARCH_API = f"{CYVERSE_METADATA_API}/search"
@@ -36,7 +40,8 @@ def _search_cyverse_metadata_for_doi(
 ) -> list[dict[str, object]]:
     """Search CyVerse metadata AVUs for DOI references."""
     try:
-        response = requests.post(
+        response = request_with_retry(
+            "POST",
             CYVERSE_METADATA_SEARCH_API,
             json={"attribute": "dc.identifier.doi", "value": doi, "avus": []},
             headers={"User-Agent": USER_AGENT},
@@ -61,7 +66,8 @@ def _fetch_cyverse_target_metadata(
 ) -> list[dict[str, object]]:
     """Fetch AVUs for a specific CyVerse metadata target id."""
     try:
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             CYVERSE_METADATA_API,
             params={"target-id": target_id},
             headers={"User-Agent": USER_AGENT},

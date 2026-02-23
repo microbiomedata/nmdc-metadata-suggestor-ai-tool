@@ -9,6 +9,7 @@ from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
     DEFAULT_TIMEOUT,
     USER_AGENT,
     normalize_doi,
+    request_with_retry,
 )
 
 JGI_SEARCH_API = "https://files.jgi.doe.gov/search/"
@@ -34,7 +35,8 @@ def try_jgi(doi: str, errors: list[str] | None = None) -> tuple[str, str, str] |
             params["f"] = "project_id"
 
         try:
-            response = requests.get(
+            response = request_with_retry(
+                "GET",
                 JGI_SEARCH_API,
                 params=params,
                 headers={"User-Agent": USER_AGENT},

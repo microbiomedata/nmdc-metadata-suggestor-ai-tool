@@ -6,8 +6,12 @@ provenance, and the full list of unmapped types.
 
 import os
 import re
+import time
+from email.utils import parsedate_to_datetime
+from typing import Any
 
 import requests
+from requests.adapters import HTTPAdapter
 
 from nmdc_metadata_suggestor.models.doi import (
     DoiCategory,
@@ -22,6 +26,11 @@ CROSSREF_API = "https://api.crossref.org/works"
 DATACITE_API = "https://api.datacite.org/dois"
 
 DEFAULT_TIMEOUT = 15
+DEFAULT_RETRY_ATTEMPTS = int(os.environ.get("NMDC_HTTP_RETRY_ATTEMPTS", "3"))
+DEFAULT_RETRY_BACKOFF_SECONDS = float(os.environ.get("NMDC_HTTP_RETRY_BACKOFF_SECONDS", "0.25"))
+RETRY_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
+SESSION_POOL_CONNECTIONS = int(os.environ.get("NMDC_HTTP_POOL_CONNECTIONS", "20"))
+SESSION_POOL_MAXSIZE = int(os.environ.get("NMDC_HTTP_POOL_MAXSIZE", "100"))
 
 # Contact email for API User-Agent headers (Crossref polite pool, OpenAlex).
 # Read from environment; falls back to the NMDC default.
@@ -30,6 +39,83 @@ USER_AGENT = f"NMDCMetadataSuggestor/0.1 (mailto:{CONTACT_EMAIL})"
 
 # DOI syntax: prefix (10.NNNN+) / suffix (any non-whitespace)
 DOI_PATTERN = re.compile(r"^10\.\d{4,9}/\S+$")
+
+_HTTP_SESSION = requests.Session()
+_HTTP_ADAPTER = HTTPAdapter(
+    pool_connections=SESSION_POOL_CONNECTIONS,
+    pool_maxsize=SESSION_POOL_MAXSIZE,
+    max_retries=0,
+)
+_HTTP_SESSION.mount("http://", _HTTP_ADAPTER)
+_HTTP_SESSION.mount("https://", _HTTP_ADAPTER)
+
+
+def request_with_retry(
+    method: str,
+    url: str,
+    *,
+    max_attempts: int = DEFAULT_RETRY_ATTEMPTS,
+    retry_status_codes: set[int] | frozenset[int] = RETRY_STATUS_CODES,
+    backoff_seconds: float = DEFAULT_RETRY_BACKOFF_SECONDS,
+    timeout: int = DEFAULT_TIMEOUT,
+    **request_kwargs: Any,
+) -> requests.Response:
+    """Perform an HTTP request with retry/backoff for transient failures.
+
+    Retries are applied for:
+    - Network/request exceptions (e.g. connection resets, timeouts)
+    - HTTP response status codes in ``retry_status_codes`` (default: 429/5xx)
+
+    ``Retry-After`` is honored when present; otherwise exponential backoff is used.
+    """
+    if max_attempts < 1:
+        raise ValueError("max_attempts must be >= 1")
+
+    last_exception: requests.RequestException | None = None
+    response: requests.Response | None = None
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            response = _HTTP_SESSION.request(method, url, timeout=timeout, **request_kwargs)
+            if response.status_code not in retry_status_codes:
+                return response
+
+            if attempt == max_attempts:
+                return response
+
+            delay = _retry_delay_seconds(
+                response.headers.get("Retry-After"), attempt, backoff_seconds
+            )
+            if delay > 0:
+                time.sleep(delay)
+        except requests.RequestException as exc:
+            last_exception = exc
+            if attempt == max_attempts:
+                raise
+            delay = backoff_seconds * (2 ** (attempt - 1))
+            if delay > 0:
+                time.sleep(delay)
+
+    if response is not None:
+        return response
+    if last_exception is not None:
+        raise last_exception
+    raise RuntimeError("request_with_retry exited without response or exception")
+
+
+def _retry_delay_seconds(retry_after: str | None, attempt: int, backoff_seconds: float) -> float:
+    """Return retry delay from Retry-After header or exponential fallback."""
+    if isinstance(retry_after, str) and retry_after.strip():
+        retry_after_value = retry_after.strip()
+        if retry_after_value.isdigit():
+            return max(0.0, float(retry_after_value))
+        try:
+            retry_dt = parsedate_to_datetime(retry_after_value)
+            return max(0.0, retry_dt.timestamp() - time.time())
+        except (TypeError, ValueError):
+            pass
+
+    return backoff_seconds * (2 ** (attempt - 1))
 
 # ---------------------------------------------------------------------------
 # Mapping: external resource types -> NMDC DoiCategoryEnum

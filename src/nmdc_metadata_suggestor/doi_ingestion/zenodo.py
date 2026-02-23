@@ -7,6 +7,7 @@ from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
     DEFAULT_TIMEOUT,
     USER_AGENT,
     normalize_doi,
+    request_with_retry,
 )
 
 ZENODO_API = "https://zenodo.org/api/records"
@@ -16,7 +17,8 @@ def try_zenodo(doi: str, errors: list[str] | None = None) -> str | None:
     """Return Zenodo description text for a DOI if present."""
     query = f'doi:"{doi}" OR conceptdoi:"{doi}"'
     try:
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             ZENODO_API,
             params={"q": query},
             headers={"User-Agent": USER_AGENT},

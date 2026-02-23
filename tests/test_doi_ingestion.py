@@ -38,6 +38,7 @@ from nmdc_metadata_suggestor.doi_ingestion.main import (
     ZENODO_API,
     get_doi_description_or_abstract,
 )
+from nmdc_metadata_suggestor.publication_ingestion.doi_utils import DEFAULT_RETRY_ATTEMPTS
 
 FIXTURE_PATH = Path(__file__).parent / "fixtures" / "doi_test_cases.json"
 REAL_WORLD_SOURCE_FIXTURE_PATH = (
@@ -123,6 +124,17 @@ LIVE_SUCCESS_CASES = _select_live_success_cases(REAL_WORLD_SOURCE_CASES)
 LIVE_KNOWN_NO_CONTEXT_CASES = [
     case for case in REAL_WORLD_SOURCE_CASES if case["doi"] in KNOWN_LIVE_NO_CONTEXT_DOIS
 ]
+
+
+def _add_retriable_http_response(
+    method: str, url: str, *, status: int, json_payload: object | None = None
+) -> None:
+    """Register enough mocked responses to satisfy retry attempts for one request."""
+    for _ in range(DEFAULT_RETRY_ATTEMPTS):
+        if json_payload is None:
+            responses.add(method, url, status=status)
+        else:
+            responses.add(method, url, status=status, json=json_payload)
 
 
 def _mock_provider_resolver_hit(source: str, doi: str) -> None:
@@ -1141,14 +1153,29 @@ def test_provider_miss_falls_back_to_datacite() -> None:
 def test_source_errors_include_upstream_http_codes() -> None:
     """Capture per-source HTTP status details for pipeline retry/alert handling."""
     doi = "10.5281/zenodo.7406532"
-    responses.add(responses.GET, ZENODO_API, status=503, json={"detail": "Service unavailable"})
-    responses.add(responses.GET, f"{DATACITE_API}/{doi}", status=502, json={})
-    responses.add(responses.GET, f"{CROSSREF_API}/{doi}", status=429, json={})
-    responses.add(
+    _add_retriable_http_response(
+        responses.GET,
+        ZENODO_API,
+        status=503,
+        json_payload={"detail": "Service unavailable"},
+    )
+    _add_retriable_http_response(
+        responses.GET,
+        f"{DATACITE_API}/{doi}",
+        status=502,
+        json_payload={},
+    )
+    _add_retriable_http_response(
+        responses.GET,
+        f"{CROSSREF_API}/{doi}",
+        status=429,
+        json_payload={},
+    )
+    _add_retriable_http_response(
         responses.GET,
         f"{DOI_CONTENT_NEGOTIATION_API}/{doi}",
         status=503,
-        json={},
+        json_payload={},
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -1165,7 +1192,12 @@ def test_source_errors_include_upstream_http_codes() -> None:
 def test_source_errors_preserved_on_successful_fallback() -> None:
     """Keep upstream source failure detail even when a later source succeeds."""
     doi = "10.5281/zenodo.7406532"
-    responses.add(responses.GET, ZENODO_API, status=503, json={"detail": "Service unavailable"})
+    _add_retriable_http_response(
+        responses.GET,
+        ZENODO_API,
+        status=503,
+        json_payload={"detail": "Service unavailable"},
+    )
     responses.add(
         responses.GET,
         f"{DATACITE_API}/{doi}",

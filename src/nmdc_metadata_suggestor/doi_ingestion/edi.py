@@ -5,7 +5,11 @@ import xml.etree.ElementTree as ET
 import requests
 
 from nmdc_metadata_suggestor.doi_ingestion.common import append_error, extract_first_xml_text
-from nmdc_metadata_suggestor.publication_ingestion.doi_utils import DEFAULT_TIMEOUT, USER_AGENT
+from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
+    DEFAULT_TIMEOUT,
+    USER_AGENT,
+    request_with_retry,
+)
 
 EDI_DOI_API = "https://pasta.lternet.edu/package/doi"
 
@@ -17,7 +21,8 @@ def try_edi(doi: str, errors: list[str] | None = None) -> tuple[str, str] | None
         return None
 
     try:
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             metadata_url,
             headers={"User-Agent": USER_AGENT},
             timeout=DEFAULT_TIMEOUT,
@@ -47,7 +52,8 @@ def try_edi(doi: str, errors: list[str] | None = None) -> tuple[str, str] | None
 def _resolve_edi_metadata_url(doi: str, errors: list[str] | None = None) -> str | None:
     """Resolve EDI metadata URL from an EDI DOI."""
     try:
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             f"{EDI_DOI_API}/doi:{doi}",
             headers={"User-Agent": USER_AGENT},
             timeout=DEFAULT_TIMEOUT,

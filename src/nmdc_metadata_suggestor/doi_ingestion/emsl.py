@@ -9,6 +9,7 @@ from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
     DEFAULT_TIMEOUT,
     USER_AGENT,
     normalize_doi,
+    request_with_retry,
 )
 
 EMSL_PROJECTS_API = "https://api.emsl.pnnl.gov/external/projects"
@@ -22,7 +23,8 @@ def try_emsl(doi: str, errors: list[str] | None = None) -> tuple[str, str, str] 
         return None
 
     try:
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             f"{EMSL_PROJECTS_API}/{project_id}",
             headers={"User-Agent": USER_AGENT},
             timeout=DEFAULT_TIMEOUT,

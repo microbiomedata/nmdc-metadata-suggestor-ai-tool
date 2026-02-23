@@ -3,7 +3,11 @@
 import requests
 
 from nmdc_metadata_suggestor.doi_ingestion.common import append_error, clean_text
-from nmdc_metadata_suggestor.publication_ingestion.doi_utils import DEFAULT_TIMEOUT, USER_AGENT
+from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
+    DEFAULT_TIMEOUT,
+    USER_AGENT,
+    request_with_retry,
+)
 
 FIGSHARE_API = "https://api.figshare.com/v2/articles"
 FIGSHARE_COLLECTIONS_API = "https://api.figshare.com/v2/collections"
@@ -27,7 +31,8 @@ def _try_figshare_entity_lookup(
 ) -> str | None:
     """Lookup a Figshare entity list by DOI and extract context."""
     try:
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             endpoint,
             params={"doi": doi},
             headers={"User-Agent": USER_AGENT},
@@ -89,7 +94,8 @@ def _fetch_figshare_detail(
             return None
 
     try:
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             detail_url,
             headers={"User-Agent": USER_AGENT},
             timeout=DEFAULT_TIMEOUT,
