@@ -93,3 +93,27 @@ class AbstractResult(BaseModel):
     pmid: str | None = None
     attempts: list[str] = []
     error: str | None = None
+
+
+class DoiContextResult(BaseModel):
+    """Result of DOI description/abstract retrieval for LLM context expansion.
+
+    Attributes:
+        doi: Normalized DOI that was looked up.
+        context: Cleaned context text if found (abstract preferred over description).
+        raw_context: Context text as returned by the source before cleanup.
+        context_type: ``"abstract"`` or ``"description"`` when context is found.
+        provider: Repository/provider inferred from DOI prefix or publisher metadata.
+        source: API source that returned the context (e.g. ``"datacite"``, ``"zenodo"``).
+        attempts: Sources tried in order.
+        error: Human-readable error when no context could be retrieved.
+    """
+
+    doi: str
+    context: str | None = None
+    raw_context: str | None = None
+    context_type: str | None = None
+    provider: str | None = None
+    source: str | None = None
+    attempts: list[str] = []
+    error: str | None = None
