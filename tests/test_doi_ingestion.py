@@ -20,6 +20,7 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 import responses
+from requests import PreparedRequest
 
 from nmdc_metadata_suggestor.constants import (
     CROSSREF_API_URL as CROSSREF_API,
@@ -921,8 +922,8 @@ def test_zenodo_concept_doi_query_prefers_zenodo_over_datacite() -> None:
     """Resolve Zenodo concept DOI using conceptdoi-aware query instead of fallback."""
     doi = "10.5281/zenodo.7406532"
 
-    def zenodo_callback(request: responses.Call) -> tuple[int, dict[str, str], str]:
-        parsed_qs = parse_qs(urlparse(request.url).query)
+    def zenodo_callback(request: PreparedRequest) -> tuple[int, dict[str, str], str]:
+        parsed_qs = parse_qs(urlparse(request.url or "").query)
         query = parsed_qs.get("q", [""])[0]
         if 'conceptdoi:"10.5281/zenodo.7406532"' in query:
             body = _json_payload("zenodo_concept_hit")
@@ -1137,8 +1138,8 @@ def test_ess_dive_dataone_query_tries_uppercase_variant_for_wtr_dois() -> None:
         json=_json_payload("unauthorized_detail"),
     )
 
-    def dataone_callback(request: responses.Call) -> tuple[int, dict[str, str], str]:
-        query = parse_qs(urlparse(request.url).query).get("q", [""])[0]
+    def dataone_callback(request: PreparedRequest) -> tuple[int, dict[str, str], str]:
+        query = parse_qs(urlparse(request.url or "").query).get("q", [""])[0]
         if "10.21952/wtr/1573029" in query:
             return (
                 200,
