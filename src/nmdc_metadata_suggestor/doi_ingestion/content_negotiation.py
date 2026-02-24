@@ -76,14 +76,12 @@ def _fetch_content_negotiation_payload(
         )
         if response.status_code != 200:
             if errors is not None:
-                errors.append(
-                    f"DOI content negotiation returned HTTP {response.status_code}")
+                errors.append(f"DOI content negotiation returned HTTP {response.status_code}")
             return None
         payload = response.json()
     except requests.RequestException as exc:
         if errors is not None:
-            errors.append(
-                f"DOI content negotiation request failed: {exc.__class__.__name__}")
+            errors.append(f"DOI content negotiation request failed: {exc.__class__.__name__}")
         return None
     except ValueError:
         if errors is not None:

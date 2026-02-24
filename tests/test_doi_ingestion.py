@@ -786,7 +786,7 @@ def test_massive_proxi_miss_falls_back_to_datacite() -> None:
 
 @responses.activate
 def test_massive_uses_datacite_title_context_when_proxi_fails() -> None:
-    """Use DataCite subtitle/title context within MassIVE resolver as a fallback."""
+    """Use DataCite subtitle/title fallback and report DataCite as source."""
     doi = "10.25345/c5kk94s01"
     accession = "MSV000100938"
     responses.add(
@@ -816,7 +816,7 @@ def test_massive_uses_datacite_title_context_when_proxi_fails() -> None:
     result = get_doi_description_or_abstract(doi)
     assert result.context == "Detailed MassIVE subtitle context from DataCite."
     assert result.context_type == "description"
-    assert result.source == "massive"
+    assert result.source == "datacite"
     assert result.provider == "massive"
     assert result.attempts == ["massive"]
 

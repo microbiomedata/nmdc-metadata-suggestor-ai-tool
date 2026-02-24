@@ -9,4 +9,4 @@ class ResolverContext(NamedTuple):
     text: str
     raw_text: str
     kind: str
-
+    source: str | None = None

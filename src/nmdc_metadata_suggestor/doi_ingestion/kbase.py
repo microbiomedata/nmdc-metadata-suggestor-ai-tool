@@ -71,9 +71,7 @@ def try_kbase(doi: str, errors: list[str] | None = None) -> ResolverContext | No
     return workspace_context
 
 
-def _extract_kbase_context(
-    result: dict[str, object], requested_doi: str
-) -> ResolverContext | None:
+def _extract_kbase_context(result: dict[str, object], requested_doi: str) -> ResolverContext | None:
     """Extract description context from KBase narrative search results."""
     hits = result.get("hits")
     if not isinstance(hits, list):
@@ -114,16 +112,12 @@ def _extract_kbase_context(
     if best_matching_text:
         cleaned = clean_text(best_matching_text)
         if cleaned:
-            return ResolverContext(
-                text=cleaned, raw_text=best_matching_text, kind="description"
-            )
+            return ResolverContext(text=cleaned, raw_text=best_matching_text, kind="description")
 
     if best_fallback_text:
         cleaned = clean_text(best_fallback_text)
         if cleaned:
-            return ResolverContext(
-                text=cleaned, raw_text=best_fallback_text, kind="description"
-            )
+            return ResolverContext(text=cleaned, raw_text=best_fallback_text, kind="description")
 
     if best_title:
         cleaned = clean_text(best_title)
@@ -132,9 +126,7 @@ def _extract_kbase_context(
     return None
 
 
-def _try_kbase_workspace_ref(
-    doi: str, errors: list[str] | None = None
-) -> ResolverContext | None:
+def _try_kbase_workspace_ref(doi: str, errors: list[str] | None = None) -> ResolverContext | None:
     """Return context from KBase workspace object info inferred from DOI token."""
     workspace_tokens = _extract_kbase_workspace_tokens(doi)
     if workspace_tokens is None:

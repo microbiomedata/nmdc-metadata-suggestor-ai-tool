@@ -266,7 +266,12 @@ def _extract_massive_context_from_datacite_titles(
     cleaned = clean_text(preferred)
     if not cleaned:
         return None
-    return ResolverContext(text=cleaned, raw_text=preferred, kind="description")
+    return ResolverContext(
+        text=cleaned,
+        raw_text=preferred,
+        kind="description",
+        source="datacite",
+    )
 
 
 def _pick_massive_datacite_title(titles: list[object]) -> str | None:

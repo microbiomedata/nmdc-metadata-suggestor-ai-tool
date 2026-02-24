@@ -168,10 +168,11 @@ def _fetch_resolver_context(
     if context is None:
         _record_source_error(source_errors, source, errors)
         return None
+    result_source = context.source or source
     return _build_result(
         doi,
         provider,
-        source,
+        result_source,
         attempts,
         source_errors,
         context.text,
@@ -184,9 +185,7 @@ def _fetch_ess_dive(
     doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
 ) -> SourceRetrievalResult | None:
     """Fetch and wrap context from ESS-DIVE-specific API."""
-    return _fetch_resolver_context(
-        doi, provider, "ess-dive", attempts, source_errors, try_ess_dive
-    )
+    return _fetch_resolver_context(doi, provider, "ess-dive", attempts, source_errors, try_ess_dive)
 
 
 def _fetch_edi(
@@ -207,9 +206,7 @@ def _fetch_figshare(
     doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
 ) -> SourceRetrievalResult | None:
     """Fetch and wrap context from Figshare-specific API."""
-    return _fetch_resolver_context(
-        doi, provider, "figshare", attempts, source_errors, try_figshare
-    )
+    return _fetch_resolver_context(doi, provider, "figshare", attempts, source_errors, try_figshare)
 
 
 def _fetch_jgi(

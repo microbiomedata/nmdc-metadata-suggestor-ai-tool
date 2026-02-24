@@ -53,9 +53,7 @@ def try_zenodo(doi: str, errors: list[str] | None = None) -> ResolverContext | N
         if isinstance(description, str):
             cleaned = clean_text(description)
             if cleaned:
-                return ResolverContext(
-                    text=cleaned, raw_text=description, kind="description"
-                )
+                return ResolverContext(text=cleaned, raw_text=description, kind="description")
     append_error(errors, "Zenodo response contained no usable description")
     return None
 
