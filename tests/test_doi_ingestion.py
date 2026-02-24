@@ -1398,8 +1398,7 @@ def test_try_edi_live_returns_context_for_curated_doi() -> None:
         return
 
     pytest.fail(
-        "EDI resolver returned no context for all curated live DOIs: "
-        + " | ".join(failures)
+        "EDI resolver returned no context for all curated live DOIs: " + " | ".join(failures)
     )
 
 
@@ -1450,8 +1449,7 @@ def test_try_emsl_live_returns_context_for_curated_doi() -> None:
         return
 
     pytest.fail(
-        "EMSL resolver returned no context for all curated live DOIs: "
-        + " | ".join(failures)
+        "EMSL resolver returned no context for all curated live DOIs: " + " | ".join(failures)
     )
 
 
@@ -1502,8 +1500,7 @@ def test_try_jgi_live_returns_context_for_curated_doi() -> None:
         return
 
     pytest.fail(
-        "JGI resolver returned no context for all curated live DOIs: "
-        + " | ".join(failures)
+        "JGI resolver returned no context for all curated live DOIs: " + " | ".join(failures)
     )
 
 
@@ -1554,8 +1551,7 @@ def test_try_kbase_live_returns_context_for_curated_doi() -> None:
         return
 
     pytest.fail(
-        "KBase resolver returned no context for all curated live DOIs: "
-        + " | ".join(failures)
+        "KBase resolver returned no context for all curated live DOIs: " + " | ".join(failures)
     )
 
 
