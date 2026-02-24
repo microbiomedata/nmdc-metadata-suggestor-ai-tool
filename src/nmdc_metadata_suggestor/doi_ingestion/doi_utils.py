@@ -32,10 +32,6 @@ from nmdc_metadata_suggestor.models.doi import (
     DoiValidation,
 )
 
-# Backward-compatible aliases used by DOI ingestion modules/tests.
-CROSSREF_API = CROSSREF_API_URL
-DATACITE_API = DATACITE_API_URL
-
 DEFAULT_RETRY_ATTEMPTS = int(os.environ.get("NMDC_HTTP_RETRY_ATTEMPTS", "3"))
 # Default backoff is 0 to avoid introducing real sleep delays by default (e.g., in tests).
 DEFAULT_RETRY_BACKOFF_SECONDS = float(os.environ.get("NMDC_HTTP_RETRY_BACKOFF_SECONDS", "0"))
