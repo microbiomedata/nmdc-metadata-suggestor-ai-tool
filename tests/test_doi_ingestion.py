@@ -47,6 +47,10 @@ from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     DEFAULT_RETRY_ATTEMPTS,
     text_mentions_doi,
 )
+from nmdc_metadata_suggestor.doi_ingestion.edi import try_edi
+from nmdc_metadata_suggestor.doi_ingestion.emsl import try_emsl
+from nmdc_metadata_suggestor.doi_ingestion.jgi import try_jgi
+from nmdc_metadata_suggestor.doi_ingestion.kbase import try_kbase
 from nmdc_metadata_suggestor.doi_ingestion.main import (
     get_doi_description_or_abstract,
 )
@@ -180,6 +184,15 @@ LIVE_SUCCESS_CASES = _select_live_success_cases(REAL_WORLD_SOURCE_CASES)
 LIVE_KNOWN_NO_CONTEXT_CASES = [
     case for case in REAL_WORLD_SOURCE_CASES if case["doi"] in KNOWN_LIVE_NO_CONTEXT_DOIS
 ]
+
+
+def _live_dois_for_source(source: str) -> list[str]:
+    """Return curated live DOIs for a resolver source, excluding known no-context DOIs."""
+    return [
+        case["doi"]
+        for case in REAL_WORLD_SOURCE_CASES
+        if case["source"] == source and case["doi"] not in KNOWN_LIVE_NO_CONTEXT_DOIS
+    ]
 
 
 def _add_retriable_http_response(
@@ -1362,3 +1375,211 @@ def test_live_known_no_context_cases_fail_cleanly(case: dict[str, str]) -> None:
 
     assert result.context is None
     assert result.error == "No description or abstract found in any source"
+
+
+@integration
+def test_try_edi_live_returns_context_for_curated_doi() -> None:
+    """Direct EDI resolver should return context for at least one curated live DOI."""
+    edi_dois = _live_dois_for_source("edi")
+    if not edi_dois:
+        pytest.skip("No curated EDI live DOIs configured")
+
+    failures: list[str] = []
+    for doi in edi_dois:
+        errors: list[str] = []
+        context = try_edi(doi, errors=errors)
+        if context is None:
+            failures.append(f"{doi}: {'; '.join(errors) if errors else 'no context'}")
+            continue
+
+        assert context.kind in {"abstract", "description"}
+        assert context.text
+        assert context.raw_text
+        return
+
+    pytest.fail(
+        "EDI resolver returned no context for all curated live DOIs: "
+        + " | ".join(failures)
+    )
+
+
+@integration
+def test_live_edi_explicit_source_route_returns_provider_context() -> None:
+    """Explicit EDI source lookup should resolve via EDI with provider-aware attempts."""
+    edi_dois = _live_dois_for_source("edi")
+    if not edi_dois:
+        pytest.skip("No curated EDI live DOIs configured")
+
+    failures: list[str] = []
+    for doi in edi_dois:
+        result = get_doi_description_or_abstract(doi, sources=["edi"])
+        if result.context is None:
+            failures.append(f"{doi}: {result.error or 'no context'}")
+            continue
+
+        assert result.source == "edi"
+        assert result.provider == "edi"
+        assert result.attempts == ["edi"]
+        assert result.context_type in {"abstract", "description"}
+        return
+
+    pytest.fail(
+        "Explicit EDI source lookups returned no context for all curated live DOIs: "
+        + " | ".join(failures)
+    )
+
+
+@integration
+def test_try_emsl_live_returns_context_for_curated_doi() -> None:
+    """Direct EMSL resolver should return context for at least one curated live DOI."""
+    emsl_dois = _live_dois_for_source("emsl")
+    if not emsl_dois:
+        pytest.skip("No curated EMSL live DOIs configured")
+
+    failures: list[str] = []
+    for doi in emsl_dois:
+        errors: list[str] = []
+        context = try_emsl(doi, errors=errors)
+        if context is None:
+            failures.append(f"{doi}: {'; '.join(errors) if errors else 'no context'}")
+            continue
+
+        assert context.kind in {"abstract", "description"}
+        assert context.text
+        assert context.raw_text
+        return
+
+    pytest.fail(
+        "EMSL resolver returned no context for all curated live DOIs: "
+        + " | ".join(failures)
+    )
+
+
+@integration
+def test_live_emsl_explicit_source_route_returns_provider_context() -> None:
+    """Explicit EMSL source lookup should resolve via EMSL with provider-aware attempts."""
+    emsl_dois = _live_dois_for_source("emsl")
+    if not emsl_dois:
+        pytest.skip("No curated EMSL live DOIs configured")
+
+    failures: list[str] = []
+    for doi in emsl_dois:
+        result = get_doi_description_or_abstract(doi, sources=["emsl"])
+        if result.context is None:
+            failures.append(f"{doi}: {result.error or 'no context'}")
+            continue
+
+        assert result.source == "emsl"
+        assert result.provider == "emsl"
+        assert result.attempts == ["emsl"]
+        assert result.context_type in {"abstract", "description"}
+        return
+
+    pytest.fail(
+        "Explicit EMSL source lookups returned no context for all curated live DOIs: "
+        + " | ".join(failures)
+    )
+
+
+@integration
+def test_try_jgi_live_returns_context_for_curated_doi() -> None:
+    """Direct JGI resolver should return context for at least one curated live DOI."""
+    jgi_dois = _live_dois_for_source("jgi")
+    if not jgi_dois:
+        pytest.skip("No curated JGI live DOIs configured")
+
+    failures: list[str] = []
+    for doi in jgi_dois:
+        errors: list[str] = []
+        context = try_jgi(doi, errors=errors)
+        if context is None:
+            failures.append(f"{doi}: {'; '.join(errors) if errors else 'no context'}")
+            continue
+
+        assert context.kind in {"abstract", "description"}
+        assert context.text
+        assert context.raw_text
+        return
+
+    pytest.fail(
+        "JGI resolver returned no context for all curated live DOIs: "
+        + " | ".join(failures)
+    )
+
+
+@integration
+def test_live_jgi_explicit_source_route_returns_provider_context() -> None:
+    """Explicit JGI source lookup should resolve via JGI with provider-aware attempts."""
+    jgi_dois = _live_dois_for_source("jgi")
+    if not jgi_dois:
+        pytest.skip("No curated JGI live DOIs configured")
+
+    failures: list[str] = []
+    for doi in jgi_dois:
+        result = get_doi_description_or_abstract(doi, sources=["jgi"])
+        if result.context is None:
+            failures.append(f"{doi}: {result.error or 'no context'}")
+            continue
+
+        assert result.source == "jgi"
+        assert result.provider == "jgi"
+        assert result.attempts == ["jgi"]
+        assert result.context_type in {"abstract", "description"}
+        return
+
+    pytest.fail(
+        "Explicit JGI source lookups returned no context for all curated live DOIs: "
+        + " | ".join(failures)
+    )
+
+
+@integration
+def test_try_kbase_live_returns_context_for_curated_doi() -> None:
+    """Direct KBase resolver should return context for at least one curated live DOI."""
+    kbase_dois = _live_dois_for_source("kbase")
+    if not kbase_dois:
+        pytest.skip("No curated KBase live DOIs configured")
+
+    failures: list[str] = []
+    for doi in kbase_dois:
+        errors: list[str] = []
+        context = try_kbase(doi, errors=errors)
+        if context is None:
+            failures.append(f"{doi}: {'; '.join(errors) if errors else 'no context'}")
+            continue
+
+        assert context.kind in {"abstract", "description"}
+        assert context.text
+        assert context.raw_text
+        return
+
+    pytest.fail(
+        "KBase resolver returned no context for all curated live DOIs: "
+        + " | ".join(failures)
+    )
+
+
+@integration
+def test_live_kbase_explicit_source_route_returns_provider_context() -> None:
+    """Explicit KBase source lookup should resolve via KBase with provider-aware attempts."""
+    kbase_dois = _live_dois_for_source("kbase")
+    if not kbase_dois:
+        pytest.skip("No curated KBase live DOIs configured")
+
+    failures: list[str] = []
+    for doi in kbase_dois:
+        result = get_doi_description_or_abstract(doi, sources=["kbase"])
+        if result.context is None:
+            failures.append(f"{doi}: {result.error or 'no context'}")
+            continue
+
+        assert result.source == "kbase"
+        assert result.provider == "kbase"
+        assert result.attempts == ["kbase"]
+        assert result.context_type in {"abstract", "description"}
+        return
+
+    pytest.fail(
+        "Explicit KBase source lookups returned no context for all curated live DOIs: "
+        + " | ".join(failures)
+    )
