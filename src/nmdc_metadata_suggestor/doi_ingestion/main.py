@@ -9,12 +9,13 @@ from collections.abc import Callable
 import requests
 
 from nmdc_metadata_suggestor.constants import (
-    CITEPROC_JSON_ACCEPT,
     DATACITE_API_URL,
     DEFAULT_TIMEOUT,
-    DOI_CONTENT_NEGOTIATION_API,
     DOI_PATTERN,
     USER_AGENT,
+)
+from nmdc_metadata_suggestor.doi_ingestion.content_negotiation import (
+    try_content_negotiation_context,
 )
 from nmdc_metadata_suggestor.doi_ingestion.crossref import try_crossref_context
 from nmdc_metadata_suggestor.doi_ingestion.cyverse import try_cyverse
@@ -22,7 +23,6 @@ from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     clean_text,
     normalize_doi,
     request_with_retry,
-    strip_jats_xml,
 )
 from nmdc_metadata_suggestor.doi_ingestion.edi import try_edi
 from nmdc_metadata_suggestor.doi_ingestion.emsl import try_emsl
@@ -59,22 +59,6 @@ TARGET_PROVIDER_KEYWORDS: dict[str, str] = {
     "zenodo": "zenodo",
     "cyverse": "cyverse",
 }
-
-ALL_SOURCES = (
-    "edi",
-    "emsl",
-    "ess-dive",
-    "figshare",
-    "jgi",
-    "kbase",
-    "massive",
-    "cyverse",
-    "zenodo",
-    "datacite",
-    "crossref",
-    "content_negotiation",
-)
-
 
 SourceErrors = dict[str, str]
 Fetcher = Callable[[str, str | None, list[str], SourceErrors], SourceRetrievalResult | None]
@@ -326,7 +310,7 @@ def _fetch_content_negotiation(
 ) -> SourceRetrievalResult | None:
     """Fetch and wrap context via DOI content negotiation."""
     errors: list[str] = []
-    context = _try_content_negotiation(doi, errors=errors)
+    context = try_content_negotiation_context(doi, errors=errors)
     if context is None:
         _record_source_error(source_errors, "content_negotiation", errors)
         return None
@@ -433,46 +417,3 @@ def _pick_datacite_description(descriptions: list[object]) -> tuple[str, str] | 
         return description_candidate, "description"
     return None
 
-
-def _try_content_negotiation(
-    doi: str, errors: list[str] | None = None
-) -> tuple[str, str, str] | None:
-    """Return context from CSL JSON content negotiation (abstract then note)."""
-    try:
-        response = request_with_retry(
-            "GET",
-            f"{DOI_CONTENT_NEGOTIATION_API}/{doi}",
-            headers={
-                "Accept": CITEPROC_JSON_ACCEPT,
-                "User-Agent": USER_AGENT,
-            },
-            timeout=DEFAULT_TIMEOUT,
-        )
-        if response.status_code != 200:
-            if errors is not None:
-                errors.append(f"DOI content negotiation returned HTTP {response.status_code}")
-            return None
-        payload = response.json()
-    except requests.RequestException as exc:
-        if errors is not None:
-            errors.append(f"DOI content negotiation request failed: {exc.__class__.__name__}")
-        return None
-    except ValueError:
-        if errors is not None:
-            errors.append("DOI content negotiation returned invalid JSON")
-        return None
-
-    abstract = payload.get("abstract")
-    if isinstance(abstract, str) and abstract.strip():
-        cleaned = strip_jats_xml(abstract)
-        if cleaned:
-            return cleaned, abstract, "abstract"
-
-    note = payload.get("note")
-    if isinstance(note, str) and note.strip():
-        cleaned = clean_text(note)
-        if cleaned:
-            return cleaned, note, "description"
-    if errors is not None:
-        errors.append("DOI content negotiation contained no abstract/note")
-    return None

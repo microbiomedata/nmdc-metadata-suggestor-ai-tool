@@ -350,7 +350,8 @@ def validate_doi(doi: str) -> DoiValidation:
         return DoiValidation(doi=doi, is_valid=False, error="Malformed DOI syntax")
 
     try:
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             f"{DOI_HANDLE_API}/{doi}",
             timeout=DEFAULT_TIMEOUT,
             headers={"User-Agent": USER_AGENT},
@@ -381,7 +382,8 @@ def detect_registration_agency(doi: str) -> str | None:
         or ``None`` on error.
     """
     try:
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             f"{DOI_RA_API}/{doi}",
             timeout=DEFAULT_TIMEOUT,
             headers={"User-Agent": USER_AGENT},
@@ -471,7 +473,8 @@ def classify_doi(doi: str) -> DoiClassification:
 def _classify_crossref(doi: str, prefix: str | None, ra: str) -> DoiClassification:
     """Classify a Crossref DOI by querying the Crossref API."""
     try:
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             f"{CROSSREF_API_URL}/{doi}",
             timeout=DEFAULT_TIMEOUT,
             headers={"User-Agent": USER_AGENT},
@@ -501,7 +504,8 @@ def _classify_crossref(doi: str, prefix: str | None, ra: str) -> DoiClassificati
 def _classify_datacite(doi: str, prefix: str | None, ra: str) -> DoiClassification:
     """Classify a DataCite DOI by querying the DataCite API."""
     try:
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             f"{DATACITE_API_URL}/{doi}",
             timeout=DEFAULT_TIMEOUT,
             headers={"User-Agent": USER_AGENT},

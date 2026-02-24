@@ -4,6 +4,8 @@ import tempfile
 
 import requests
 
+from nmdc_metadata_suggestor.doi_ingestion.doi_utils import request_with_retry
+
 
 def download_pdf_to_tempfile(url: str) -> str:
     """
@@ -19,7 +21,7 @@ def download_pdf_to_tempfile(url: str) -> str:
         temp_file = tempfile.NamedTemporaryFile(mode="wb", suffix=".pdf", delete=False)
         print(f"Temporary file created at: {temp_file.name}")
 
-        with requests.get(url, stream=True) as r:
+        with request_with_retry("GET", url, stream=True) as r:
             r.raise_for_status()
             shutil.copyfileobj(r.raw, temp_file)
 

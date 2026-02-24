@@ -13,6 +13,7 @@ from nmdc_metadata_suggestor.constants import (
     OSTI_E2_API_URL,
     USER_AGENT,
 )
+from nmdc_metadata_suggestor.doi_ingestion.doi_utils import request_with_retry
 from nmdc_metadata_suggestor.models.doi import SourceRetrievalResult
 from nmdc_metadata_suggestor.models.publication import Publication
 from nmdc_metadata_suggestor.publication_ingestion.retreive_pdf_link import (
@@ -32,7 +33,8 @@ def query_osti_by_doi(osti_doi: str) -> dict:
     headers = {"User-Agent": USER_AGENT}
     try:
         osti_url = f"{OSTI_E2_API_URL}"
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             osti_url,
             timeout=DEFAULT_TIMEOUT,
             headers=headers,
@@ -45,7 +47,8 @@ def query_osti_by_doi(osti_doi: str) -> dict:
         # Fallback to the original API if the E2 API fails
         osti_url = f"{OSTI_API_URL}"
 
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             osti_url,
             timeout=DEFAULT_TIMEOUT,
             headers=headers,

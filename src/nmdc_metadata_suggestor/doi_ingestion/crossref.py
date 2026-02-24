@@ -51,7 +51,8 @@ def try_crossref_context(
 def try_crossref_abstract(doi: str) -> tuple[str | None, str | None, str | None]:
     """Fetch abstract from Crossref for publication abstract retrieval waterfall."""
     try:
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             f"{CROSSREF_API_URL}/{doi}",
             headers={"User-Agent": USER_AGENT},
             timeout=DEFAULT_TIMEOUT,

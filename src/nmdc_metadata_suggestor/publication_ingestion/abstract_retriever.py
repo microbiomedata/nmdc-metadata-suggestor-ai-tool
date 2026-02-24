@@ -20,27 +20,26 @@ CLI usage::
     make get-abstract DOI=10.1038/s41564-020-00861-0
 """
 
-import html
 import json
-import re
-import xml.etree.ElementTree as ET
 
 import requests
 
 from nmdc_metadata_suggestor.constants import (
     ALL_SOURCES,
-    CITEPROC_JSON_ACCEPT,
     DEFAULT_TIMEOUT,
-    DOI_RESOLVER_URL,
     OPENALEX_API_URL,
     PUBMED_EFETCH,
     PUBMED_ID_CONVERTER,
     USER_AGENT,
 )
+from nmdc_metadata_suggestor.doi_ingestion.content_negotiation import (
+    try_content_negotiation_abstract,
+)
 from nmdc_metadata_suggestor.doi_ingestion.crossref import try_crossref_abstract
 from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     classify_doi,
     normalize_doi,
+    request_with_retry,
 )
 from nmdc_metadata_suggestor.models.doi import DoiClassification, SourceRetrievalResult
 
@@ -69,8 +68,6 @@ DATACITE_NON_PUBLICATION_TYPES = {
 CROSSREF_NON_PUBLICATION_TYPES = {
     "component",
 }
-
-# Back-compat aliases used within this module
 
 
 # ---------------------------------------------------------------------------
@@ -261,7 +258,7 @@ def _fetch_pubmed(doi: str, attempts: list[str]) -> SourceRetrievalResult | None
 
 
 def _fetch_content_negotiation(doi: str, attempts: list[str]) -> SourceRetrievalResult | None:
-    text, raw, fmt = _try_content_negotiation(doi)
+    text, raw, fmt = try_content_negotiation_abstract(doi)
     if text:
         return SourceRetrievalResult(
             doi=doi,
@@ -298,7 +295,8 @@ def _try_openalex(doi: str) -> tuple[str | None, str | None, str | None]:
         (cleaned_text, raw_text, content_format) tuple.
     """
     try:
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             f"{OPENALEX_API_URL}/https://doi.org/{doi}",
             headers={"User-Agent": USER_AGENT},
             timeout=DEFAULT_TIMEOUT,
@@ -323,7 +321,8 @@ def _try_pubmed(doi: str) -> tuple[str | None, str | None]:
     """
     # Step 1: DOI -> PMID via ID converter
     try:
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             PUBMED_ID_CONVERTER,
             params={"ids": doi, "format": "json"},
             headers={"User-Agent": USER_AGENT},
@@ -343,7 +342,8 @@ def _try_pubmed(doi: str) -> tuple[str | None, str | None]:
 
     # Step 2: PMID -> abstract via efetch
     try:
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             PUBMED_EFETCH,
             params={"db": "pubmed", "id": pmid, "rettype": "abstract", "retmode": "text"},
             headers={"User-Agent": USER_AGENT},
@@ -357,36 +357,6 @@ def _try_pubmed(doi: str) -> tuple[str | None, str | None]:
         return None, pmid
     except requests.RequestException:
         return None, pmid
-
-
-def _try_content_negotiation(doi: str) -> tuple[str | None, str | None, str | None]:
-    """Fetch abstract via DOI content negotiation (Citeproc JSON).
-
-    This works for any registration agency as a universal last resort.
-    The ``abstract`` field, if present, may contain JATS XML.
-
-    Returns:
-        (cleaned_text, raw_text, content_format) tuple.
-    """
-    try:
-        response = requests.get(
-            f"{DOI_RESOLVER_URL}/{doi}",
-            headers={
-                "Accept": CITEPROC_JSON_ACCEPT,
-                "User-Agent": USER_AGENT,
-            },
-            timeout=DEFAULT_TIMEOUT,
-        )
-        if response.status_code != 200:
-            return None, None, None
-        data = response.json()
-        raw = data.get("abstract")
-        if raw:
-            fmt = "jats_xml" if "<" in raw else "citeproc_json"
-            return strip_jats_xml(raw), raw, fmt
-        return None, None, None
-    except (requests.RequestException, ValueError):
-        return None, None, None
 
 
 # ---------------------------------------------------------------------------
@@ -424,28 +394,3 @@ def decode_inverted_abstract(inverted_index: dict[str, list[int]]) -> str:
         return ""
     max_pos = max(words)
     return " ".join(words.get(i, "") for i in range(max_pos + 1))
-
-
-def strip_jats_xml(xml_abstract: str) -> str:
-    """Strip JATS XML tags from an abstract and unescape HTML entities.
-
-    Crossref and content negotiation return abstracts wrapped in JATS tags
-    like ``<jats:p>``, ``<jats:italic>``, etc. This strips all XML/HTML tags
-    and unescapes entities like ``&amp;`` and ``&#x2019;``.
-
-    Args:
-        xml_abstract: Raw abstract text, possibly containing JATS XML.
-
-    Returns:
-        Clean plain-text abstract.
-    """
-    # Try XML parsing first (handles namespaces properly)
-    try:
-        root = ET.fromstring(f"<root>{xml_abstract}</root>")
-        text = ET.tostring(root, encoding="unicode", method="text")
-        return html.unescape(text).strip()
-    except ET.ParseError:
-        pass
-    # Fallback: regex tag stripping
-    text = re.sub(r"<[^>]+>", "", xml_abstract)
-    return html.unescape(text).strip()
