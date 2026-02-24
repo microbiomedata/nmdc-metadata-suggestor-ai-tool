@@ -10,6 +10,7 @@ from nmdc_metadata_suggestor.constants import (
     DEFAULT_TIMEOUT,
     ESS_DIVE_API,
     MAX_DATAONE_SOLR_XML_CHARS,
+    UNSAFE_XML_DECLARATION_PATTERN,
     USER_AGENT,
 )
 from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
@@ -19,8 +20,6 @@ from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     normalize_doi,
     request_with_retry,
 )
-
-_UNSAFE_XML_DECLARATION_PATTERN = re.compile(r"<!\s*(?:DOCTYPE|ENTITY)\b", re.IGNORECASE)
 
 
 def try_ess_dive(doi: str, errors: list[str] | None = None) -> tuple[str, str] | None:
@@ -121,7 +120,7 @@ def _parse_dataone_solr_docs(xml_text: str) -> list[dict[str, object]]:
         return []
     if len(xml_text) > MAX_DATAONE_SOLR_XML_CHARS:
         return []
-    if _UNSAFE_XML_DECLARATION_PATTERN.search(xml_text):
+    if UNSAFE_XML_DECLARATION_PATTERN.search(xml_text):
         return []
 
     try:

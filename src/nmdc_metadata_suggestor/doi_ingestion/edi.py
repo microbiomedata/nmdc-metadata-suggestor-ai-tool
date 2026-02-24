@@ -1,6 +1,5 @@
 """EDI DOI resolver."""
 
-import re
 import xml.etree.ElementTree as ET
 
 import requests
@@ -9,6 +8,7 @@ from nmdc_metadata_suggestor.constants import (
     DEFAULT_TIMEOUT,
     EDI_DOI_API,
     MAX_EDI_METADATA_XML_CHARS,
+    UNSAFE_XML_DECLARATION_PATTERN,
     USER_AGENT,
 )
 from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
@@ -16,8 +16,6 @@ from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     extract_first_xml_text,
     request_with_retry,
 )
-
-_UNSAFE_XML_DECLARATION_PATTERN = re.compile(r"<!\s*(?:DOCTYPE|ENTITY)\b", re.IGNORECASE)
 
 
 def try_edi(doi: str, errors: list[str] | None = None) -> tuple[str, str] | None:
@@ -40,7 +38,7 @@ def try_edi(doi: str, errors: list[str] | None = None) -> tuple[str, str] | None
         if len(xml_text) > MAX_EDI_METADATA_XML_CHARS:
             append_error(errors, "EDI metadata XML exceeded size limit")
             return None
-        if _UNSAFE_XML_DECLARATION_PATTERN.search(xml_text):
+        if UNSAFE_XML_DECLARATION_PATTERN.search(xml_text):
             append_error(errors, "EDI metadata XML contains unsafe declarations")
             return None
         root = ET.fromstring(xml_text)
