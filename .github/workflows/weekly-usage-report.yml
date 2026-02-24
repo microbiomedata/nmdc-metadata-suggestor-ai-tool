@@ -1,0 +1,36 @@
+name: Weekly Usage Report
+
+on:
+  schedule:
+    - cron: "0 16 * * 1"  # Monday 4pm UTC = 8am PT
+  workflow_dispatch:       # Manual trigger for testing
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run token usage report
+        run: |
+          {
+            echo "## NMDC LLM Weekly Token Usage Report"
+            echo "_$(date -u +'%B %d, %Y')_ · Last 7 days"
+            echo ""
+            echo '```'
+            python scripts/vertex_usage.py --days 7 --project nmdc-llm
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
