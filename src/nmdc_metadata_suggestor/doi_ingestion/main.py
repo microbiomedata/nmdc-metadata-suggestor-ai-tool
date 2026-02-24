@@ -416,4 +416,3 @@ def _pick_datacite_description(descriptions: list[object]) -> tuple[str, str] | 
     if description_candidate is not None:
         return description_candidate, "description"
     return None
-

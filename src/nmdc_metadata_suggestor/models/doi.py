@@ -79,4 +79,3 @@ class SourceRetrievalResult(BaseModel):
     context_type: str | None = None
     provider: str | None = None
     source_errors: dict[str, str] = Field(default_factory=dict)
-
