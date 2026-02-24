@@ -20,10 +20,11 @@ from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     normalize_doi,
     request_with_retry,
 )
+from nmdc_metadata_suggestor.doi_ingestion.resolver_context import ResolverContext
 
 
-def try_ess_dive(doi: str, errors: list[str] | None = None) -> tuple[str, str] | None:
-    """Return ``(text, kind)`` from ESS-DIVE if available."""
+def try_ess_dive(doi: str, errors: list[str] | None = None) -> ResolverContext | None:
+    """Return context from ESS-DIVE if available."""
     try:
         response = request_with_retry(
             "GET",
@@ -39,7 +40,11 @@ def try_ess_dive(doi: str, errors: list[str] | None = None) -> tuple[str, str] |
                 key, text = extracted
                 cleaned = clean_text(text)
                 if cleaned:
-                    return cleaned, "abstract" if key == "abstract" else "description"
+                    return ResolverContext(
+                        text=cleaned,
+                        raw_text=text,
+                        kind="abstract" if key == "abstract" else "description",
+                    )
         else:
             append_error(errors, f"ESS-DIVE API returned HTTP {response.status_code}")
     except (requests.RequestException, ValueError):
@@ -52,7 +57,7 @@ def try_ess_dive(doi: str, errors: list[str] | None = None) -> tuple[str, str] |
     return context
 
 
-def _try_ess_dive_dataone(doi: str, errors: list[str] | None = None) -> tuple[str, str] | None:
+def _try_ess_dive_dataone(doi: str, errors: list[str] | None = None) -> ResolverContext | None:
     """Return ESS-DIVE context from DataONE's public Solr index by DOI."""
     for query in _build_ess_dive_dataone_queries(doi):
         docs = _fetch_dataone_solr_docs(query, errors=errors)
@@ -154,7 +159,7 @@ def _parse_dataone_solr_docs(xml_text: str) -> list[dict[str, object]]:
 
 def _extract_ess_dive_dataone_context(
     docs: list[dict[str, object]], requested_doi: str
-) -> tuple[str, str] | None:
+) -> ResolverContext | None:
     """Extract abstract/description context from DataONE ESS-DIVE docs."""
     exact_matches: list[dict[str, object]] = []
     fallback_matches: list[dict[str, object]] = []
@@ -182,7 +187,7 @@ def _extract_ess_dive_dataone_context(
                 continue
             cleaned = clean_text(raw)
             if cleaned:
-                return cleaned, kind
+                return ResolverContext(text=cleaned, raw_text=raw, kind=kind)
     return None
 
 

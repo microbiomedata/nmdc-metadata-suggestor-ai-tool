@@ -13,11 +13,12 @@ from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     request_with_retry,
     strip_jats_xml,
 )
+from nmdc_metadata_suggestor.doi_ingestion.resolver_context import ResolverContext
 
 
 def try_content_negotiation_context(
     doi: str, errors: list[str] | None = None
-) -> tuple[str, str, str] | None:
+) -> ResolverContext | None:
     """Return DOI content-negotiation context (abstract, then note fallback)."""
     payload = _fetch_content_negotiation_payload(doi, errors=errors)
     if payload is None:
@@ -27,13 +28,13 @@ def try_content_negotiation_context(
     if isinstance(abstract, str) and abstract.strip():
         cleaned = strip_jats_xml(abstract)
         if cleaned:
-            return cleaned, abstract, "abstract"
+            return ResolverContext(text=cleaned, raw_text=abstract, kind="abstract")
 
     note = payload.get("note")
     if isinstance(note, str) and note.strip():
         cleaned = clean_text(note)
         if cleaned:
-            return cleaned, note, "description"
+            return ResolverContext(text=cleaned, raw_text=note, kind="description")
 
     if errors is not None:
         errors.append("DOI content negotiation contained no abstract/note")
@@ -75,12 +76,14 @@ def _fetch_content_negotiation_payload(
         )
         if response.status_code != 200:
             if errors is not None:
-                errors.append(f"DOI content negotiation returned HTTP {response.status_code}")
+                errors.append(
+                    f"DOI content negotiation returned HTTP {response.status_code}")
             return None
         payload = response.json()
     except requests.RequestException as exc:
         if errors is not None:
-            errors.append(f"DOI content negotiation request failed: {exc.__class__.__name__}")
+            errors.append(
+                f"DOI content negotiation request failed: {exc.__class__.__name__}")
         return None
     except ValueError:
         if errors is not None:

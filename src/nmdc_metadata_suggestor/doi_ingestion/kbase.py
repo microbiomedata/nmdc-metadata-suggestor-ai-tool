@@ -16,9 +16,10 @@ from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     request_with_retry,
     text_mentions_doi,
 )
+from nmdc_metadata_suggestor.doi_ingestion.resolver_context import ResolverContext
 
 
-def try_kbase(doi: str, errors: list[str] | None = None) -> tuple[str, str, str] | None:
+def try_kbase(doi: str, errors: list[str] | None = None) -> ResolverContext | None:
     """Return cleaned/raw context from KBase narrative search and workspace refs."""
     payload = {
         "jsonrpc": "2.0",
@@ -72,7 +73,7 @@ def try_kbase(doi: str, errors: list[str] | None = None) -> tuple[str, str, str]
 
 def _extract_kbase_context(
     result: dict[str, object], requested_doi: str
-) -> tuple[str, str, str] | None:
+) -> ResolverContext | None:
     """Extract description context from KBase narrative search results."""
     hits = result.get("hits")
     if not isinstance(hits, list):
@@ -113,23 +114,27 @@ def _extract_kbase_context(
     if best_matching_text:
         cleaned = clean_text(best_matching_text)
         if cleaned:
-            return cleaned, best_matching_text, "description"
+            return ResolverContext(
+                text=cleaned, raw_text=best_matching_text, kind="description"
+            )
 
     if best_fallback_text:
         cleaned = clean_text(best_fallback_text)
         if cleaned:
-            return cleaned, best_fallback_text, "description"
+            return ResolverContext(
+                text=cleaned, raw_text=best_fallback_text, kind="description"
+            )
 
     if best_title:
         cleaned = clean_text(best_title)
         if cleaned:
-            return cleaned, best_title, "description"
+            return ResolverContext(text=cleaned, raw_text=best_title, kind="description")
     return None
 
 
 def _try_kbase_workspace_ref(
     doi: str, errors: list[str] | None = None
-) -> tuple[str, str, str] | None:
+) -> ResolverContext | None:
     """Return context from KBase workspace object info inferred from DOI token."""
     workspace_tokens = _extract_kbase_workspace_tokens(doi)
     if workspace_tokens is None:
@@ -215,7 +220,7 @@ def _fetch_kbase_object_info(ref: str, errors: list[str] | None = None) -> list[
     return info
 
 
-def _extract_kbase_object_info_context(info: list[object]) -> tuple[str, str, str] | None:
+def _extract_kbase_object_info_context(info: list[object]) -> ResolverContext | None:
     """Extract description context from a KBase workspace object info tuple."""
     object_name = info[1] if len(info) > 1 else None
     object_type = info[2] if len(info) > 2 else None
@@ -243,13 +248,13 @@ def _extract_kbase_object_info_context(info: list[object]) -> tuple[str, str, st
             continue
         if _is_uninformative_kbase_text(cleaned):
             continue
-        return cleaned, raw, "description"
+        return ResolverContext(text=cleaned, raw_text=raw, kind="description")
 
     summary = _build_kbase_object_metadata_summary(object_name, object_type, metadata)
     if summary is not None:
         cleaned = clean_text(summary)
         if cleaned:
-            return cleaned, summary, "description"
+            return ResolverContext(text=cleaned, raw_text=summary, kind="description")
     return None
 
 

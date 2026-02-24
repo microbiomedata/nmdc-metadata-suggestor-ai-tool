@@ -31,6 +31,7 @@ from nmdc_metadata_suggestor.doi_ingestion.figshare import try_figshare
 from nmdc_metadata_suggestor.doi_ingestion.jgi import try_jgi
 from nmdc_metadata_suggestor.doi_ingestion.kbase import try_kbase
 from nmdc_metadata_suggestor.doi_ingestion.massive import try_massive
+from nmdc_metadata_suggestor.doi_ingestion.resolver_context import ResolverContext
 from nmdc_metadata_suggestor.doi_ingestion.zenodo import try_zenodo
 from nmdc_metadata_suggestor.models.doi import SourceRetrievalResult
 
@@ -62,6 +63,7 @@ TARGET_PROVIDER_KEYWORDS: dict[str, str] = {
 
 SourceErrors = dict[str, str]
 Fetcher = Callable[[str, str | None, list[str], SourceErrors], SourceRetrievalResult | None]
+Resolver = Callable[[str, list[str] | None], ResolverContext | None]
 
 
 def get_doi_description_or_abstract(
@@ -152,56 +154,61 @@ def _record_source_error(
     source_errors[source] = "; ".join(errors)
 
 
+def _fetch_resolver_context(
+    doi: str,
+    provider: str | None,
+    source: str,
+    attempts: list[str],
+    source_errors: SourceErrors,
+    resolver: Resolver,
+) -> SourceRetrievalResult | None:
+    """Run a resolver and normalize successful context into a result object."""
+    errors: list[str] = []
+    context = resolver(doi, errors)
+    if context is None:
+        _record_source_error(source_errors, source, errors)
+        return None
+    return _build_result(
+        doi,
+        provider,
+        source,
+        attempts,
+        source_errors,
+        context.text,
+        context.raw_text,
+        context.kind,
+    )
+
+
 def _fetch_ess_dive(
     doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
 ) -> SourceRetrievalResult | None:
     """Fetch and wrap context from ESS-DIVE-specific API."""
-    errors: list[str] = []
-    context = try_ess_dive(doi, errors=errors)
-    if context is None:
-        _record_source_error(source_errors, "ess-dive", errors)
-        return None
-    text, kind = context
-    return _build_result(doi, provider, "ess-dive", attempts, source_errors, text, text, kind)
+    return _fetch_resolver_context(
+        doi, provider, "ess-dive", attempts, source_errors, try_ess_dive
+    )
 
 
 def _fetch_edi(
     doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
 ) -> SourceRetrievalResult | None:
     """Fetch and wrap context from EDI's PASTA API."""
-    errors: list[str] = []
-    context = try_edi(doi, errors=errors)
-    if context is None:
-        _record_source_error(source_errors, "edi", errors)
-        return None
-    text, kind = context
-    return _build_result(doi, provider, "edi", attempts, source_errors, text, text, kind)
+    return _fetch_resolver_context(doi, provider, "edi", attempts, source_errors, try_edi)
 
 
 def _fetch_emsl(
     doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
 ) -> SourceRetrievalResult | None:
     """Fetch and wrap context from EMSL project API."""
-    errors: list[str] = []
-    context = try_emsl(doi, errors=errors)
-    if context is None:
-        _record_source_error(source_errors, "emsl", errors)
-        return None
-    text, raw, kind = context
-    return _build_result(doi, provider, "emsl", attempts, source_errors, text, raw, kind)
+    return _fetch_resolver_context(doi, provider, "emsl", attempts, source_errors, try_emsl)
 
 
 def _fetch_figshare(
     doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
 ) -> SourceRetrievalResult | None:
     """Fetch and wrap context from Figshare-specific API."""
-    errors: list[str] = []
-    text = try_figshare(doi, errors=errors)
-    if text is None:
-        _record_source_error(source_errors, "figshare", errors)
-        return None
-    return _build_result(
-        doi, provider, "figshare", attempts, source_errors, text, text, "description"
+    return _fetch_resolver_context(
+        doi, provider, "figshare", attempts, source_errors, try_figshare
     )
 
 
@@ -209,66 +216,35 @@ def _fetch_jgi(
     doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
 ) -> SourceRetrievalResult | None:
     """Fetch and wrap context from JGI search API."""
-    errors: list[str] = []
-    context = try_jgi(doi, errors=errors)
-    if context is None:
-        _record_source_error(source_errors, "jgi", errors)
-        return None
-    text, raw, kind = context
-    return _build_result(doi, provider, "jgi", attempts, source_errors, text, raw, kind)
+    return _fetch_resolver_context(doi, provider, "jgi", attempts, source_errors, try_jgi)
 
 
 def _fetch_kbase(
     doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
 ) -> SourceRetrievalResult | None:
     """Fetch and wrap context from KBase APIs."""
-    errors: list[str] = []
-    context = try_kbase(doi, errors=errors)
-    if context is None:
-        _record_source_error(source_errors, "kbase", errors)
-        return None
-    text, raw, kind = context
-    return _build_result(doi, provider, "kbase", attempts, source_errors, text, raw, kind)
+    return _fetch_resolver_context(doi, provider, "kbase", attempts, source_errors, try_kbase)
 
 
 def _fetch_massive(
     doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
 ) -> SourceRetrievalResult | None:
     """Fetch and wrap context from MassIVE via ProteomeCentral PROXI."""
-    errors: list[str] = []
-    context = try_massive(doi, errors=errors)
-    if context is None:
-        _record_source_error(source_errors, "massive", errors)
-        return None
-    text, raw, kind = context
-    return _build_result(doi, provider, "massive", attempts, source_errors, text, raw, kind)
+    return _fetch_resolver_context(doi, provider, "massive", attempts, source_errors, try_massive)
 
 
 def _fetch_cyverse(
     doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
 ) -> SourceRetrievalResult | None:
     """Fetch and wrap context from CyVerse Terrain metadata APIs."""
-    errors: list[str] = []
-    context = try_cyverse(doi, errors=errors)
-    if context is None:
-        _record_source_error(source_errors, "cyverse", errors)
-        return None
-    text, raw, kind = context
-    return _build_result(doi, provider, "cyverse", attempts, source_errors, text, raw, kind)
+    return _fetch_resolver_context(doi, provider, "cyverse", attempts, source_errors, try_cyverse)
 
 
 def _fetch_zenodo(
     doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
 ) -> SourceRetrievalResult | None:
     """Fetch and wrap context from Zenodo-specific API."""
-    errors: list[str] = []
-    text = try_zenodo(doi, errors=errors)
-    if text is None:
-        _record_source_error(source_errors, "zenodo", errors)
-        return None
-    return _build_result(
-        doi, provider, "zenodo", attempts, source_errors, text, text, "description"
-    )
+    return _fetch_resolver_context(doi, provider, "zenodo", attempts, source_errors, try_zenodo)
 
 
 def _fetch_datacite(
@@ -309,14 +285,13 @@ def _fetch_content_negotiation(
     doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
 ) -> SourceRetrievalResult | None:
     """Fetch and wrap context via DOI content negotiation."""
-    errors: list[str] = []
-    context = try_content_negotiation_context(doi, errors=errors)
-    if context is None:
-        _record_source_error(source_errors, "content_negotiation", errors)
-        return None
-    text, raw, kind = context
-    return _build_result(
-        doi, provider, "content_negotiation", attempts, source_errors, text, raw, kind
+    return _fetch_resolver_context(
+        doi,
+        provider,
+        "content_negotiation",
+        attempts,
+        source_errors,
+        try_content_negotiation_context,
     )
 
 

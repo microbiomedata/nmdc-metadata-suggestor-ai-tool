@@ -11,9 +11,10 @@ from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     normalize_doi,
     request_with_retry,
 )
+from nmdc_metadata_suggestor.doi_ingestion.resolver_context import ResolverContext
 
 
-def try_emsl(doi: str, errors: list[str] | None = None) -> tuple[str, str, str] | None:
+def try_emsl(doi: str, errors: list[str] | None = None) -> ResolverContext | None:
     """Return cleaned/raw context from EMSL project details resolved by DOI."""
     project_id = _extract_emsl_project_id(doi)
     if project_id is None:
@@ -48,14 +49,14 @@ def try_emsl(doi: str, errors: list[str] | None = None) -> tuple[str, str, str] 
     if isinstance(abstract, str) and abstract.strip():
         cleaned = clean_text(abstract)
         if cleaned:
-            return cleaned, abstract, "abstract"
+            return ResolverContext(text=cleaned, raw_text=abstract, kind="abstract")
 
     for key in ("title", "project_type"):
         value = payload.get(key)
         if isinstance(value, str) and value.strip():
             cleaned = clean_text(value)
             if cleaned:
-                return cleaned, value, "description"
+                return ResolverContext(text=cleaned, raw_text=value, kind="description")
     append_error(errors, "EMSL API contained no abstract/description fields")
     return None
 

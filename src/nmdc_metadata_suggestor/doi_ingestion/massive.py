@@ -17,9 +17,10 @@ from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     request_with_retry,
     text_mentions_doi,
 )
+from nmdc_metadata_suggestor.doi_ingestion.resolver_context import ResolverContext
 
 
-def try_massive(doi: str, errors: list[str] | None = None) -> tuple[str, str, str] | None:
+def try_massive(doi: str, errors: list[str] | None = None) -> ResolverContext | None:
     """Return cleaned/raw context from MassIVE via ProteomeCentral lookups."""
     for accession in _collect_massive_accession_candidates(doi, errors=errors):
         payload = _fetch_proxi_dataset(accession, errors=errors)
@@ -206,7 +207,7 @@ def _fetch_proxi_dataset(
     return None
 
 
-def _extract_massive_context(payload: dict[str, object]) -> tuple[str, str, str] | None:
+def _extract_massive_context(payload: dict[str, object]) -> ResolverContext | None:
     """Extract best available context from a PROXI dataset payload."""
     status = payload.get("status")
     if isinstance(status, str) and status.strip().lower() == "error":
@@ -221,20 +222,20 @@ def _extract_massive_context(payload: dict[str, object]) -> tuple[str, str, str]
         if isinstance(value, str) and value.strip():
             cleaned = clean_text(value)
             if cleaned:
-                return cleaned, value, "description"
+                return ResolverContext(text=cleaned, raw_text=value, kind="description")
 
     for key in ("title", "dataset_title"):
         value = payload.get(key)
         if isinstance(value, str) and value.strip():
             cleaned = clean_text(value)
             if cleaned:
-                return cleaned, value, "description"
+                return ResolverContext(text=cleaned, raw_text=value, kind="description")
     return None
 
 
 def _extract_massive_context_from_datacite_titles(
     doi: str, errors: list[str] | None = None
-) -> tuple[str, str, str] | None:
+) -> ResolverContext | None:
     """Fallback: derive MassIVE context from DataCite subtitle/title metadata."""
     try:
         response = request_with_retry(
@@ -265,7 +266,7 @@ def _extract_massive_context_from_datacite_titles(
     cleaned = clean_text(preferred)
     if not cleaned:
         return None
-    return cleaned, preferred, "description"
+    return ResolverContext(text=cleaned, raw_text=preferred, kind="description")
 
 
 def _pick_massive_datacite_title(titles: list[object]) -> str | None:

@@ -11,9 +11,10 @@ from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     normalize_doi,
     request_with_retry,
 )
+from nmdc_metadata_suggestor.doi_ingestion.resolver_context import ResolverContext
 
 
-def try_jgi(doi: str, errors: list[str] | None = None) -> tuple[str, str, str] | None:
+def try_jgi(doi: str, errors: list[str] | None = None) -> ResolverContext | None:
     """Return cleaned/raw context from JGI search response."""
     query_candidates: list[tuple[str, bool]] = []
 
@@ -73,7 +74,7 @@ def _extract_jgi_project_query(doi: str) -> str | None:
     return token
 
 
-def _extract_jgi_context(payload: object, requested_doi: str) -> tuple[str, str, str] | None:
+def _extract_jgi_context(payload: object, requested_doi: str) -> ResolverContext | None:
     """Extract preferred context text from JGI search payload."""
     if not isinstance(payload, dict):
         return None
@@ -92,14 +93,14 @@ def _extract_jgi_context(payload: object, requested_doi: str) -> tuple[str, str,
                     cleaned = clean_text(value)
                     if cleaned:
                         kind = "abstract" if key == "abstract" else "description"
-                        return cleaned, value, kind
+                        return ResolverContext(text=cleaned, raw_text=value, kind=kind)
 
             for key in ("title", "project_name", "name"):
                 value = proposal.get(key)
                 if isinstance(value, str) and value.strip():
                     cleaned = clean_text(value)
                     if cleaned:
-                        return cleaned, value, "description"
+                        return ResolverContext(text=cleaned, raw_text=value, kind="description")
 
     organisms = payload.get("organisms")
     if isinstance(organisms, list):
@@ -111,7 +112,7 @@ def _extract_jgi_context(payload: object, requested_doi: str) -> tuple[str, str,
                 if isinstance(value, str) and value.strip():
                     cleaned = clean_text(value)
                     if cleaned:
-                        return cleaned, value, "description"
+                        return ResolverContext(text=cleaned, raw_text=value, kind="description")
     return None
 
 

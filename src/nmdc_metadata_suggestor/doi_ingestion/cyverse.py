@@ -13,9 +13,10 @@ from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     clean_text,
     request_with_retry,
 )
+from nmdc_metadata_suggestor.doi_ingestion.resolver_context import ResolverContext
 
 
-def try_cyverse(doi: str, errors: list[str] | None = None) -> tuple[str, str, str] | None:
+def try_cyverse(doi: str, errors: list[str] | None = None) -> ResolverContext | None:
     """Return cleaned/raw context from CyVerse Terrain metadata."""
     metadata_avus = _search_cyverse_metadata_for_doi(doi, errors=errors)
     if not metadata_avus:
@@ -117,11 +118,11 @@ def _extract_cyverse_target_ids(avus: list[dict[str, object]]) -> list[str]:
 
 def _extract_cyverse_context(
     avus: list[dict[str, object]], requested_doi: str
-) -> tuple[str, str, str] | None:
+) -> ResolverContext | None:
     """Choose best CyVerse metadata text from abstract/description-like AVUs."""
     best_rank = 99
     best_length = -1
-    best_context: tuple[str, str, str] | None = None
+    best_context: ResolverContext | None = None
 
     for avu in _iter_cyverse_avus(avus):
         attr = avu.get("attr")
@@ -141,7 +142,7 @@ def _extract_cyverse_context(
         if rank < best_rank or (rank == best_rank and len(cleaned) > best_length):
             best_rank = rank
             best_length = len(cleaned)
-            best_context = cleaned, raw_value, kind
+            best_context = ResolverContext(text=cleaned, raw_text=raw_value, kind=kind)
 
     return best_context
 

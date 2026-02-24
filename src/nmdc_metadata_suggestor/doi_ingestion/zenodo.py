@@ -9,9 +9,10 @@ from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     normalize_doi,
     request_with_retry,
 )
+from nmdc_metadata_suggestor.doi_ingestion.resolver_context import ResolverContext
 
 
-def try_zenodo(doi: str, errors: list[str] | None = None) -> str | None:
+def try_zenodo(doi: str, errors: list[str] | None = None) -> ResolverContext | None:
     """Return Zenodo description text for a DOI if present."""
     query = f'doi:"{doi}" OR conceptdoi:"{doi}"'
     try:
@@ -52,7 +53,9 @@ def try_zenodo(doi: str, errors: list[str] | None = None) -> str | None:
         if isinstance(description, str):
             cleaned = clean_text(description)
             if cleaned:
-                return cleaned
+                return ResolverContext(
+                    text=cleaned, raw_text=description, kind="description"
+                )
     append_error(errors, "Zenodo response contained no usable description")
     return None
 

@@ -16,10 +16,11 @@ from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     extract_first_xml_text,
     request_with_retry,
 )
+from nmdc_metadata_suggestor.doi_ingestion.resolver_context import ResolverContext
 
 
-def try_edi(doi: str, errors: list[str] | None = None) -> tuple[str, str] | None:
-    """Return ``(text, kind)`` from EDI PASTA metadata resolved by DOI."""
+def try_edi(doi: str, errors: list[str] | None = None) -> ResolverContext | None:
+    """Return context from EDI PASTA metadata resolved by DOI."""
     metadata_url = _resolve_edi_metadata_url(doi, errors=errors)
     if metadata_url is None:
         return None
@@ -51,11 +52,11 @@ def try_edi(doi: str, errors: list[str] | None = None) -> tuple[str, str] | None
 
     abstract = extract_first_xml_text(root, {"abstract"})
     if abstract:
-        return abstract, "abstract"
+        return ResolverContext(text=abstract, raw_text=abstract, kind="abstract")
 
     description = extract_first_xml_text(root, {"purpose", "description", "title"})
     if description:
-        return description, "description"
+        return ResolverContext(text=description, raw_text=description, kind="description")
     append_error(errors, "EDI metadata contained no abstract/description text")
     return None
 

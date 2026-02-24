@@ -13,9 +13,10 @@ from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     clean_text,
     request_with_retry,
 )
+from nmdc_metadata_suggestor.doi_ingestion.resolver_context import ResolverContext
 
 
-def try_figshare(doi: str, errors: list[str] | None = None) -> str | None:
+def try_figshare(doi: str, errors: list[str] | None = None) -> ResolverContext | None:
     """Return Figshare context text for article/collection DOI if present."""
     context = _try_figshare_entity_lookup(doi, FIGSHARE_API, errors=errors)
     if context:
@@ -30,7 +31,7 @@ def try_figshare(doi: str, errors: list[str] | None = None) -> str | None:
 
 def _try_figshare_entity_lookup(
     doi: str, endpoint: str, errors: list[str] | None = None
-) -> str | None:
+) -> ResolverContext | None:
     """Lookup a Figshare entity list by DOI and extract context."""
     try:
         response = request_with_retry(
@@ -59,7 +60,7 @@ def _try_figshare_entity_lookup(
 
 def _extract_figshare_context_with_detail(
     payload: object, endpoint: str, errors: list[str] | None = None
-) -> str | None:
+) -> ResolverContext | None:
     """Extract context from Figshare payload, preferring detailed records."""
     if isinstance(payload, dict):
         candidates: list[dict[str, object]] = [payload]
@@ -73,11 +74,11 @@ def _extract_figshare_context_with_detail(
         if detail is not None:
             context = _extract_figshare_text(detail)
             if context:
-                return context
+                return ResolverContext(text=context, raw_text=context, kind="description")
 
         context = _extract_figshare_text(candidate)
         if context:
-            return context
+            return ResolverContext(text=context, raw_text=context, kind="description")
     return None
 
 
