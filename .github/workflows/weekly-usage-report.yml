@@ -31,6 +31,8 @@ jobs:
             echo "_$(date -u +'%B %d, %Y')_ · Last 7 days"
             echo ""
             echo '```'
-            python scripts/vertex_usage.py --days 7 --project nmdc-llm
+            if ! python scripts/vertex_usage.py --days 7 --project nmdc-llm; then
+              echo 'Report generation failed. See the "Run token usage report" step logs for details.'
+            fi
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
