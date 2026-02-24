@@ -43,11 +43,13 @@ from nmdc_metadata_suggestor.constants import (
 from nmdc_metadata_suggestor.constants import (
     DATACITE_API_URL as DATACITE_API,
 )
-from nmdc_metadata_suggestor.doi_ingestion.common import text_mentions_doi
+from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
+    DEFAULT_RETRY_ATTEMPTS,
+    text_mentions_doi,
+)
 from nmdc_metadata_suggestor.doi_ingestion.main import (
     get_doi_description_or_abstract,
 )
-from nmdc_metadata_suggestor.publication_ingestion.doi_utils import DEFAULT_RETRY_ATTEMPTS
 
 FIXTURE_PATH = Path(__file__).parent / "fixtures" / "doi_test_cases.json"
 REAL_WORLD_SOURCE_FIXTURE_PATH = (

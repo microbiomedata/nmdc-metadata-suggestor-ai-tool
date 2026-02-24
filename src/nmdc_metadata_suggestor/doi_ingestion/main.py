@@ -17,8 +17,13 @@ from nmdc_metadata_suggestor.constants import (
     DOI_PATTERN,
     USER_AGENT,
 )
-from nmdc_metadata_suggestor.doi_ingestion.common import clean_text
 from nmdc_metadata_suggestor.doi_ingestion.cyverse import try_cyverse
+from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
+    clean_text,
+    normalize_doi,
+    request_with_retry,
+    strip_jats_xml,
+)
 from nmdc_metadata_suggestor.doi_ingestion.edi import try_edi
 from nmdc_metadata_suggestor.doi_ingestion.emsl import try_emsl
 from nmdc_metadata_suggestor.doi_ingestion.ess_dive import try_ess_dive
@@ -28,11 +33,6 @@ from nmdc_metadata_suggestor.doi_ingestion.kbase import try_kbase
 from nmdc_metadata_suggestor.doi_ingestion.massive import try_massive
 from nmdc_metadata_suggestor.doi_ingestion.zenodo import try_zenodo
 from nmdc_metadata_suggestor.models.doi import DoiContextResult
-from nmdc_metadata_suggestor.publication_ingestion.abstract_retriever import strip_jats_xml
-from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
-    normalize_doi,
-    request_with_retry,
-)
 
 TARGET_PROVIDER_PREFIXES: dict[str, str] = {
     "10.6073": "edi",

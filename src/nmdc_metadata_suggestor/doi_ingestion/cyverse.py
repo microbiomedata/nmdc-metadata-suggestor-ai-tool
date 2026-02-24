@@ -3,10 +3,11 @@
 import requests
 
 from nmdc_metadata_suggestor.constants import CYVERSE_METADATA_API, CYVERSE_METADATA_SEARCH_API
-from nmdc_metadata_suggestor.doi_ingestion.common import append_error, clean_text
-from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
+from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     DEFAULT_TIMEOUT,
     USER_AGENT,
+    append_error,
+    clean_text,
     request_with_retry,
 )
 

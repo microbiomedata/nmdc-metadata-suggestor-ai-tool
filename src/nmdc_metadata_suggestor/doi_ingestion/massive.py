@@ -9,11 +9,13 @@ from nmdc_metadata_suggestor.constants import (
     DOI_CONTENT_NEGOTIATION_API,
     PROXI_DATASETS_API,
 )
-from nmdc_metadata_suggestor.doi_ingestion.common import append_error, clean_text, text_mentions_doi
-from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
+from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     DEFAULT_TIMEOUT,
     USER_AGENT,
+    append_error,
+    clean_text,
     request_with_retry,
+    text_mentions_doi,
 )
 
 

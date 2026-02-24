@@ -6,10 +6,11 @@ import xml.etree.ElementTree as ET
 import requests
 
 from nmdc_metadata_suggestor.constants import EDI_DOI_API, MAX_EDI_METADATA_XML_CHARS
-from nmdc_metadata_suggestor.doi_ingestion.common import append_error, extract_first_xml_text
-from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
+from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     DEFAULT_TIMEOUT,
     USER_AGENT,
+    append_error,
+    extract_first_xml_text,
     request_with_retry,
 )
 

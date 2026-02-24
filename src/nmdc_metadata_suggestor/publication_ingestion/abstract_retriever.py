@@ -38,11 +38,11 @@ from nmdc_metadata_suggestor.constants import (
     PUBMED_ID_CONVERTER,
     USER_AGENT,
 )
-from nmdc_metadata_suggestor.models.doi import AbstractResult, DoiClassification
-from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
+from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     classify_doi,
     normalize_doi,
 )
+from nmdc_metadata_suggestor.models.doi import AbstractResult, DoiClassification
 
 # DataCite resourceTypeGeneral values that are clearly not publications.
 # These are unmapped in doi_utils (inferred_nmdc_category returns None),

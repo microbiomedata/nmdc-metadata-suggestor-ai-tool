@@ -12,9 +12,9 @@ import pytest
 import responses
 from requests.exceptions import ConnectionError as RequestsConnectionError
 
-import nmdc_metadata_suggestor.publication_ingestion.doi_utils as doi_utils
+import nmdc_metadata_suggestor.doi_ingestion.doi_utils as doi_utils
 from nmdc_metadata_suggestor.constants import CROSSREF_API_URL, DATACITE_API_URL
-from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
+from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     DOI_HANDLE_API,
     DOI_RA_API,
     classify_doi,

@@ -10,10 +10,12 @@ from nmdc_metadata_suggestor.constants import (
     ESS_DIVE_API,
     MAX_DATAONE_SOLR_XML_CHARS,
 )
-from nmdc_metadata_suggestor.doi_ingestion.common import append_error, clean_text, find_first_text
-from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
+from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     DEFAULT_TIMEOUT,
     USER_AGENT,
+    append_error,
+    clean_text,
+    find_first_text,
     normalize_doi,
     request_with_retry,
 )
