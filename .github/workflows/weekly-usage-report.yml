@@ -8,6 +8,7 @@ on:
 jobs:
   report:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -26,13 +27,16 @@ jobs:
 
       - name: Run token usage report
         run: |
+          REPORT_FAILED=0
           {
             echo "## NMDC LLM Weekly Token Usage Report"
             echo "_$(date -u +'%B %d, %Y')_ · Last 7 days"
             echo ""
             echo '```'
             if ! python scripts/vertex_usage.py --days 7 --project nmdc-llm; then
-              echo 'Report generation failed. See the "Run token usage report" step logs for details.'
+              echo 'Report generation failed. See step logs for details.'
+              REPORT_FAILED=1
             fi
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+          exit "$REPORT_FAILED"
