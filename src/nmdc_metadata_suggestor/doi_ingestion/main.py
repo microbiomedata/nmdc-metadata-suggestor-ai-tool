@@ -10,13 +10,13 @@ import requests
 
 from nmdc_metadata_suggestor.constants import (
     CITEPROC_JSON_ACCEPT,
-    CROSSREF_API_URL,
     DATACITE_API_URL,
     DEFAULT_TIMEOUT,
     DOI_CONTENT_NEGOTIATION_API,
     DOI_PATTERN,
     USER_AGENT,
 )
+from nmdc_metadata_suggestor.doi_ingestion.crossref import try_crossref_context
 from nmdc_metadata_suggestor.doi_ingestion.cyverse import try_cyverse
 from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     clean_text,
@@ -307,7 +307,7 @@ def _fetch_crossref(
 ) -> DoiContextResult | None:
     """Fetch and wrap context from Crossref metadata."""
     errors: list[str] = []
-    context = _try_crossref(doi, errors=errors)
+    context = try_crossref_context(doi, errors=errors)
     if context is None:
         _record_source_error(source_errors, "crossref", errors)
         return None
@@ -430,45 +430,6 @@ def _pick_datacite_description(descriptions: list[object]) -> tuple[str, str] | 
     if description_candidate is not None:
         return description_candidate, "description"
     return None
-
-
-def _try_crossref(
-    doi: str, errors: list[str] | None = None
-) -> tuple[str, str, str, str | None] | None:
-    """Return Crossref abstract text and publisher metadata if available."""
-    try:
-        response = request_with_retry(
-            "GET",
-            f"{CROSSREF_API_URL}/{doi}",
-            headers={"User-Agent": USER_AGENT},
-            timeout=DEFAULT_TIMEOUT,
-        )
-        if response.status_code != 200:
-            if errors is not None:
-                errors.append(f"Crossref API returned HTTP {response.status_code}")
-            return None
-        message = response.json().get("message", {})
-    except requests.RequestException as exc:
-        if errors is not None:
-            errors.append(f"Crossref API request failed: {exc.__class__.__name__}")
-        return None
-    except ValueError:
-        if errors is not None:
-            errors.append("Crossref API returned invalid JSON")
-        return None
-
-    raw = message.get("abstract")
-    publisher = message.get("publisher")
-    if not isinstance(raw, str) or not raw.strip():
-        if errors is not None:
-            errors.append("Crossref response contained no abstract")
-        return None
-    cleaned = strip_jats_xml(raw)
-    if not cleaned:
-        if errors is not None:
-            errors.append("Crossref abstract was empty after cleaning")
-        return None
-    return cleaned, raw, "abstract", publisher if isinstance(publisher, str) else None
 
 
 def _try_content_negotiation(

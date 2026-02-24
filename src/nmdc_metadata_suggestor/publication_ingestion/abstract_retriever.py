@@ -30,7 +30,6 @@ import requests
 from nmdc_metadata_suggestor.constants import (
     ALL_SOURCES,
     CITEPROC_JSON_ACCEPT,
-    CROSSREF_API_URL,
     DEFAULT_TIMEOUT,
     DOI_RESOLVER_URL,
     OPENALEX_API_URL,
@@ -38,6 +37,7 @@ from nmdc_metadata_suggestor.constants import (
     PUBMED_ID_CONVERTER,
     USER_AGENT,
 )
+from nmdc_metadata_suggestor.doi_ingestion.crossref import try_crossref_abstract
 from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     classify_doi,
     normalize_doi,
@@ -228,7 +228,7 @@ def _fetch_openalex(doi: str, attempts: list[str]) -> AbstractResult | None:
 
 
 def _fetch_crossref(doi: str, attempts: list[str]) -> AbstractResult | None:
-    text, raw, fmt = _try_crossref(doi)
+    text, raw, fmt = try_crossref_abstract(doi)
     if text:
         return AbstractResult(
             doi=doi,
@@ -306,32 +306,6 @@ def _try_openalex(doi: str) -> tuple[str | None, str | None, str | None]:
         if inverted:
             raw = json.dumps(inverted, ensure_ascii=False)
             return decode_inverted_abstract(inverted), raw, "inverted_index"
-        return None, None, None
-    except (requests.RequestException, ValueError):
-        return None, None, None
-
-
-def _try_crossref(doi: str) -> tuple[str | None, str | None, str | None]:
-    """Fetch abstract from Crossref.
-
-    Crossref returns abstracts as JATS XML (``<jats:p>...</jats:p>``).
-
-    Returns:
-        (cleaned_text, raw_text, content_format) tuple.
-    """
-    try:
-        response = requests.get(
-            f"{CROSSREF_API_URL}/{doi}",
-            headers={"User-Agent": USER_AGENT},
-            timeout=DEFAULT_TIMEOUT,
-        )
-        if response.status_code != 200:
-            return None, None, None
-        msg = response.json().get("message", {})
-        raw = msg.get("abstract")
-        if raw:
-            fmt = "jats_xml" if "<" in raw else "plain_text"
-            return strip_jats_xml(raw), raw, fmt
         return None, None, None
     except (requests.RequestException, ValueError):
         return None, None, None
