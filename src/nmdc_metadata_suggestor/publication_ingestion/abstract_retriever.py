@@ -42,7 +42,7 @@ from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     classify_doi,
     normalize_doi,
 )
-from nmdc_metadata_suggestor.models.doi import AbstractResult, DoiClassification
+from nmdc_metadata_suggestor.models.doi import DoiClassification, SourceRetrievalResult
 
 # DataCite resourceTypeGeneral values that are clearly not publications.
 # These are unmapped in doi_utils (inferred_nmdc_category returns None),
@@ -82,7 +82,7 @@ def get_abstract(
     doi: str,
     skip_classification: bool = False,
     sources: list[str] | None = None,
-) -> AbstractResult:
+) -> SourceRetrievalResult:
     """Try each source in waterfall order, return the first abstract found.
 
     Before fetching, classifies the DOI and checks that it is a publication.
@@ -101,7 +101,7 @@ def get_abstract(
             ``sources=["crossref", "pubmed"]`` to skip OpenAlex.
 
     Returns:
-        AbstractResult with the abstract text and metadata, or an error.
+        SourceRetrievalResult with the abstract text and metadata, or an error.
     """
     # TODO : Is it better practice if we know a certain DOI prefix will go to a
     # certain source to just call that source directly instead of going through the whole waterfall?
@@ -117,7 +117,7 @@ def get_abstract(
         classification = classify_doi(doi)
         refusal = _check_classification_gate(classification)
         if refusal:
-            return AbstractResult(doi=doi, error=refusal)
+            return SourceRetrievalResult(doi=doi, error=refusal)
 
     attempts: list[str] = []
 
@@ -129,7 +129,11 @@ def get_abstract(
         if result is not None:
             return result
 
-    return AbstractResult(doi=doi, attempts=attempts, error="No abstract found in any source")
+    return SourceRetrievalResult(
+        doi=doi,
+        attempts=attempts,
+        error="No abstract found in any source",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -175,11 +179,11 @@ def _check_classification_gate(c: DoiClassification) -> str | None:
 
 # ---------------------------------------------------------------------------
 # Source dispatch — maps source names to waterfall step functions.
-# Each returns AbstractResult on success, None to try the next source.
+# Each returns SourceRetrievalResult on success, None to try the next source.
 # ---------------------------------------------------------------------------
 
 
-def _fetch_osti(doi: str, attempts: list[str]) -> AbstractResult | None:
+def _fetch_osti(doi: str, attempts: list[str]) -> SourceRetrievalResult | None:
     """
     Fetch abstract from OSTI (for OSTI DOIs only).
 
@@ -188,7 +192,7 @@ def _fetch_osti(doi: str, attempts: list[str]) -> AbstractResult | None:
         attempts: List of sources attempted so far
 
     Returns:
-        AbstractResult containing the abstract/description from OSTI, or an error.
+        SourceRetrievalResult containing the abstract/description from OSTI, or an error.
     """
     if not doi.startswith("10.15485/"):  # OSTI prefix
         return None
@@ -200,7 +204,7 @@ def _fetch_osti(doi: str, attempts: list[str]) -> AbstractResult | None:
 
         pub = retrieve_doi_info_from_osti(doi)
         if pub.abstract:
-            return AbstractResult(
+            return SourceRetrievalResult(
                 doi=doi,
                 abstract=pub.abstract,
                 raw_abstract=pub.abstract,
@@ -213,10 +217,10 @@ def _fetch_osti(doi: str, attempts: list[str]) -> AbstractResult | None:
     return None
 
 
-def _fetch_openalex(doi: str, attempts: list[str]) -> AbstractResult | None:
+def _fetch_openalex(doi: str, attempts: list[str]) -> SourceRetrievalResult | None:
     text, raw, fmt = _try_openalex(doi)
     if text:
-        return AbstractResult(
+        return SourceRetrievalResult(
             doi=doi,
             abstract=text,
             raw_abstract=raw,
@@ -227,10 +231,10 @@ def _fetch_openalex(doi: str, attempts: list[str]) -> AbstractResult | None:
     return None
 
 
-def _fetch_crossref(doi: str, attempts: list[str]) -> AbstractResult | None:
+def _fetch_crossref(doi: str, attempts: list[str]) -> SourceRetrievalResult | None:
     text, raw, fmt = try_crossref_abstract(doi)
     if text:
-        return AbstractResult(
+        return SourceRetrievalResult(
             doi=doi,
             abstract=text,
             raw_abstract=raw,
@@ -241,10 +245,10 @@ def _fetch_crossref(doi: str, attempts: list[str]) -> AbstractResult | None:
     return None
 
 
-def _fetch_pubmed(doi: str, attempts: list[str]) -> AbstractResult | None:
+def _fetch_pubmed(doi: str, attempts: list[str]) -> SourceRetrievalResult | None:
     text, pmid = _try_pubmed(doi)
     if text:
-        return AbstractResult(
+        return SourceRetrievalResult(
             doi=doi,
             abstract=text,
             raw_abstract=text,
@@ -256,10 +260,10 @@ def _fetch_pubmed(doi: str, attempts: list[str]) -> AbstractResult | None:
     return None
 
 
-def _fetch_content_negotiation(doi: str, attempts: list[str]) -> AbstractResult | None:
+def _fetch_content_negotiation(doi: str, attempts: list[str]) -> SourceRetrievalResult | None:
     text, raw, fmt = _try_content_negotiation(doi)
     if text:
-        return AbstractResult(
+        return SourceRetrievalResult(
             doi=doi,
             abstract=text,
             raw_abstract=raw,
@@ -402,7 +406,7 @@ def decode_inverted_abstract(inverted_index: dict[str, list[int]]) -> str:
     We rebuild the original text by placing each word at its position(s) and
     joining with spaces.  This is technically lossy: punctuation attached to
     words (``"soil,"`` at position 82) survives, but any non-space whitespace
-    or formatting in the original is lost.  That's why ``AbstractResult``
+    or formatting in the original is lost.  That's why ``SourceRetrievalResult``
     exposes both ``abstract`` (reconstructed) and ``raw_abstract`` (the
     original JSON-serialized inverted index).
 

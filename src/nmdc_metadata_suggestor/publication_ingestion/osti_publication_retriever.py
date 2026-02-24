@@ -13,7 +13,7 @@ from nmdc_metadata_suggestor.constants import (
     OSTI_E2_API_URL,
     USER_AGENT,
 )
-from nmdc_metadata_suggestor.models.doi import AbstractResult
+from nmdc_metadata_suggestor.models.doi import SourceRetrievalResult
 from nmdc_metadata_suggestor.models.publication import Publication
 from nmdc_metadata_suggestor.publication_ingestion.retreive_pdf_link import (
     retrieve_pdf_link_from_crossref,
@@ -55,7 +55,7 @@ def query_osti_by_doi(osti_doi: str) -> dict:
         return response.json()  # type: ignore
 
 
-def retrieve_doi_info_from_osti(doi: str) -> AbstractResult:
+def retrieve_doi_info_from_osti(doi: str) -> SourceRetrievalResult:
     """
     Retrieve abstract from OSTI API using a DOI.
 
@@ -63,21 +63,24 @@ def retrieve_doi_info_from_osti(doi: str) -> AbstractResult:
         doi: Digital Object Identifier (e.g., "10.15485/1729719")
 
     Returns:
-        AbstractResult containing the abstract/description from OSTI.
-        If an error occurs, returns AbstractResult with error field populated.
+        SourceRetrievalResult containing the abstract/description from OSTI.
+        If an error occurs, returns SourceRetrievalResult with error field populated.
     """
     try:
         data = query_osti_by_doi(osti_doi=doi)
         # check results
         if not data or len(data) == 0:
-            return AbstractResult(doi=doi, error=f"No publication found in OSTI for DOI: {doi}")
+            return SourceRetrievalResult(
+                doi=doi,
+                error=f"No publication found in OSTI for DOI: {doi}",
+            )
 
         # get the record
         record = data[0] if isinstance(data, list) else data
         abstract = record.get("description")
 
         if abstract:
-            return AbstractResult(
+            return SourceRetrievalResult(
                 doi=doi,
                 abstract=abstract,
                 raw_abstract=abstract,
@@ -86,9 +89,12 @@ def retrieve_doi_info_from_osti(doi: str) -> AbstractResult:
                 attempts=["osti"],
             )
         else:
-            return AbstractResult(doi=doi, error="No abstract/description found in OSTI record")
+            return SourceRetrievalResult(
+                doi=doi,
+                error="No abstract/description found in OSTI record",
+            )
     except Exception as e:
-        return AbstractResult(doi=doi, error=str(e))
+        return SourceRetrievalResult(doi=doi, error=str(e))
 
 
 def retrieve_pdf_link_from_osti_doi(doi: str) -> Publication:

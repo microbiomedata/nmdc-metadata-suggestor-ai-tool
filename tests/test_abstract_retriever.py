@@ -16,7 +16,7 @@ from nmdc_metadata_suggestor.constants import (
     PUBMED_EFETCH,
     PUBMED_ID_CONVERTER,
 )
-from nmdc_metadata_suggestor.models.doi import AbstractResult
+from nmdc_metadata_suggestor.models.doi import SourceRetrievalResult
 from nmdc_metadata_suggestor.publication_ingestion.abstract_retriever import (
     decode_inverted_abstract,
     get_abstract,
@@ -355,10 +355,10 @@ class TestGetAbstractWaterfall:
 
 
 class TestGetAbstractResult:
-    """Test the AbstractResult model."""
+    """Test the SourceRetrievalResult model."""
 
     def test_defaults(self) -> None:
-        r = AbstractResult(doi="10.1234/test")
+        r = SourceRetrievalResult(doi="10.1234/test")
         assert r.abstract is None
         assert r.raw_abstract is None
         assert r.source is None

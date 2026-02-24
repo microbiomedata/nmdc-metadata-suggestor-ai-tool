@@ -32,7 +32,7 @@ from nmdc_metadata_suggestor.doi_ingestion.jgi import try_jgi
 from nmdc_metadata_suggestor.doi_ingestion.kbase import try_kbase
 from nmdc_metadata_suggestor.doi_ingestion.massive import try_massive
 from nmdc_metadata_suggestor.doi_ingestion.zenodo import try_zenodo
-from nmdc_metadata_suggestor.models.doi import DoiContextResult
+from nmdc_metadata_suggestor.models.doi import SourceRetrievalResult
 
 TARGET_PROVIDER_PREFIXES: dict[str, str] = {
     "10.6073": "edi",
@@ -77,14 +77,16 @@ ALL_SOURCES = (
 
 
 SourceErrors = dict[str, str]
-Fetcher = Callable[[str, str | None, list[str], SourceErrors], DoiContextResult | None]
+Fetcher = Callable[[str, str | None, list[str], SourceErrors], SourceRetrievalResult | None]
 
 
-def get_doi_description_or_abstract(doi: str, sources: list[str] | None = None) -> DoiContextResult:
+def get_doi_description_or_abstract(
+    doi: str, sources: list[str] | None = None
+) -> SourceRetrievalResult:
     """Fetch abstract/description text for a DOI using a source waterfall."""
     doi = normalize_doi(doi)
     if not DOI_PATTERN.match(doi):
-        return DoiContextResult(doi=doi, error="Invalid DOI: Malformed DOI syntax")
+        return SourceRetrievalResult(doi=doi, error="Invalid DOI: Malformed DOI syntax")
 
     provider = _infer_provider_from_doi(doi)
     if sources is None:
@@ -101,7 +103,7 @@ def get_doi_description_or_abstract(doi: str, sources: list[str] | None = None) 
         if result is not None:
             return result
 
-    return DoiContextResult(
+    return SourceRetrievalResult(
         doi=doi,
         provider=provider,
         attempts=attempts,
@@ -143,9 +145,9 @@ def _build_result(
     context: str,
     raw_context: str,
     context_type: str,
-) -> DoiContextResult:
+) -> SourceRetrievalResult:
     """Construct a normalized context result object."""
-    return DoiContextResult(
+    return SourceRetrievalResult(
         doi=doi,
         context=context,
         raw_context=raw_context,
@@ -168,7 +170,7 @@ def _record_source_error(
 
 def _fetch_ess_dive(
     doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
-) -> DoiContextResult | None:
+) -> SourceRetrievalResult | None:
     """Fetch and wrap context from ESS-DIVE-specific API."""
     errors: list[str] = []
     context = try_ess_dive(doi, errors=errors)
@@ -181,7 +183,7 @@ def _fetch_ess_dive(
 
 def _fetch_edi(
     doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
-) -> DoiContextResult | None:
+) -> SourceRetrievalResult | None:
     """Fetch and wrap context from EDI's PASTA API."""
     errors: list[str] = []
     context = try_edi(doi, errors=errors)
@@ -194,7 +196,7 @@ def _fetch_edi(
 
 def _fetch_emsl(
     doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
-) -> DoiContextResult | None:
+) -> SourceRetrievalResult | None:
     """Fetch and wrap context from EMSL project API."""
     errors: list[str] = []
     context = try_emsl(doi, errors=errors)
@@ -207,7 +209,7 @@ def _fetch_emsl(
 
 def _fetch_figshare(
     doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
-) -> DoiContextResult | None:
+) -> SourceRetrievalResult | None:
     """Fetch and wrap context from Figshare-specific API."""
     errors: list[str] = []
     text = try_figshare(doi, errors=errors)
@@ -221,7 +223,7 @@ def _fetch_figshare(
 
 def _fetch_jgi(
     doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
-) -> DoiContextResult | None:
+) -> SourceRetrievalResult | None:
     """Fetch and wrap context from JGI search API."""
     errors: list[str] = []
     context = try_jgi(doi, errors=errors)
@@ -234,7 +236,7 @@ def _fetch_jgi(
 
 def _fetch_kbase(
     doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
-) -> DoiContextResult | None:
+) -> SourceRetrievalResult | None:
     """Fetch and wrap context from KBase APIs."""
     errors: list[str] = []
     context = try_kbase(doi, errors=errors)
@@ -247,7 +249,7 @@ def _fetch_kbase(
 
 def _fetch_massive(
     doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
-) -> DoiContextResult | None:
+) -> SourceRetrievalResult | None:
     """Fetch and wrap context from MassIVE via ProteomeCentral PROXI."""
     errors: list[str] = []
     context = try_massive(doi, errors=errors)
@@ -260,7 +262,7 @@ def _fetch_massive(
 
 def _fetch_cyverse(
     doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
-) -> DoiContextResult | None:
+) -> SourceRetrievalResult | None:
     """Fetch and wrap context from CyVerse Terrain metadata APIs."""
     errors: list[str] = []
     context = try_cyverse(doi, errors=errors)
@@ -273,7 +275,7 @@ def _fetch_cyverse(
 
 def _fetch_zenodo(
     doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
-) -> DoiContextResult | None:
+) -> SourceRetrievalResult | None:
     """Fetch and wrap context from Zenodo-specific API."""
     errors: list[str] = []
     text = try_zenodo(doi, errors=errors)
@@ -287,7 +289,7 @@ def _fetch_zenodo(
 
 def _fetch_datacite(
     doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
-) -> DoiContextResult | None:
+) -> SourceRetrievalResult | None:
     """Fetch and wrap context from DataCite metadata."""
     errors: list[str] = []
     context = _try_datacite(doi, errors=errors)
@@ -304,7 +306,7 @@ def _fetch_datacite(
 
 def _fetch_crossref(
     doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
-) -> DoiContextResult | None:
+) -> SourceRetrievalResult | None:
     """Fetch and wrap context from Crossref metadata."""
     errors: list[str] = []
     context = try_crossref_context(doi, errors=errors)
@@ -321,7 +323,7 @@ def _fetch_crossref(
 
 def _fetch_content_negotiation(
     doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
-) -> DoiContextResult | None:
+) -> SourceRetrievalResult | None:
     """Fetch and wrap context via DOI content negotiation."""
     errors: list[str] = []
     context = _try_content_negotiation(doi, errors=errors)
