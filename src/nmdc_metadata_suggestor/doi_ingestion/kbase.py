@@ -4,10 +4,13 @@ import re
 
 import requests
 
-from nmdc_metadata_suggestor.constants import KBASE_SEARCH_API, KBASE_WORKSPACE_API
-from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
+from nmdc_metadata_suggestor.constants import (
     DEFAULT_TIMEOUT,
+    KBASE_SEARCH_API,
+    KBASE_WORKSPACE_API,
     USER_AGENT,
+)
+from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     append_error,
     clean_text,
     request_with_retry,

@@ -2,10 +2,8 @@
 
 import requests
 
-from nmdc_metadata_suggestor.constants import ZENODO_API
+from nmdc_metadata_suggestor.constants import DEFAULT_TIMEOUT, USER_AGENT, ZENODO_API
 from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
-    DEFAULT_TIMEOUT,
-    USER_AGENT,
     append_error,
     clean_text,
     normalize_doi,

@@ -6,12 +6,12 @@ import requests
 
 from nmdc_metadata_suggestor.constants import (
     DATACITE_API_URL,
+    DEFAULT_TIMEOUT,
     DOI_CONTENT_NEGOTIATION_API,
     PROXI_DATASETS_API,
+    USER_AGENT,
 )
 from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
-    DEFAULT_TIMEOUT,
-    USER_AGENT,
     append_error,
     clean_text,
     request_with_retry,

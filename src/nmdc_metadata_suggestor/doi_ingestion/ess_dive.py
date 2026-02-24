@@ -7,12 +7,12 @@ import requests
 
 from nmdc_metadata_suggestor.constants import (
     DATAONE_CN_SOLR_API,
+    DEFAULT_TIMEOUT,
     ESS_DIVE_API,
     MAX_DATAONE_SOLR_XML_CHARS,
+    USER_AGENT,
 )
 from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
-    DEFAULT_TIMEOUT,
-    USER_AGENT,
     append_error,
     clean_text,
     find_first_text,

@@ -2,10 +2,13 @@
 
 import requests
 
-from nmdc_metadata_suggestor.constants import FIGSHARE_API, FIGSHARE_COLLECTIONS_API
-from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
+from nmdc_metadata_suggestor.constants import (
     DEFAULT_TIMEOUT,
+    FIGSHARE_API,
+    FIGSHARE_COLLECTIONS_API,
     USER_AGENT,
+)
+from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     append_error,
     clean_text,
     request_with_retry,
