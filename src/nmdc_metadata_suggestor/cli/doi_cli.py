@@ -79,7 +79,7 @@ def cmd_get_abstract(
         print(f"  {result.error}", file=sys.stderr)
     else:
         source = result.source or "unknown"
-        length = len(result.abstract) if result.abstract else 0
+        length = len(result.content) if result.content else 0
         print(f"  {source:25s}  {length:>6d} chars  {doi}", file=sys.stderr)
 
     if out_dir:
@@ -121,9 +121,9 @@ def cmd_get_abstracts(out_dir: str = "abstracts") -> None:
         file_path = out_path / f"{slug}.json"
         file_path.write_text(json.dumps(dump, indent=2) + "\n")
 
-        if result.abstract:
+        if result.content:
             source = result.source or "unknown"
-            length = len(result.abstract)
+            length = len(result.content)
             print(f"  {source:25s}  {length:>6d} chars  {doi}", file=sys.stderr)
         else:
             print(f"  NO ABSTRACT             {doi}", file=sys.stderr)

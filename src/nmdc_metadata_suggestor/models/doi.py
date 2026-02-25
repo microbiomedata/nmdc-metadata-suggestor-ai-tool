@@ -64,18 +64,10 @@ class SourceRetrievalResult(BaseModel):
 
     doi: str
     source: str | None = None
-    attempts: list[str] = Field(default_factory=list)
-    error: str | None = None
-
-    # Publication abstract retrieval fields.
-    abstract: str | None = None
-    raw_abstract: str | None = None
-    content_format: str | None = None
-    pmid: str | None = None
-
-    # DOI context retrieval fields.
-    context: str | None = None
-    raw_context: str | None = None
-    context_type: str | None = None
     provider: str | None = None
+    content : str | None = None
+    raw_content: str | None = None
+    content_type: str | None = None
     source_errors: dict[str, str] = Field(default_factory=dict)
+    pmid: str | None = None
+    error: str | None = None

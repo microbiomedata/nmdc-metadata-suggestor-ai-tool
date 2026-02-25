@@ -49,10 +49,10 @@ def try_osti(doi: str) -> SourceRetrievalResult:
         if abstract:
             return SourceRetrievalResult(
                 doi=doi,
-                abstract=abstract,
-                raw_abstract=abstract,
+                content=abstract,
+                raw_content=abstract,
                 source="osti",
-                content_format="plain_text",
+                content_type="plain_text",
                 attempts=["osti"],
             )
         else:
