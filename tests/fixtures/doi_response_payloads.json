@@ -1,0 +1,507 @@
+{
+  "payloads": {
+    "fixture_emsl_hit": {
+      "award_doi": "{{doi}}",
+      "abstract": "Fixture EMSL abstract."
+    },
+    "fixture_ess_dive_hit": {
+      "data": [
+        {
+          "abstract": "Fixture ESS-DIVE abstract."
+        }
+      ]
+    },
+    "fixture_figshare_hit": [
+      {
+        "description": "Fixture Figshare description."
+      }
+    ],
+    "fixture_jgi_hit": {
+      "proposals": [
+        {
+          "doi": "{{doi}}",
+          "abstract": "Fixture JGI abstract."
+        }
+      ]
+    },
+    "fixture_kbase_hit": {
+      "jsonrpc": "2.0",
+      "id": "1",
+      "result": {
+        "count": 1,
+        "hits": [
+          {
+            "doc": {
+              "cells": [
+                {
+                  "desc": "Citation: doi:{{doi}}. Fixture KBase narrative context."
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "fixture_massive_detail": {
+      "description": "Fixture MassIVE dataset description."
+    },
+    "fixture_zenodo_hit": {
+      "hits": {
+        "hits": [
+          {
+            "metadata": {
+              "description": "Fixture Zenodo description."
+            }
+          }
+        ]
+      }
+    },
+    "fixture_cyverse_search_hit": {
+      "avus": [
+        {
+          "attr": "dc.identifier.doi",
+          "value": "{{doi}}",
+          "target_id": "{{target_id}}"
+        }
+      ]
+    },
+    "fixture_cyverse_metadata_hit": {
+      "avus": [
+        {
+          "attr": "dc.description.abstract",
+          "value": "Fixture CyVerse abstract.",
+          "target_id": "{{target_id}}"
+        }
+      ]
+    },
+    "datacite_prefers_abstract": {
+      "data": {
+        "attributes": {
+          "publisher": "Environmental Data Initiative",
+          "descriptions": [
+            {
+              "descriptionType": "Other",
+              "description": "Fallback description"
+            },
+            {
+              "descriptionType": "Abstract",
+              "description": "Primary abstract"
+            }
+          ]
+        }
+      }
+    },
+    "figshare_summary_article": [
+      {
+        "id": 26988151,
+        "title": "Summary title only",
+        "doi": "10.6084/m9.figshare.26988151.v1"
+      }
+    ],
+    "figshare_detail_description": {
+      "description": "Figshare detail description text."
+    },
+    "figshare_empty_search": [],
+    "figshare_collection_summary": [
+      {
+        "id": 7373842,
+        "title": "Collection summary title"
+      }
+    ],
+    "figshare_collection_detail": {
+      "description": "Figshare collection description text."
+    },
+    "datacite_edi_after_unsafe_xml": {
+      "data": {
+        "attributes": {
+          "publisher": "Environmental Data Initiative",
+          "descriptions": [
+            {
+              "descriptionType": "Abstract",
+              "description": "DataCite fallback after unsafe EDI XML"
+            }
+          ]
+        }
+      }
+    },
+    "emsl_provider_hit": {
+      "award_doi": "{{doi}}",
+      "abstract": "EMSL project abstract text.",
+      "title": "Fallback title"
+    },
+    "emsl_mismatch_project": {
+      "award_doi": "10.46936/jejc.proj.2014.99999/60000000",
+      "abstract": "Wrong project"
+    },
+    "datacite_emsl_fallback": {
+      "data": {
+        "attributes": {
+          "publisher": "EMSL",
+          "descriptions": [
+            {
+              "descriptionType": "Abstract",
+              "description": "DataCite fallback abstract"
+            }
+          ]
+        }
+      }
+    },
+    "jgi_lay_description_hit": {
+      "proposals": [
+        {
+          "doi": "{{doi}}",
+          "lay_description": "JGI lay description text.",
+          "title": "Fallback title"
+        }
+      ],
+      "organisms": []
+    },
+    "jgi_mismatch_payload": {
+      "proposals": [
+        {
+          "doi": "10.25585/9999999",
+          "lay_description": "Wrong record"
+        }
+      ],
+      "organisms": []
+    },
+    "jgi_missing_doi_payload": {
+      "proposals": [
+        {
+          "lay_description": "Unrelated result without DOI fields"
+        }
+      ],
+      "organisms": []
+    },
+    "datacite_jgi_fallback": {
+      "data": {
+        "attributes": {
+          "publisher": "JGI",
+          "descriptions": [
+            {
+              "descriptionType": "Abstract",
+              "description": "DataCite fallback for JGI DOI"
+            }
+          ]
+        }
+      }
+    },
+    "datacite_jgi_missing_doi_fallback": {
+      "data": {
+        "attributes": {
+          "publisher": "JGI",
+          "descriptions": [
+            {
+              "descriptionType": "Abstract",
+              "description": "DataCite fallback for DOI-missing JGI result"
+            }
+          ]
+        }
+      }
+    },
+    "kbase_search_hit_description": {
+      "jsonrpc": "2.0",
+      "id": "1",
+      "result": {
+        "count": 1,
+        "hits": [
+          {
+            "index": "narrative_2",
+            "id": "WS::109073:1",
+            "doc": {
+              "narrative_title": "KBase Narrative Title",
+              "cells": [
+                {
+                  "desc": "Small intro cell."
+                },
+                {
+                  "desc": "Please cite this dataset as doi:10.25982/109073.30/1895615. This narrative describes sample collection and processing."
+                }
+              ],
+              "creation_date": "2022-02-14T17:53:04+0000"
+            }
+          }
+        ],
+        "search_time": 12,
+        "aggregations": {}
+      }
+    },
+    "kbase_search_empty": {
+      "jsonrpc": "2.0",
+      "id": "1",
+      "result": {
+        "count": 0,
+        "hits": [],
+        "aggregations": {}
+      }
+    },
+    "kbase_workspace_not_found": {
+      "error": {
+        "message": "Object not found"
+      }
+    },
+    "datacite_kbase_fallback": {
+      "data": {
+        "attributes": {
+          "publisher": "KBase",
+          "descriptions": [
+            {
+              "descriptionType": "Abstract",
+              "description": "DataCite fallback for KBase DOI"
+            }
+          ]
+        }
+      }
+    },
+    "kbase_workspace_name_result": {
+      "version": "1.1",
+      "result": [
+        {
+          "infos": [
+            [
+              278,
+              "Narrative.1694710832822",
+              "KBaseNarrative.Narrative-4.0",
+              "2023-09-14T00:00:00+0000",
+              1,
+              "pwdna",
+              156785,
+              "pwdna:narrative_1694710832822",
+              "checksum",
+              1,
+              {
+                "description": "",
+                "name": "Produced Water DNA Database",
+                "ws_name": "pwdna:narrative_1694710832822"
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    "kbase_workspace_metadata_result": {
+      "version": "1.1",
+      "result": [
+        {
+          "infos": [
+            [
+              171,
+              "22_output__TCS_genomes",
+              "KBaseGenomeAnnotations.Assembly-5.1",
+              "2024-12-10T00:00:00+0000",
+              1,
+              "schatun",
+              200311,
+              "ws",
+              "checksum",
+              1,
+              {
+                "Size": "10721312",
+                "N Contigs": "96",
+                "GC content": "0.57327"
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    "massive_dataset_detail": {
+      "title": "MassIVE dataset title",
+      "description": "MassIVE dataset description text."
+    },
+    "proxi_error_not_reserved": {
+      "status": "ERROR",
+      "description": "Identifier not reserved"
+    },
+    "proxi_empty_datasets": {
+      "datasets": [],
+      "status": {
+        "status": "OK"
+      }
+    },
+    "datacite_massive_fallback": {
+      "data": {
+        "attributes": {
+          "publisher": "MassIVE",
+          "descriptions": [
+            {
+              "descriptionType": "Abstract",
+              "description": "DataCite fallback for MassIVE DOI"
+            }
+          ]
+        }
+      }
+    },
+    "datacite_massive_title_subtitle": {
+      "data": {
+        "attributes": {
+          "titles": [
+            {
+              "title": "MassIVE dataset title"
+            },
+            {
+              "titleType": "Subtitle",
+              "title": "Detailed MassIVE subtitle context from DataCite."
+            }
+          ]
+        }
+      }
+    },
+    "cyverse_search_empty": {
+      "avus": []
+    },
+    "cyverse_provider_metadata_hit": {
+      "avus": [
+        {
+          "attr": "dc.description.abstract",
+          "value": "CyVerse dataset abstract text.",
+          "target_id": "{{target_id}}"
+        }
+      ]
+    },
+    "datacite_cyverse_fallback": {
+      "data": {
+        "attributes": {
+          "publisher": "CyVerse",
+          "descriptions": [
+            {
+              "descriptionType": "Abstract",
+              "description": "DataCite fallback for CyVerse DOI"
+            }
+          ]
+        }
+      }
+    },
+    "zenodo_description_html_hit": {
+      "hits": {
+        "hits": [
+          {
+            "metadata": {
+              "description": "<p>Zenodo dataset description.</p>"
+            }
+          }
+        ]
+      }
+    },
+    "zenodo_concept_hit": {
+      "hits": {
+        "hits": [
+          {
+            "doi": "10.5281/zenodo.15328215",
+            "conceptdoi": "10.5281/zenodo.7406532",
+            "metadata": {
+              "doi": "10.5281/zenodo.15328215",
+              "description": "Zenodo concept DOI description text."
+            }
+          }
+        ]
+      }
+    },
+    "zenodo_empty_hits": {
+      "hits": {
+        "hits": []
+      }
+    },
+    "datacite_zenodo_unused_fallback": {
+      "data": {
+        "attributes": {
+          "publisher": "Zenodo",
+          "descriptions": [
+            {
+              "descriptionType": "Other",
+              "description": "Datacite fallback should not be used"
+            }
+          ]
+        }
+      }
+    },
+    "zenodo_mixed_hits": {
+      "hits": {
+        "hits": [
+          {
+            "doi": "10.5281/zenodo.11111111",
+            "conceptdoi": "10.5281/zenodo.11111110",
+            "metadata": {
+              "description": "Wrong Zenodo hit"
+            }
+          },
+          {
+            "doi": "10.5281/zenodo.18746326",
+            "conceptdoi": "10.5281/zenodo.18746325",
+            "metadata": {
+              "doi": "10.5281/zenodo.18746326",
+              "description": "Matching Zenodo concept DOI description."
+            }
+          }
+        ]
+      }
+    },
+    "datacite_zenodo_description_fallback": {
+      "data": {
+        "attributes": {
+          "publisher": "Zenodo",
+          "descriptions": [
+            {
+              "descriptionType": "Other",
+              "description": "Datacite description fallback"
+            }
+          ]
+        }
+      }
+    },
+    "service_unavailable_detail": {
+      "detail": "Service unavailable"
+    },
+    "ess_dive_api_abstract": {
+      "data": [
+        {
+          "abstract": "ESS-DIVE abstract text"
+        }
+      ]
+    },
+    "unauthorized_detail": {
+      "detail": "Unauthorized"
+    },
+    "datacite_ess_dive_after_unsafe_xml": {
+      "data": {
+        "attributes": {
+          "publisher": "ESS-DIVE",
+          "descriptions": [
+            {
+              "descriptionType": "Abstract",
+              "description": "DataCite fallback after unsafe DataONE XML"
+            }
+          ]
+        }
+      }
+    },
+    "datacite_ess_dive_fallback": {
+      "data": {
+        "attributes": {
+          "publisher": "ESS-DIVE",
+          "descriptions": [
+            {
+              "descriptionType": "Abstract",
+              "description": "DataCite fallback for ESS-DIVE DOI"
+            }
+          ]
+        }
+      }
+    },
+    "jgi_empty_response": {
+      "proposals": [],
+      "organisms": []
+    },
+    "datacite_empty_descriptions": {
+      "data": {
+        "attributes": {
+          "descriptions": []
+        }
+      }
+    },
+    "crossref_empty_message": {
+      "message": {}
+    },
+    "empty_object": {}
+  }
+}

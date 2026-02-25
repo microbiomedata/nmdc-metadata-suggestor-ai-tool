@@ -16,11 +16,11 @@ from nmdc_metadata_suggestor.constants import (
     PUBMED_EFETCH,
     PUBMED_ID_CONVERTER,
 )
-from nmdc_metadata_suggestor.models.doi import AbstractResult
+from nmdc_metadata_suggestor.doi_ingestion.doi_utils import strip_jats_xml
+from nmdc_metadata_suggestor.models.doi import SourceRetrievalResult
 from nmdc_metadata_suggestor.publication_ingestion.abstract_retriever import (
     decode_inverted_abstract,
     get_abstract,
-    strip_jats_xml,
 )
 
 integration = pytest.mark.integration
@@ -296,6 +296,23 @@ class TestGetAbstractWaterfall:
         assert result.attempts == ["openalex", "crossref", "pubmed", "content_negotiation"]
 
     @responses.activate
+    def test_content_negotiation_note_is_not_used(self) -> None:
+        """Abstract retrieval intentionally does not fall back to citeproc note."""
+        doi = SAMPLE_DOI
+        _mock_classify_as_publication(doi)
+        responses.add(responses.GET, f"{OPENALEX_API_URL}/https://doi.org/{doi}", json={})
+        responses.add(responses.GET, f"{CROSSREF_API_URL}/{doi}", json={"message": {}})
+        responses.add(responses.GET, PUBMED_ID_CONVERTER, json={"records": []})
+        responses.add(
+            responses.GET,
+            f"https://doi.org/{doi}",
+            json={"note": "Context note only, no abstract"},
+        )
+        result = get_abstract(doi)
+        assert result.abstract is None
+        assert result.error == "No abstract found in any source"
+
+    @responses.activate
     def test_all_miss(self) -> None:
         """All sources return nothing — graceful None."""
         doi = SAMPLE_DOI
@@ -355,10 +372,10 @@ class TestGetAbstractWaterfall:
 
 
 class TestGetAbstractResult:
-    """Test the AbstractResult model."""
+    """Test the SourceRetrievalResult model."""
 
     def test_defaults(self) -> None:
-        r = AbstractResult(doi="10.1234/test")
+        r = SourceRetrievalResult(doi="10.1234/test")
         assert r.abstract is None
         assert r.raw_abstract is None
         assert r.source is None

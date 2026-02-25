@@ -1,0 +1,11 @@
+{
+  "payloads": {
+    "edi_fixture_abstract_xml": "<?xml version='1.0' encoding='UTF-8'?><eml:eml xmlns:eml='https://eml.ecoinformatics.org/eml-2.2.0'><dataset><abstract><para>Fixture EDI abstract.</para></abstract></dataset></eml:eml>",
+    "edi_provider_abstract_xml": "<?xml version='1.0' encoding='UTF-8'?><eml:eml xmlns:eml='https://eml.ecoinformatics.org/eml-2.2.0'><dataset><abstract><para>EDI abstract text.</para></abstract></dataset></eml:eml>",
+    "edi_unsafe_metadata_xml": "<?xml version='1.0' encoding='UTF-8'?><!DOCTYPE eml [<!ENTITY xxe 'unsafe'>]><eml:eml xmlns:eml='https://eml.ecoinformatics.org/eml-2.2.0'><dataset><abstract><para>Unsafe abstract should be ignored.</para></abstract></dataset></eml:eml>",
+    "dataone_ess_dive_hit_xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><response><result name='response' numFound='1' start='0'><doc><str name='id'>ess-dive-abc-20260101</str><str name='seriesId'>doi:10.15485/1729719</str><str name='datasource'>urn:node:ESS_DIVE</str><arr name='abstract'><str>ESS-DIVE DataONE abstract text.</str></arr></doc></result></response>",
+    "dataone_ess_dive_unsafe_xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE response [<!ENTITY xxe 'unsafe'>]><response><result name='response' numFound='1' start='0'><doc><str name='id'>ess-dive-unsafe-xml</str><str name='seriesId'>doi:10.15485/1729719</str><str name='datasource'>urn:node:ESS_DIVE</str><arr name='abstract'><str>This should be ignored.</str></arr></doc></result></response>",
+    "dataone_empty_result_xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><response><result name='response' numFound='0' start='0'></result></response>",
+    "dataone_wtr_hit_xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><response><result name='response' numFound='1' start='0'><doc><str name='id'>ess-dive-wtr-20260101</str><str name='seriesId'>doi:10.21952/WTR/1573029</str><str name='datasource'>urn:node:ESS_DIVE</str><arr name='abstract'><str>ESS-DIVE WTR abstract text.</str></arr></doc></result></response>"
+  }
+}

@@ -4,9 +4,17 @@ See ``docs/doi-classification-design.md`` for design rationale, value
 provenance, and the full list of unmapped types.
 """
 
+import html
+import logging
+import os
 import re
+import time
+import xml.etree.ElementTree as ET
+from email.utils import parsedate_to_datetime
+from typing import Any
 
 import requests
+from requests.adapters import HTTPAdapter
 
 from nmdc_metadata_suggestor.constants import (
     CROSSREF_API_URL,
@@ -23,6 +31,225 @@ from nmdc_metadata_suggestor.models.doi import (
     DoiClassification,
     DoiValidation,
 )
+
+DEFAULT_RETRY_ATTEMPTS = int(os.environ.get("NMDC_HTTP_RETRY_ATTEMPTS", "3"))
+# Default backoff is 0 to avoid introducing real sleep delays by default (e.g., in tests).
+DEFAULT_RETRY_BACKOFF_SECONDS = float(os.environ.get("NMDC_HTTP_RETRY_BACKOFF_SECONDS", "0"))
+MAX_RETRY_DELAY_SECONDS = float(os.environ.get("NMDC_HTTP_MAX_RETRY_DELAY_SECONDS", "30"))
+RETRY_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
+SESSION_POOL_CONNECTIONS = int(os.environ.get("NMDC_HTTP_POOL_CONNECTIONS", "20"))
+SESSION_POOL_MAXSIZE = int(os.environ.get("NMDC_HTTP_POOL_MAXSIZE", "100"))
+
+LOGGER = logging.getLogger(__name__)
+DOI_REFERENCE_PATTERN = re.compile(
+    r"(?:https?://doi\.org/|doi:)?10\.\d{4,9}/\S+",
+    re.IGNORECASE,
+)
+TRAILING_DOI_DELIMITERS = ".,;:]}>\"'"
+
+_HTTP_SESSION = requests.Session()
+_HTTP_ADAPTER = HTTPAdapter(
+    pool_connections=SESSION_POOL_CONNECTIONS,
+    pool_maxsize=SESSION_POOL_MAXSIZE,
+    max_retries=0,
+)
+_HTTP_SESSION.mount("http://", _HTTP_ADAPTER)
+_HTTP_SESSION.mount("https://", _HTTP_ADAPTER)
+
+
+def request_with_retry(
+    method: str,
+    url: str,
+    *,
+    max_attempts: int = DEFAULT_RETRY_ATTEMPTS,
+    retry_status_codes: set[int] | frozenset[int] = RETRY_STATUS_CODES,
+    backoff_seconds: float = DEFAULT_RETRY_BACKOFF_SECONDS,
+    max_retry_delay_seconds: float = MAX_RETRY_DELAY_SECONDS,
+    timeout: int = DEFAULT_TIMEOUT,
+    **request_kwargs: Any,
+) -> requests.Response:
+    """Perform an HTTP request with retry/backoff for transient failures.
+
+    Retries are applied for:
+    - Network/request exceptions (e.g. connection resets, timeouts)
+    - HTTP response status codes in ``retry_status_codes`` (default: 429/5xx)
+
+    ``Retry-After`` is honored when present; otherwise exponential backoff is used.
+    """
+    if max_attempts < 1:
+        raise ValueError("max_attempts must be >= 1")
+
+    last_exception: requests.RequestException | None = None
+    response: requests.Response | None = None
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            response = _HTTP_SESSION.request(method, url, timeout=timeout, **request_kwargs)
+            if response.status_code not in retry_status_codes:
+                return response
+
+            if attempt == max_attempts:
+                return response
+
+            delay = _retry_delay_seconds(
+                response.headers.get("Retry-After"),
+                attempt,
+                backoff_seconds,
+                max_retry_delay_seconds,
+            )
+            _close_response_quietly(response)
+            response = None
+            if delay > 0:
+                time.sleep(delay)
+        except requests.RequestException as exc:
+            last_exception = exc
+            if attempt == max_attempts:
+                raise
+            _close_response_quietly(getattr(exc, "response", None))
+            delay = _cap_retry_delay_seconds(
+                backoff_seconds * (2 ** (attempt - 1)), max_retry_delay_seconds
+            )
+            if delay > 0:
+                time.sleep(delay)
+
+    if response is not None:
+        return response
+    if last_exception is not None:
+        raise last_exception
+    raise RuntimeError("request_with_retry exited without response or exception")
+
+
+def _retry_delay_seconds(
+    retry_after: str | None,
+    attempt: int,
+    backoff_seconds: float,
+    max_retry_delay_seconds: float,
+) -> float:
+    """Return retry delay from Retry-After header or exponential fallback."""
+    if isinstance(retry_after, str) and retry_after.strip():
+        retry_after_value = retry_after.strip()
+        if retry_after_value.isdigit():
+            return _cap_retry_delay_seconds(float(retry_after_value), max_retry_delay_seconds)
+        try:
+            retry_dt = parsedate_to_datetime(retry_after_value)
+            delay = max(0.0, retry_dt.timestamp() - time.time())
+            return _cap_retry_delay_seconds(delay, max_retry_delay_seconds)
+        except (TypeError, ValueError):
+            pass
+
+    return _cap_retry_delay_seconds(backoff_seconds * (2 ** (attempt - 1)), max_retry_delay_seconds)
+
+
+def _cap_retry_delay_seconds(delay_seconds: float, max_retry_delay_seconds: float) -> float:
+    """Cap retry delay and log if a source-provided value exceeds the configured maximum."""
+    delay_seconds = max(0.0, delay_seconds)
+    if max_retry_delay_seconds < 0:
+        return delay_seconds
+    if delay_seconds > max_retry_delay_seconds:
+        LOGGER.warning(
+            "Retry delay %.2fs exceeds max %.2fs; capping delay",
+            delay_seconds,
+            max_retry_delay_seconds,
+        )
+        return max_retry_delay_seconds
+    return delay_seconds
+
+
+def _close_response_quietly(response: requests.Response | None) -> None:
+    """Close an HTTP response while suppressing close-time errors."""
+    if response is None:
+        return
+    try:
+        response.close()
+    except requests.RequestException:
+        return
+
+
+def append_error(errors: list[str] | None, message: str) -> None:
+    """Append a unique error message to a mutable collector."""
+    if errors is None:
+        return
+    if message not in errors:
+        errors.append(message)
+
+
+def strip_jats_xml(xml_abstract: str) -> str:
+    """Strip JATS/XML tags from text and unescape HTML entities."""
+    try:
+        root = ET.fromstring(f"<root>{xml_abstract}</root>")
+        text = ET.tostring(root, encoding="unicode", method="text")
+        return html.unescape(text).strip()
+    except ET.ParseError:
+        pass
+
+    text = re.sub(r"<[^>]+>", "", xml_abstract)
+    return html.unescape(text).strip()
+
+
+def clean_text(text: str) -> str:
+    """Normalize text by stripping markup/entities and collapsing whitespace."""
+    cleaned = strip_jats_xml(text)
+    cleaned = re.sub(r"\s+", " ", html.unescape(cleaned)).strip()
+    return cleaned
+
+
+def find_first_text(payload: object, keys: tuple[str, ...]) -> tuple[str, str] | None:
+    """Recursively find the first non-empty string value for target keys."""
+    if isinstance(payload, dict):
+        for key in keys:
+            value = payload.get(key)
+            if isinstance(value, str) and value.strip():
+                return key, value
+        for value in payload.values():
+            found = find_first_text(value, keys)
+            if found is not None:
+                return found
+    elif isinstance(payload, list):
+        for item in payload:
+            found = find_first_text(item, keys)
+            if found is not None:
+                return found
+    return None
+
+
+def extract_first_xml_text(root: ET.Element, tags: set[str]) -> str | None:
+    """Extract text from the first XML element whose localname is in tags."""
+    for element in root.iter():
+        if _local_name(element.tag) not in tags:
+            continue
+        raw = "".join(element.itertext())
+        cleaned = clean_text(raw)
+        if cleaned:
+            return cleaned
+    return None
+
+
+def text_mentions_doi(text: str, requested_doi: str) -> bool:
+    """Return True when text contains an exact DOI reference match."""
+    requested_normalized = normalize_doi(requested_doi).lower()
+    for match in DOI_REFERENCE_PATTERN.finditer(text):
+        candidate = _strip_trailing_doi_delimiters(match.group(0))
+        if normalize_doi(candidate).lower() == requested_normalized:
+            return True
+    return False
+
+
+def _strip_trailing_doi_delimiters(token: str) -> str:
+    """Trim surrounding punctuation that commonly follows DOI references in text."""
+    trimmed = token.rstrip(TRAILING_DOI_DELIMITERS)
+    while trimmed.endswith(")") and trimmed.count(")") > trimmed.count("("):
+        trimmed = trimmed[:-1]
+    return trimmed
+
+
+def _local_name(tag: str) -> str:
+    """Return XML localname from namespaced tags."""
+    if "}" in tag:
+        return tag.split("}", 1)[1]
+    if ":" in tag:
+        return tag.split(":", 1)[1]
+    return tag
+
 
 # ---------------------------------------------------------------------------
 # Mapping: external resource types -> NMDC DoiCategoryEnum
@@ -123,7 +350,8 @@ def validate_doi(doi: str) -> DoiValidation:
         return DoiValidation(doi=doi, is_valid=False, error="Malformed DOI syntax")
 
     try:
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             f"{DOI_HANDLE_API}/{doi}",
             timeout=DEFAULT_TIMEOUT,
             headers={"User-Agent": USER_AGENT},
@@ -154,7 +382,8 @@ def detect_registration_agency(doi: str) -> str | None:
         or ``None`` on error.
     """
     try:
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             f"{DOI_RA_API}/{doi}",
             timeout=DEFAULT_TIMEOUT,
             headers={"User-Agent": USER_AGENT},
@@ -244,7 +473,8 @@ def classify_doi(doi: str) -> DoiClassification:
 def _classify_crossref(doi: str, prefix: str | None, ra: str) -> DoiClassification:
     """Classify a Crossref DOI by querying the Crossref API."""
     try:
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             f"{CROSSREF_API_URL}/{doi}",
             timeout=DEFAULT_TIMEOUT,
             headers={"User-Agent": USER_AGENT},
@@ -274,7 +504,8 @@ def _classify_crossref(doi: str, prefix: str | None, ra: str) -> DoiClassificati
 def _classify_datacite(doi: str, prefix: str | None, ra: str) -> DoiClassification:
     """Classify a DataCite DOI by querying the DataCite API."""
     try:
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             f"{DATACITE_API_URL}/{doi}",
             timeout=DEFAULT_TIMEOUT,
             headers={"User-Agent": USER_AGENT},

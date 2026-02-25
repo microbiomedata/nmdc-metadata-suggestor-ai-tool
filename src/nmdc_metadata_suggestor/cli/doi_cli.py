@@ -14,12 +14,12 @@ import json
 import sys
 from pathlib import Path
 
-from nmdc_metadata_suggestor.publication_ingestion.abstract_retriever import get_abstract
-from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
+from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     classify_doi,
     normalize_doi,
     validate_doi,
 )
+from nmdc_metadata_suggestor.publication_ingestion.abstract_retriever import get_abstract
 
 
 def _print_json(obj: object) -> None:

@@ -1,7 +1,5 @@
 from typing import Any
 
-import requests
-
 from nmdc_metadata_suggestor.constants import (
     CROSSREF_API_URL,
     DEFAULT_TIMEOUT,
@@ -9,6 +7,7 @@ from nmdc_metadata_suggestor.constants import (
     PMC_PDF_URL_TEMPLATE,
     USER_AGENT,
 )
+from nmdc_metadata_suggestor.doi_ingestion.doi_utils import request_with_retry
 
 
 def retrieve_pdf_link_from_crossref(id: str) -> dict[str, Any]:
@@ -21,7 +20,8 @@ def retrieve_pdf_link_from_crossref(id: str) -> dict[str, Any]:
         Dictionary with PDF link or error message
     """
     try:
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             f"{CROSSREF_API_URL}/{id}",
             timeout=DEFAULT_TIMEOUT,
             headers={"User-Agent": USER_AGENT},
@@ -49,7 +49,13 @@ def retrieve_pdf_link_from_pmc(doi: str) -> dict[str, Any]:
     """
     try:
         params = {"query": f'DOI:"{doi}"', "format": "json", "pageSize": 1}
-        response = requests.get(EUROPEPMC_API_URL, params=params, timeout=DEFAULT_TIMEOUT)  # type: ignore
+        response = request_with_retry(
+            "GET",
+            EUROPEPMC_API_URL,
+            params=params,
+            timeout=DEFAULT_TIMEOUT,
+            headers={"User-Agent": USER_AGENT},
+        )
         response.raise_for_status()
         data = response.json()
 

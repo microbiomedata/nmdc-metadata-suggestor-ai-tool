@@ -4,11 +4,12 @@ import os
 from typing import Any, cast
 
 import google.auth.transport.requests
-import requests as http_requests
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from google.oauth2 import service_account
+
+from nmdc_metadata_suggestor.doi_ingestion.doi_utils import request_with_retry
 
 load_dotenv()
 
@@ -142,7 +143,8 @@ class LLMClient:
         if system:
             body["system"] = system
 
-        response = http_requests.post(
+        response = request_with_retry(
+            "POST",
             url,
             headers={
                 "Authorization": f"Bearer {token}",

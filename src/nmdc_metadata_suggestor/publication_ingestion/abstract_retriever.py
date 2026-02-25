@@ -20,29 +20,28 @@ CLI usage::
     make get-abstract DOI=10.1038/s41564-020-00861-0
 """
 
-import html
 import json
-import re
-import xml.etree.ElementTree as ET
 
 import requests
 
 from nmdc_metadata_suggestor.constants import (
     ALL_SOURCES,
-    CITEPROC_JSON_ACCEPT,
-    CROSSREF_API_URL,
     DEFAULT_TIMEOUT,
-    DOI_RESOLVER_URL,
     OPENALEX_API_URL,
     PUBMED_EFETCH,
     PUBMED_ID_CONVERTER,
     USER_AGENT,
 )
-from nmdc_metadata_suggestor.models.doi import AbstractResult, DoiClassification
-from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
+from nmdc_metadata_suggestor.doi_ingestion.content_negotiation import (
+    try_content_negotiation_abstract,
+)
+from nmdc_metadata_suggestor.doi_ingestion.crossref import try_crossref_abstract
+from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     classify_doi,
     normalize_doi,
+    request_with_retry,
 )
+from nmdc_metadata_suggestor.models.doi import DoiClassification, SourceRetrievalResult
 
 # DataCite resourceTypeGeneral values that are clearly not publications.
 # These are unmapped in doi_utils (inferred_nmdc_category returns None),
@@ -70,8 +69,6 @@ CROSSREF_NON_PUBLICATION_TYPES = {
     "component",
 }
 
-# Back-compat aliases used within this module
-
 
 # ---------------------------------------------------------------------------
 # Public API
@@ -82,7 +79,7 @@ def get_abstract(
     doi: str,
     skip_classification: bool = False,
     sources: list[str] | None = None,
-) -> AbstractResult:
+) -> SourceRetrievalResult:
     """Try each source in waterfall order, return the first abstract found.
 
     Before fetching, classifies the DOI and checks that it is a publication.
@@ -101,7 +98,7 @@ def get_abstract(
             ``sources=["crossref", "pubmed"]`` to skip OpenAlex.
 
     Returns:
-        AbstractResult with the abstract text and metadata, or an error.
+        SourceRetrievalResult with the abstract text and metadata, or an error.
     """
     # TODO : Is it better practice if we know a certain DOI prefix will go to a
     # certain source to just call that source directly instead of going through the whole waterfall?
@@ -117,7 +114,7 @@ def get_abstract(
         classification = classify_doi(doi)
         refusal = _check_classification_gate(classification)
         if refusal:
-            return AbstractResult(doi=doi, error=refusal)
+            return SourceRetrievalResult(doi=doi, error=refusal)
 
     attempts: list[str] = []
 
@@ -129,7 +126,11 @@ def get_abstract(
         if result is not None:
             return result
 
-    return AbstractResult(doi=doi, attempts=attempts, error="No abstract found in any source")
+    return SourceRetrievalResult(
+        doi=doi,
+        attempts=attempts,
+        error="No abstract found in any source",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -175,11 +176,11 @@ def _check_classification_gate(c: DoiClassification) -> str | None:
 
 # ---------------------------------------------------------------------------
 # Source dispatch — maps source names to waterfall step functions.
-# Each returns AbstractResult on success, None to try the next source.
+# Each returns SourceRetrievalResult on success, None to try the next source.
 # ---------------------------------------------------------------------------
 
 
-def _fetch_osti(doi: str, attempts: list[str]) -> AbstractResult | None:
+def _fetch_osti(doi: str, attempts: list[str]) -> SourceRetrievalResult | None:
     """
     Fetch abstract from OSTI (for OSTI DOIs only).
 
@@ -188,7 +189,7 @@ def _fetch_osti(doi: str, attempts: list[str]) -> AbstractResult | None:
         attempts: List of sources attempted so far
 
     Returns:
-        AbstractResult containing the abstract/description from OSTI, or an error.
+        SourceRetrievalResult containing the abstract/description from OSTI, or an error.
     """
     if not doi.startswith("10.15485/"):  # OSTI prefix
         return None
@@ -200,7 +201,7 @@ def _fetch_osti(doi: str, attempts: list[str]) -> AbstractResult | None:
 
         pub = retrieve_doi_info_from_osti(doi)
         if pub.abstract:
-            return AbstractResult(
+            return SourceRetrievalResult(
                 doi=doi,
                 abstract=pub.abstract,
                 raw_abstract=pub.abstract,
@@ -213,10 +214,10 @@ def _fetch_osti(doi: str, attempts: list[str]) -> AbstractResult | None:
     return None
 
 
-def _fetch_openalex(doi: str, attempts: list[str]) -> AbstractResult | None:
+def _fetch_openalex(doi: str, attempts: list[str]) -> SourceRetrievalResult | None:
     text, raw, fmt = _try_openalex(doi)
     if text:
-        return AbstractResult(
+        return SourceRetrievalResult(
             doi=doi,
             abstract=text,
             raw_abstract=raw,
@@ -227,10 +228,10 @@ def _fetch_openalex(doi: str, attempts: list[str]) -> AbstractResult | None:
     return None
 
 
-def _fetch_crossref(doi: str, attempts: list[str]) -> AbstractResult | None:
-    text, raw, fmt = _try_crossref(doi)
+def _fetch_crossref(doi: str, attempts: list[str]) -> SourceRetrievalResult | None:
+    text, raw, fmt = try_crossref_abstract(doi)
     if text:
-        return AbstractResult(
+        return SourceRetrievalResult(
             doi=doi,
             abstract=text,
             raw_abstract=raw,
@@ -241,10 +242,10 @@ def _fetch_crossref(doi: str, attempts: list[str]) -> AbstractResult | None:
     return None
 
 
-def _fetch_pubmed(doi: str, attempts: list[str]) -> AbstractResult | None:
+def _fetch_pubmed(doi: str, attempts: list[str]) -> SourceRetrievalResult | None:
     text, pmid = _try_pubmed(doi)
     if text:
-        return AbstractResult(
+        return SourceRetrievalResult(
             doi=doi,
             abstract=text,
             raw_abstract=text,
@@ -256,10 +257,10 @@ def _fetch_pubmed(doi: str, attempts: list[str]) -> AbstractResult | None:
     return None
 
 
-def _fetch_content_negotiation(doi: str, attempts: list[str]) -> AbstractResult | None:
-    text, raw, fmt = _try_content_negotiation(doi)
+def _fetch_content_negotiation(doi: str, attempts: list[str]) -> SourceRetrievalResult | None:
+    text, raw, fmt = try_content_negotiation_abstract(doi)
     if text:
-        return AbstractResult(
+        return SourceRetrievalResult(
             doi=doi,
             abstract=text,
             raw_abstract=raw,
@@ -294,7 +295,8 @@ def _try_openalex(doi: str) -> tuple[str | None, str | None, str | None]:
         (cleaned_text, raw_text, content_format) tuple.
     """
     try:
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             f"{OPENALEX_API_URL}/https://doi.org/{doi}",
             headers={"User-Agent": USER_AGENT},
             timeout=DEFAULT_TIMEOUT,
@@ -311,32 +313,6 @@ def _try_openalex(doi: str) -> tuple[str | None, str | None, str | None]:
         return None, None, None
 
 
-def _try_crossref(doi: str) -> tuple[str | None, str | None, str | None]:
-    """Fetch abstract from Crossref.
-
-    Crossref returns abstracts as JATS XML (``<jats:p>...</jats:p>``).
-
-    Returns:
-        (cleaned_text, raw_text, content_format) tuple.
-    """
-    try:
-        response = requests.get(
-            f"{CROSSREF_API_URL}/{doi}",
-            headers={"User-Agent": USER_AGENT},
-            timeout=DEFAULT_TIMEOUT,
-        )
-        if response.status_code != 200:
-            return None, None, None
-        msg = response.json().get("message", {})
-        raw = msg.get("abstract")
-        if raw:
-            fmt = "jats_xml" if "<" in raw else "plain_text"
-            return strip_jats_xml(raw), raw, fmt
-        return None, None, None
-    except (requests.RequestException, ValueError):
-        return None, None, None
-
-
 def _try_pubmed(doi: str) -> tuple[str | None, str | None]:
     """Fetch abstract from PubMed via DOI -> PMID -> efetch.
 
@@ -345,7 +321,8 @@ def _try_pubmed(doi: str) -> tuple[str | None, str | None]:
     """
     # Step 1: DOI -> PMID via ID converter
     try:
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             PUBMED_ID_CONVERTER,
             params={"ids": doi, "format": "json"},
             headers={"User-Agent": USER_AGENT},
@@ -365,7 +342,8 @@ def _try_pubmed(doi: str) -> tuple[str | None, str | None]:
 
     # Step 2: PMID -> abstract via efetch
     try:
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             PUBMED_EFETCH,
             params={"db": "pubmed", "id": pmid, "rettype": "abstract", "retmode": "text"},
             headers={"User-Agent": USER_AGENT},
@@ -379,36 +357,6 @@ def _try_pubmed(doi: str) -> tuple[str | None, str | None]:
         return None, pmid
     except requests.RequestException:
         return None, pmid
-
-
-def _try_content_negotiation(doi: str) -> tuple[str | None, str | None, str | None]:
-    """Fetch abstract via DOI content negotiation (Citeproc JSON).
-
-    This works for any registration agency as a universal last resort.
-    The ``abstract`` field, if present, may contain JATS XML.
-
-    Returns:
-        (cleaned_text, raw_text, content_format) tuple.
-    """
-    try:
-        response = requests.get(
-            f"{DOI_RESOLVER_URL}/{doi}",
-            headers={
-                "Accept": CITEPROC_JSON_ACCEPT,
-                "User-Agent": USER_AGENT,
-            },
-            timeout=DEFAULT_TIMEOUT,
-        )
-        if response.status_code != 200:
-            return None, None, None
-        data = response.json()
-        raw = data.get("abstract")
-        if raw:
-            fmt = "jats_xml" if "<" in raw else "citeproc_json"
-            return strip_jats_xml(raw), raw, fmt
-        return None, None, None
-    except (requests.RequestException, ValueError):
-        return None, None, None
 
 
 # ---------------------------------------------------------------------------
@@ -428,7 +376,7 @@ def decode_inverted_abstract(inverted_index: dict[str, list[int]]) -> str:
     We rebuild the original text by placing each word at its position(s) and
     joining with spaces.  This is technically lossy: punctuation attached to
     words (``"soil,"`` at position 82) survives, but any non-space whitespace
-    or formatting in the original is lost.  That's why ``AbstractResult``
+    or formatting in the original is lost.  That's why ``SourceRetrievalResult``
     exposes both ``abstract`` (reconstructed) and ``raw_abstract`` (the
     original JSON-serialized inverted index).
 
@@ -446,28 +394,3 @@ def decode_inverted_abstract(inverted_index: dict[str, list[int]]) -> str:
         return ""
     max_pos = max(words)
     return " ".join(words.get(i, "") for i in range(max_pos + 1))
-
-
-def strip_jats_xml(xml_abstract: str) -> str:
-    """Strip JATS XML tags from an abstract and unescape HTML entities.
-
-    Crossref and content negotiation return abstracts wrapped in JATS tags
-    like ``<jats:p>``, ``<jats:italic>``, etc. This strips all XML/HTML tags
-    and unescapes entities like ``&amp;`` and ``&#x2019;``.
-
-    Args:
-        xml_abstract: Raw abstract text, possibly containing JATS XML.
-
-    Returns:
-        Clean plain-text abstract.
-    """
-    # Try XML parsing first (handles namespaces properly)
-    try:
-        root = ET.fromstring(f"<root>{xml_abstract}</root>")
-        text = ET.tostring(root, encoding="unicode", method="text")
-        return html.unescape(text).strip()
-    except ET.ParseError:
-        pass
-    # Fallback: regex tag stripping
-    text = re.sub(r"<[^>]+>", "", xml_abstract)
-    return html.unescape(text).strip()

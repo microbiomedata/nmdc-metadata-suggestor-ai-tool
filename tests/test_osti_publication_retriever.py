@@ -9,7 +9,7 @@ from nmdc_metadata_suggestor.constants import (
     OSTI_API_URL,
     OSTI_E2_API_URL,
 )
-from nmdc_metadata_suggestor.models.doi import AbstractResult
+from nmdc_metadata_suggestor.models.doi import SourceRetrievalResult
 from nmdc_metadata_suggestor.models.publication import Publication
 from nmdc_metadata_suggestor.publication_ingestion.osti_publication_retriever import (
     retrieve_doi_info_from_osti,
@@ -42,7 +42,7 @@ def test_retrieve_abstract_success():
 
     result = retrieve_doi_info_from_osti(doi)
 
-    assert isinstance(result, AbstractResult)
+    assert isinstance(result, SourceRetrievalResult)
     assert result.abstract == abstract_text
     assert result.source == "osti"
     assert result.error is None
@@ -227,7 +227,7 @@ def test_abstract_retrieval_real_dois():
     for doi in OSTI_DOIS:
         result = retrieve_doi_info_from_osti(doi)
         results[doi] = result
-        assert isinstance(result, AbstractResult)
+        assert isinstance(result, SourceRetrievalResult)
         assert result.doi == doi
         # Either success with abstract or clean error
         assert result.abstract or result.error
@@ -243,7 +243,7 @@ def test_waterfall():
     # doi that is in the v1 but not in E2
     doi = "10.15485/1234567"
     result = retrieve_doi_info_from_osti(doi)
-    assert isinstance(result, AbstractResult)
+    assert isinstance(result, SourceRetrievalResult)
     assert result.doi == doi
     # Should have abstract or error (but not raise exception)
     assert result.abstract or result.error
@@ -274,7 +274,7 @@ def test_invalid_osti_doi():
 def test_doi_10_15485_2478895():
     """Test DOI 10.15485/2478895 specifically."""
     result = retrieve_doi_info_from_osti("10.15485/2478895")
-    assert isinstance(result, AbstractResult)
+    assert isinstance(result, SourceRetrievalResult)
     assert result.abstract or result.error
 
 
@@ -282,7 +282,7 @@ def test_doi_10_15485_2478895():
 def test_doi_10_15485_1729719():
     """Test DOI 10.15485/1729719 specifically."""
     result = retrieve_doi_info_from_osti("10.15485/1729719")
-    assert isinstance(result, AbstractResult)
+    assert isinstance(result, SourceRetrievalResult)
     assert result.abstract or result.error
 
 
@@ -290,5 +290,5 @@ def test_doi_10_15485_1729719():
 def test_doi_10_15485_1603775():
     """Test DOI 10.15485/1603775 specifically."""
     result = retrieve_doi_info_from_osti("10.15485/1603775")
-    assert isinstance(result, AbstractResult)
+    assert isinstance(result, SourceRetrievalResult)
     assert result.abstract or result.error
