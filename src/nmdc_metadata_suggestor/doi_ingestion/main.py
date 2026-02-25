@@ -57,10 +57,14 @@ def get_doi_description_or_abstract(
         SourceRetrievalResult with the abstract/description text and metadata, or an error.
     """
     doi = normalize_doi(doi)
+
     if not DOI_PATTERN.match(doi):
         return SourceRetrievalResult(doi=doi, error="Invalid DOI: Malformed DOI syntax")
-
+    
+    # check if we can infer the provider from the DOI prefix
     provider = infer_provider_from_doi(doi)
+    
+    # use the provider-aware default source order if we have a provider hint, otherwise use the generic default order
     if sources is None:
         sources = default_source_order(provider)
 
@@ -71,6 +75,7 @@ def get_doi_description_or_abstract(
             return SourceRetrievalResult(doi=doi, error=refusal)
 
     source_errors: SourceErrors = {}
+    # loop through sources in order and return the first successful result, recording errors for observability
     for source in sources:
         fetcher = _SOURCE_FETCHERS.get(source)
         if fetcher is None:
@@ -78,7 +83,7 @@ def get_doi_description_or_abstract(
         result = fetcher(doi, provider, source_errors)
         if result is not None:
             return result
-
+    # if we got here, no sources returned a result. Return an error with details of all source failures for observability.
     return SourceRetrievalResult(
         doi=doi,
         provider=provider,
