@@ -16,7 +16,7 @@ from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     extract_first_xml_text,
     request_with_retry,
 )
-from nmdc_metadata_suggestor.doi_ingestion.resolver_context import ResolverContext
+from nmdc_metadata_suggestor.models.resolver_context import ResolverContext
 
 
 def try_edi(doi: str, errors: list[str] | None = None) -> ResolverContext | None:

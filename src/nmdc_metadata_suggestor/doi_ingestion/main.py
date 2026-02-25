@@ -29,7 +29,7 @@ from nmdc_metadata_suggestor.doi_ingestion.figshare import try_figshare
 from nmdc_metadata_suggestor.doi_ingestion.jgi import try_jgi
 from nmdc_metadata_suggestor.doi_ingestion.kbase import try_kbase
 from nmdc_metadata_suggestor.doi_ingestion.massive import try_massive
-from nmdc_metadata_suggestor.doi_ingestion.resolver_context import ResolverContext
+from nmdc_metadata_suggestor.models.resolver_context import ResolverContext
 from nmdc_metadata_suggestor.doi_ingestion.zenodo import try_zenodo
 from nmdc_metadata_suggestor.doi_ingestion.openalex import try_openalex
 from nmdc_metadata_suggestor.doi_ingestion.pubmed import try_pubmed

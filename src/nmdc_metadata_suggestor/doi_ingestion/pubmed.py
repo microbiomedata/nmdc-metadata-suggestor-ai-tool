@@ -9,7 +9,7 @@ from nmdc_metadata_suggestor.constants import (
 from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     request_with_retry,
 )
-from nmdc_metadata_suggestor.doi_ingestion.resolver_context import ResolverContext
+from nmdc_metadata_suggestor.models.resolver_context import ResolverContext
 
 def try_pubmed(doi: str) -> ResolverContext:
     """Fetch abstract from PubMed via DOI -> PMID -> efetch.
