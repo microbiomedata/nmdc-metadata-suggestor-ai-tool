@@ -11,8 +11,8 @@ from nmdc_metadata_suggestor.constants import (
 )
 from nmdc_metadata_suggestor.models.doi import SourceRetrievalResult
 from nmdc_metadata_suggestor.models.publication import Publication
-from nmdc_metadata_suggestor.publication_ingestion.osti_publication_retriever import (
-    retrieve_doi_info_from_osti,
+from nmdc_metadata_suggestor.doi_ingestion.osti import (
+    try_osti as retrieve_doi_info_from_osti,
     retrieve_pdf_link_from_osti_doi,
 )
 
@@ -43,7 +43,7 @@ def test_retrieve_abstract_success():
     result = retrieve_doi_info_from_osti(doi)
 
     assert isinstance(result, SourceRetrievalResult)
-    assert result.abstract == abstract_text
+    assert result.context == abstract_text
     assert result.source == "osti"
     assert result.error is None
 
@@ -62,7 +62,7 @@ def test_retrieve_abstract_no_description():
 
     result = retrieve_doi_info_from_osti(doi)
 
-    assert result.abstract is None
+    assert result.context is None
     assert result.error is not None and "No abstract/description found" in result.error
 
 
@@ -84,7 +84,7 @@ def test_retrieve_abstract_404():
 
     result = retrieve_doi_info_from_osti(doi=doi)
 
-    assert result.abstract is None
+    assert result.context is None
     assert result.error is not None
 
 
@@ -213,7 +213,6 @@ def test_retrieve_publication_404():
     assert result.error is not None
     assert result.abstract is None
 
-
 # ---------------------------------------------------------------------------
 # Integration tests with real APIs
 # ---------------------------------------------------------------------------
@@ -229,11 +228,11 @@ def test_abstract_retrieval_real_dois():
         results[doi] = result
         assert isinstance(result, SourceRetrievalResult)
         assert result.doi == doi
-        # Either success with abstract or clean error
-        assert result.abstract or result.error
+        # Either success with content or clean error
+        assert result.content or result.error
 
-    # At least one should have an abstract
-    successful = [r for r in results.values() if r.abstract]
+    # At least one should have content
+    successful = [r for r in results.values() if r.content]
     assert len(successful) >= 1
 
 
@@ -245,8 +244,8 @@ def test_waterfall():
     result = retrieve_doi_info_from_osti(doi)
     assert isinstance(result, SourceRetrievalResult)
     assert result.doi == doi
-    # Should have abstract or error (but not raise exception)
-    assert result.abstract or result.error
+    # Should have content or error (but not raise exception)
+    assert result.content or result.error
 
 
 @integration
@@ -266,7 +265,7 @@ def test_invalid_osti_doi():
     doi = "10.15485/9999999999"
     result = retrieve_doi_info_from_osti(doi)
 
-    assert result.abstract is None
+    assert result.content is None
     assert result.error is not None
 
 
@@ -275,7 +274,7 @@ def test_doi_10_15485_2478895():
     """Test DOI 10.15485/2478895 specifically."""
     result = retrieve_doi_info_from_osti("10.15485/2478895")
     assert isinstance(result, SourceRetrievalResult)
-    assert result.abstract or result.error
+    assert result.content or result.error
 
 
 @integration
@@ -283,7 +282,7 @@ def test_doi_10_15485_1729719():
     """Test DOI 10.15485/1729719 specifically."""
     result = retrieve_doi_info_from_osti("10.15485/1729719")
     assert isinstance(result, SourceRetrievalResult)
-    assert result.abstract or result.error
+    assert result.content or result.error
 
 
 @integration
@@ -291,4 +290,4 @@ def test_doi_10_15485_1603775():
     """Test DOI 10.15485/1603775 specifically."""
     result = retrieve_doi_info_from_osti("10.15485/1603775")
     assert isinstance(result, SourceRetrievalResult)
-    assert result.abstract or result.error
+    assert result.content or result.error

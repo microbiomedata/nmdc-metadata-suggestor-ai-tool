@@ -65,7 +65,13 @@ class SourceRetrievalResult(BaseModel):
     doi: str
     source: str | None = None
     provider: str | None = None
-    content : str | None = None
+    attempts: list[str] = Field(default_factory=list)
+    # doi_ingestion context fields (dataset/repository descriptions)
+    context: str | None = None
+    raw_context: str | None = None
+    context_type: str | None = None
+    # publication abstract fields
+    content: str | None = None
     raw_content: str | None = None
     content_type: str | None = None
     source_errors: dict[str, str] = Field(default_factory=dict)

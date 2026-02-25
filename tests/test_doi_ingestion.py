@@ -39,6 +39,8 @@ from nmdc_metadata_suggestor.constants import (
     KBASE_SEARCH_API,
     KBASE_WORKSPACE_API,
     PROXI_DATASETS_API,
+    PUBMED_ID_CONVERTER,
+    OPENALEX_API_URL,
     ZENODO_API,
 )
 from nmdc_metadata_suggestor.constants import (
@@ -205,6 +207,26 @@ def _add_retriable_http_response(
             responses.add(method, url, status=status)
         else:
             responses.add(method, url, status=status, json=json_payload)
+
+
+def _mock_openalex_miss(doi: str) -> None:
+    """Mock OpenAlex call as a clean 'no abstract' miss."""
+    responses.add(
+        responses.GET,
+        f"{OPENALEX_API_URL}/https://doi.org/{doi}",
+        json={},
+        status=200,
+    )
+
+
+def _mock_pubmed_miss() -> None:
+    """Mock PubMed DOI->PMID converter as a clean 'no record' miss."""
+    responses.add(
+        responses.GET,
+        PUBMED_ID_CONVERTER,
+        json={"records": []},
+        status=200,
+    )
 
 
 def _mock_provider_resolver_hit(source: str, doi: str) -> None:
@@ -1018,15 +1040,27 @@ def test_source_errors_include_upstream_http_codes() -> None:
         status=503,
         json_payload={},
     )
+    _mock_openalex_miss(doi)
+    _mock_pubmed_miss()
 
     result = get_doi_description_or_abstract(doi)
     assert result.context is None
     assert result.error == "No description or abstract found in any source"
-    assert result.attempts == ["zenodo", "datacite", "crossref", "content_negotiation"]
+    print(result.attempts)
+    assert result.attempts == [
+        "zenodo",
+        "datacite",
+        "crossref",
+        "content_negotiation",
+        "openalex",
+        "pubmed",
+    ]
     assert "HTTP 503" in result.source_errors["zenodo"]
     assert "HTTP 502" in result.source_errors["datacite"]
     assert "HTTP 429" in result.source_errors["crossref"]
     assert "HTTP 503" in result.source_errors["content_negotiation"]
+    assert "OpenAlex response contained no abstract_inverted_index" in result.source_errors["openalex"]
+    assert "PubMed ID converter found no PMID for DOI" in result.source_errors["pubmed"]
 
 
 @responses.activate
@@ -1237,12 +1271,21 @@ def test_jgi_live_failure_pattern_returns_clean_no_context() -> None:
         f"{DOI_CONTENT_NEGOTIATION_API}/{doi}",
         json=_json_payload("empty_object"),
     )
+    _mock_openalex_miss(doi)
+    _mock_pubmed_miss()
 
     result = get_doi_description_or_abstract(doi)
     assert result.context is None
     assert result.provider == "jgi"
     assert result.error == "No description or abstract found in any source"
-    assert result.attempts == ["jgi", "datacite", "crossref", "content_negotiation"]
+    assert result.attempts == [
+        "jgi",
+        "datacite",
+        "crossref",
+        "content_negotiation",
+        "openalex",
+        "pubmed",
+    ]
 
 
 @responses.activate
@@ -1282,12 +1325,21 @@ def test_all_sources_miss_returns_clean_error() -> None:
         f"{DOI_CONTENT_NEGOTIATION_API}/{doi}",
         json=_json_payload("empty_object"),
     )
+    _mock_openalex_miss(doi)
+    _mock_pubmed_miss()
 
     result = get_doi_description_or_abstract(doi)
     assert result.context is None
     assert result.error == "No description or abstract found in any source"
     assert result.provider == "kbase"
-    assert result.attempts == ["kbase", "datacite", "crossref", "content_negotiation"]
+    assert result.attempts == [
+        "kbase",
+        "datacite",
+        "crossref",
+        "content_negotiation",
+        "openalex",
+        "pubmed",
+    ]
 
 
 # ---------------------------------------------------------------------------
