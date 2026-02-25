@@ -11,6 +11,8 @@ import argparse
 import json
 import subprocess
 import sys
+import urllib.error
+import urllib.request
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 
@@ -69,15 +71,13 @@ def query_token_usage(project_id, days):
         f"&interval.endTime={now.strftime('%Y-%m-%dT%H:%M:%SZ')}"
     )
 
-    result = subprocess.run(
-        ["curl", "-s", "-H", f"Authorization: Bearer {token}", url],
-        capture_output=True, text=True
-    )
-    if result.returncode != 0:
-        print(f"Error querying monitoring API: {result.stderr}", file=sys.stderr)
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+    try:
+        with urllib.request.urlopen(req) as resp:
+            return json.loads(resp.read().decode())
+    except urllib.error.URLError as exc:
+        print(f"Error querying monitoring API: {exc}", file=sys.stderr)
         sys.exit(1)
-
-    return json.loads(result.stdout)
 
 
 def aggregate(data):
