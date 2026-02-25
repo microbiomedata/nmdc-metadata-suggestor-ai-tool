@@ -15,6 +15,8 @@ from nmdc_metadata_suggestor.constants import (
 from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     normalize_doi,
     classify_doi,
+    infer_provider_from_text,
+    infer_provider_from_doi,
 )
 from nmdc_metadata_suggestor.doi_ingestion.content_negotiation import (
     try_content_negotiation_context,
@@ -33,34 +35,9 @@ from nmdc_metadata_suggestor.models.resolver_context import ResolverContext
 from nmdc_metadata_suggestor.doi_ingestion.zenodo import try_zenodo
 from nmdc_metadata_suggestor.doi_ingestion.openalex import try_openalex
 from nmdc_metadata_suggestor.doi_ingestion.pubmed import try_pubmed
+from nmdc_metadata_suggestor.doi_ingestion.osti import try_osti
 
 from nmdc_metadata_suggestor.models.doi import DoiClassification, SourceRetrievalResult
-
-TARGET_PROVIDER_PREFIXES: dict[str, str] = {
-    "10.6073": "edi",
-    "10.46936": "emsl",
-    "10.15485": "ess-dive",
-    "10.21952": "ess-dive",
-    "10.6084": "figshare",
-    "10.25585": "jgi",
-    "10.25982": "kbase",
-    "10.25345": "massive",
-    "10.17504": "cyverse",
-    "10.5281": "zenodo",
-}
-
-TARGET_PROVIDER_KEYWORDS: dict[str, str] = {
-    "environmental data initiative": "edi",
-    "emsl": "emsl",
-    "ess-dive": "ess-dive",
-    "figshare": "figshare",
-    "genomic standards consortium": "gsc",
-    "jgi": "jgi",
-    "kbase": "kbase",
-    "massive": "massive",
-    "zenodo": "zenodo",
-    "cyverse": "cyverse",
-}
 
 SourceErrors = dict[str, str]
 Fetcher = Callable[[str, str | None, list[str], SourceErrors], SourceRetrievalResult | None]
@@ -87,9 +64,9 @@ def get_doi_description_or_abstract(
     if not DOI_PATTERN.match(doi):
         return SourceRetrievalResult(doi=doi, error="Invalid DOI: Malformed DOI syntax")
 
-    provider = _infer_provider_from_doi(doi)
+    provider = infer_provider_from_doi(doi)
     if sources is None:
-        sources = _default_source_order(provider)
+        sources = default_source_order(provider)
 
     if not skip_classification:
         classification = classify_doi(doi)
@@ -175,29 +152,11 @@ def _check_classification_gate(c: DoiClassification) -> str | None:
     return None
 
 
-
-def _default_source_order(provider: str | None) -> list[str]:
+def default_source_order(provider: str | None) -> list[str]:
     """Return the default source order for a provider-aware lookup."""
     if provider in _PROVIDER_API_SOURCES:
-        return [provider, "datacite", "crossref", "content_negotiation"]
-    return ["datacite", "crossref", "content_negotiation"]
-
-
-def _infer_provider_from_doi(doi: str) -> str | None:
-    """Infer a provider key from DOI prefix mapping."""
-    prefix = doi.split("/", 1)[0] if "/" in doi else ""
-    return TARGET_PROVIDER_PREFIXES.get(prefix)
-
-
-def _infer_provider_from_text(text: str | None) -> str | None:
-    """Infer provider from publisher/source text keywords."""
-    if not text:
-        return None
-    lowered = text.lower()
-    for key, provider in TARGET_PROVIDER_KEYWORDS.items():
-        if key in lowered:
-            return provider
-    return None
+        return [provider, "datacite", "crossref", "content_negotiation", "openalex", "pubmed"]
+    return ["datacite", "crossref", "content_negotiation", "openalex", "pubmed"]
 
 
 def _build_result(
@@ -332,7 +291,7 @@ def _fetch_datacite(
         _record_source_error(source_errors, "datacite", errors)
         return None
 
-    inferred_provider = provider or _infer_provider_from_text(context.source)
+    inferred_provider = provider or infer_provider_from_text(context.source)
     return _build_result(
         doi, inferred_provider, "datacite", attempts, source_errors,
         context.text, context.raw_text, context.kind
@@ -349,7 +308,7 @@ def _fetch_crossref(
         _record_source_error(source_errors, "crossref", errors)
         return None
 
-    inferred_provider = provider or _infer_provider_from_text(context.source)
+    inferred_provider = provider or infer_provider_from_text(context.source)
     return _build_result(
         doi, inferred_provider, "crossref", attempts, source_errors,
         context.text, context.raw_text, context.kind
@@ -381,6 +340,12 @@ def _fetch_pubmed(
     """Fetch and wrap context from PubMed via NCBI APIs."""
     return _fetch_resolver_context(doi, provider, "pubmed", attempts, source_errors, try_pubmed)
 
+def _fetch_osti(
+    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
+) -> SourceRetrievalResult | None:
+    """Fetch and wrap context from OSTI API."""
+    return try_osti(doi)
+
 _SOURCE_FETCHERS: dict[str, Fetcher] = {
     "edi": _fetch_edi,
     "emsl": _fetch_emsl,
@@ -397,6 +362,7 @@ _SOURCE_FETCHERS: dict[str, Fetcher] = {
     "openalex": _fetch_openalex,
     "crossref": _fetch_crossref,
     "pubmed": _fetch_pubmed,
+    "osti": _fetch_osti,
     "content_negotiation": _fetch_content_negotiation,
 }
 
@@ -410,6 +376,7 @@ _PROVIDER_API_SOURCES = {
     "massive",
     "cyverse",
     "zenodo",
+    "osti",
 }
 
 

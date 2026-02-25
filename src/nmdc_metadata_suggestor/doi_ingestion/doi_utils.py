@@ -564,3 +564,45 @@ def decode_inverted_abstract(inverted_index: dict[str, list[int]]) -> str:
         return ""
     max_pos = max(words)
     return " ".join(words.get(i, "") for i in range(max_pos + 1))
+
+
+def infer_provider_from_doi(doi: str) -> str | None:
+    """Infer a provider key from DOI prefix mapping."""
+    TARGET_PROVIDER_PREFIXES: dict[str, str] = {
+        "10.6073": "edi",
+        "10.46936": "emsl",
+        "10.15485": "ess-dive",
+        "10.21952": "ess-dive",
+        "10.6084": "figshare",
+        "10.25585": "jgi",
+        "10.25982": "kbase",
+        "10.25345": "massive",
+        "10.17504": "cyverse",
+        "10.5281": "zenodo",
+    }
+
+    prefix = doi.split("/", 1)[0] if "/" in doi else ""
+    return TARGET_PROVIDER_PREFIXES.get(prefix)
+
+
+def infer_provider_from_text(text: str | None) -> str | None:
+    """Infer provider from publisher/source text keywords."""
+    TARGET_PROVIDER_KEYWORDS: dict[str, str] = {
+        "environmental data initiative": "edi",
+        "emsl": "emsl",
+        "ess-dive": "ess-dive",
+        "figshare": "figshare",
+        "genomic standards consortium": "gsc",
+        "jgi": "jgi",
+        "kbase": "kbase",
+        "massive": "massive",
+        "zenodo": "zenodo",
+        "cyverse": "cyverse",
+    }
+    if not text:
+        return None
+    lowered = text.lower()
+    for key, provider in TARGET_PROVIDER_KEYWORDS.items():
+        if key in lowered:
+            return provider
+    return None

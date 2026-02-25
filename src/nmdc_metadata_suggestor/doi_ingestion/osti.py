@@ -22,43 +22,7 @@ from nmdc_metadata_suggestor.publication_ingestion.retreive_pdf_link import (
 )
 
 
-def query_osti_by_doi(osti_doi: str) -> dict:
-    """
-    Query OSTI API for a given DOI and return the JSON response.
-    First queries the new E2 API, and if that fails, falls back to the original API.
-    """
-    params = {
-        "doi": osti_doi,
-    }
-    headers = {"User-Agent": USER_AGENT}
-    try:
-        osti_url = f"{OSTI_E2_API_URL}"
-        response = request_with_retry(
-            "GET",
-            osti_url,
-            timeout=DEFAULT_TIMEOUT,
-            headers=headers,
-            params=params,
-        )
-        response.raise_for_status()
-        return response.json()  # type: ignore
-
-    except requests.RequestException:
-        # Fallback to the original API if the E2 API fails
-        osti_url = f"{OSTI_API_URL}"
-
-        response = request_with_retry(
-            "GET",
-            osti_url,
-            timeout=DEFAULT_TIMEOUT,
-            headers=headers,
-            params=params,
-        )
-        response.raise_for_status()
-        return response.json()  # type: ignore
-
-
-def retrieve_doi_info_from_osti(doi: str) -> SourceRetrievalResult:
+def try_osti(doi: str) -> SourceRetrievalResult:
     """
     Retrieve abstract from OSTI API using a DOI.
 
@@ -98,6 +62,41 @@ def retrieve_doi_info_from_osti(doi: str) -> SourceRetrievalResult:
             )
     except Exception as e:
         return SourceRetrievalResult(doi=doi, error=str(e))
+
+def query_osti_by_doi(osti_doi: str) -> dict:
+    """
+    Query OSTI API for a given DOI and return the JSON response.
+    First queries the new E2 API, and if that fails, falls back to the original API.
+    """
+    params = {
+        "doi": osti_doi,
+    }
+    headers = {"User-Agent": USER_AGENT}
+    try:
+        osti_url = f"{OSTI_E2_API_URL}"
+        response = request_with_retry(
+            "GET",
+            osti_url,
+            timeout=DEFAULT_TIMEOUT,
+            headers=headers,
+            params=params,
+        )
+        response.raise_for_status()
+        return response.json()  # type: ignore
+
+    except requests.RequestException:
+        # Fallback to the original API if the E2 API fails
+        osti_url = f"{OSTI_API_URL}"
+
+        response = request_with_retry(
+            "GET",
+            osti_url,
+            timeout=DEFAULT_TIMEOUT,
+            headers=headers,
+            params=params,
+        )
+        response.raise_for_status()
+        return response.json()  # type: ignore
 
 
 def retrieve_pdf_link_from_osti_doi(doi: str) -> Publication:
