@@ -71,7 +71,7 @@ NON_PUBLICATION_CROSSREF_TYPES = {"component"}
 
 
 def get_doi_description_or_abstract(
-    doi: str, sources: list[str] | None = None, skip_classification: bool = False
+    doi: str, sources: list[str] | None = None, skip_classification: bool = True
 ) -> SourceRetrievalResult:
     """
     Fetch abstract/description text for a DOI using a source waterfall.
