@@ -62,6 +62,7 @@ def try_osti(doi: str) -> SourceRetrievalResult:
     except Exception as e:
         return SourceRetrievalResult(doi=doi, error=str(e))
 
+
 def query_osti_by_doi(osti_doi: str) -> dict:
     """
     Query OSTI API for a given DOI and return the JSON response.

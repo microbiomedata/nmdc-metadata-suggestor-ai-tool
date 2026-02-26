@@ -24,6 +24,8 @@ from nmdc_metadata_suggestor.constants import (
     DOI_PATTERN,
     DOI_RA_API,
     HANDLE_RESPONSE_SUCCESS,
+    TARGET_PROVIDER_KEYWORDS,
+    TARGET_PROVIDER_PREFIXES,
     USER_AGENT,
 )
 from nmdc_metadata_suggestor.models.doi import (
@@ -534,6 +536,7 @@ def _classify_datacite(doi: str, prefix: str | None, ra: str) -> DoiClassificati
             error=f"DataCite API error: {e}",
         )
 
+
 def decode_inverted_abstract(inverted_index: dict[str, list[int]]) -> str:
     """Reconstruct plain text from an OpenAlex inverted abstract index.
 
@@ -568,18 +571,6 @@ def decode_inverted_abstract(inverted_index: dict[str, list[int]]) -> str:
 
 def infer_provider_from_doi(doi: str) -> str | None:
     """Infer a provider key from DOI prefix mapping."""
-    TARGET_PROVIDER_PREFIXES: dict[str, str] = {
-        "10.6073": "edi",
-        "10.46936": "emsl",
-        "10.15485": "ess-dive",
-        "10.21952": "ess-dive",
-        "10.6084": "figshare",
-        "10.25585": "jgi",
-        "10.25982": "kbase",
-        "10.25345": "massive",
-        "10.17504": "cyverse",
-        "10.5281": "zenodo",
-    }
 
     prefix = doi.split("/", 1)[0] if "/" in doi else ""
     return TARGET_PROVIDER_PREFIXES.get(prefix)
@@ -587,18 +578,6 @@ def infer_provider_from_doi(doi: str) -> str | None:
 
 def infer_provider_from_text(text: str | None) -> str | None:
     """Infer provider from publisher/source text keywords."""
-    TARGET_PROVIDER_KEYWORDS: dict[str, str] = {
-        "environmental data initiative": "edi",
-        "emsl": "emsl",
-        "ess-dive": "ess-dive",
-        "figshare": "figshare",
-        "genomic standards consortium": "gsc",
-        "jgi": "jgi",
-        "kbase": "kbase",
-        "massive": "massive",
-        "zenodo": "zenodo",
-        "cyverse": "cyverse",
-    }
     if not text:
         return None
     lowered = text.lower()

@@ -7,19 +7,18 @@ waterfall (DataCite, Crossref, content negotiation).
 from collections.abc import Callable
 
 from nmdc_metadata_suggestor.constants import DOI_PATTERN
-
-from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
-    normalize_doi,
-    classify_doi,
-    infer_provider_from_text,
-    infer_provider_from_doi,
-)
 from nmdc_metadata_suggestor.doi_ingestion.content_negotiation import (
     try_content_negotiation_context,
 )
 from nmdc_metadata_suggestor.doi_ingestion.crossref import try_crossref_context
-from nmdc_metadata_suggestor.doi_ingestion.datacite import try_datacite
 from nmdc_metadata_suggestor.doi_ingestion.cyverse import try_cyverse
+from nmdc_metadata_suggestor.doi_ingestion.datacite import try_datacite
+from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
+    classify_doi,
+    infer_provider_from_doi,
+    infer_provider_from_text,
+    normalize_doi,
+)
 from nmdc_metadata_suggestor.doi_ingestion.edi import try_edi
 from nmdc_metadata_suggestor.doi_ingestion.emsl import try_emsl
 from nmdc_metadata_suggestor.doi_ingestion.ess_dive import try_ess_dive
@@ -27,17 +26,48 @@ from nmdc_metadata_suggestor.doi_ingestion.figshare import try_figshare
 from nmdc_metadata_suggestor.doi_ingestion.jgi import try_jgi
 from nmdc_metadata_suggestor.doi_ingestion.kbase import try_kbase
 from nmdc_metadata_suggestor.doi_ingestion.massive import try_massive
-from nmdc_metadata_suggestor.models.resolver_context import ResolverContext
-from nmdc_metadata_suggestor.doi_ingestion.zenodo import try_zenodo
 from nmdc_metadata_suggestor.doi_ingestion.openalex import try_openalex
-from nmdc_metadata_suggestor.doi_ingestion.pubmed import try_pubmed
 from nmdc_metadata_suggestor.doi_ingestion.osti import try_osti
-
+from nmdc_metadata_suggestor.doi_ingestion.pubmed import try_pubmed
+from nmdc_metadata_suggestor.doi_ingestion.zenodo import try_zenodo
 from nmdc_metadata_suggestor.models.doi import DoiClassification, SourceRetrievalResult
+from nmdc_metadata_suggestor.models.resolver_context import ResolverContext
 
 SourceErrors = dict[str, str]
 Fetcher = Callable[[str, str | None, list[str], SourceErrors], SourceRetrievalResult | None]
 Resolver = Callable[[str, list[str] | None], ResolverContext | None]
+
+PUBLICATION_API_SOURCES = (
+    "datacite",
+    "crossref",
+    "content_negotiation",
+    "openalex",
+    "pubmed",
+    "osti",
+)
+DATA_DOI_BASE_SOURCES = (
+    "datacite",
+    "crossref",
+    "content_negotiation",
+    "openalex",
+    "pubmed",
+)
+NON_PUBLICATION_RESOURCE_TYPE_GENERAL = {
+    "Software",
+    "Workflow",
+    "ComputationalNotebook",
+    "Collection",
+    "Image",
+    "Audiovisual",
+    "Sound",
+    "Model",
+    "Service",
+    "Event",
+    "InteractiveResource",
+    "Instrument",
+    "PhysicalObject",
+}
+NON_PUBLICATION_CROSSREF_TYPES = {"component"}
 
 
 def get_doi_description_or_abstract(
@@ -60,23 +90,30 @@ def get_doi_description_or_abstract(
 
     if not DOI_PATTERN.match(doi):
         return SourceRetrievalResult(doi=doi, error="Invalid DOI: Malformed DOI syntax")
-    
+
     # check if we can infer the provider from the DOI prefix
     provider = infer_provider_from_doi(doi)
-    
-    # use the provider-aware default source order if we have a provider hint, otherwise use the generic default order
-    if sources is None:
-        sources = default_source_order(provider)
 
+    classification: DoiClassification | None = None
     if not skip_classification:
         classification = classify_doi(doi)
+        if not classification.is_valid:
+            return SourceRetrievalResult(
+                doi=doi,
+                error=f"Invalid DOI: {classification.error or 'validation failed'}",
+            )
         refusal = _check_classification_gate(classification)
         if refusal:
             return SourceRetrievalResult(doi=doi, error=refusal)
 
+    # choose waterfall based on DOI type (publication vs data DOI)
+    if sources is None:
+        sources = default_source_order(provider, classification)
+
     source_errors: SourceErrors = {}
     attempts: list[str] = []
-    # loop through sources in order and return the first successful result, recording errors for observability
+    # loop through sources in order
+    # return the first successful result, recording errors for observability
     for source in sources:
         fetcher = _SOURCE_FETCHERS.get(source)
         if fetcher is None:
@@ -85,7 +122,8 @@ def get_doi_description_or_abstract(
         result = fetcher(doi, provider, attempts, source_errors)
         if result is not None:
             return result
-    # if we got here, no sources returned a result. Return an error with details of all source failures for observability.
+    # if we got here, no sources returned a result.
+    # Return an error with details of all source failures for observability.
     return SourceRetrievalResult(
         doi=doi,
         provider=provider,
@@ -95,69 +133,75 @@ def get_doi_description_or_abstract(
     )
 
 
+def _classification_is_publication(classification: DoiClassification | None) -> bool | None:
+    """Return publication/data signal from classification, or None when inconclusive."""
+    if classification is None:
+        return None
+
+    if classification.inferred_nmdc_category == "publication_doi":
+        return True
+
+    if classification.inferred_nmdc_category in {
+        "dataset_doi",
+        "award_doi",
+        "data_management_plan_doi",
+    }:
+        return False
+
+    if classification.resource_type_general in NON_PUBLICATION_RESOURCE_TYPE_GENERAL:
+        return False
+
+    if classification.resource_type in NON_PUBLICATION_CROSSREF_TYPES:
+        return False
+
+    return None
+
+
 def _check_classification_gate(c: DoiClassification) -> str | None:
-    """Check all classification axes and return a refusal reason, or None to proceed.
-
-    Checks in order:
-    1. Is the DOI valid?
-    2. NMDC category — refuse dataset_doi, award_doi, data_management_plan_doi
-    3. DataCite resourceTypeGeneral — refuse Software, Collection, Image, etc.
-    4. Crossref resource type — refuse component (figure/table within a work)
-
-    Returns:
-        Human-readable refusal string, or None if the DOI should proceed.
-    """
-    # DataCite resourceTypeGeneral values that are clearly not publications.
-    # These are unmapped in doi_utils (inferred_nmdc_category returns None),
-    # but we can still refuse them in the abstract retrieval gate.
-    # Source: DataCite Metadata Schema 4.6
-    datacite_non_publication_types = [
-        "Software",
-        "Workflow",
-        "ComputationalNotebook",
-        "Collection",
-        "Image",
-        "Audiovisual",
-        "Sound",
-        "Model",
-        "Service",
-        "Event",
-        "InteractiveResource",
-        "Instrument",
-        "PhysicalObject",
-    ]
-    # Crossref work types that are clearly not publications.
-    # "component" is a figure/table/supplement within a larger work.
-    crossref_non_publication_types = ["component"]
-    if not c.is_valid:
-        return f"Invalid DOI: {c.error or 'validation failed'}"
-
-    # Check NMDC category (most specific signal)
+    """Refuse non-publication DOIs for publication abstract retrieval flow."""
     if c.inferred_nmdc_category and c.inferred_nmdc_category != "publication_doi":
         return (
             f"DOI is a {c.inferred_nmdc_category}, not a publication. "
             "Abstract retrieval is only supported for publication DOIs."
         )
 
-    # Check DataCite resourceTypeGeneral (catches unmapped non-publications)
-    if c.resource_type_general and c.resource_type_general in datacite_non_publication_types:
+    if c.resource_type_general and c.resource_type_general in NON_PUBLICATION_RESOURCE_TYPE_GENERAL:
         return (
             f"DOI has DataCite resourceTypeGeneral={c.resource_type_general!r}, "
             "which is not a publication type."
         )
 
-    # Check Crossref type (catches unmapped non-publications)
-    if c.resource_type and c.resource_type in crossref_non_publication_types:
+    if c.resource_type and c.resource_type in NON_PUBLICATION_CROSSREF_TYPES:
         return f"DOI has Crossref type={c.resource_type!r}, which is not a publication type."
 
     return None
 
 
-def default_source_order(provider: str | None) -> list[str]:
-    """Return the default source order for a provider-aware lookup."""
+def default_source_order(
+    provider: str | None,
+    classification: DoiClassification | None = None,
+) -> list[str]:
+    """Return default source order based on DOI type and provider signal."""
+    is_publication = _classification_is_publication(classification)
+
+    if is_publication is True:
+        if provider in _PROVIDER_API_SOURCES and provider not in PUBLICATION_API_SOURCES:
+            return list(dict.fromkeys([provider, *PUBLICATION_API_SOURCES]))
+        return list(PUBLICATION_API_SOURCES)
+
+    if is_publication is False:
+        sources: list[str] = []
+        if provider in _PROVIDER_API_SOURCES:
+            sources.append(provider)
+        sources.extend(DATA_DOI_BASE_SOURCES)
+        return list(dict.fromkeys(sources))
+
     if provider in _PROVIDER_API_SOURCES:
-        return [provider, "datacite", "crossref", "content_negotiation", "openalex", "pubmed"]
-    return ["datacite", "crossref", "content_negotiation", "openalex", "pubmed"]
+        if provider in PUBLICATION_API_SOURCES:
+            return list(dict.fromkeys([provider, *PUBLICATION_API_SOURCES, *DATA_DOI_BASE_SOURCES]))
+        return list(dict.fromkeys([provider, *DATA_DOI_BASE_SOURCES]))
+
+    return list(PUBLICATION_API_SOURCES)
 
 
 def _record_source_error(
@@ -318,11 +362,13 @@ def _fetch_content_negotiation(
         try_content_negotiation_context,
     )
 
+
 def _fetch_openalex(
     doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
 ) -> SourceRetrievalResult | None:
     """Fetch and wrap context from OpenAlex metadata."""
     return _fetch_resolver_context(doi, provider, "openalex", attempts, source_errors, try_openalex)
+
 
 def _fetch_pubmed(
     doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
@@ -335,6 +381,7 @@ def _fetch_pubmed(
         return None
     return result.model_copy(update={"attempts": attempts, "source_errors": source_errors})
 
+
 def _fetch_osti(
     doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
 ) -> SourceRetrievalResult | None:
@@ -345,6 +392,7 @@ def _fetch_osti(
             source_errors["osti"] = result.error
         return None
     return result.model_copy(update={"attempts": attempts, "source_errors": source_errors})
+
 
 _SOURCE_FETCHERS: dict[str, Fetcher] = {
     "edi": _fetch_edi,
@@ -360,10 +408,8 @@ _SOURCE_FETCHERS: dict[str, Fetcher] = {
     "crossref": _fetch_crossref,
     "content_negotiation": _fetch_content_negotiation,
     "openalex": _fetch_openalex,
-    "crossref": _fetch_crossref,
     "pubmed": _fetch_pubmed,
     "osti": _fetch_osti,
-    "content_negotiation": _fetch_content_negotiation,
 }
 
 _PROVIDER_API_SOURCES = {
@@ -378,5 +424,3 @@ _PROVIDER_API_SOURCES = {
     "zenodo",
     "osti",
 }
-
-

@@ -1,11 +1,11 @@
 import requests
+
 from nmdc_metadata_suggestor.constants import (
+    DEFAULT_TIMEOUT,
     PUBMED_EFETCH,
     PUBMED_ID_CONVERTER,
-    DEFAULT_TIMEOUT,
     USER_AGENT,
 )
-
 from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     request_with_retry,
 )

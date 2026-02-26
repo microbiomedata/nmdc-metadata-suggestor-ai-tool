@@ -11,9 +11,7 @@ from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
 from nmdc_metadata_suggestor.models.resolver_context import ResolverContext
 
 
-def try_crossref_context(
-    doi: str, errors: list[str] | None = None
-) -> ResolverContext | None:
+def try_crossref_context(doi: str, errors: list[str] | None = None) -> ResolverContext | None:
     """Return Crossref abstract context and publisher metadata for DOI ingestion."""
     try:
         response = request_with_retry(

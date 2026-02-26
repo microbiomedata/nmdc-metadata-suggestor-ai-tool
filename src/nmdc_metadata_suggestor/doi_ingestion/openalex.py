@@ -1,13 +1,15 @@
-import requests
 import json
+
+import requests
+
 from nmdc_metadata_suggestor.constants import (
-    OPENALEX_API_URL,
     DEFAULT_TIMEOUT,
+    OPENALEX_API_URL,
     USER_AGENT,
 )
-
 from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
-    request_with_retry, decode_inverted_abstract
+    decode_inverted_abstract,
+    request_with_retry,
 )
 from nmdc_metadata_suggestor.models.resolver_context import ResolverContext
 

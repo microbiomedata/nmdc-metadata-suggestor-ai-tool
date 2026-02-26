@@ -575,9 +575,7 @@ class TestSourceSelection:
 def test_get_abstract_real_aslo_doi() -> None:
     """10.4319 — ASLO (limnology/oceanography) journal article."""
     result = get_doi_description_or_abstract("10.4319/lom.2008.6.230")
-    assert (
-        result.content is not None
-    ), f"No content found: {result.error}"
+    assert result.content is not None, f"No content found: {result.error}"
     assert len(result.content) > 50
     assert result.source is not None
     assert result.raw_content is not None
@@ -588,9 +586,7 @@ def test_get_abstract_real_aslo_doi() -> None:
 def test_get_abstract_real_nature_doi() -> None:
     """10.1038 — Nature journal article."""
     result = get_doi_description_or_abstract("10.1038/s41564-020-00861-0")
-    assert (
-        result.content is not None
-    ), f"No content found: {result.error}"
+    assert result.content is not None, f"No content found: {result.error}"
     assert len(result.content) > 100
     assert result.raw_content is not None
     assert result.content_type is not None
@@ -600,9 +596,7 @@ def test_get_abstract_real_nature_doi() -> None:
 def test_get_abstract_real_frontiers_doi() -> None:
     """10.3389 — Frontiers journal article."""
     result = get_doi_description_or_abstract("10.3389/fsoil.2023.1120425")
-    assert (
-        result.content is not None
-    ), f"No content found: {result.error}"
+    assert result.content is not None, f"No content found: {result.error}"
     assert len(result.content) > 100
     assert result.source in ("openalex", "crossref", "datacite")
     assert result.raw_content is not None

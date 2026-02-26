@@ -38,9 +38,9 @@ from nmdc_metadata_suggestor.constants import (
     JGI_SEARCH_API,
     KBASE_SEARCH_API,
     KBASE_WORKSPACE_API,
+    OPENALEX_API_URL,
     PROXI_DATASETS_API,
     PUBMED_ID_CONVERTER,
-    OPENALEX_API_URL,
     ZENODO_API,
 )
 from nmdc_metadata_suggestor.constants import (
@@ -1059,7 +1059,9 @@ def test_source_errors_include_upstream_http_codes() -> None:
     assert "HTTP 502" in result.source_errors["datacite"]
     assert "HTTP 429" in result.source_errors["crossref"]
     assert "HTTP 503" in result.source_errors["content_negotiation"]
-    assert "OpenAlex response contained no abstract_inverted_index" in result.source_errors["openalex"]
+    assert (
+        "OpenAlex response contained no abstract_inverted_index" in result.source_errors["openalex"]
+    )
     assert "PubMed ID converter found no PMID for DOI" in result.source_errors["pubmed"]
 
 
