@@ -386,6 +386,10 @@ def _fetch_osti(
     doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
 ) -> SourceRetrievalResult | None:
     """Fetch and wrap context from OSTI API."""
+    if not doi.startswith(
+        "10.15485/"
+    ):  # OSTI DOIs start with this prefix #TODO - this is a temp fix!
+        return None
     result = try_osti(doi)
     if result is None or result.context is None:
         if result and result.error:
