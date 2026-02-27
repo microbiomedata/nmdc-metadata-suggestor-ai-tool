@@ -1046,7 +1046,7 @@ def test_source_errors_include_upstream_http_codes() -> None:
     result = get_doi_description_or_abstract(doi)
     assert result.context is None
     assert result.error == "No description or abstract found in any source"
-    print(result.attempts)
+
     assert result.attempts == [
         "zenodo",
         "datacite",

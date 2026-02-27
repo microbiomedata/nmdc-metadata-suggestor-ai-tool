@@ -8,6 +8,7 @@ from nmdc_metadata_suggestor.constants import (
     USER_AGENT,
 )
 from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
+    append_error,
     decode_inverted_abstract,
     request_with_retry,
 )
@@ -31,18 +32,15 @@ def try_openalex(doi: str, errors: list[str] | None = None) -> ResolverContext |
             timeout=DEFAULT_TIMEOUT,
         )
         if response.status_code != 200:
-            if errors is not None:
-                errors.append(f"OpenAlex API returned HTTP {response.status_code}")
+            append_error(errors, f"OpenAlex API returned HTTP {response.status_code}")
             return None
         data = response.json()
         inverted = data.get("abstract_inverted_index")
         if inverted:
             raw = json.dumps(inverted, ensure_ascii=False)
             return ResolverContext(decode_inverted_abstract(inverted), raw, "inverted_index")
-        if errors is not None:
-            errors.append("OpenAlex response contained no abstract_inverted_index")
+        append_error(errors, "OpenAlex response contained no abstract_inverted_index")
         return None
     except (requests.RequestException, ValueError) as exc:
-        if errors is not None:
-            errors.append(f"OpenAlex API request failed: {exc.__class__.__name__}")
+        append_error(errors, f"OpenAlex API request failed: {exc.__class__.__name__}")
         return None

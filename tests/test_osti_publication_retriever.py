@@ -268,7 +268,7 @@ def test_invalid_osti_doi():
     doi = "10.15485/9999999999"
     result = retrieve_doi_info_from_osti(doi)
 
-    assert result.content is None
+    assert result.context is None
     assert result.error is not None
 
 
