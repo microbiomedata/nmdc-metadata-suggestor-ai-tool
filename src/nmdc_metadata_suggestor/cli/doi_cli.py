@@ -19,7 +19,7 @@ from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     normalize_doi,
     validate_doi,
 )
-from nmdc_metadata_suggestor.publication_ingestion.abstract_retriever import get_abstract
+from nmdc_metadata_suggestor.doi_ingestion.main import get_doi_description_or_abstract
 
 
 def _print_json(obj: object) -> None:
@@ -72,7 +72,7 @@ def cmd_get_abstract(
     order). Otherwise the default waterfall is used.
     """
     doi = normalize_doi(raw_doi)
-    result = get_abstract(doi, sources=sources)
+    result = get_doi_description_or_abstract(doi, sources=sources)
     dump = result.model_dump()
 
     if result.error:
@@ -114,7 +114,7 @@ def cmd_get_abstracts(out_dir: str = "abstracts") -> None:
             print(f"  SKIP (not publication)  {doi}", file=sys.stderr)
             continue
 
-        result = get_abstract(doi)
+        result = get_doi_description_or_abstract(doi)
         dump = result.model_dump()
 
         slug = doi.replace("/", "__")
