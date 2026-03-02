@@ -13,6 +13,7 @@ from nmdc_metadata_suggestor.constants import (
     DATACITE_API_URL,
     DOI_RA_API,
     OPENALEX_API_URL,
+    OSTI_E2_API_URL,
     PUBMED_EFETCH,
     PUBMED_ID_CONVERTER,
 )
@@ -204,6 +205,23 @@ class TestGetAbstractClassificationGate:
 
 class TestGetAbstractWaterfall:
     """Test waterfall ordering — each test mocks classification + sources."""
+
+    @responses.activate
+    def test_osti_hit(self) -> None:
+        """OSTI source returns description for an OSTI DOI."""
+        doi = "10.15485/1729719"
+        _mock_classify_as_publication(doi)
+        responses.add(
+            responses.GET,
+            OSTI_E2_API_URL,
+            json=[{"doi": doi, "description": "OSTI abstract text."}],
+        )
+
+        result = get_doi_description_or_abstract(doi, sources=["osti"])
+        assert result.context == "OSTI abstract text."
+        assert result.raw_context == "OSTI abstract text."
+        assert result.source == "osti"
+        assert result.attempts == ["osti"]
 
     @responses.activate
     def test_openalex_hit(self) -> None:

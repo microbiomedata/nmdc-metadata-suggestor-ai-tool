@@ -238,7 +238,7 @@ def _fetch_resolver_context(
         source=result_source,
         attempts=attempts,
         source_errors=source_errors,
-        errors="Source errors occured. Check source_errors field for details." if source_errors else None,
+        errors="Source errors occurred. Check source_errors field for details." if source_errors else None,
     )
 
 
@@ -388,16 +388,7 @@ def _fetch_osti(
     doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
 ) -> SourceRetrievalResult | None:
     """Fetch and wrap context from OSTI API."""
-    if not doi.startswith(
-        "10.15485/"
-    ):  # OSTI DOIs start with this prefix #TODO - this is a temp fix!
-        return None
-    result = try_osti(doi)
-    if result is None or result.context is None:
-        if result and result.error:
-            source_errors["osti"] = result.error
-        return None
-    return result.model_copy(update={"attempts": attempts, "source_errors": source_errors})
+    return _fetch_resolver_context(doi, provider, "osti", attempts, source_errors, try_osti)
 
 
 _SOURCE_FETCHERS: dict[str, Fetcher] = {

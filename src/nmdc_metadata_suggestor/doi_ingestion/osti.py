@@ -13,54 +13,42 @@ from nmdc_metadata_suggestor.constants import (
     OSTI_E2_API_URL,
     USER_AGENT,
 )
-from nmdc_metadata_suggestor.doi_ingestion.doi_utils import request_with_retry
-from nmdc_metadata_suggestor.models.doi import SourceRetrievalResult
+from nmdc_metadata_suggestor.doi_ingestion.doi_utils import append_error, clean_text, request_with_retry
 from nmdc_metadata_suggestor.models.publication import Publication
+from nmdc_metadata_suggestor.models.resolver_context import ResolverContext
 from nmdc_metadata_suggestor.publication_ingestion.retreive_pdf_link import (
     retrieve_pdf_link_from_crossref,
     retrieve_pdf_link_from_pmc,
 )
 
 
-def try_osti(doi: str) -> SourceRetrievalResult:
-    """
-    Retrieve abstract from OSTI API using a DOI.
-
-    Args:
-        doi: Digital Object Identifier (e.g., "10.15485/1729719")
-
-    Returns:
-        SourceRetrievalResult containing the abstract/description from OSTI.
-        If an error occurs, returns SourceRetrievalResult with error field populated.
-    """
+def try_osti(doi: str, errors: list[str] | None = None) -> ResolverContext | None:
+    """Return abstract/description context from OSTI if available."""
     try:
         data = query_osti_by_doi(osti_doi=doi)
-        # check results
-        if not data or len(data) == 0:
-            return SourceRetrievalResult(
-                doi=doi,
-                error=f"No publication found in OSTI for DOI: {doi}",
-            )
+    except requests.RequestException as exc:
+        append_error(errors, f"OSTI API request failed: {exc.__class__.__name__}")
+        return None
+    except ValueError:
+        append_error(errors, "OSTI API returned invalid JSON")
+        return None
 
-        # get the record
-        record = data[0] if isinstance(data, list) else data
-        abstract = record.get("description")
+    if not data or len(data) == 0:
+        append_error(errors, f"No publication found in OSTI for DOI: {doi}")
+        return None
 
-        if abstract:
-            return SourceRetrievalResult(
-                doi=doi,
-                context=abstract,
-                raw_context=abstract,
-                source="osti",
-                context_type="plain_text",
-            )
-        else:
-            return SourceRetrievalResult(
-                doi=doi,
-                error="No abstract/description found in OSTI record",
-            )
-    except Exception as e:
-        return SourceRetrievalResult(doi=doi, error=str(e))
+    record = data[0] if isinstance(data, list) else data
+    abstract = record.get("description")
+    if not isinstance(abstract, str):
+        append_error(errors, "No abstract/description found in OSTI record")
+        return None
+
+    cleaned = clean_text(abstract)
+    if not cleaned:
+        append_error(errors, "No abstract/description found in OSTI record")
+        return None
+
+    return ResolverContext(text=cleaned, raw_text=abstract, kind="description", source="osti")
 
 
 def query_osti_by_doi(osti_doi: str) -> dict:
