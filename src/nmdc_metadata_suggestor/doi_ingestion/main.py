@@ -226,8 +226,8 @@ def _fetch_resolver_context(
     context = resolver(doi, errors)
     if len(errors) > 0:
         _record_source_error(source_errors, source, errors)
-        if context is None or context.text is None:
-            return None
+    if context is None:
+        return None
     result_source = context.source or source
     return SourceRetrievalResult(
         doi=doi,
@@ -238,7 +238,11 @@ def _fetch_resolver_context(
         source=result_source,
         attempts=attempts,
         source_errors=source_errors,
-        errors="Source errors occurred. Check source_errors field for details." if source_errors else None,
+        error=(
+            "Source errors occurred. Check source_errors field for details."
+            if source_errors
+            else None
+        ),
     )
 
 

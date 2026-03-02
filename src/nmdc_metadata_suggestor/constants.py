@@ -97,7 +97,7 @@ TARGET_PROVIDER_PREFIXES: dict[str, str] = {
     "10.25345": "massive",
     "10.17504": "cyverse",
     "10.5281": "zenodo",
-    "10.11578" : "osti"
+    "10.11578": "osti",
 }
 
 TARGET_PROVIDER_KEYWORDS: dict[str, str] = {

@@ -13,7 +13,11 @@ from nmdc_metadata_suggestor.constants import (
     OSTI_E2_API_URL,
     USER_AGENT,
 )
-from nmdc_metadata_suggestor.doi_ingestion.doi_utils import append_error, clean_text, request_with_retry
+from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
+    append_error,
+    clean_text,
+    request_with_retry,
+)
 from nmdc_metadata_suggestor.models.publication import Publication
 from nmdc_metadata_suggestor.models.resolver_context import ResolverContext
 from nmdc_metadata_suggestor.publication_ingestion.retreive_pdf_link import (
