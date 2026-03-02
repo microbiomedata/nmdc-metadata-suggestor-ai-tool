@@ -502,6 +502,24 @@
     "crossref_empty_message": {
       "message": {}
     },
-    "empty_object": {}
+    "empty_object": {},
+    "fixture_elsevier_hit": {
+      "full-text-retrieval-response": {
+        "coredata": {
+          "dc:title": "Soil microbial community response to long-term fertilization",
+          "dc:description": "Abstract   Soil microbial communities play a crucial role in nutrient cycling. This study examined the effects of long-term fertilization on soil microbial diversity.",
+          "prism:doi": "10.1016/j.apsoil.2025.106110",
+          "prism:publicationName": "Applied Soil Ecology"
+        }
+      }
+    },
+    "elsevier_no_abstract": {
+      "full-text-retrieval-response": {
+        "coredata": {
+          "dc:title": "Article without abstract",
+          "prism:doi": "10.1016/j.example.2025.999999"
+        }
+      }
+    }
   }
 }

@@ -12,6 +12,7 @@ from nmdc_metadata_suggestor.constants import (
     CROSSREF_API_URL,
     DATACITE_API_URL,
     DOI_RA_API,
+    ELSEVIER_API_URL,
     OPENALEX_API_URL,
     PUBMED_EFETCH,
     PUBMED_ID_CONVERTER,
@@ -255,6 +256,7 @@ class TestGetAbstractWaterfall:
         responses.add(responses.GET, f"{OPENALEX_API_URL}/https://doi.org/{doi}", json={})
         # Crossref miss
         responses.add(responses.GET, f"{CROSSREF_API_URL}/{doi}", json={"message": {}})
+        # Elsevier skips non-10.1016 DOIs without an API call
         # PubMed ID converter
         responses.add(
             responses.GET,
@@ -269,7 +271,7 @@ class TestGetAbstractWaterfall:
         assert result.source == "pubmed"
         assert result.content_format == "plain_text"
         assert result.pmid == "12345678"
-        assert result.attempts == ["openalex", "crossref", "pubmed"]
+        assert result.attempts == ["openalex", "crossref", "elsevier", "pubmed"]
 
     @responses.activate
     def test_content_negotiation_fallback(self) -> None:
@@ -280,6 +282,7 @@ class TestGetAbstractWaterfall:
         responses.add(responses.GET, f"{OPENALEX_API_URL}/https://doi.org/{doi}", json={})
         # Crossref miss
         responses.add(responses.GET, f"{CROSSREF_API_URL}/{doi}", json={"message": {}})
+        # Elsevier skips non-10.1016 DOIs without an API call
         # PubMed miss
         responses.add(responses.GET, PUBMED_ID_CONVERTER, json={"records": []})
         # Content negotiation hit
@@ -293,7 +296,9 @@ class TestGetAbstractWaterfall:
         assert result.raw_abstract == "Content negotiation abstract."
         assert result.source == "content_negotiation"
         assert result.content_format == "citeproc_json"
-        assert result.attempts == ["openalex", "crossref", "pubmed", "content_negotiation"]
+        assert result.attempts == [
+            "openalex", "crossref", "elsevier", "pubmed", "content_negotiation"
+        ]
 
     @responses.activate
     def test_content_negotiation_note_is_not_used(self) -> None:
@@ -302,6 +307,7 @@ class TestGetAbstractWaterfall:
         _mock_classify_as_publication(doi)
         responses.add(responses.GET, f"{OPENALEX_API_URL}/https://doi.org/{doi}", json={})
         responses.add(responses.GET, f"{CROSSREF_API_URL}/{doi}", json={"message": {}})
+        # Elsevier skips non-10.1016 DOIs without an API call
         responses.add(responses.GET, PUBMED_ID_CONVERTER, json={"records": []})
         responses.add(
             responses.GET,
@@ -319,6 +325,7 @@ class TestGetAbstractWaterfall:
         _mock_classify_as_publication(doi)
         responses.add(responses.GET, f"{OPENALEX_API_URL}/https://doi.org/{doi}", json={})
         responses.add(responses.GET, f"{CROSSREF_API_URL}/{doi}", json={"message": {}})
+        # Elsevier skips non-10.1016 DOIs without an API call
         responses.add(responses.GET, PUBMED_ID_CONVERTER, json={"records": []})
         responses.add(responses.GET, f"https://doi.org/{doi}", json={})
         result = get_abstract(doi)
@@ -341,6 +348,7 @@ class TestGetAbstractWaterfall:
             f"{OPENALEX_API_URL}/{doi}",
             body=RequestsConnectionError("down"),
         )
+        # Elsevier skips non-10.1016 DOIs without an API call
         responses.add(
             responses.GET,
             PUBMED_ID_CONVERTER,
@@ -427,6 +435,7 @@ class TestContentFormatClassification:
         _mock_classify_as_publication(doi)
         responses.add(responses.GET, f"{OPENALEX_API_URL}/https://doi.org/{doi}", json={})
         responses.add(responses.GET, f"{CROSSREF_API_URL}/{doi}", json={"message": {}})
+        # Elsevier skips non-10.1016 DOIs without an API call
         responses.add(responses.GET, PUBMED_ID_CONVERTER, json={"records": []})
         jats = "<jats:p>Tagged abstract.</jats:p>"
         responses.add(
@@ -545,7 +554,9 @@ class TestSourceSelection:
 
     def test_all_sources_constant(self) -> None:
         """ALL_SOURCES has the expected default order."""
-        assert ALL_SOURCES == ("openalex", "crossref", "pubmed", "content_negotiation", "osti")
+        assert ALL_SOURCES == (
+            "openalex", "crossref", "elsevier", "pubmed", "content_negotiation", "osti"
+        )
 
     @responses.activate
     def test_default_sources_same_as_before(self) -> None:
@@ -554,10 +565,13 @@ class TestSourceSelection:
         _mock_classify_as_publication(doi)
         responses.add(responses.GET, f"{OPENALEX_API_URL}/https://doi.org/{doi}", json={})
         responses.add(responses.GET, f"{CROSSREF_API_URL}/{doi}", json={"message": {}})
+        # Elsevier skips non-10.1016 DOIs without an API call
         responses.add(responses.GET, PUBMED_ID_CONVERTER, json={"records": []})
         responses.add(responses.GET, f"https://doi.org/{doi}", json={})
         result = get_abstract(doi)
-        assert result.attempts == ["openalex", "crossref", "pubmed", "content_negotiation", "osti"]
+        assert result.attempts == [
+            "openalex", "crossref", "elsevier", "pubmed", "content_negotiation", "osti"
+        ]
 
 
 # ---------------------------------------------------------------------------
@@ -611,19 +625,17 @@ def test_get_abstract_real_frontiers_doi() -> None:
 def test_get_abstract_real_elsevier_doi() -> None:
     """10.1016 — Elsevier journal article.
 
-    Elsevier does NOT share abstracts via Crossref, and many Elsevier articles
-    are not in PMC. The waterfall may fail for this publisher. This test
-    verifies graceful handling: either an abstract is found (via OpenAlex or
-    PubMed) or the failure is clean with all 4 sources attempted.
+    With the Elsevier ScienceDirect API wired into the waterfall (step 2.5),
+    this should now succeed when ELSEVIER_API_KEY is set. Without the key,
+    Elsevier is skipped and the other sources are tried.
     """
     result = get_abstract("10.1016/j.apsoil.2025.106110")
     if result.abstract:
         assert result.raw_abstract is not None
         assert result.content_format is not None
     else:
-        # Known Elsevier holdout — all 4 sources tried, clean failure
         assert result.error == "No abstract found in any source"
-        assert len(result.attempts) == 5
+        assert len(result.attempts) == len(ALL_SOURCES)
 
 
 @integration
@@ -673,3 +685,161 @@ def test_get_abstract_raw_vs_cleaned() -> None:
     elif result.content_format == "inverted_index":
         assert "{" in result.raw_abstract
         assert result.abstract != result.raw_abstract
+
+
+# ---------------------------------------------------------------------------
+# Elsevier ScienceDirect — unit tests (mocked HTTP)
+# ---------------------------------------------------------------------------
+
+ELSEVIER_DOI = "10.1016/j.apsoil.2025.106110"
+
+ELSEVIER_API_RESPONSE = {
+    "full-text-retrieval-response": {
+        "coredata": {
+            "dc:title": "Soil microbial community response to long-term fertilization",
+            "dc:description": (
+                "Abstract   Soil microbial communities play a crucial role "
+                "in nutrient cycling. This study examined the effects of "
+                "long-term fertilization on soil microbial diversity."
+            ),
+            "prism:doi": ELSEVIER_DOI,
+            "prism:publicationName": "Applied Soil Ecology",
+        }
+    }
+}
+
+
+class TestElsevierUnit:
+    """Unit tests for Elsevier ScienceDirect abstract retrieval."""
+
+    @responses.activate
+    def test_elsevier_returns_abstract(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Happy path: API key set, 10.1016 DOI, abstract returned."""
+        monkeypatch.setenv("ELSEVIER_API_KEY", "fake-api-key")
+        responses.add(
+            responses.GET,
+            f"{ELSEVIER_API_URL}/{ELSEVIER_DOI}",
+            json=ELSEVIER_API_RESPONSE,
+        )
+        result = get_abstract(ELSEVIER_DOI, skip_classification=True, sources=["elsevier"])
+        assert result.abstract is not None
+        assert "nutrient cycling" in result.abstract
+        assert result.source == "elsevier"
+        assert result.content_format == "plain_text"
+        assert result.raw_abstract is not None
+        assert result.attempts == ["elsevier"]
+
+    @responses.activate
+    def test_elsevier_skips_without_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Graceful skip when ELSEVIER_API_KEY is not set."""
+        monkeypatch.delenv("ELSEVIER_API_KEY", raising=False)
+        result = get_abstract(ELSEVIER_DOI, skip_classification=True, sources=["elsevier"])
+        assert result.abstract is None
+        assert result.error == "No abstract found in any source"
+
+    @responses.activate
+    def test_elsevier_skips_non_1016_doi(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Prefix gate: non-10.1016 DOIs skip Elsevier without an API call."""
+        monkeypatch.setenv("ELSEVIER_API_KEY", "fake-api-key")
+        result = get_abstract(SAMPLE_DOI, skip_classification=True, sources=["elsevier"])
+        assert result.abstract is None
+        # No HTTP call should have been made
+        assert len(responses.calls) == 0
+
+    @responses.activate
+    def test_elsevier_handles_http_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """HTTP error (403/500) is handled gracefully."""
+        monkeypatch.setenv("ELSEVIER_API_KEY", "fake-api-key")
+        responses.add(
+            responses.GET,
+            f"{ELSEVIER_API_URL}/{ELSEVIER_DOI}",
+            status=403,
+        )
+        result = get_abstract(ELSEVIER_DOI, skip_classification=True, sources=["elsevier"])
+        assert result.abstract is None
+        assert result.error == "No abstract found in any source"
+
+    @responses.activate
+    def test_elsevier_handles_no_abstract(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Response missing dc:description is handled gracefully."""
+        monkeypatch.setenv("ELSEVIER_API_KEY", "fake-api-key")
+        no_abstract_response = {
+            "full-text-retrieval-response": {
+                "coredata": {
+                    "dc:title": "Article without abstract",
+                    "prism:doi": ELSEVIER_DOI,
+                }
+            }
+        }
+        responses.add(
+            responses.GET,
+            f"{ELSEVIER_API_URL}/{ELSEVIER_DOI}",
+            json=no_abstract_response,
+        )
+        result = get_abstract(ELSEVIER_DOI, skip_classification=True, sources=["elsevier"])
+        assert result.abstract is None
+
+    @responses.activate
+    def test_elsevier_in_waterfall_after_crossref(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Elsevier sits between Crossref and PubMed in the waterfall."""
+        monkeypatch.setenv("ELSEVIER_API_KEY", "fake-api-key")
+        doi = ELSEVIER_DOI
+        # OpenAlex miss
+        responses.add(
+            responses.GET,
+            f"{OPENALEX_API_URL}/https://doi.org/{doi}",
+            json={},
+        )
+        # Crossref miss
+        responses.add(
+            responses.GET,
+            f"{CROSSREF_API_URL}/{doi}",
+            json={"message": {}},
+        )
+        # Elsevier hit
+        responses.add(
+            responses.GET,
+            f"{ELSEVIER_API_URL}/{doi}",
+            json=ELSEVIER_API_RESPONSE,
+        )
+        result = get_abstract(doi, skip_classification=True)
+        assert result.source == "elsevier"
+        assert result.attempts == ["openalex", "crossref", "elsevier"]
+        assert "nutrient cycling" in result.abstract
+
+
+# ---------------------------------------------------------------------------
+# Elsevier ScienceDirect — integration tests (real API, gated on API key)
+# ---------------------------------------------------------------------------
+
+
+@integration
+def test_elsevier_live_returns_abstract() -> None:
+    """Real API call for a recent Elsevier DOI (requires ELSEVIER_API_KEY)."""
+    import os
+
+    if not os.environ.get("ELSEVIER_API_KEY"):
+        pytest.skip("ELSEVIER_API_KEY not set")
+    result = get_abstract("10.1016/j.apsoil.2025.106110", sources=["elsevier"])
+    assert result.abstract is not None, f"No abstract: {result.error}"
+    assert len(result.abstract) > 50
+    assert result.source == "elsevier"
+    assert result.content_format == "plain_text"
+
+
+@integration
+def test_elsevier_live_old_format_doi() -> None:
+    """Edge case: 1985 DOI with parentheses (requires ELSEVIER_API_KEY)."""
+    import os
+
+    if not os.environ.get("ELSEVIER_API_KEY"):
+        pytest.skip("ELSEVIER_API_KEY not set")
+    result = get_abstract(
+        "10.1016/0038-0717(85)90144-0", sources=["elsevier"]
+    )
+    # Old DOIs may or may not have abstracts in the API
+    if result.abstract:
+        assert result.source == "elsevier"
+        assert len(result.abstract) > 20

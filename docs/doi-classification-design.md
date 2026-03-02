@@ -60,6 +60,7 @@ These levels are an analytical framework, not from any standard:
 | Crossref API | Crossref DOIs | No (polite pool with `mailto:` header) |
 | DataCite API | DataCite DOIs | No |
 | PubMed / Europe PMC | Publications with PMIDs | No |
+| Elsevier ScienceDirect API | `10.1016/` DOIs (Elsevier publications) | Yes (`ELSEVIER_API_KEY`) |
 | Unpaywall | OA full text discovery | Yes (email) |
 | Publisher-specific APIs | Varies by publisher | Varies |
 
@@ -110,6 +111,31 @@ ambiguous are left unmapped (return `None`). These require human review:
 `Instrument`, `PhysicalObject`, `Collection`, `Image`, `Audiovisual`, `Sound`,
 `Model`, `Service`, `Event`, `InteractiveResource`, `Standard`, `Journal`,
 `ConferenceProceeding`, `DataPaper`, `StudyRegistration`, `Project`, `Other`
+
+### Overlapping metadata vocabularies across providers
+
+The APIs we consume use overlapping standard vocabularies to describe the same
+concepts. This codebase currently parses each provider's JSON ad-hoc, but the
+underlying metadata standards are shared:
+
+| Vocabulary | Full Name | Scope | Used by |
+|------------|-----------|-------|---------|
+| **Dublin Core (dc:)** | Dublin Core Metadata Initiative | Generic resource metadata: title, creator, description, date, identifier | Elsevier (`dc:title`, `dc:description`, `dc:creator`), DataCite (maps to DC), OpenAlex (conceptually) |
+| **PRISM (prism:)** | Publishing Requirements for Industry Standard Metadata | Serial-publication-specific: journal name, volume, issue, page range, ISSN, cover date | Elsevier (`prism:doi`, `prism:publicationName`, `prism:volume`, `prism:startingPage`, `prism:coverDate`) |
+| **schema.org** | Schema.org (W3C Community Group) | Broad web vocabulary: `ScholarlyArticle`, `Dataset`, `author`, `name`, `abstract` | Crossref (JSON-LD context), DataCite (JSON-LD), OpenAlex (conceptually) |
+
+**What this means:** An abstract is `dc:description` in the Elsevier API,
+`abstract` in the Crossref API, and `abstract_inverted_index` in OpenAlex — but
+they all describe the same Dublin Core concept. Similarly, a journal name is
+`prism:publicationName` in Elsevier and `container-title` in Crossref.
+
+**Current approach:** We parse each provider's response individually and extract
+the relevant field by its provider-specific key. This works but means each new
+provider needs a custom parser.
+
+**Future opportunity:** A vocabulary-aware normalization layer could map
+provider responses into a common internal representation using these shared
+standards, reducing per-provider parsing code. This is not currently planned.
 
 ---
 
@@ -187,8 +213,14 @@ caller or Docker/CI is responsible for injecting them):
 |----------|---------|-----------|---------|
 | `CONTACT_EMAIL` | `doi_utils.py` User-Agent, future OpenAlex calls | No | `support@microbiomedata.org` |
 | `OPENALEX_API_KEY` | Future abstract retrieval (#1597) | No | *(none — email auth is sufficient for moderate usage)* |
+| `ELSEVIER_API_KEY` | `doi_ingestion/elsevier.py` — ScienceDirect Abstract Retrieval API (#1611) | For 10.1016 DOIs | *(none — Elsevier step is skipped when absent)* |
 | `UNPAYWALL_EMAIL` | Future PDF discovery (#1598) | For Unpaywall calls | *(none)* |
 | `API_KEY` | LLM access (Olivia's existing code) | For LLM features | *(none)* |
+
+**Note on Elsevier API keys:** Production deployments should use an institutional
+or team API key, not a personal developer key. Personal keys are tied to
+individual accounts and may be revoked when someone leaves the project. Register
+at https://dev.elsevier.com/ and request an institutional key via your library.
 
 ### How credentials flow in each environment
 
@@ -251,7 +283,7 @@ from nmdc_metadata_suggestor.publication_ingestion.abstract_retriever import (
 
 result: AbstractResult = get_abstract("10.1038/s41564-020-00861-0")
 result.abstract    # str | None — the abstract text
-result.source      # "openalex" | "crossref" | "pubmed" | "content_negotiation" | None
+result.source      # "openalex" | "crossref" | "elsevier" | "pubmed" | "content_negotiation" | None
 result.pmid        # str | None — PubMed ID (only if source was PubMed)
 result.attempts    # ["openalex", "crossref"] — sources tried, in order
 result.error       # str | None — why it was refused or not found
@@ -283,10 +315,11 @@ result = get_abstract(doi, skip_classification=True)
 |---|--------|-----|----------|------------|
 | 1 | **OpenAlex** | Best coverage, longest abstracts, covers both Crossref & DataCite DOIs | ~90% of publications | `inverted_index` |
 | 2 | **Crossref** | Fallback for DOIs not yet in OpenAlex | ~30% have abstracts | `jats_xml` or `plain_text` |
+| 2.5 | **Elsevier** | ScienceDirect API — Elsevier withholds abstracts from Crossref (#1611). Prefix-gated to `10.1016/` DOIs only; skipped instantly for other prefixes. Requires `ELSEVIER_API_KEY`. | 421 NMDC `10.1016` DOIs | `plain_text` |
 | 3 | **PubMed** | Catches Nature/Elsevier holdouts | ~86% biomedical coverage | `plain_text` |
 | 4 | **Content negotiation** | Universal last resort (Citeproc JSON via doi.org) | Same data as Crossref but works for any RA | `jats_xml` or `citeproc_json` |
 
-Each step returns as soon as an abstract is found. If all 4 fail, returns
+Each step returns as soon as an abstract is found. If all sources fail, returns
 `AbstractResult(abstract=None, error="No abstract found in any source")`.
 Network errors at any step are caught and the waterfall continues to the next
 source.

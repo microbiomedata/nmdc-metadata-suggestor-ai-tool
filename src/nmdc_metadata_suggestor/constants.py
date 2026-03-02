@@ -12,7 +12,7 @@ import re
 # ---------------------------------------------------------------------------
 # Supported sources for abstract and publication retrieval
 # ---------------------------------------------------------------------------
-ALL_SOURCES = ("openalex", "crossref", "pubmed", "content_negotiation", "osti")
+ALL_SOURCES = ("openalex", "crossref", "elsevier", "pubmed", "content_negotiation", "osti")
 
 # ---------------------------------------------------------------------------
 # Contact / User-Agent
@@ -43,6 +43,13 @@ HANDLE_RESPONSE_SUCCESS = 1
 # External Data APIs
 # ---------------------------------------------------------------------------
 CROSSREF_API_URL = "https://api.crossref.org/works"
+
+# Elsevier ScienceDirect — requires API key from https://dev.elsevier.com/
+# Production deployments should use an institutional or team API key,
+# not a personal developer key (personal keys are tied to individual accounts).
+# The API key is read at call time via os.environ.get("ELSEVIER_API_KEY")
+# in doi_ingestion/elsevier.py (not captured here, to avoid import-time issues).
+ELSEVIER_API_URL = "https://api.elsevier.com/content/article/doi"
 DATACITE_API_URL = "https://api.datacite.org/dois"
 OPENALEX_API_URL = "https://api.openalex.org/works"
 
