@@ -25,6 +25,7 @@ from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     request_with_retry,
 )
 from nmdc_metadata_suggestor.doi_ingestion.edi import try_edi
+from nmdc_metadata_suggestor.doi_ingestion.elsevier import try_elsevier
 from nmdc_metadata_suggestor.doi_ingestion.emsl import try_emsl
 from nmdc_metadata_suggestor.doi_ingestion.ess_dive import try_ess_dive
 from nmdc_metadata_suggestor.doi_ingestion.figshare import try_figshare
@@ -37,6 +38,7 @@ from nmdc_metadata_suggestor.models.doi import SourceRetrievalResult
 
 TARGET_PROVIDER_PREFIXES: dict[str, str] = {
     "10.6073": "edi",
+    "10.1016": "elsevier",
     "10.46936": "emsl",
     "10.15485": "ess-dive",
     "10.21952": "ess-dive",
@@ -50,6 +52,7 @@ TARGET_PROVIDER_PREFIXES: dict[str, str] = {
 
 TARGET_PROVIDER_KEYWORDS: dict[str, str] = {
     "environmental data initiative": "edi",
+    "elsevier": "elsevier",
     "emsl": "emsl",
     "ess-dive": "ess-dive",
     "figshare": "figshare",
@@ -244,6 +247,15 @@ def _fetch_zenodo(
     return _fetch_resolver_context(doi, provider, "zenodo", attempts, source_errors, try_zenodo)
 
 
+def _fetch_elsevier(
+    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
+) -> SourceRetrievalResult | None:
+    """Fetch and wrap context from Elsevier ScienceDirect API."""
+    return _fetch_resolver_context(
+        doi, provider, "elsevier", attempts, source_errors, try_elsevier
+    )
+
+
 def _fetch_datacite(
     doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
 ) -> SourceRetrievalResult | None:
@@ -294,6 +306,7 @@ def _fetch_content_negotiation(
 
 _SOURCE_FETCHERS: dict[str, Fetcher] = {
     "edi": _fetch_edi,
+    "elsevier": _fetch_elsevier,
     "emsl": _fetch_emsl,
     "ess-dive": _fetch_ess_dive,
     "figshare": _fetch_figshare,
@@ -309,6 +322,7 @@ _SOURCE_FETCHERS: dict[str, Fetcher] = {
 
 _PROVIDER_API_SOURCES = {
     "edi",
+    "elsevier",
     "emsl",
     "ess-dive",
     "figshare",

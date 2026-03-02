@@ -78,6 +78,7 @@ def _fetch_elsevier_abstract(
             },
             timeout=DEFAULT_TIMEOUT,
         )
+        _log_rate_limit(response)
         if response.status_code != 200:
             append_error(errors, f"Elsevier API returned HTTP {response.status_code}")
             return None, None
@@ -102,3 +103,16 @@ def _fetch_elsevier_abstract(
         return None, None
 
     return cleaned, raw
+
+
+def _log_rate_limit(response: requests.Response) -> None:
+    """Log Elsevier API rate-limit headers for quota monitoring."""
+    remaining = response.headers.get("X-RateLimit-Remaining")
+    limit = response.headers.get("X-RateLimit-Limit")
+    if remaining is not None:
+        LOGGER.info("Elsevier API quota: %s/%s remaining", remaining, limit or "?")
+        try:
+            if int(remaining) < 100:
+                LOGGER.warning("Elsevier API quota low: %s remaining", remaining)
+        except ValueError:
+            pass
