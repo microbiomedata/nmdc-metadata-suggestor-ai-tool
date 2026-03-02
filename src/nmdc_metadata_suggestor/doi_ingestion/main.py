@@ -224,9 +224,10 @@ def _fetch_resolver_context(
     """Run a resolver and normalize successful context into a result object."""
     errors: list[str] = []
     context = resolver(doi, errors)
-    if context is None or context.text is None:
+    if len(errors) > 0:
         _record_source_error(source_errors, source, errors)
-        return None
+        if context is None or context.text is None:
+            return None
     result_source = context.source or source
     return SourceRetrievalResult(
         doi=doi,
@@ -237,6 +238,7 @@ def _fetch_resolver_context(
         source=result_source,
         attempts=attempts,
         source_errors=source_errors,
+        errors="Source errors occured. Check source_errors field for details." if source_errors else None,
     )
 
 
