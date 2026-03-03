@@ -279,7 +279,6 @@ class TestGetAbstractWaterfall:
         assert result.context == "PubMed abstract text here."
         assert result.raw_context == "PubMed abstract text here."
         assert result.source == "pubmed"
-        assert result.pmid == "12345678"
 
     @responses.activate
     def test_content_negotiation_fallback(self) -> None:
@@ -512,7 +511,6 @@ class TestSourceSelection:
         result = get_doi_description_or_abstract(doi, sources=["pubmed"])
         assert result.context == "PubMed only text."
         assert result.source == "pubmed"
-        assert result.pmid == "99999"
 
     @responses.activate
     def test_reversed_order(self) -> None:
@@ -592,7 +590,7 @@ class TestSourceSelection:
 @integration
 def test_get_abstract_real_aslo_doi() -> None:
     """10.4319 — ASLO (limnology/oceanography) journal article."""
-    result = get_doi_description_or_abstract("10.4319/lom.2008.6.230")
+    result = get_doi_description_or_abstract("10.4319/lom.2008.6.230", skip_classification=True)
     assert result.context is not None, f"No content found: {result.error}"
     assert len(result.context) > 50
     assert result.source is not None

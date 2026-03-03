@@ -380,12 +380,7 @@ def _fetch_pubmed(
     doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
 ) -> SourceRetrievalResult | None:
     """Fetch and wrap context from PubMed via NCBI APIs."""
-    errors: list[str] = []
-    result = try_pubmed(doi, errors)
-    if result is None or result.context is None:
-        _record_source_error(source_errors, "pubmed", errors)
-        return None
-    return result.model_copy(update={"attempts": attempts, "source_errors": source_errors})
+    return _fetch_resolver_context(doi, provider, "pubmed", attempts, source_errors, try_pubmed)
 
 
 def _fetch_osti(

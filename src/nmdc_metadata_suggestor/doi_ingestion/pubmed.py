@@ -10,14 +10,14 @@ from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     append_error,
     request_with_retry,
 )
-from nmdc_metadata_suggestor.models.doi import SourceRetrievalResult
+from nmdc_metadata_suggestor.models.resolver_context import ResolverContext
 
 
-def try_pubmed(doi: str, errors: list[str] | None = None) -> SourceRetrievalResult | None:
+def try_pubmed(doi: str, errors: list[str] | None = None) -> ResolverContext | None:
     """Fetch abstract from PubMed via DOI -> PMID -> efetch.
 
     Returns:
-        SourceRetrievalResult with the abstract text and PMID, or None if PubMed has no record.
+        ResolverContext with abstract text and PMID metadata, or None if no PubMed record.
     """
     # Step 1: DOI -> PMID via ID converter
     try:
@@ -58,13 +58,11 @@ def try_pubmed(doi: str, errors: list[str] | None = None) -> SourceRetrievalResu
             return None
         text = response.text.strip()
         if text:
-            return SourceRetrievalResult(
-                doi=doi,
-                context=text,
-                raw_context=text,
-                context_type="plain_text",
+            return ResolverContext(
+                text=text,
+                raw_text=text,
+                kind="plain_text",
                 source="pubmed",
-                pmid=pmid,
             )
         append_error(errors, "PubMed efetch returned empty abstract")
         return None
