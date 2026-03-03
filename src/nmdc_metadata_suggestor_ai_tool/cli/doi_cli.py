@@ -126,7 +126,7 @@ def cmd_get_fulltext(raw_doi: str, out_dir: str | None = None) -> None:
 
         # Save result JSON (without bulky XML inline).
         json_dump = dict(dump)
-        if json_dump.get("full_text_xml"):
+        if json_dump.get("full_text_xml") and result.full_text_xml:
             json_dump["full_text_xml"] = f"<{len(result.full_text_xml)} chars — see {slug}.xml>"
         file_path = out_path / f"{slug}.json"
         file_path.write_text(json.dumps(json_dump, indent=2) + "\n")
@@ -150,7 +150,7 @@ def cmd_get_fulltext(raw_doi: str, out_dir: str | None = None) -> None:
                 print("  PDF download failed or not available", file=sys.stderr)
     else:
         # Replace large XML with length indicator for terminal output.
-        if dump.get("full_text_xml"):
+        if dump.get("full_text_xml") and result.full_text_xml:
             dump["full_text_xml"] = f"<{len(result.full_text_xml)} chars>"
         _print_json(dump)
 
