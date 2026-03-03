@@ -24,6 +24,8 @@ from nmdc_metadata_suggestor.constants import (
     DOI_PATTERN,
     DOI_RA_API,
     HANDLE_RESPONSE_SUCCESS,
+    TARGET_PROVIDER_KEYWORDS,
+    TARGET_PROVIDER_PREFIXES,
     USER_AGENT,
 )
 from nmdc_metadata_suggestor.models.doi import (
@@ -533,3 +535,53 @@ def _classify_datacite(doi: str, prefix: str | None, ra: str) -> DoiClassificati
             registration_agency=ra,
             error=f"DataCite API error: {e}",
         )
+
+
+def decode_inverted_abstract(inverted_index: dict[str, list[int]]) -> str:
+    """Reconstruct plain text from an OpenAlex inverted abstract index.
+
+    OpenAlex stores abstracts as ``{word: [position_0, position_1, ...]}``,
+    e.g. ``{"While": [0, 140], "in": [6, 181, 191]}``.  This format is
+    optimized for search indexing — you can find which abstracts contain a
+    word without reconstructing the full text, and it compresses well since
+    common words aren't stored repeatedly.
+
+    We rebuild the original text by placing each word at its position(s) and
+    joining with spaces.  This is technically lossy: punctuation attached to
+    words (``"soil,"`` at position 82) survives, but any non-space whitespace
+    or formatting in the original is lost.  That's why ``SourceRetrievalResult``
+    exposes both ``abstract`` (reconstructed) and ``raw_abstract`` (the
+    original JSON-serialized inverted index).
+
+    Args:
+        inverted_index: Mapping of word -> list of integer positions.
+
+    Returns:
+        Reconstructed abstract as a single string.
+    """
+    words: dict[int, str] = {}
+    for word, positions in inverted_index.items():
+        for pos in positions:
+            words[pos] = word
+    if not words:
+        return ""
+    max_pos = max(words)
+    return " ".join(words.get(i, "") for i in range(max_pos + 1))
+
+
+def infer_provider_from_doi(doi: str) -> str | None:
+    """Infer a provider key from DOI prefix mapping."""
+
+    prefix = doi.split("/", 1)[0] if "/" in doi else ""
+    return TARGET_PROVIDER_PREFIXES.get(prefix)
+
+
+def infer_provider_from_text(text: str | None) -> str | None:
+    """Infer provider from publisher/source text keywords."""
+    if not text:
+        return None
+    lowered = text.lower()
+    for key, provider in TARGET_PROVIDER_KEYWORDS.items():
+        if key in lowered:
+            return provider
+    return None

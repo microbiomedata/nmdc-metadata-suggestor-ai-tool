@@ -19,7 +19,7 @@ from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     normalize_doi,
     validate_doi,
 )
-from nmdc_metadata_suggestor.publication_ingestion.abstract_retriever import get_abstract
+from nmdc_metadata_suggestor.doi_ingestion.main import get_doi_description_or_abstract
 
 
 def _print_json(obj: object) -> None:
@@ -72,14 +72,14 @@ def cmd_get_abstract(
     order). Otherwise the default waterfall is used.
     """
     doi = normalize_doi(raw_doi)
-    result = get_abstract(doi, sources=sources)
+    result = get_doi_description_or_abstract(doi, sources=sources)
     dump = result.model_dump()
 
     if result.error:
         print(f"  {result.error}", file=sys.stderr)
     else:
         source = result.source or "unknown"
-        length = len(result.abstract) if result.abstract else 0
+        length = len(result.context) if result.context else 0
         print(f"  {source:25s}  {length:>6d} chars  {doi}", file=sys.stderr)
 
     if out_dir:
@@ -114,16 +114,16 @@ def cmd_get_abstracts(out_dir: str = "abstracts") -> None:
             print(f"  SKIP (not publication)  {doi}", file=sys.stderr)
             continue
 
-        result = get_abstract(doi)
+        result = get_doi_description_or_abstract(doi)
         dump = result.model_dump()
 
         slug = doi.replace("/", "__")
         file_path = out_path / f"{slug}.json"
         file_path.write_text(json.dumps(dump, indent=2) + "\n")
 
-        if result.abstract:
+        if result.context:
             source = result.source or "unknown"
-            length = len(result.abstract)
+            length = len(result.context)
             print(f"  {source:25s}  {length:>6d} chars  {doi}", file=sys.stderr)
         else:
             print(f"  NO ABSTRACT             {doi}", file=sys.stderr)

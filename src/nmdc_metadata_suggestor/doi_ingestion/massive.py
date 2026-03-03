@@ -17,7 +17,7 @@ from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     request_with_retry,
     text_mentions_doi,
 )
-from nmdc_metadata_suggestor.doi_ingestion.resolver_context import ResolverContext
+from nmdc_metadata_suggestor.models.resolver_context import ResolverContext
 
 
 def try_massive(doi: str, errors: list[str] | None = None) -> ResolverContext | None:

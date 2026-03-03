@@ -6,23 +6,18 @@ waterfall (DataCite, Crossref, content negotiation).
 
 from collections.abc import Callable
 
-import requests
-
-from nmdc_metadata_suggestor.constants import (
-    DATACITE_API_URL,
-    DEFAULT_TIMEOUT,
-    DOI_PATTERN,
-    USER_AGENT,
-)
+from nmdc_metadata_suggestor.constants import DOI_PATTERN
 from nmdc_metadata_suggestor.doi_ingestion.content_negotiation import (
     try_content_negotiation_context,
 )
 from nmdc_metadata_suggestor.doi_ingestion.crossref import try_crossref_context
 from nmdc_metadata_suggestor.doi_ingestion.cyverse import try_cyverse
+from nmdc_metadata_suggestor.doi_ingestion.datacite import try_datacite
 from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
-    clean_text,
+    classify_doi,
+    infer_provider_from_doi,
+    infer_provider_from_text,
     normalize_doi,
-    request_with_retry,
 )
 from nmdc_metadata_suggestor.doi_ingestion.edi import try_edi
 from nmdc_metadata_suggestor.doi_ingestion.emsl import try_emsl
@@ -31,55 +26,93 @@ from nmdc_metadata_suggestor.doi_ingestion.figshare import try_figshare
 from nmdc_metadata_suggestor.doi_ingestion.jgi import try_jgi
 from nmdc_metadata_suggestor.doi_ingestion.kbase import try_kbase
 from nmdc_metadata_suggestor.doi_ingestion.massive import try_massive
-from nmdc_metadata_suggestor.doi_ingestion.resolver_context import ResolverContext
+from nmdc_metadata_suggestor.doi_ingestion.openalex import try_openalex
+from nmdc_metadata_suggestor.doi_ingestion.osti import try_osti
+from nmdc_metadata_suggestor.doi_ingestion.pubmed import try_pubmed
 from nmdc_metadata_suggestor.doi_ingestion.zenodo import try_zenodo
-from nmdc_metadata_suggestor.models.doi import SourceRetrievalResult
-
-TARGET_PROVIDER_PREFIXES: dict[str, str] = {
-    "10.6073": "edi",
-    "10.46936": "emsl",
-    "10.15485": "ess-dive",
-    "10.21952": "ess-dive",
-    "10.6084": "figshare",
-    "10.25585": "jgi",
-    "10.25982": "kbase",
-    "10.25345": "massive",
-    "10.17504": "cyverse",
-    "10.5281": "zenodo",
-}
-
-TARGET_PROVIDER_KEYWORDS: dict[str, str] = {
-    "environmental data initiative": "edi",
-    "emsl": "emsl",
-    "ess-dive": "ess-dive",
-    "figshare": "figshare",
-    "genomic standards consortium": "gsc",
-    "jgi": "jgi",
-    "kbase": "kbase",
-    "massive": "massive",
-    "zenodo": "zenodo",
-    "cyverse": "cyverse",
-}
+from nmdc_metadata_suggestor.models.doi import DoiClassification, SourceRetrievalResult
+from nmdc_metadata_suggestor.models.resolver_context import ResolverContext
 
 SourceErrors = dict[str, str]
 Fetcher = Callable[[str, str | None, list[str], SourceErrors], SourceRetrievalResult | None]
 Resolver = Callable[[str, list[str] | None], ResolverContext | None]
 
+PUBLICATION_API_SOURCES = (
+    "datacite",
+    "crossref",
+    "content_negotiation",
+    "openalex",
+    "pubmed",
+)
+DATA_DOI_BASE_SOURCES = (
+    "datacite",
+    "crossref",
+    "content_negotiation",
+    "openalex",
+    "pubmed",
+)
+NON_PUBLICATION_RESOURCE_TYPE_GENERAL = {
+    "Software",
+    "Workflow",
+    "ComputationalNotebook",
+    "Collection",
+    "Image",
+    "Audiovisual",
+    "Sound",
+    "Model",
+    "Service",
+    "Event",
+    "InteractiveResource",
+    "Instrument",
+    "PhysicalObject",
+}
+NON_PUBLICATION_CROSSREF_TYPES = {"component"}
+
 
 def get_doi_description_or_abstract(
-    doi: str, sources: list[str] | None = None
+    doi: str, sources: list[str] | None = None, skip_classification: bool = False
 ) -> SourceRetrievalResult:
-    """Fetch abstract/description text for a DOI using a source waterfall."""
+    """
+    Fetch abstract/description text for a DOI using a source waterfall.
+
+    Args:
+        doi: A DOI string in any common format (bare, URL, ``doi:`` prefix).
+        sources: Which sources to try, in order. Defaults to all available sources.
+        skip_classification: If True, skip DOI classification/gating and go
+            straight to source waterfall selection. When ``sources`` is
+            explicitly provided, classification/gating is skipped regardless.
+
+    Returns:
+        SourceRetrievalResult with the abstract/description text and metadata, or an error.
+    """
     doi = normalize_doi(doi)
+
     if not DOI_PATTERN.match(doi):
         return SourceRetrievalResult(doi=doi, error="Invalid DOI: Malformed DOI syntax")
 
-    provider = _infer_provider_from_doi(doi)
-    if sources is None:
-        sources = _default_source_order(provider)
+    # check if we can infer the provider from the DOI prefix
+    provider = infer_provider_from_doi(doi)
 
-    attempts: list[str] = []
+    classification: DoiClassification | None = None
+    if not skip_classification and sources is None:
+        classification = classify_doi(doi)
+        if not classification.is_valid:
+            return SourceRetrievalResult(
+                doi=doi,
+                error=f"Invalid DOI: {classification.error or 'validation failed'}",
+            )
+        refusal = _check_classification_gate(classification)
+        if refusal:
+            return SourceRetrievalResult(doi=doi, error=refusal)
+
+    # choose waterfall based on DOI type (publication vs data DOI)
+    if sources is None:
+        sources = default_source_order(provider, classification)
+
     source_errors: SourceErrors = {}
+    attempts: list[str] = []
+    # loop through sources in order
+    # return the first successful result, recording errors for observability
     for source in sources:
         fetcher = _SOURCE_FETCHERS.get(source)
         if fetcher is None:
@@ -88,61 +121,86 @@ def get_doi_description_or_abstract(
         result = fetcher(doi, provider, attempts, source_errors)
         if result is not None:
             return result
-
+    # if we got here, no sources returned a result.
+    # Return an error with details of all source failures for observability.
     return SourceRetrievalResult(
         doi=doi,
         provider=provider,
         attempts=attempts,
         source_errors=source_errors,
-        error="No description or abstract found in any source",
+        error="No description or abstract found in any source. " "Check source_errors for details.",
     )
 
 
-def _default_source_order(provider: str | None) -> list[str]:
-    """Return the default source order for a provider-aware lookup."""
-    if provider in _PROVIDER_API_SOURCES:
-        return [provider, "datacite", "crossref", "content_negotiation"]
-    return ["datacite", "crossref", "content_negotiation"]
-
-
-def _infer_provider_from_doi(doi: str) -> str | None:
-    """Infer a provider key from DOI prefix mapping."""
-    prefix = doi.split("/", 1)[0] if "/" in doi else ""
-    return TARGET_PROVIDER_PREFIXES.get(prefix)
-
-
-def _infer_provider_from_text(text: str | None) -> str | None:
-    """Infer provider from publisher/source text keywords."""
-    if not text:
+def _classification_is_publication(classification: DoiClassification | None) -> bool | None:
+    """Return publication/data signal from classification, or None when inconclusive."""
+    if classification is None:
         return None
-    lowered = text.lower()
-    for key, provider in TARGET_PROVIDER_KEYWORDS.items():
-        if key in lowered:
-            return provider
+
+    if classification.inferred_nmdc_category == "publication_doi":
+        return True
+
+    if classification.inferred_nmdc_category in {
+        "dataset_doi",
+        "award_doi",
+        "data_management_plan_doi",
+    }:
+        return False
+
+    if classification.resource_type_general in NON_PUBLICATION_RESOURCE_TYPE_GENERAL:
+        return False
+
+    if classification.resource_type in NON_PUBLICATION_CROSSREF_TYPES:
+        return False
+
     return None
 
 
-def _build_result(
-    doi: str,
+def _check_classification_gate(c: DoiClassification) -> str | None:
+    """Refuse non-publication DOIs for publication abstract retrieval flow."""
+    if c.inferred_nmdc_category and c.inferred_nmdc_category != "publication_doi":
+        return (
+            f"DOI is a {c.inferred_nmdc_category}, not a publication. "
+            "Abstract retrieval is only supported for publication DOIs."
+        )
+
+    if c.resource_type_general and c.resource_type_general in NON_PUBLICATION_RESOURCE_TYPE_GENERAL:
+        return (
+            f"DOI has DataCite resourceTypeGeneral={c.resource_type_general!r}, "
+            "which is not a publication type."
+        )
+
+    if c.resource_type and c.resource_type in NON_PUBLICATION_CROSSREF_TYPES:
+        return f"DOI has Crossref type={c.resource_type!r}, which is not a publication type."
+
+    return None
+
+
+def default_source_order(
     provider: str | None,
-    source: str,
-    attempts: list[str],
-    source_errors: SourceErrors,
-    context: str,
-    raw_context: str,
-    context_type: str,
-) -> SourceRetrievalResult:
-    """Construct a normalized context result object."""
-    return SourceRetrievalResult(
-        doi=doi,
-        context=context,
-        raw_context=raw_context,
-        context_type=context_type,
-        provider=provider,
-        source=source,
-        attempts=attempts,
-        source_errors=source_errors,
-    )
+    classification: DoiClassification | None = None,
+) -> list[str]:
+    """Return default source order based on DOI type and provider signal."""
+    is_publication = _classification_is_publication(classification)
+
+    if is_publication is True:
+        if provider in _PROVIDER_API_SOURCES and provider not in PUBLICATION_API_SOURCES:
+            return list(dict.fromkeys([provider, *PUBLICATION_API_SOURCES]))
+        return list(PUBLICATION_API_SOURCES)
+
+    if is_publication is False:
+        sources: list[str] = []
+        if provider in _PROVIDER_API_SOURCES:
+            sources.append(provider)
+        sources.extend(DATA_DOI_BASE_SOURCES)
+        return list(dict.fromkeys(sources))
+
+    if provider in _PROVIDER_API_SOURCES:
+        if provider in PUBLICATION_API_SOURCES:
+            return list(dict.fromkeys([provider, *PUBLICATION_API_SOURCES, *DATA_DOI_BASE_SOURCES]))
+        return list(dict.fromkeys([provider, *DATA_DOI_BASE_SOURCES]))
+
+    return list(PUBLICATION_API_SOURCES)
 
 
 def _record_source_error(
@@ -165,19 +223,28 @@ def _fetch_resolver_context(
     """Run a resolver and normalize successful context into a result object."""
     errors: list[str] = []
     context = resolver(doi, errors)
-    if context is None:
+    if len(errors) > 0:
         _record_source_error(source_errors, source, errors)
+    if context is None:
         return None
     result_source = context.source or source
-    return _build_result(
-        doi,
-        provider,
-        result_source,
-        attempts,
-        source_errors,
-        context.text,
-        context.raw_text,
-        context.kind,
+    result_attempts = attempts
+    if result_source not in result_attempts:
+        result_attempts = [*result_attempts, result_source]
+    return SourceRetrievalResult(
+        doi=doi,
+        context=context.text,
+        raw_context=context.raw_text,
+        context_type=context.kind,
+        provider=provider,
+        source=result_source,
+        attempts=result_attempts,
+        source_errors=source_errors,
+        error=(
+            "Source errors occurred. Check source_errors field for details."
+            if source_errors
+            else None
+        ),
     )
 
 
@@ -249,15 +316,21 @@ def _fetch_datacite(
 ) -> SourceRetrievalResult | None:
     """Fetch and wrap context from DataCite metadata."""
     errors: list[str] = []
-    context = _try_datacite(doi, errors=errors)
+    context = try_datacite(doi, errors=errors)
     if context is None:
         _record_source_error(source_errors, "datacite", errors)
         return None
 
-    text, raw, kind, publisher = context
-    inferred_provider = provider or _infer_provider_from_text(publisher)
-    return _build_result(
-        doi, inferred_provider, "datacite", attempts, source_errors, text, raw, kind
+    inferred_provider = provider or infer_provider_from_text(context.source)
+    return SourceRetrievalResult(
+        doi=doi,
+        context=context.text,
+        raw_context=context.raw_text,
+        context_type=context.kind,
+        provider=inferred_provider,
+        source="datacite",
+        attempts=attempts,
+        source_errors=source_errors,
     )
 
 
@@ -271,10 +344,16 @@ def _fetch_crossref(
         _record_source_error(source_errors, "crossref", errors)
         return None
 
-    text, raw, kind, publisher = context
-    inferred_provider = provider or _infer_provider_from_text(publisher)
-    return _build_result(
-        doi, inferred_provider, "crossref", attempts, source_errors, text, raw, kind
+    inferred_provider = provider or infer_provider_from_text(context.source)
+    return SourceRetrievalResult(
+        doi=doi,
+        context=context.text,
+        raw_context=context.raw_text,
+        context_type=context.kind,
+        provider=inferred_provider,
+        source="crossref",
+        attempts=attempts,
+        source_errors=source_errors,
     )
 
 
@@ -292,6 +371,27 @@ def _fetch_content_negotiation(
     )
 
 
+def _fetch_openalex(
+    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
+) -> SourceRetrievalResult | None:
+    """Fetch and wrap context from OpenAlex metadata."""
+    return _fetch_resolver_context(doi, provider, "openalex", attempts, source_errors, try_openalex)
+
+
+def _fetch_pubmed(
+    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
+) -> SourceRetrievalResult | None:
+    """Fetch and wrap context from PubMed via NCBI APIs."""
+    return _fetch_resolver_context(doi, provider, "pubmed", attempts, source_errors, try_pubmed)
+
+
+def _fetch_osti(
+    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
+) -> SourceRetrievalResult | None:
+    """Fetch and wrap context from OSTI API."""
+    return _fetch_resolver_context(doi, provider, "osti", attempts, source_errors, try_osti)
+
+
 _SOURCE_FETCHERS: dict[str, Fetcher] = {
     "edi": _fetch_edi,
     "emsl": _fetch_emsl,
@@ -305,6 +405,9 @@ _SOURCE_FETCHERS: dict[str, Fetcher] = {
     "datacite": _fetch_datacite,
     "crossref": _fetch_crossref,
     "content_negotiation": _fetch_content_negotiation,
+    "openalex": _fetch_openalex,
+    "pubmed": _fetch_pubmed,
+    "osti": _fetch_osti,
 }
 
 _PROVIDER_API_SOURCES = {
@@ -317,74 +420,5 @@ _PROVIDER_API_SOURCES = {
     "massive",
     "cyverse",
     "zenodo",
+    "osti",
 }
-
-
-def _try_datacite(
-    doi: str, errors: list[str] | None = None
-) -> tuple[str, str, str, str | None] | None:
-    """Return cleaned/raw text from DataCite descriptions, preferring abstract."""
-    try:
-        response = request_with_retry(
-            "GET",
-            f"{DATACITE_API_URL}/{doi}",
-            headers={"User-Agent": USER_AGENT},
-            timeout=DEFAULT_TIMEOUT,
-        )
-        if response.status_code != 200:
-            if errors is not None:
-                errors.append(f"DataCite API returned HTTP {response.status_code}")
-            return None
-        attrs = response.json().get("data", {}).get("attributes", {})
-        descriptions = attrs.get("descriptions")
-        publisher = attrs.get("publisher")
-        if not isinstance(descriptions, list):
-            if errors is not None:
-                errors.append("DataCite response missing descriptions")
-            return None
-    except requests.RequestException as exc:
-        if errors is not None:
-            errors.append(f"DataCite API request failed: {exc.__class__.__name__}")
-        return None
-    except ValueError:
-        if errors is not None:
-            errors.append("DataCite API returned invalid JSON")
-        return None
-
-    preferred = _pick_datacite_description(descriptions)
-    if preferred is None:
-        if errors is not None:
-            errors.append("DataCite contained no usable description entries")
-        return None
-    raw, kind = preferred
-    cleaned = clean_text(raw)
-    if not cleaned:
-        if errors is not None:
-            errors.append("DataCite context was empty after cleaning")
-        return None
-    return cleaned, raw, kind, publisher if isinstance(publisher, str) else None
-
-
-def _pick_datacite_description(descriptions: list[object]) -> tuple[str, str] | None:
-    """Pick preferred DataCite description entry: abstract, then first fallback."""
-    abstract_candidate: str | None = None
-    description_candidate: str | None = None
-
-    for item in descriptions:
-        if not isinstance(item, dict):
-            continue
-        text = item.get("description")
-        if not isinstance(text, str) or not text.strip():
-            continue
-        description_type = item.get("descriptionType")
-        if isinstance(description_type, str) and description_type.lower() == "abstract":
-            if abstract_candidate is None:
-                abstract_candidate = text
-        elif description_candidate is None:
-            description_candidate = text
-
-    if abstract_candidate is not None:
-        return abstract_candidate, "abstract"
-    if description_candidate is not None:
-        return description_candidate, "description"
-    return None

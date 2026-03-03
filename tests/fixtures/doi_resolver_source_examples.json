@@ -150,12 +150,6 @@
     {
       "source": "cyverse",
       "route": "explicit",
-      "doi": "10.25739/vddx-w132",
-      "origin": "DataCite publisher:CyVerse"
-    },
-    {
-      "source": "cyverse",
-      "route": "explicit",
       "doi": "10.25739/zpnk-9v06",
       "origin": "DataCite publisher:CyVerse"
     },

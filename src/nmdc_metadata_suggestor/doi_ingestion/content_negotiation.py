@@ -13,7 +13,7 @@ from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     request_with_retry,
     strip_jats_xml,
 )
-from nmdc_metadata_suggestor.doi_ingestion.resolver_context import ResolverContext
+from nmdc_metadata_suggestor.models.resolver_context import ResolverContext
 
 
 def try_content_negotiation_context(

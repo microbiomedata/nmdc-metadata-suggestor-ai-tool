@@ -83,3 +83,34 @@ ZENODO_API = "https://zenodo.org/api/records"
 MAX_EDI_METADATA_XML_CHARS = int(os.environ.get("NMDC_EDI_MAX_XML_CHARS", "2000000"))
 MAX_DATAONE_SOLR_XML_CHARS = int(os.environ.get("NMDC_DATAONE_SOLR_MAX_XML_CHARS", "2000000"))
 UNSAFE_XML_DECLARATION_PATTERN = re.compile(r"<!\s*(?:DOCTYPE|ENTITY)\b", re.IGNORECASE)
+
+
+# DOI prefixes that indicate the target provider for context retrieval.
+TARGET_PROVIDER_PREFIXES: dict[str, str] = {
+    "10.6073": "edi",
+    "10.46936": "emsl",
+    "10.15485": "ess-dive",
+    "10.21952": "ess-dive",
+    "10.6084": "figshare",
+    "10.25585": "jgi",
+    "10.25982": "kbase",
+    "10.25345": "massive",
+    "10.17504": "cyverse",
+    "10.5281": "zenodo",
+    "10.11578": "osti",
+}
+
+TARGET_PROVIDER_KEYWORDS: dict[str, str] = {
+    "environmental data initiative": "edi",
+    "emsl": "emsl",
+    "ess-dive": "ess-dive",
+    "figshare": "figshare",
+    "genomic standards consortium": "gsc",
+    "jgi": "jgi",
+    "kbase": "kbase",
+    "massive": "massive",
+    "osti": "osti",
+    "office of scientific and technical information": "osti",
+    "zenodo": "zenodo",
+    "cyverse": "cyverse",
+}
