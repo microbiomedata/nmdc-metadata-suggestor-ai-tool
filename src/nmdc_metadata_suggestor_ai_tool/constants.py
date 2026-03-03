@@ -52,12 +52,8 @@ OSTI_E2_API_URL = "https://www.osti.gov/elink2api/records"
 
 # Europe PMC
 EUROPEPMC_API_URL = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
-EUROPEPMC_FULLTEXT_XML_URL = (
-    "https://www.ebi.ac.uk/europepmc/webservices/rest/{pmcid}/fullTextXML"
-)
-EUROPEPMC_PDF_URL = (
-    "https://europepmc.org/backend/ptpmcrender.fcgi?accid={pmcid}&blobtype=pdf"
-)
+EUROPEPMC_FULLTEXT_XML_URL = "https://www.ebi.ac.uk/europepmc/webservices/rest/{pmcid}/fullTextXML"
+EUROPEPMC_PDF_URL = "https://europepmc.org/backend/ptpmcrender.fcgi?accid={pmcid}&blobtype=pdf"
 
 # PubMed / PMC
 PUBMED_ID_CONVERTER = "https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/"

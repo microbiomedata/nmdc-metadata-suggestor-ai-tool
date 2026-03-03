@@ -61,9 +61,7 @@ def fetch_fulltext_xml(pmcid: str) -> str | None:
     """
     url = EUROPEPMC_FULLTEXT_XML_URL.format(pmcid=pmcid)
     try:
-        resp = request_with_retry(
-            "GET", url, timeout=DEFAULT_TIMEOUT, headers=_HEADERS
-        )
+        resp = request_with_retry("GET", url, timeout=DEFAULT_TIMEOUT, headers=_HEADERS)
         if resp.status_code == 404:
             return None
         resp.raise_for_status()
@@ -84,15 +82,11 @@ def fetch_pdf_bytes(pmcid: str) -> bytes | None:
     """
     url = EUROPEPMC_PDF_URL.format(pmcid=pmcid)
     try:
-        resp = request_with_retry(
-            "GET", url, timeout=DEFAULT_TIMEOUT, headers=_HEADERS
-        )
+        resp = request_with_retry("GET", url, timeout=DEFAULT_TIMEOUT, headers=_HEADERS)
         resp.raise_for_status()
         content_type = resp.headers.get("Content-Type", "")
         if "application/pdf" not in content_type:
-            logger.warning(
-                "Expected PDF but got Content-Type=%s for %s", content_type, pmcid
-            )
+            logger.warning("Expected PDF but got Content-Type=%s for %s", content_type, pmcid)
             return None
         return resp.content
     except Exception as exc:

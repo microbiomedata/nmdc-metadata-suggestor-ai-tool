@@ -145,9 +145,7 @@ def cmd_get_fulltext(raw_doi: str, out_dir: str | None = None) -> None:
             if pdf:
                 pdf_path = out_path / f"{slug}.pdf"
                 pdf_path.write_bytes(pdf)
-                print(
-                    f"  -> {pdf_path} ({len(pdf):,} bytes)", file=sys.stderr
-                )
+                print(f"  -> {pdf_path} ({len(pdf):,} bytes)", file=sys.stderr)
             else:
                 print("  PDF download failed or not available", file=sys.stderr)
     else:
