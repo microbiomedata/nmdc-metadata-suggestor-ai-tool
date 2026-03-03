@@ -43,7 +43,6 @@ PUBLICATION_API_SOURCES = (
     "content_negotiation",
     "openalex",
     "pubmed",
-    "osti",
 )
 DATA_DOI_BASE_SOURCES = (
     "datacite",
