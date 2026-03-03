@@ -110,7 +110,7 @@ def retrieve_pdf_link_from_osti_doi(doi: str) -> Publication:
 
         # get the record
         record = data[0] if isinstance(data, list) else data
-        
+
         if record.get("product_type") == "Journal Article":
             # check if osti has a direct PDF link (only for journal articles)
             if record.get("links"):

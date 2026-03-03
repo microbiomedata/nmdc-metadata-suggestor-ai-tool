@@ -1,8 +1,8 @@
 import os
 import tempfile
 from urllib.parse import urlparse
-import requests
 
+import requests
 from curl_cffi import requests as cffi_requests
 
 # Domains known to use Cloudflare JS challenges that require browser-like
@@ -50,9 +50,7 @@ def download_pdf_to_tempfile(url: str) -> str:
         with open(temp_path, "rb") as f:
             magic = f.read(5)
         if magic != b"%PDF-":
-            raise RuntimeError(
-                f"Downloaded file does not appear to be a PDF (header: {magic!r})"
-            )
+            raise RuntimeError(f"Downloaded file does not appear to be a PDF (header: {magic!r})")
 
         return temp_path
 
@@ -61,12 +59,14 @@ def download_pdf_to_tempfile(url: str) -> str:
             os.remove(temp_path)
         raise RuntimeError(f"Error during download: {e}") from e
 
+
 def _download_with_requests(url: str, dest: str) -> None:
     """Download *url* to *dest* using plain requests."""
     response = requests.get(url, timeout=60)
     response.raise_for_status()
     with open(dest, "wb") as f:
         f.write(response.content)
+
 
 def _download_with_cffi(url: str, dest: str) -> None:
     """Download *url* to *dest* using curl_cffi with Chrome impersonation."""

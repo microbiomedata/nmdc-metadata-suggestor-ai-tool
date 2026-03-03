@@ -106,7 +106,6 @@ class LLMClient:
                 temperature=temperature,
             )
         elif self.provider == "pnnl":
-            # Temporary file created at: /var/folders/99/jyl1l2vd0wbdnjp_zhfhqb1w0000gn/T/tmpo_7fyjsz.pdf
             return self._generate_pnnl(
                 content=prompt,
                 model=model,
