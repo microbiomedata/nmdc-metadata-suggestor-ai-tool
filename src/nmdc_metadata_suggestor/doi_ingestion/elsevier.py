@@ -35,7 +35,7 @@ def try_elsevier(doi: str, errors: list[str] | None = None) -> ResolverContext |
     """
     text, raw = _fetch_elsevier_abstract(doi, errors)
     if text:
-        return ResolverContext(text=text, raw_text=raw, kind="abstract", source="elsevier")
+        return ResolverContext(text=text, raw_text=raw or "", kind="abstract", source="elsevier")
     return None
 
 
