@@ -2,6 +2,7 @@ import os
 import tempfile
 from urllib.parse import urlparse
 import requests
+
 from curl_cffi import requests as cffi_requests
 
 # Domains known to use Cloudflare JS challenges that require browser-like

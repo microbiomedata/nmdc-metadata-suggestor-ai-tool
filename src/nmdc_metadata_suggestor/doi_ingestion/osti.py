@@ -13,12 +13,46 @@ from nmdc_metadata_suggestor.constants import (
     OSTI_E2_API_URL,
     USER_AGENT,
 )
-from nmdc_metadata_suggestor.models.doi import AbstractResult
+from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
+    append_error,
+    clean_text,
+    request_with_retry,
+)
 from nmdc_metadata_suggestor.models.publication import Publication
+from nmdc_metadata_suggestor.models.resolver_context import ResolverContext
 from nmdc_metadata_suggestor.publication_ingestion.retreive_pdf_link import (
     retrieve_pdf_link_from_crossref,
     retrieve_pdf_link_from_pmc,
 )
+
+
+def try_osti(doi: str, errors: list[str] | None = None) -> ResolverContext | None:
+    """Return abstract/description context from OSTI if available."""
+    try:
+        data = query_osti_by_doi(osti_doi=doi)
+    except requests.RequestException as exc:
+        append_error(errors, f"OSTI API request failed: {exc.__class__.__name__}")
+        return None
+    except ValueError:
+        append_error(errors, "OSTI API returned invalid JSON")
+        return None
+
+    if not data or len(data) == 0:
+        append_error(errors, f"No publication found in OSTI for DOI: {doi}")
+        return None
+
+    record = data[0] if isinstance(data, list) else data
+    abstract = record.get("description")
+    if not isinstance(abstract, str):
+        append_error(errors, "No abstract/description found in OSTI record")
+        return None
+
+    cleaned = clean_text(abstract)
+    if not cleaned:
+        append_error(errors, "No abstract/description found in OSTI record")
+        return None
+
+    return ResolverContext(text=cleaned, raw_text=abstract, kind="description", source="osti")
 
 
 def query_osti_by_doi(osti_doi: str) -> dict:
@@ -32,7 +66,8 @@ def query_osti_by_doi(osti_doi: str) -> dict:
     headers = {"User-Agent": USER_AGENT}
     try:
         osti_url = f"{OSTI_E2_API_URL}"
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             osti_url,
             timeout=DEFAULT_TIMEOUT,
             headers=headers,
@@ -45,7 +80,8 @@ def query_osti_by_doi(osti_doi: str) -> dict:
         # Fallback to the original API if the E2 API fails
         osti_url = f"{OSTI_API_URL}"
 
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             osti_url,
             timeout=DEFAULT_TIMEOUT,
             headers=headers,
@@ -53,42 +89,6 @@ def query_osti_by_doi(osti_doi: str) -> dict:
         )
         response.raise_for_status()
         return response.json()  # type: ignore
-
-
-def retrieve_doi_info_from_osti(doi: str) -> AbstractResult:
-    """
-    Retrieve abstract from OSTI API using a DOI.
-
-    Args:
-        doi: Digital Object Identifier (e.g., "10.15485/1729719")
-
-    Returns:
-        AbstractResult containing the abstract/description from OSTI.
-        If an error occurs, returns AbstractResult with error field populated.
-    """
-    try:
-        data = query_osti_by_doi(osti_doi=doi)
-        # check results
-        if not data or len(data) == 0:
-            return AbstractResult(doi=doi, error=f"No publication found in OSTI for DOI: {doi}")
-
-        # get the record
-        record = data[0] if isinstance(data, list) else data
-        abstract = record.get("description")
-
-        if abstract:
-            return AbstractResult(
-                doi=doi,
-                abstract=abstract,
-                raw_abstract=abstract,
-                source="osti",
-                content_format="plain_text",
-                attempts=["osti"],
-            )
-        else:
-            return AbstractResult(doi=doi, error="No abstract/description found in OSTI record")
-    except Exception as e:
-        return AbstractResult(doi=doi, error=str(e))
 
 
 def retrieve_pdf_link_from_osti_doi(doi: str) -> Publication:

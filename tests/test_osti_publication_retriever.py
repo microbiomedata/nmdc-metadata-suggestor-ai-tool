@@ -9,12 +9,14 @@ from nmdc_metadata_suggestor.constants import (
     OSTI_API_URL,
     OSTI_E2_API_URL,
 )
-from nmdc_metadata_suggestor.models.doi import AbstractResult
-from nmdc_metadata_suggestor.models.publication import Publication
-from nmdc_metadata_suggestor.publication_ingestion.osti_publication_retriever import (
-    retrieve_doi_info_from_osti,
+from nmdc_metadata_suggestor.doi_ingestion.osti import (
     retrieve_pdf_link_from_osti_doi,
 )
+from nmdc_metadata_suggestor.doi_ingestion.osti import (
+    try_osti as retrieve_doi_info_from_osti,
+)
+from nmdc_metadata_suggestor.models.publication import Publication
+from nmdc_metadata_suggestor.models.resolver_context import ResolverContext
 
 integration = pytest.mark.integration
 
@@ -40,12 +42,13 @@ def test_retrieve_abstract_success():
         status=200,
     )
 
-    result = retrieve_doi_info_from_osti(doi)
+    errors: list[str] = []
+    result = retrieve_doi_info_from_osti(doi, errors=errors)
 
-    assert isinstance(result, AbstractResult)
-    assert result.abstract == abstract_text
+    assert isinstance(result, ResolverContext)
+    assert result.text == abstract_text
     assert result.source == "osti"
-    assert result.error is None
+    assert errors == []
 
 
 @responses.activate
@@ -60,10 +63,11 @@ def test_retrieve_abstract_no_description():
         status=200,
     )
 
-    result = retrieve_doi_info_from_osti(doi)
+    errors: list[str] = []
+    result = retrieve_doi_info_from_osti(doi, errors=errors)
 
-    assert result.abstract is None
-    assert result.error is not None and "No abstract/description found" in result.error
+    assert result is None
+    assert any("No abstract/description found" in error for error in errors)
 
 
 @responses.activate
@@ -82,10 +86,11 @@ def test_retrieve_abstract_404():
         status=404,
     )
 
-    result = retrieve_doi_info_from_osti(doi=doi)
+    errors: list[str] = []
+    result = retrieve_doi_info_from_osti(doi=doi, errors=errors)
 
-    assert result.abstract is None
-    assert result.error is not None
+    assert result is None
+    assert len(errors) > 0
 
 
 @responses.activate
@@ -225,15 +230,14 @@ def test_abstract_retrieval_real_dois():
     results = {}
 
     for doi in OSTI_DOIS:
-        result = retrieve_doi_info_from_osti(doi)
+        errors: list[str] = []
+        result = retrieve_doi_info_from_osti(doi, errors=errors)
         results[doi] = result
-        assert isinstance(result, AbstractResult)
-        assert result.doi == doi
-        # Either success with abstract or clean error
-        assert result.abstract or result.error
+        assert result is None or isinstance(result, ResolverContext)
+        assert (result and result.text) or errors
 
-    # At least one should have an abstract
-    successful = [r for r in results.values() if r.abstract]
+    # At least one should have content
+    successful = [r for r in results.values() if r and r.text]
     assert len(successful) >= 1
 
 
@@ -242,11 +246,10 @@ def test_waterfall():
     """Test full waterfall retrieval with all three real OSTI DOIs."""
     # doi that is in the v1 but not in E2
     doi = "10.15485/1234567"
-    result = retrieve_doi_info_from_osti(doi)
-    assert isinstance(result, AbstractResult)
-    assert result.doi == doi
-    # Should have abstract or error (but not raise exception)
-    assert result.abstract or result.error
+    errors: list[str] = []
+    result = retrieve_doi_info_from_osti(doi, errors=errors)
+    assert result is None or isinstance(result, ResolverContext)
+    assert (result and result.text) or errors
 
 
 @integration
@@ -264,31 +267,32 @@ def test_publication_retrieval_real_dois():
 def test_invalid_osti_doi():
     """Test handling of invalid OSTI DOI."""
     doi = "10.15485/9999999999"
-    result = retrieve_doi_info_from_osti(doi)
+    errors: list[str] = []
+    result = retrieve_doi_info_from_osti(doi, errors=errors)
 
-    assert result.abstract is None
-    assert result.error is not None
+    assert result is None
+    assert len(errors) > 0
 
 
 @integration
 def test_doi_10_15485_2478895():
     """Test DOI 10.15485/2478895 specifically."""
-    result = retrieve_doi_info_from_osti("10.15485/2478895")
-    assert isinstance(result, AbstractResult)
-    assert result.abstract or result.error
+    errors: list[str] = []
+    result = retrieve_doi_info_from_osti("10.15485/2478895", errors=errors)
+    assert (result and result.text) or errors
 
 
 @integration
 def test_doi_10_15485_1729719():
     """Test DOI 10.15485/1729719 specifically."""
-    result = retrieve_doi_info_from_osti("10.15485/1729719")
-    assert isinstance(result, AbstractResult)
-    assert result.abstract or result.error
+    errors: list[str] = []
+    result = retrieve_doi_info_from_osti("10.15485/1729719", errors=errors)
+    assert (result and result.text) or errors
 
 
 @integration
 def test_doi_10_15485_1603775():
     """Test DOI 10.15485/1603775 specifically."""
-    result = retrieve_doi_info_from_osti("10.15485/1603775")
-    assert isinstance(result, AbstractResult)
-    assert result.abstract or result.error
+    errors: list[str] = []
+    result = retrieve_doi_info_from_osti("10.15485/1603775", errors=errors)
+    assert (result and result.text) or errors

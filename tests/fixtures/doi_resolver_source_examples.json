@@ -1,0 +1,163 @@
+{
+  "description": "Real-world DOI examples grouped by DOI resolver source for DOI ingestion tests.",
+  "curated_date": "2026-02-23",
+  "provenance": "Curated from DataCite/Crossref queries and existing NMDC DOI fixtures.",
+  "cases": [
+    {
+      "source": "edi",
+      "route": "default",
+      "doi": "10.6073/pasta/5e15ed3d0342a278bf043c8c2bfc0d19",
+      "origin": "DataCite prefix:10.6073"
+    },
+    {
+      "source": "edi",
+      "route": "default",
+      "doi": "10.6073/pasta/a2dc10f18bd916f670b0e6d8b6cca09a",
+      "origin": "DataCite prefix:10.6073"
+    },
+    {
+      "source": "edi",
+      "route": "default",
+      "doi": "10.6073/pasta/1ea7a33f8520f9aacefe9761f699d65a",
+      "origin": "DataCite prefix:10.6073"
+    },
+    {
+      "source": "emsl",
+      "route": "default",
+      "doi": "10.46936/genr.proj.2002.2555/60003424",
+      "origin": "Crossref filter prefix:10.46936"
+    },
+    {
+      "source": "emsl",
+      "route": "default",
+      "doi": "10.46936/genr.proj.2007.26698/60003652",
+      "origin": "Crossref filter prefix:10.46936"
+    },
+    {
+      "source": "emsl",
+      "route": "default",
+      "doi": "10.46936/staf.proj.2014.48698/60005642",
+      "origin": "Crossref filter prefix:10.46936"
+    },
+    {
+      "source": "ess-dive",
+      "route": "default",
+      "doi": "10.15485/2588483",
+      "origin": "DataCite prefix:10.15485"
+    },
+    {
+      "source": "ess-dive",
+      "route": "default",
+      "doi": "10.15485/2998779",
+      "origin": "DataCite prefix:10.15485"
+    },
+    {
+      "source": "ess-dive",
+      "route": "default",
+      "doi": "10.21952/wtr/1573029",
+      "origin": "DataCite prefix:10.21952"
+    },
+    {
+      "source": "figshare",
+      "route": "default",
+      "doi": "10.6084/m9.figshare.26988151",
+      "origin": "DataCite prefix:10.6084"
+    },
+    {
+      "source": "figshare",
+      "route": "default",
+      "doi": "10.6084/m9.figshare.26988154.v1",
+      "origin": "DataCite prefix:10.6084"
+    },
+    {
+      "source": "figshare",
+      "route": "default",
+      "doi": "10.6084/m9.figshare.26988184",
+      "origin": "DataCite prefix:10.6084"
+    },
+    {
+      "source": "jgi",
+      "route": "default",
+      "doi": "10.25585/1487853",
+      "origin": "DataCite prefix:10.25585"
+    },
+    {
+      "source": "jgi",
+      "route": "default",
+      "doi": "10.25585/1488163",
+      "origin": "DataCite prefix:10.25585"
+    },
+    {
+      "source": "jgi",
+      "route": "default",
+      "doi": "10.25585/1488274",
+      "origin": "DataCite prefix:10.25585"
+    },
+    {
+      "source": "kbase",
+      "route": "default",
+      "doi": "10.25982/156785.278/2588866",
+      "origin": "DataCite prefix:10.25982"
+    },
+    {
+      "source": "kbase",
+      "route": "default",
+      "doi": "10.25982/200311.171/3014786",
+      "origin": "DataCite prefix:10.25982"
+    },
+    {
+      "source": "kbase",
+      "route": "default",
+      "doi": "10.25982/242870.6/3013398",
+      "origin": "DataCite prefix:10.25982"
+    },
+    {
+      "source": "massive",
+      "route": "default",
+      "doi": "10.25345/c5kk94s01",
+      "origin": "DataCite prefix:10.25345"
+    },
+    {
+      "source": "massive",
+      "route": "default",
+      "doi": "10.25345/c5q81561d",
+      "origin": "DataCite prefix:10.25345"
+    },
+    {
+      "source": "massive",
+      "route": "default",
+      "doi": "10.25345/c53j39f33",
+      "origin": "DataCite prefix:10.25345"
+    },
+    {
+      "source": "zenodo",
+      "route": "default",
+      "doi": "10.5281/zenodo.18746325",
+      "origin": "DataCite prefix:10.5281"
+    },
+    {
+      "source": "zenodo",
+      "route": "default",
+      "doi": "10.5281/zenodo.18746712",
+      "origin": "DataCite prefix:10.5281"
+    },
+    {
+      "source": "zenodo",
+      "route": "default",
+      "doi": "10.5281/zenodo.18746622",
+      "origin": "DataCite prefix:10.5281"
+    },
+    {
+      "source": "cyverse",
+      "route": "explicit",
+      "doi": "10.25739/zpnk-9v06",
+      "origin": "DataCite publisher:CyVerse"
+    },
+    {
+      "source": "cyverse",
+      "route": "explicit",
+      "doi": "10.7946/p22k7v",
+      "origin": "DataCite publisher:CyVerse"
+    }
+  ]
+}

@@ -6,19 +6,22 @@ Unit tests mock HTTP with ``responses``; integration tests hit real APIs.
 
 import json
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 import responses
 from requests.exceptions import ConnectionError as RequestsConnectionError
 
+import nmdc_metadata_suggestor.doi_ingestion.doi_utils as doi_utils
 from nmdc_metadata_suggestor.constants import CROSSREF_API_URL, DATACITE_API_URL
-from nmdc_metadata_suggestor.publication_ingestion.doi_utils import (
+from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     DOI_HANDLE_API,
     DOI_RA_API,
     classify_doi,
     detect_registration_agency,
     infer_nmdc_category,
     normalize_doi,
+    request_with_retry,
     validate_doi,
 )
 
@@ -152,6 +155,88 @@ def test_infer_nmdc_category(
     agency: str | None, rtype: str | None, rtype_general: str | None, expected: str | None
 ) -> None:
     assert infer_nmdc_category(agency, rtype, rtype_general) == expected
+
+
+# ---------------------------------------------------------------------------
+# request_with_retry — unit tests for retry/connection hygiene
+# ---------------------------------------------------------------------------
+
+
+def test_request_with_retry_closes_retry_response(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Retryable responses are closed before the next retry attempt."""
+    first = Mock()
+    first.status_code = 503
+    first.headers = {}
+    first.close = Mock()
+
+    second = Mock()
+    second.status_code = 200
+    second.headers = {}
+    second.close = Mock()
+
+    request_mock = Mock(side_effect=[first, second])
+    monkeypatch.setattr(doi_utils._HTTP_SESSION, "request", request_mock)
+    monkeypatch.setattr(doi_utils.time, "sleep", Mock())
+
+    result = request_with_retry("GET", "https://example.org", max_attempts=2, backoff_seconds=0)
+
+    assert result is second
+    assert request_mock.call_count == 2
+    first.close.assert_called_once_with()
+    second.close.assert_not_called()
+
+
+def test_request_with_retry_closes_exception_response(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Exception-attached responses are closed before retrying."""
+    transient_response = Mock()
+    transient_response.close = Mock()
+
+    transient_exc = RequestsConnectionError("temporary failure")
+    transient_exc.response = transient_response
+
+    success = Mock()
+    success.status_code = 200
+    success.headers = {}
+    success.close = Mock()
+
+    request_mock = Mock(side_effect=[transient_exc, success])
+    monkeypatch.setattr(doi_utils._HTTP_SESSION, "request", request_mock)
+    monkeypatch.setattr(doi_utils.time, "sleep", Mock())
+
+    result = request_with_retry("GET", "https://example.org", max_attempts=2, backoff_seconds=0)
+
+    assert result is success
+    transient_response.close.assert_called_once_with()
+
+
+def test_retry_delay_seconds_caps_large_retry_after(caplog: pytest.LogCaptureFixture) -> None:
+    """Large Retry-After values are capped and logged."""
+    with caplog.at_level("WARNING"):
+        delay = doi_utils._retry_delay_seconds(
+            retry_after="999",
+            attempt=1,
+            backoff_seconds=0.5,
+            max_retry_delay_seconds=2,
+        )
+    assert delay == 2
+    assert "capping delay" in caplog.text
+
+
+def test_retry_delay_seconds_caps_far_future_retry_after_date(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Far-future Retry-After dates are capped and logged."""
+    monkeypatch.setattr(doi_utils.time, "time", Mock(return_value=1_700_000_000.0))
+    with caplog.at_level("WARNING"):
+        delay = doi_utils._retry_delay_seconds(
+            retry_after="Wed, 21 Oct 2099 07:28:00 GMT",
+            attempt=1,
+            backoff_seconds=0.5,
+            max_retry_delay_seconds=5,
+        )
+    assert delay == 5
+    assert "capping delay" in caplog.text
 
 
 # ---------------------------------------------------------------------------
