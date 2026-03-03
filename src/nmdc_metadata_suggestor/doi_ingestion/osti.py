@@ -18,12 +18,7 @@ from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     clean_text,
     request_with_retry,
 )
-from nmdc_metadata_suggestor.models.publication import Publication
 from nmdc_metadata_suggestor.models.resolver_context import ResolverContext
-from nmdc_metadata_suggestor.publication_ingestion.retreive_pdf_link import (
-    retrieve_pdf_link_from_crossref,
-    retrieve_pdf_link_from_pmc,
-)
 
 
 def try_osti(doi: str, errors: list[str] | None = None) -> ResolverContext | None:
@@ -42,17 +37,40 @@ def try_osti(doi: str, errors: list[str] | None = None) -> ResolverContext | Non
         return None
 
     record = data[0] if isinstance(data, list) else data
-    abstract = record.get("description")
-    if not isinstance(abstract, str):
+
+    raw_description = record.get("description")
+    abstract = ""
+    if isinstance(raw_description, str):
+        abstract = clean_text(raw_description)
+    else:
         append_error(errors, "No abstract/description found in OSTI record")
+
+    pdf_url: str | None = None
+    ja_doi = record.get("doi")
+    if record.get("product_type") == "Journal Article":
+        links = record.get("links")
+        if isinstance(links, list):
+            for link in links:
+                if not isinstance(link, dict):
+                    continue
+                if link.get("rel") == "fulltext":
+                    href = link.get("href")
+                    if isinstance(href, str) and href.strip():
+                        pdf_url = href.strip()
+                        break
+
+    if not abstract and not pdf_url:
+        append_error(errors, "OSTI record contained no abstract/description or PDF link")
         return None
 
-    cleaned = clean_text(abstract)
-    if not cleaned:
-        append_error(errors, "No abstract/description found in OSTI record")
-        return None
-
-    return ResolverContext(text=cleaned, raw_text=abstract, kind="description", source="osti")
+    return ResolverContext(
+        text=abstract,
+        raw_text=raw_description if isinstance(raw_description, str) else "",
+        kind="description",
+        source="osti",
+        urls=[pdf_url] if pdf_url else None,
+        supplemental_doi=ja_doi if isinstance(ja_doi, str) and ja_doi != doi else None,
+    )
 
 
 def query_osti_by_doi(osti_doi: str) -> dict:
@@ -89,60 +107,3 @@ def query_osti_by_doi(osti_doi: str) -> dict:
         )
         response.raise_for_status()
         return response.json()  # type: ignore
-
-
-def retrieve_pdf_link_from_osti_doi(doi: str) -> Publication:
-    """Retrieve publication information including PDF links from OSTI API using a DOI.
-
-    Args:
-        doi: Digital Object Identifier (e.g., "10.15485/1729719")
-
-    Returns:
-        Publication object with abstract, URLs, and associated publication DOI.
-        If an error occurs, returns Publication with error field populated.
-    """
-    try:
-        data = query_osti_by_doi(doi)
-
-        # Check if we got any results
-        if not data or len(data) == 0:
-            return Publication(doi=doi, error=f"No publication found in OSTI for DOI: {doi}")
-
-        # get the record
-        record = data[0] if isinstance(data, list) else data
-
-        # we can see if the record is a publication or not. If not, return the description.
-        if record.get("product_type") == "Journal Article":
-            # get the JA DOI
-            ja_doi = record.get("doi")
-            if not ja_doi:
-                return Publication(doi=doi, error="Journal Article record missing DOI")
-
-            crossref_pdf_links = retrieve_pdf_link_from_crossref(ja_doi)
-
-            if len(crossref_pdf_links.get("pdf_links", [])) != 0:
-                pub = Publication(
-                    source="Crossref",
-                    doi=doi,
-                    associated_publication_doi=ja_doi,
-                    urls=crossref_pdf_links.get("pdf_links"),
-                    abstract=record.get("description"),
-                )
-            else:
-                # try pmc
-                pmc_pdf_info = retrieve_pdf_link_from_pmc(ja_doi)
-                pdf_url = pmc_pdf_info.get("pdf_url")
-                pub = Publication(
-                    source="PMC" if pdf_url else None,
-                    doi=doi,
-                    associated_publication_doi=ja_doi,
-                    pmid=pmc_pdf_info.get("pmid"),
-                    urls=[pdf_url] if pdf_url else None,  # type: ignore[list-item]
-                    abstract=record.get("description"),
-                )
-            return pub
-        else:
-            return Publication(doi=doi, abstract=record.get("description"))
-
-    except Exception as e:
-        return Publication(doi=doi, error=f"Failed to retrieve DOI information from OSTI: {str(e)}")
