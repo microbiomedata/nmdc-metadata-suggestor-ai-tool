@@ -54,11 +54,15 @@ CROSSREF_API_URL = "https://api.crossref.org/works"
 # in doi_ingestion/elsevier.py (not captured here, to avoid import-time issues).
 ELSEVIER_API_URL = "https://api.elsevier.com/content/article/doi"
 
-# Springer Nature Metadata API — requires API key from https://dev.springernature.com/
+# Springer Nature APIs — require keys from https://dev.springernature.com/
 # Free registration; no institutional affiliation required.
-# The API key is read at call time via os.environ.get("SPRINGER_NATURE_API_KEY")
-# in doi_ingestion/springer_nature.py (not captured here, to avoid import-time issues).
-SPRINGER_NATURE_API_URL = "https://api.springernature.com/metadata/json"
+# IMPORTANT: Each key on the dashboard is scoped to a specific API endpoint.
+#   "Meta API" key     → /meta/v2/   (SPRINGER_NATURE_API_KEY)
+#   "Open Access API"  → /openaccess/ (SPRINGER_NATURE_OA_API_KEY)
+#   "Metadata API" key → /metadata/  (separate key, not yet provisioned)
+# Keys are read at call time in doi_ingestion/springer_nature.py.
+SPRINGER_NATURE_META_API_URL = "https://api.springernature.com/meta/v2/json"
+SPRINGER_NATURE_OA_API_URL = "https://api.springernature.com/openaccess/json"
 
 DATACITE_API_URL = "https://api.datacite.org/dois"
 OPENALEX_API_URL = "https://api.openalex.org/works"

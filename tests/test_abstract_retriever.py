@@ -16,7 +16,7 @@ from nmdc_metadata_suggestor.constants import (
     OPENALEX_API_URL,
     PUBMED_EFETCH,
     PUBMED_ID_CONVERTER,
-    SPRINGER_NATURE_API_URL,
+    SPRINGER_NATURE_META_API_URL,
 )
 from nmdc_metadata_suggestor.doi_ingestion.doi_utils import strip_jats_xml
 from nmdc_metadata_suggestor.models.doi import SourceRetrievalResult
@@ -896,7 +896,7 @@ class TestSpringerNatureUnit:
         monkeypatch.setenv("SPRINGER_NATURE_API_KEY", "fake-api-key")
         responses.add(
             responses.GET,
-            SPRINGER_NATURE_API_URL,
+            SPRINGER_NATURE_META_API_URL,
             json=SPRINGER_NATURE_API_RESPONSE,
         )
         result = get_abstract(
@@ -949,7 +949,7 @@ class TestSpringerNatureUnit:
         }
         responses.add(
             responses.GET,
-            SPRINGER_NATURE_API_URL,
+            SPRINGER_NATURE_META_API_URL,
             json=springer_response,
         )
         result = get_abstract(springer_doi, skip_classification=True, sources=["springer_nature"])
@@ -963,7 +963,7 @@ class TestSpringerNatureUnit:
         monkeypatch.setenv("SPRINGER_NATURE_API_KEY", "fake-api-key")
         responses.add(
             responses.GET,
-            SPRINGER_NATURE_API_URL,
+            SPRINGER_NATURE_META_API_URL,
             status=401,
         )
         result = get_abstract(
@@ -986,7 +986,7 @@ class TestSpringerNatureUnit:
         }
         responses.add(
             responses.GET,
-            SPRINGER_NATURE_API_URL,
+            SPRINGER_NATURE_META_API_URL,
             json=no_abstract_response,
         )
         result = get_abstract(
@@ -1001,7 +1001,7 @@ class TestSpringerNatureUnit:
         empty_response = {"records": []}
         responses.add(
             responses.GET,
-            SPRINGER_NATURE_API_URL,
+            SPRINGER_NATURE_META_API_URL,
             json=empty_response,
         )
         result = get_abstract(
@@ -1032,7 +1032,7 @@ class TestSpringerNatureUnit:
         # Springer Nature hit
         responses.add(
             responses.GET,
-            SPRINGER_NATURE_API_URL,
+            SPRINGER_NATURE_META_API_URL,
             json=SPRINGER_NATURE_API_RESPONSE,
         )
         result = get_abstract(doi, skip_classification=True)
