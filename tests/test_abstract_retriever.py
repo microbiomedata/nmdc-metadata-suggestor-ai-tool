@@ -157,7 +157,7 @@ class TestGetAbstractClassificationGate:
 
     def test_invalid_doi_refused(self) -> None:
         result = get_doi_description_or_abstract("not-a-doi")
-        assert result.content is None
+        assert result.context is None
         assert result.error is not None
         assert "Invalid DOI" in result.error
 
@@ -166,7 +166,7 @@ class TestGetAbstractClassificationGate:
         doi = "10.15485/1729719"
         _mock_classify_as_dataset(doi)
         result = get_doi_description_or_abstract(doi)
-        assert result.content is None
+        assert result.context is None
         assert "not a publication" in result.error
 
     @responses.activate
@@ -175,7 +175,7 @@ class TestGetAbstractClassificationGate:
         doi = "10.5281/zenodo.1234567"
         _mock_classify_as_datacite_software(doi)
         result = get_doi_description_or_abstract(doi)
-        assert result.content is None
+        assert result.context is None
         assert "Software" in result.error
         assert "not a publication type" in result.error
 
@@ -185,7 +185,7 @@ class TestGetAbstractClassificationGate:
         doi = "10.1038/s41564-020-00861-0.fig1"
         _mock_classify_as_crossref_component(doi)
         result = get_doi_description_or_abstract(doi)
-        assert result.content is None
+        assert result.context is None
         assert "component" in result.error
         assert "not a publication type" in result.error
 
@@ -392,10 +392,10 @@ class TestGetAbstractResult:
 
     def test_defaults(self) -> None:
         r = SourceRetrievalResult(doi="10.1234/test")
-        assert r.content is None
-        assert r.raw_content is None
+        assert r.context is None
+        assert r.raw_context is None
         assert r.source is None
-        assert r.content_type is None
+        assert r.context_type is None
         assert r.pmid is None
         assert r.provider is None
         assert r.source_errors == {}
@@ -593,31 +593,31 @@ class TestSourceSelection:
 def test_get_abstract_real_aslo_doi() -> None:
     """10.4319 — ASLO (limnology/oceanography) journal article."""
     result = get_doi_description_or_abstract("10.4319/lom.2008.6.230")
-    assert result.content is not None, f"No content found: {result.error}"
-    assert len(result.content) > 50
+    assert result.context is not None, f"No content found: {result.error}"
+    assert len(result.context) > 50
     assert result.source is not None
-    assert result.raw_content is not None
-    assert result.content_type is not None
+    assert result.raw_context is not None
+    assert result.context_type is not None
 
 
 @integration
 def test_get_abstract_real_nature_doi() -> None:
     """10.1038 — Nature journal article."""
     result = get_doi_description_or_abstract("10.1038/s41564-020-00861-0")
-    assert result.content is not None, f"No content found: {result.error}"
-    assert len(result.content) > 100
-    assert result.raw_content is not None
-    assert result.content_type is not None
+    assert result.context is not None, f"No content found: {result.error}"
+    assert len(result.context) > 100
+    assert result.raw_context is not None
+    assert result.context_type is not None
 
 
 @integration
 def test_get_abstract_real_frontiers_doi() -> None:
     """10.3389 — Frontiers journal article."""
     result = get_doi_description_or_abstract("10.3389/fsoil.2023.1120425")
-    assert result.content is not None, f"No content found: {result.error}"
-    assert len(result.content) > 100
+    assert result.context is not None, f"No content found: {result.error}"
+    assert len(result.context) > 100
     assert result.source in ("openalex", "crossref", "datacite")
-    assert result.raw_content is not None
+    assert result.raw_context is not None
 
 
 @integration
@@ -629,9 +629,9 @@ def test_get_abstract_real_elsevier_doi() -> None:
     verifies graceful handling: either content is found or the failure is clean.
     """
     result = get_doi_description_or_abstract("10.1016/j.apsoil.2025.106110")
-    if result.content:
-        assert result.raw_content is not None
-        assert result.content_type is not None
+    if result.context:
+        assert result.raw_context is not None
+        assert result.context_type is not None
     else:
         # Known Elsevier holdout — all sources tried, clean failure
         assert result.error == "No description or abstract found in any source"
@@ -643,9 +643,9 @@ def test_get_abstract_real_soil_science_doi() -> None:
     result = get_doi_description_or_abstract("10.2136/sssabookser5.3.c16")
     # Book chapters may or may not have content; verify graceful handling
     assert result.error is None or "No description or abstract found" in result.error
-    if result.content:
-        assert result.raw_content is not None
-        assert result.content_type is not None
+    if result.context:
+        assert result.raw_context is not None
+        assert result.context_type is not None
 
 
 @integration
@@ -667,7 +667,7 @@ def test_get_abstract_real_protocols_io_doi() -> None:
 def test_get_abstract_real_dataset_doi() -> None:
     """Dataset DOI — should be gracefully refused (not a publication)."""
     result = get_doi_description_or_abstract("10.15485/1729719")
-    assert result.content is None
+    assert result.context is None
     assert result.error is not None
     assert "not a publication" in result.error
 
@@ -676,11 +676,11 @@ def test_get_abstract_real_dataset_doi() -> None:
 def test_get_abstract_raw_vs_cleaned() -> None:
     """Verify raw_content differs from content when JATS XML is present."""
     result = get_doi_description_or_abstract("10.3389/fsoil.2023.1120425")
-    assert result.content is not None
-    assert result.raw_content is not None
-    if result.content_type == "jats_xml":
-        assert "<" in result.raw_content
-        assert "<" not in result.content
-    elif result.content_type == "inverted_index":
-        assert "{" in result.raw_content
-        assert result.content != result.raw_content
+    assert result.context is not None
+    assert result.raw_context is not None
+    if result.context_type == "jats_xml":
+        assert "<" in result.raw_context
+        assert "<" not in result.context
+    elif result.context_type == "inverted_index":
+        assert "{" in result.raw_context
+        assert result.context != result.raw_context
