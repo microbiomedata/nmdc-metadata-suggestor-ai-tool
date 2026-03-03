@@ -44,7 +44,9 @@ def try_springer_nature(doi: str, errors: list[str] | None = None) -> ResolverCo
     """
     text, raw = _fetch_springer_nature_abstract(doi, errors)
     if text:
-        return ResolverContext(text=text, raw_text=raw or "", kind="abstract", source="springer_nature")
+        return ResolverContext(
+            text=text, raw_text=raw or "", kind="abstract", source="springer_nature"
+        )
     return None
 
 
