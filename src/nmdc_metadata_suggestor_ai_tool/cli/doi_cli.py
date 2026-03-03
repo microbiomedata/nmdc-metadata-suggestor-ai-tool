@@ -1,4 +1,4 @@
-"""CLI for DOI validation, classification, and abstract retrieval.
+"""CLI for DOI validation, classification, abstract and full text retrieval.
 
 Usage::
 
@@ -8,6 +8,8 @@ Usage::
     make get-abstract DOI=10.1038/s41564-020-00861-0
     make get-abstract DOI=10.1038/s41564-020-00861-0 OUT=abstracts/
     make get-abstracts
+    make get-fulltext DOI=10.1038/s41564-020-00861-0
+    make get-fulltext DOI=10.1038/s41564-020-00861-0 OUT=fulltext/
 """
 
 import json
@@ -20,6 +22,7 @@ from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import (
     validate_doi,
 )
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.main import get_doi_description_or_abstract
+from nmdc_metadata_suggestor_ai_tool.publication_ingestion.europepmc_fulltext import get_full_text
 
 
 def _print_json(obj: object) -> None:
@@ -93,6 +96,51 @@ def cmd_get_abstract(
         _print_json(dump)
 
 
+def cmd_get_fulltext(raw_doi: str, out_dir: str | None = None) -> None:
+    """Fetch full text (JATS XML + PDF URL) for a single DOI.
+
+    If *out_dir* is provided, writes the result JSON and raw XML as
+    separate files.  Otherwise prints JSON to stdout with ``full_text_xml``
+    replaced by a length indicator.
+    """
+    doi = normalize_doi(raw_doi)
+    result = get_full_text(doi)
+    dump = result.model_dump()
+
+    if result.error:
+        print(f"  {result.error}", file=sys.stderr)
+    else:
+        xml_len = len(result.full_text_xml) if result.full_text_xml else 0
+        print(
+            f"  europepmc  {xml_len:>8d} chars XML  {result.pmcid}  {doi}",
+            file=sys.stderr,
+        )
+
+    if out_dir:
+        out_path = Path(out_dir)
+        out_path.mkdir(parents=True, exist_ok=True)
+        slug = doi.replace("/", "__")
+
+        # Save result JSON (without bulky XML inline).
+        json_dump = dict(dump)
+        if json_dump.get("full_text_xml"):
+            json_dump["full_text_xml"] = f"<{len(result.full_text_xml)} chars — see {slug}.xml>"
+        file_path = out_path / f"{slug}.json"
+        file_path.write_text(json.dumps(json_dump, indent=2) + "\n")
+        print(f"  -> {file_path}", file=sys.stderr)
+
+        # Save raw XML separately.
+        if result.full_text_xml:
+            xml_path = out_path / f"{slug}.xml"
+            xml_path.write_text(result.full_text_xml)
+            print(f"  -> {xml_path}", file=sys.stderr)
+    else:
+        # Replace large XML with length indicator for terminal output.
+        if dump.get("full_text_xml"):
+            dump["full_text_xml"] = f"<{len(result.full_text_xml)} chars>"
+        _print_json(dump)
+
+
 def cmd_get_abstracts(out_dir: str = "abstracts") -> None:
     """Fetch abstracts for all publication DOIs in the test fixture.
 
@@ -136,7 +184,7 @@ def main() -> None:
     if len(sys.argv) < 2:
         print(
             f"Usage: {sys.argv[0]} <validate|classify|classify-fixture"
-            "|get-abstract|get-abstracts> [DOI] [OUT]",
+            "|get-abstract|get-abstracts|get-fulltext> [DOI] [OUT]",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -167,6 +215,12 @@ def main() -> None:
             else:
                 out_dir = arg
         cmd_get_abstract(sys.argv[2], out_dir, sources)
+    elif command == "get-fulltext":
+        if len(sys.argv) < 3:
+            print("Error: DOI argument required", file=sys.stderr)
+            sys.exit(1)
+        out_dir = sys.argv[3] if len(sys.argv) > 3 else None
+        cmd_get_fulltext(sys.argv[2], out_dir)
     elif command == "get-abstracts":
         out_dir = sys.argv[2] if len(sys.argv) > 2 else "abstracts"
         cmd_get_abstracts(out_dir)
@@ -174,7 +228,7 @@ def main() -> None:
         print(f"Unknown command: {command}", file=sys.stderr)
         print(
             f"Usage: {sys.argv[0]} <validate|classify|classify-fixture"
-            "|get-abstract|get-abstracts> [DOI] [OUT]",
+            "|get-abstract|get-abstracts|get-fulltext> [DOI] [OUT]",
             file=sys.stderr,
         )
         sys.exit(1)

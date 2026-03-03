@@ -1,4 +1,4 @@
-.PHONY: help dev-install test test-integration lint lint-fix format clean docker-build docker-run docker-dev validate-doi classify-doi classify-fixture get-abstract get-abstracts
+.PHONY: help dev-install test test-integration lint lint-fix format clean docker-build docker-run docker-dev validate-doi classify-doi classify-fixture get-abstract get-abstracts get-fulltext
 
 help: ## Show this help message
 	@echo "Usage: make [target]"
@@ -61,7 +61,7 @@ docker-shell: ## Open shell in development container
 run: ## Run the application locally
 	uv run nmdc-suggestor
 
-DOI_CLI = uv run python -m nmdc_metadata_suggestor.cli.doi_cli
+DOI_CLI = uv run python -m nmdc_metadata_suggestor_ai_tool.cli.doi_cli
 
 validate-doi: ## Validate a DOI (usage: make validate-doi DOI=10.1038/s41564-020-00861-0)
 	$(DOI_CLI) validate $(DOI)
@@ -74,6 +74,9 @@ classify-fixture: ## Classify all DOIs in the test fixture
 
 get-abstract: ## Fetch abstract for a DOI (usage: make get-abstract DOI=10.1038/... [OUT=abstracts/] [SOURCES=crossref,pubmed])
 	$(DOI_CLI) get-abstract $(DOI) $(OUT) $(if $(SOURCES),sources=$(SOURCES))
+
+get-fulltext: ## Fetch full text for a DOI (usage: make get-fulltext DOI=10.1038/... [OUT=fulltext/])
+	$(DOI_CLI) get-fulltext $(DOI) $(OUT)
 
 get-abstracts: ## Fetch abstracts for all publication DOIs in the fixture
 	$(DOI_CLI) get-abstracts

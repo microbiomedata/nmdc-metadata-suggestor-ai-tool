@@ -84,3 +84,23 @@ class SourceRetrievalResult(BaseModel):
         description="DOIs of the publication(s) associated with the context. "
         "ONLY FILL IF DIFFERENT FROM THE REQUESTED DOI.",
     )
+
+
+class FullTextRetrievalResult(BaseModel):
+    """Result of full text retrieval from Europe PMC or similar sources.
+
+    Separate from ``SourceRetrievalResult`` because full text produces
+    fundamentally different outputs: large JATS XML documents and binary
+    PDF content, rather than short abstract strings.
+    """
+
+    doi: str
+    pmcid: str | None = None
+    is_open_access: bool | None = None
+    source: str | None = None
+    error: str | None = None
+    attempts: list[str] = Field(default_factory=list)
+
+    full_text_xml: str | None = None
+    pdf_url: str | None = None
+    pdf_bytes: bytes | None = Field(default=None, exclude=True, repr=False)
