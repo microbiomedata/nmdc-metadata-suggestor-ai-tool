@@ -1421,16 +1421,6 @@ def test_live_source_example_returns_context(case: dict[str, str]) -> None:
     assert result.context_type in {"abstract", "description"}
 
 
-test_live_source_example_returns_context(
-    {
-        "source": "cyverse",
-        "route": "explicit",
-        "doi": "10.25739/vddx-w132",
-        "origin": "DataCite publisher:CyVerse",
-    },
-)
-
-
 @integration
 @pytest.mark.parametrize(
     "case",

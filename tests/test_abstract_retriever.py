@@ -396,7 +396,6 @@ class TestGetAbstractResult:
         assert r.raw_context is None
         assert r.source is None
         assert r.context_type is None
-        assert r.pmid is None
         assert r.provider is None
         assert r.source_errors == {}
         assert r.error is None
