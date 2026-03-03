@@ -128,8 +128,7 @@ def get_doi_description_or_abstract(
         provider=provider,
         attempts=attempts,
         source_errors=source_errors,
-        error="No description or abstract found in any source. " \
-        "Check source_errors for details.",
+        error="No description or abstract found in any source. " "Check source_errors for details.",
     )
 
 
