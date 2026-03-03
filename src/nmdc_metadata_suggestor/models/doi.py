@@ -81,6 +81,6 @@ class SourceRetrievalResult(BaseModel):
 
     publication_doi: str | None = Field(
         default=None,
-        description="DOI of the publication associated with the context. " \
+        description="DOI of the publication associated with the context. "
         "ONLY FILL IF DIFFERENT FROM THE REQUESTED DOI.",
     )
