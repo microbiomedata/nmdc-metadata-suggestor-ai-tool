@@ -255,9 +255,7 @@ def _fetch_elsevier(
     doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
 ) -> SourceRetrievalResult | None:
     """Fetch and wrap context from Elsevier ScienceDirect API."""
-    return _fetch_resolver_context(
-        doi, provider, "elsevier", attempts, source_errors, try_elsevier
-    )
+    return _fetch_resolver_context(doi, provider, "elsevier", attempts, source_errors, try_elsevier)
 
 
 def _fetch_springer_nature(

@@ -300,7 +300,12 @@ class TestGetAbstractWaterfall:
         assert result.source == "content_negotiation"
         assert result.content_format == "citeproc_json"
         assert result.attempts == [
-            "openalex", "crossref", "elsevier", "springer_nature", "pubmed", "content_negotiation"
+            "openalex",
+            "crossref",
+            "elsevier",
+            "springer_nature",
+            "pubmed",
+            "content_negotiation",
         ]
 
     @responses.activate
@@ -562,8 +567,13 @@ class TestSourceSelection:
     def test_all_sources_constant(self) -> None:
         """ALL_SOURCES has the expected default order."""
         assert ALL_SOURCES == (
-            "openalex", "crossref", "elsevier", "springer_nature",
-            "pubmed", "content_negotiation", "osti",
+            "openalex",
+            "crossref",
+            "elsevier",
+            "springer_nature",
+            "pubmed",
+            "content_negotiation",
+            "osti",
         )
 
     @responses.activate
@@ -579,8 +589,13 @@ class TestSourceSelection:
         responses.add(responses.GET, f"https://doi.org/{doi}", json={})
         result = get_abstract(doi)
         assert result.attempts == [
-            "openalex", "crossref", "elsevier", "springer_nature",
-            "pubmed", "content_negotiation", "osti",
+            "openalex",
+            "crossref",
+            "elsevier",
+            "springer_nature",
+            "pubmed",
+            "content_negotiation",
+            "osti",
         ]
 
 
@@ -790,9 +805,7 @@ class TestElsevierUnit:
         assert result.abstract is None
 
     @responses.activate
-    def test_elsevier_in_waterfall_after_crossref(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_elsevier_in_waterfall_after_crossref(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Elsevier sits between Crossref and PubMed in the waterfall."""
         monkeypatch.setenv("ELSEVIER_API_KEY", "fake-api-key")
         doi = ELSEVIER_DOI
@@ -846,9 +859,7 @@ def test_elsevier_live_old_format_doi() -> None:
 
     if not os.environ.get("ELSEVIER_API_KEY"):
         pytest.skip("ELSEVIER_API_KEY not set")
-    result = get_abstract(
-        "10.1016/0038-0717(85)90144-0", sources=["elsevier"]
-    )
+    result = get_abstract("10.1016/0038-0717(85)90144-0", sources=["elsevier"])
     # Old DOIs may or may not have abstracts in the API
     if result.abstract:
         assert result.source == "elsevier"
@@ -900,7 +911,9 @@ class TestSpringerNatureUnit:
             json=SPRINGER_NATURE_API_RESPONSE,
         )
         result = get_abstract(
-            SPRINGER_NATURE_DOI, skip_classification=True, sources=["springer_nature"],
+            SPRINGER_NATURE_DOI,
+            skip_classification=True,
+            sources=["springer_nature"],
         )
         assert result.abstract is not None
         assert "metagenomes" in result.abstract
@@ -914,14 +927,17 @@ class TestSpringerNatureUnit:
         """Graceful skip when SPRINGER_NATURE_API_KEY is not set."""
         monkeypatch.delenv("SPRINGER_NATURE_API_KEY", raising=False)
         result = get_abstract(
-            SPRINGER_NATURE_DOI, skip_classification=True, sources=["springer_nature"],
+            SPRINGER_NATURE_DOI,
+            skip_classification=True,
+            sources=["springer_nature"],
         )
         assert result.abstract is None
         assert result.error == "No abstract found in any source"
 
     @responses.activate
     def test_springer_nature_skips_non_matching_prefix(
-        self, monkeypatch: pytest.MonkeyPatch,
+        self,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Prefix gate: non-10.1038/10.1007 DOIs skip without an API call."""
         monkeypatch.setenv("SPRINGER_NATURE_API_KEY", "fake-api-key")
@@ -967,7 +983,9 @@ class TestSpringerNatureUnit:
             status=401,
         )
         result = get_abstract(
-            SPRINGER_NATURE_DOI, skip_classification=True, sources=["springer_nature"],
+            SPRINGER_NATURE_DOI,
+            skip_classification=True,
+            sources=["springer_nature"],
         )
         assert result.abstract is None
         assert result.error == "No abstract found in any source"
@@ -990,7 +1008,9 @@ class TestSpringerNatureUnit:
             json=no_abstract_response,
         )
         result = get_abstract(
-            SPRINGER_NATURE_DOI, skip_classification=True, sources=["springer_nature"],
+            SPRINGER_NATURE_DOI,
+            skip_classification=True,
+            sources=["springer_nature"],
         )
         assert result.abstract is None
 
@@ -1005,7 +1025,9 @@ class TestSpringerNatureUnit:
             json=empty_response,
         )
         result = get_abstract(
-            SPRINGER_NATURE_DOI, skip_classification=True, sources=["springer_nature"],
+            SPRINGER_NATURE_DOI,
+            skip_classification=True,
+            sources=["springer_nature"],
         )
         assert result.abstract is None
 

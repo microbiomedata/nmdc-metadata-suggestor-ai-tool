@@ -28,9 +28,7 @@ LOGGER = logging.getLogger(__name__)
 ELSEVIER_DOI_PREFIX = "10.1016/"
 
 
-def try_elsevier(
-    doi: str, errors: list[str] | None = None
-) -> ResolverContext | None:
+def try_elsevier(doi: str, errors: list[str] | None = None) -> ResolverContext | None:
     """Return Elsevier abstract context for DOI ingestion waterfall.
 
     Compatible with the ``doi_ingestion/main.py`` resolver interface.

@@ -13,8 +13,13 @@ import re
 # Supported sources for abstract and publication retrieval
 # ---------------------------------------------------------------------------
 ALL_SOURCES = (
-    "openalex", "crossref", "elsevier", "springer_nature",
-    "pubmed", "content_negotiation", "osti",
+    "openalex",
+    "crossref",
+    "elsevier",
+    "springer_nature",
+    "pubmed",
+    "content_negotiation",
+    "osti",
 )
 
 # ---------------------------------------------------------------------------

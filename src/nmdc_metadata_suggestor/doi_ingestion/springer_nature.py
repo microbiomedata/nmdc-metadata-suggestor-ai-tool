@@ -37,9 +37,7 @@ LOGGER = logging.getLogger(__name__)
 SPRINGER_NATURE_DOI_PREFIXES = ("10.1007/", "10.1038/")
 
 
-def try_springer_nature(
-    doi: str, errors: list[str] | None = None
-) -> ResolverContext | None:
+def try_springer_nature(doi: str, errors: list[str] | None = None) -> ResolverContext | None:
     """Return Springer Nature abstract context for DOI ingestion waterfall.
 
     Compatible with the ``doi_ingestion/main.py`` resolver interface.
