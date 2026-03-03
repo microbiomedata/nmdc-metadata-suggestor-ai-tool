@@ -36,12 +36,13 @@ from nmdc_metadata_suggestor.doi_ingestion.content_negotiation import (
     try_content_negotiation_abstract,
 )
 from nmdc_metadata_suggestor.doi_ingestion.crossref import try_crossref_abstract
-from nmdc_metadata_suggestor.doi_ingestion.elsevier import try_elsevier_abstract
 from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     classify_doi,
     normalize_doi,
     request_with_retry,
 )
+from nmdc_metadata_suggestor.doi_ingestion.elsevier import try_elsevier_abstract
+from nmdc_metadata_suggestor.doi_ingestion.springer_nature import try_springer_nature_abstract
 from nmdc_metadata_suggestor.models.doi import DoiClassification, SourceRetrievalResult
 
 # DataCite resourceTypeGeneral values that are clearly not publications.
@@ -257,6 +258,20 @@ def _fetch_elsevier(doi: str, attempts: list[str]) -> SourceRetrievalResult | No
     return None
 
 
+def _fetch_springer_nature(doi: str, attempts: list[str]) -> SourceRetrievalResult | None:
+    text, raw, fmt = try_springer_nature_abstract(doi)
+    if text:
+        return SourceRetrievalResult(
+            doi=doi,
+            abstract=text,
+            raw_abstract=raw,
+            source="springer_nature",
+            content_format=fmt,
+            attempts=attempts,
+        )
+    return None
+
+
 def _fetch_pubmed(doi: str, attempts: list[str]) -> SourceRetrievalResult | None:
     text, pmid = _try_pubmed(doi)
     if text:
@@ -290,6 +305,7 @@ _SOURCE_FETCHERS = {
     "openalex": _fetch_openalex,
     "crossref": _fetch_crossref,
     "elsevier": _fetch_elsevier,
+    "springer_nature": _fetch_springer_nature,
     "pubmed": _fetch_pubmed,
     "content_negotiation": _fetch_content_negotiation,
     "osti": _fetch_osti,

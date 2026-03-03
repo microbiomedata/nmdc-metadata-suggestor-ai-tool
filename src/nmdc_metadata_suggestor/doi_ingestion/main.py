@@ -33,12 +33,15 @@ from nmdc_metadata_suggestor.doi_ingestion.jgi import try_jgi
 from nmdc_metadata_suggestor.doi_ingestion.kbase import try_kbase
 from nmdc_metadata_suggestor.doi_ingestion.massive import try_massive
 from nmdc_metadata_suggestor.doi_ingestion.resolver_context import ResolverContext
+from nmdc_metadata_suggestor.doi_ingestion.springer_nature import try_springer_nature
 from nmdc_metadata_suggestor.doi_ingestion.zenodo import try_zenodo
 from nmdc_metadata_suggestor.models.doi import SourceRetrievalResult
 
 TARGET_PROVIDER_PREFIXES: dict[str, str] = {
     "10.6073": "edi",
     "10.1016": "elsevier",
+    "10.1007": "springer_nature",
+    "10.1038": "springer_nature",
     "10.46936": "emsl",
     "10.15485": "ess-dive",
     "10.21952": "ess-dive",
@@ -53,6 +56,7 @@ TARGET_PROVIDER_PREFIXES: dict[str, str] = {
 TARGET_PROVIDER_KEYWORDS: dict[str, str] = {
     "environmental data initiative": "edi",
     "elsevier": "elsevier",
+    "springer nature": "springer_nature",
     "emsl": "emsl",
     "ess-dive": "ess-dive",
     "figshare": "figshare",
@@ -256,6 +260,15 @@ def _fetch_elsevier(
     )
 
 
+def _fetch_springer_nature(
+    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
+) -> SourceRetrievalResult | None:
+    """Fetch and wrap context from Springer Nature Metadata API."""
+    return _fetch_resolver_context(
+        doi, provider, "springer_nature", attempts, source_errors, try_springer_nature
+    )
+
+
 def _fetch_datacite(
     doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
 ) -> SourceRetrievalResult | None:
@@ -307,6 +320,7 @@ def _fetch_content_negotiation(
 _SOURCE_FETCHERS: dict[str, Fetcher] = {
     "edi": _fetch_edi,
     "elsevier": _fetch_elsevier,
+    "springer_nature": _fetch_springer_nature,
     "emsl": _fetch_emsl,
     "ess-dive": _fetch_ess_dive,
     "figshare": _fetch_figshare,
@@ -323,6 +337,7 @@ _SOURCE_FETCHERS: dict[str, Fetcher] = {
 _PROVIDER_API_SOURCES = {
     "edi",
     "elsevier",
+    "springer_nature",
     "emsl",
     "ess-dive",
     "figshare",

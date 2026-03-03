@@ -16,6 +16,7 @@ from nmdc_metadata_suggestor.constants import (
     OPENALEX_API_URL,
     PUBMED_EFETCH,
     PUBMED_ID_CONVERTER,
+    SPRINGER_NATURE_API_URL,
 )
 from nmdc_metadata_suggestor.doi_ingestion.doi_utils import strip_jats_xml
 from nmdc_metadata_suggestor.models.doi import SourceRetrievalResult
@@ -257,6 +258,7 @@ class TestGetAbstractWaterfall:
         # Crossref miss
         responses.add(responses.GET, f"{CROSSREF_API_URL}/{doi}", json={"message": {}})
         # Elsevier skips non-10.1016 DOIs without an API call
+        # Springer Nature skips when SPRINGER_NATURE_API_KEY is absent
         # PubMed ID converter
         responses.add(
             responses.GET,
@@ -271,7 +273,7 @@ class TestGetAbstractWaterfall:
         assert result.source == "pubmed"
         assert result.content_format == "plain_text"
         assert result.pmid == "12345678"
-        assert result.attempts == ["openalex", "crossref", "elsevier", "pubmed"]
+        assert result.attempts == ["openalex", "crossref", "elsevier", "springer_nature", "pubmed"]
 
     @responses.activate
     def test_content_negotiation_fallback(self) -> None:
@@ -283,6 +285,7 @@ class TestGetAbstractWaterfall:
         # Crossref miss
         responses.add(responses.GET, f"{CROSSREF_API_URL}/{doi}", json={"message": {}})
         # Elsevier skips non-10.1016 DOIs without an API call
+        # Springer Nature skips when SPRINGER_NATURE_API_KEY is absent
         # PubMed miss
         responses.add(responses.GET, PUBMED_ID_CONVERTER, json={"records": []})
         # Content negotiation hit
@@ -297,7 +300,7 @@ class TestGetAbstractWaterfall:
         assert result.source == "content_negotiation"
         assert result.content_format == "citeproc_json"
         assert result.attempts == [
-            "openalex", "crossref", "elsevier", "pubmed", "content_negotiation"
+            "openalex", "crossref", "elsevier", "springer_nature", "pubmed", "content_negotiation"
         ]
 
     @responses.activate
@@ -308,6 +311,7 @@ class TestGetAbstractWaterfall:
         responses.add(responses.GET, f"{OPENALEX_API_URL}/https://doi.org/{doi}", json={})
         responses.add(responses.GET, f"{CROSSREF_API_URL}/{doi}", json={"message": {}})
         # Elsevier skips non-10.1016 DOIs without an API call
+        # Springer Nature skips when SPRINGER_NATURE_API_KEY is absent
         responses.add(responses.GET, PUBMED_ID_CONVERTER, json={"records": []})
         responses.add(
             responses.GET,
@@ -326,6 +330,7 @@ class TestGetAbstractWaterfall:
         responses.add(responses.GET, f"{OPENALEX_API_URL}/https://doi.org/{doi}", json={})
         responses.add(responses.GET, f"{CROSSREF_API_URL}/{doi}", json={"message": {}})
         # Elsevier skips non-10.1016 DOIs without an API call
+        # Springer Nature skips when SPRINGER_NATURE_API_KEY is absent
         responses.add(responses.GET, PUBMED_ID_CONVERTER, json={"records": []})
         responses.add(responses.GET, f"https://doi.org/{doi}", json={})
         result = get_abstract(doi)
@@ -349,6 +354,7 @@ class TestGetAbstractWaterfall:
             body=RequestsConnectionError("down"),
         )
         # Elsevier skips non-10.1016 DOIs without an API call
+        # Springer Nature skips when SPRINGER_NATURE_API_KEY is absent
         responses.add(
             responses.GET,
             PUBMED_ID_CONVERTER,
@@ -436,6 +442,7 @@ class TestContentFormatClassification:
         responses.add(responses.GET, f"{OPENALEX_API_URL}/https://doi.org/{doi}", json={})
         responses.add(responses.GET, f"{CROSSREF_API_URL}/{doi}", json={"message": {}})
         # Elsevier skips non-10.1016 DOIs without an API call
+        # Springer Nature skips when SPRINGER_NATURE_API_KEY is absent
         responses.add(responses.GET, PUBMED_ID_CONVERTER, json={"records": []})
         jats = "<jats:p>Tagged abstract.</jats:p>"
         responses.add(
@@ -555,7 +562,8 @@ class TestSourceSelection:
     def test_all_sources_constant(self) -> None:
         """ALL_SOURCES has the expected default order."""
         assert ALL_SOURCES == (
-            "openalex", "crossref", "elsevier", "pubmed", "content_negotiation", "osti"
+            "openalex", "crossref", "elsevier", "springer_nature",
+            "pubmed", "content_negotiation", "osti",
         )
 
     @responses.activate
@@ -566,11 +574,13 @@ class TestSourceSelection:
         responses.add(responses.GET, f"{OPENALEX_API_URL}/https://doi.org/{doi}", json={})
         responses.add(responses.GET, f"{CROSSREF_API_URL}/{doi}", json={"message": {}})
         # Elsevier skips non-10.1016 DOIs without an API call
+        # Springer Nature skips when SPRINGER_NATURE_API_KEY is absent
         responses.add(responses.GET, PUBMED_ID_CONVERTER, json={"records": []})
         responses.add(responses.GET, f"https://doi.org/{doi}", json={})
         result = get_abstract(doi)
         assert result.attempts == [
-            "openalex", "crossref", "elsevier", "pubmed", "content_negotiation", "osti"
+            "openalex", "crossref", "elsevier", "springer_nature",
+            "pubmed", "content_negotiation", "osti",
         ]
 
 
@@ -842,4 +852,223 @@ def test_elsevier_live_old_format_doi() -> None:
     # Old DOIs may or may not have abstracts in the API
     if result.abstract:
         assert result.source == "elsevier"
+        assert len(result.abstract) > 20
+
+
+# ---------------------------------------------------------------------------
+# Springer Nature Metadata API — unit tests
+# ---------------------------------------------------------------------------
+
+SPRINGER_NATURE_DOI = "10.1038/s41564-020-00861-0"
+
+SPRINGER_NATURE_API_RESPONSE = {
+    "apiMessage": "This JSON was provided by Springer Nature",
+    "query": f"doi:{SPRINGER_NATURE_DOI}",
+    "result": {
+        "total": "1",
+        "start": "1",
+        "pageLength": "1",
+        "recordsDisplayed": "1",
+    },
+    "records": [
+        {
+            "title": "A genomic catalog of Earth\u2019s microbiomes",
+            "doi": SPRINGER_NATURE_DOI,
+            "abstract": (
+                "The reconstruction of bacterial and archaeal genomes from "
+                "metagenomes has enabled insights into the ecology and evolution "
+                "of environmental and host-associated microbiomes."
+            ),
+            "publicationName": "Nature Microbiology",
+            "publicationDate": "2021-01-01",
+            "contentType": "Article",
+        }
+    ],
+}
+
+
+class TestSpringerNatureUnit:
+    """Unit tests for Springer Nature Metadata API abstract retrieval."""
+
+    @responses.activate
+    def test_springer_nature_returns_abstract(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Happy path: API key set, 10.1038 DOI, abstract returned."""
+        monkeypatch.setenv("SPRINGER_NATURE_API_KEY", "fake-api-key")
+        responses.add(
+            responses.GET,
+            SPRINGER_NATURE_API_URL,
+            json=SPRINGER_NATURE_API_RESPONSE,
+        )
+        result = get_abstract(
+            SPRINGER_NATURE_DOI, skip_classification=True, sources=["springer_nature"],
+        )
+        assert result.abstract is not None
+        assert "metagenomes" in result.abstract
+        assert result.source == "springer_nature"
+        assert result.content_format == "plain_text"
+        assert result.raw_abstract is not None
+        assert result.attempts == ["springer_nature"]
+
+    @responses.activate
+    def test_springer_nature_skips_without_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Graceful skip when SPRINGER_NATURE_API_KEY is not set."""
+        monkeypatch.delenv("SPRINGER_NATURE_API_KEY", raising=False)
+        result = get_abstract(
+            SPRINGER_NATURE_DOI, skip_classification=True, sources=["springer_nature"],
+        )
+        assert result.abstract is None
+        assert result.error == "No abstract found in any source"
+
+    @responses.activate
+    def test_springer_nature_skips_non_matching_prefix(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Prefix gate: non-10.1038/10.1007 DOIs skip without an API call."""
+        monkeypatch.setenv("SPRINGER_NATURE_API_KEY", "fake-api-key")
+        result = get_abstract(
+            "10.1016/j.example.2025.123",
+            skip_classification=True,
+            sources=["springer_nature"],
+        )
+        assert result.abstract is None
+        assert len(responses.calls) == 0
+
+    @responses.activate
+    def test_springer_nature_accepts_10_1007_prefix(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """10.1007/ prefix (Springer) is also accepted."""
+        monkeypatch.setenv("SPRINGER_NATURE_API_KEY", "fake-api-key")
+        springer_doi = "10.1007/s00248-021-01234-5"
+        springer_response = {
+            "records": [
+                {
+                    "title": "Springer Article",
+                    "doi": springer_doi,
+                    "abstract": "A study of microbial ecology in forest soils.",
+                }
+            ],
+        }
+        responses.add(
+            responses.GET,
+            SPRINGER_NATURE_API_URL,
+            json=springer_response,
+        )
+        result = get_abstract(springer_doi, skip_classification=True, sources=["springer_nature"])
+        assert result.abstract is not None
+        assert "microbial ecology" in result.abstract
+        assert result.source == "springer_nature"
+
+    @responses.activate
+    def test_springer_nature_handles_http_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """HTTP error (401/500) is handled gracefully."""
+        monkeypatch.setenv("SPRINGER_NATURE_API_KEY", "fake-api-key")
+        responses.add(
+            responses.GET,
+            SPRINGER_NATURE_API_URL,
+            status=401,
+        )
+        result = get_abstract(
+            SPRINGER_NATURE_DOI, skip_classification=True, sources=["springer_nature"],
+        )
+        assert result.abstract is None
+        assert result.error == "No abstract found in any source"
+
+    @responses.activate
+    def test_springer_nature_handles_no_abstract(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Response record missing abstract is handled gracefully."""
+        monkeypatch.setenv("SPRINGER_NATURE_API_KEY", "fake-api-key")
+        no_abstract_response = {
+            "records": [
+                {
+                    "title": "Article without abstract",
+                    "doi": SPRINGER_NATURE_DOI,
+                }
+            ],
+        }
+        responses.add(
+            responses.GET,
+            SPRINGER_NATURE_API_URL,
+            json=no_abstract_response,
+        )
+        result = get_abstract(
+            SPRINGER_NATURE_DOI, skip_classification=True, sources=["springer_nature"],
+        )
+        assert result.abstract is None
+
+    @responses.activate
+    def test_springer_nature_handles_empty_records(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Response with empty records array is handled gracefully."""
+        monkeypatch.setenv("SPRINGER_NATURE_API_KEY", "fake-api-key")
+        empty_response = {"records": []}
+        responses.add(
+            responses.GET,
+            SPRINGER_NATURE_API_URL,
+            json=empty_response,
+        )
+        result = get_abstract(
+            SPRINGER_NATURE_DOI, skip_classification=True, sources=["springer_nature"],
+        )
+        assert result.abstract is None
+
+    @responses.activate
+    def test_springer_nature_in_waterfall_after_elsevier(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Springer Nature sits between Elsevier and PubMed in the waterfall."""
+        monkeypatch.setenv("SPRINGER_NATURE_API_KEY", "fake-api-key")
+        doi = SPRINGER_NATURE_DOI
+        # OpenAlex miss
+        responses.add(
+            responses.GET,
+            f"{OPENALEX_API_URL}/https://doi.org/{doi}",
+            json={},
+        )
+        # Crossref miss
+        responses.add(
+            responses.GET,
+            f"{CROSSREF_API_URL}/{doi}",
+            json={"message": {}},
+        )
+        # Elsevier skips non-10.1016 DOIs without an API call
+        # Springer Nature hit
+        responses.add(
+            responses.GET,
+            SPRINGER_NATURE_API_URL,
+            json=SPRINGER_NATURE_API_RESPONSE,
+        )
+        result = get_abstract(doi, skip_classification=True)
+        assert result.source == "springer_nature"
+        assert result.attempts == ["openalex", "crossref", "elsevier", "springer_nature"]
+        assert "metagenomes" in result.abstract
+
+
+# ---------------------------------------------------------------------------
+# Springer Nature Metadata API — integration tests (real API, gated on API key)
+# ---------------------------------------------------------------------------
+
+
+@integration
+def test_springer_nature_live_returns_abstract() -> None:
+    """Real API call for a Nature DOI (requires SPRINGER_NATURE_API_KEY)."""
+    import os
+
+    if not os.environ.get("SPRINGER_NATURE_API_KEY"):
+        pytest.skip("SPRINGER_NATURE_API_KEY not set")
+    result = get_abstract("10.1038/s41564-020-00861-0", sources=["springer_nature"])
+    assert result.abstract is not None, f"No abstract: {result.error}"
+    assert len(result.abstract) > 50
+    assert result.source == "springer_nature"
+    assert result.content_format == "plain_text"
+
+
+@integration
+def test_springer_nature_live_springer_prefix() -> None:
+    """Real API call for a Springer DOI (10.1007 prefix, requires SPRINGER_NATURE_API_KEY)."""
+    import os
+
+    if not os.environ.get("SPRINGER_NATURE_API_KEY"):
+        pytest.skip("SPRINGER_NATURE_API_KEY not set")
+    result = get_abstract("10.1007/s00248-021-01700-x", sources=["springer_nature"])
+    # Springer DOIs may or may not have abstracts in the Metadata API
+    if result.abstract:
+        assert result.source == "springer_nature"
         assert len(result.abstract) > 20

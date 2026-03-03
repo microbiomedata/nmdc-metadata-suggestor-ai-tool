@@ -61,6 +61,7 @@ These levels are an analytical framework, not from any standard:
 | DataCite API | DataCite DOIs | No |
 | PubMed / Europe PMC | Publications with PMIDs | No |
 | Elsevier ScienceDirect API | `10.1016/` DOIs (Elsevier publications) | Yes (`ELSEVIER_API_KEY`) |
+| Springer Nature Metadata API | `10.1007/` and `10.1038/` DOIs (Springer and Nature publications) | Yes (`SPRINGER_NATURE_API_KEY`) |
 | Unpaywall | OA full text discovery | Yes (email) |
 | Publisher-specific APIs | Varies by publisher | Varies |
 
@@ -214,6 +215,7 @@ caller or Docker/CI is responsible for injecting them):
 | `CONTACT_EMAIL` | `doi_utils.py` User-Agent, future OpenAlex calls | No | `support@microbiomedata.org` |
 | `OPENALEX_API_KEY` | Future abstract retrieval (#1597) | No | *(none — email auth is sufficient for moderate usage)* |
 | `ELSEVIER_API_KEY` | `doi_ingestion/elsevier.py` — ScienceDirect Abstract Retrieval API (#1611) | For 10.1016 DOIs | *(none — Elsevier step is skipped when absent)* |
+| `SPRINGER_NATURE_API_KEY` | `doi_ingestion/springer_nature.py` — Springer Nature Metadata API | For 10.1007 and 10.1038 DOIs | *(none — Springer Nature step is skipped when absent)* |
 | `UNPAYWALL_EMAIL` | Future PDF discovery (#1598) | For Unpaywall calls | *(none)* |
 | `API_KEY` | LLM access (Olivia's existing code) | For LLM features | *(none)* |
 
@@ -221,6 +223,10 @@ caller or Docker/CI is responsible for injecting them):
 or team API key, not a personal developer key. Personal keys are tied to
 individual accounts and may be revoked when someone leaves the project. Register
 at https://dev.elsevier.com/ and request an institutional key via your library.
+
+**Note on Springer Nature API keys:** Free registration at
+https://dev.springernature.com/ — no institutional affiliation required. Keys
+are per-account; for production use consider a shared team account.
 
 ### How credentials flow in each environment
 
@@ -316,7 +322,8 @@ result = get_abstract(doi, skip_classification=True)
 | 1 | **OpenAlex** | Best coverage, longest abstracts, covers both Crossref & DataCite DOIs | ~90% of publications | `inverted_index` |
 | 2 | **Crossref** | Fallback for DOIs not yet in OpenAlex | ~30% have abstracts | `jats_xml` or `plain_text` |
 | 2.5 | **Elsevier** | ScienceDirect API — Elsevier withholds abstracts from Crossref (#1611). Prefix-gated to `10.1016/` DOIs only; skipped instantly for other prefixes. Requires `ELSEVIER_API_KEY`. | 421 NMDC `10.1016` DOIs | `plain_text` |
-| 3 | **PubMed** | Catches Nature/Elsevier holdouts | ~86% biomedical coverage | `plain_text` |
+| 2.75 | **Springer Nature** | Metadata API — covers `10.1007/` (Springer) and `10.1038/` (Nature) DOIs. Prefix-gated; skipped for other prefixes. Requires `SPRINGER_NATURE_API_KEY`. | Springer + Nature DOIs | `plain_text` |
+| 3 | **PubMed** | Catches holdouts not found in earlier steps | ~86% biomedical coverage | `plain_text` |
 | 4 | **Content negotiation** | Universal last resort (Citeproc JSON via doi.org) | Same data as Crossref but works for any RA | `jats_xml` or `citeproc_json` |
 
 Each step returns as soon as an abstract is found. If all sources fail, returns

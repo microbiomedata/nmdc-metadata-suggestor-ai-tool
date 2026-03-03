@@ -12,7 +12,10 @@ import re
 # ---------------------------------------------------------------------------
 # Supported sources for abstract and publication retrieval
 # ---------------------------------------------------------------------------
-ALL_SOURCES = ("openalex", "crossref", "elsevier", "pubmed", "content_negotiation", "osti")
+ALL_SOURCES = (
+    "openalex", "crossref", "elsevier", "springer_nature",
+    "pubmed", "content_negotiation", "osti",
+)
 
 # ---------------------------------------------------------------------------
 # Contact / User-Agent
@@ -50,6 +53,13 @@ CROSSREF_API_URL = "https://api.crossref.org/works"
 # The API key is read at call time via os.environ.get("ELSEVIER_API_KEY")
 # in doi_ingestion/elsevier.py (not captured here, to avoid import-time issues).
 ELSEVIER_API_URL = "https://api.elsevier.com/content/article/doi"
+
+# Springer Nature Metadata API — requires API key from https://dev.springernature.com/
+# Free registration; no institutional affiliation required.
+# The API key is read at call time via os.environ.get("SPRINGER_NATURE_API_KEY")
+# in doi_ingestion/springer_nature.py (not captured here, to avoid import-time issues).
+SPRINGER_NATURE_API_URL = "https://api.springernature.com/metadata/json"
+
 DATACITE_API_URL = "https://api.datacite.org/dois"
 OPENALEX_API_URL = "https://api.openalex.org/works"
 

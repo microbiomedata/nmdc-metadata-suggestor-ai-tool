@@ -520,6 +520,43 @@
           "prism:doi": "10.1016/j.example.2025.999999"
         }
       }
+    },
+    "fixture_springer_nature_hit": {
+      "apiMessage": "This JSON was provided by Springer Nature",
+      "query": "doi:10.1038/s41564-020-00861-0",
+      "result": {
+        "total": "1",
+        "start": "1",
+        "pageLength": "1",
+        "recordsDisplayed": "1"
+      },
+      "records": [
+        {
+          "title": "A genomic catalog of Earth\u2019s microbiomes",
+          "doi": "10.1038/s41564-020-00861-0",
+          "abstract": "The reconstruction of bacterial and archaeal genomes from metagenomes has enabled insights into the ecology and evolution of environmental and host-associated microbiomes.",
+          "publicationName": "Nature Microbiology",
+          "publicationDate": "2021-01-01",
+          "contentType": "Article"
+        }
+      ]
+    },
+    "springer_nature_no_abstract": {
+      "apiMessage": "This JSON was provided by Springer Nature",
+      "query": "doi:10.1038/example.2025.999999",
+      "result": {
+        "total": "1",
+        "start": "1",
+        "pageLength": "1",
+        "recordsDisplayed": "1"
+      },
+      "records": [
+        {
+          "title": "Article without abstract",
+          "doi": "10.1038/example.2025.999999",
+          "publicationName": "Nature Test"
+        }
+      ]
     }
   }
 }
