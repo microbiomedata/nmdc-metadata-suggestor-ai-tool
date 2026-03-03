@@ -4,6 +4,10 @@ Europe PMC provides free, keyless access to open-access full text for
 articles deposited in PubMed Central.  All PMC OA content is CC-licensed
 with no generative-AI restrictions.
 
+PMCID resolution reuses :func:`retrieve_pdf_link_from_pmc` from
+:mod:`~nmdc_metadata_suggestor_ai_tool.publication_ingestion.retreive_pdf_link`
+to avoid duplicating the Europe PMC search query.
+
 Programmatic usage::
 
     from nmdc_metadata_suggestor_ai_tool.publication_ingestion.europepmc_fulltext import (
@@ -32,7 +36,6 @@ import requests
 
 from nmdc_metadata_suggestor_ai_tool.constants import (
     DEFAULT_TIMEOUT,
-    EUROPEPMC_API_URL,
     EUROPEPMC_FULLTEXT_XML_URL,
     EUROPEPMC_PDF_URL,
     USER_AGENT,
@@ -42,52 +45,13 @@ from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import (
     request_with_retry,
 )
 from nmdc_metadata_suggestor_ai_tool.models.doi import FullTextRetrievalResult
+from nmdc_metadata_suggestor_ai_tool.publication_ingestion.retreive_pdf_link import (
+    retrieve_pdf_link_from_pmc,
+)
 
 logger = logging.getLogger(__name__)
 
 _HEADERS = {"User-Agent": USER_AGENT}
-
-
-# ---------------------------------------------------------------------------
-# Internal helpers
-# ---------------------------------------------------------------------------
-
-
-def resolve_pmcid(
-    doi: str, errors: list[str] | None = None
-) -> tuple[str | None, bool | None]:
-    """Look up a PMCID and open-access flag for *doi* via Europe PMC search.
-
-    Returns ``(pmcid, is_open_access)`` on success, or ``(None, None)`` if the
-    DOI is not in PubMed Central.  Errors are appended to *errors* if provided.
-    """
-    try:
-        params = {"query": f'DOI:"{doi}"', "format": "json", "pageSize": 1}
-        resp = request_with_retry(
-            "GET",
-            EUROPEPMC_API_URL,
-            params=params,
-            timeout=DEFAULT_TIMEOUT,
-            headers=_HEADERS,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-
-        results = data.get("resultList", {}).get("result", [])
-        if not results:
-            return None, None
-
-        article = results[0]
-        pmcid = article.get("pmcid")
-        is_oa = article.get("isOpenAccess") == "Y"
-        return pmcid, is_oa
-
-    except Exception as exc:
-        msg = f"Europe PMC search failed: {exc}"
-        logger.warning(msg)
-        if errors is not None:
-            errors.append(msg)
-        return None, None
 
 
 def fetch_fulltext_xml(pmcid: str) -> str | None:
@@ -154,11 +118,11 @@ def get_full_text(doi: str) -> FullTextRetrievalResult:
     """
     doi = normalize_doi(doi)
     attempts: list[str] = []
-    errors: list[str] = []
 
-    # Step 1: resolve PMCID
+    # Step 1: resolve PMCID (reuses existing Europe PMC search helper)
     attempts.append("europepmc_search")
-    pmcid, is_oa = resolve_pmcid(doi, errors=errors)
+    pmc_info = retrieve_pdf_link_from_pmc(doi)
+    pmcid = pmc_info.get("pmcid")
 
     if not pmcid:
         return FullTextRetrievalResult(
@@ -181,7 +145,6 @@ def get_full_text(doi: str) -> FullTextRetrievalResult:
     return FullTextRetrievalResult(
         doi=doi,
         pmcid=pmcid,
-        is_open_access=is_oa,
         source="europepmc",
         attempts=attempts,
         full_text_xml=xml,

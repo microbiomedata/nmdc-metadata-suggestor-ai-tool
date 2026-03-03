@@ -1,6 +1,12 @@
 """Tests for Europe PMC full text retrieval.
 
 Unit tests mock HTTP with ``responses``; integration tests hit real APIs.
+
+Note: PMCID resolution is delegated to
+:func:`~retreive_pdf_link.retrieve_pdf_link_from_pmc` and tested
+separately in that module's tests.  Tests here focus on the new
+functionality: JATS XML retrieval, PDF byte download, and the
+``get_full_text`` orchestrator.
 """
 
 import pytest
@@ -15,7 +21,6 @@ from nmdc_metadata_suggestor_ai_tool.publication_ingestion.europepmc_fulltext im
     fetch_fulltext_xml,
     fetch_pdf_bytes,
     get_full_text,
-    resolve_pmcid,
 )
 
 integration = pytest.mark.integration
@@ -56,63 +61,6 @@ SAMPLE_JATS_XML = """\
 """
 
 SAMPLE_PDF_BYTES = b"%PDF-1.4 fake pdf content for testing"
-
-
-# ---------------------------------------------------------------------------
-# Unit tests — resolve_pmcid
-# ---------------------------------------------------------------------------
-
-
-@responses.activate
-def test_resolve_pmcid_success():
-    """DOI found in Europe PMC with PMCID and OA flag."""
-    responses.add(
-        responses.GET,
-        EUROPEPMC_API_URL,
-        json=SAMPLE_EUROPEPMC_RESPONSE,
-        status=200,
-    )
-    pmcid, is_oa = resolve_pmcid(SAMPLE_DOI)
-    assert pmcid == SAMPLE_PMCID
-    assert is_oa is True
-
-
-@responses.activate
-def test_resolve_pmcid_not_in_pmc():
-    """DOI found in Europe PMC but no PMCID (not deposited in PMC)."""
-    responses.add(
-        responses.GET,
-        EUROPEPMC_API_URL,
-        json={
-            "resultList": {
-                "result": [
-                    {
-                        "doi": "10.1234/no-pmc",
-                        "isOpenAccess": "N",
-                        # No pmcid field
-                    }
-                ]
-            }
-        },
-        status=200,
-    )
-    pmcid, is_oa = resolve_pmcid("10.1234/no-pmc")
-    assert pmcid is None
-    assert is_oa is False
-
-
-@responses.activate
-def test_resolve_pmcid_no_results():
-    """DOI not found in Europe PMC at all."""
-    responses.add(
-        responses.GET,
-        EUROPEPMC_API_URL,
-        json={"resultList": {"result": []}},
-        status=200,
-    )
-    pmcid, is_oa = resolve_pmcid("10.9999/does-not-exist")
-    assert pmcid is None
-    assert is_oa is None
 
 
 # ---------------------------------------------------------------------------
@@ -199,7 +147,6 @@ def test_get_full_text_happy_path():
 
     assert result.doi == SAMPLE_DOI
     assert result.pmcid == SAMPLE_PMCID
-    assert result.is_open_access is True
     assert result.source == "europepmc"
     assert result.error is None
     assert result.full_text_xml is not None
@@ -316,7 +263,6 @@ def test_get_full_text_real_nature_doi():
     result = get_full_text("10.1038/s41564-020-00861-0")
 
     assert result.pmcid is not None
-    assert result.is_open_access is True
     assert result.source == "europepmc"
     assert result.full_text_xml is not None
     assert len(result.full_text_xml) > 1000
@@ -354,8 +300,13 @@ def test_get_full_text_not_in_pmc():
 @integration
 def test_fetch_pdf_bytes_real():
     """Verify PDF bytes from Europe PMC have %PDF- header."""
-    # First resolve a known PMCID
-    pmcid, _ = resolve_pmcid("10.1038/s41564-020-00861-0")
+    from nmdc_metadata_suggestor_ai_tool.publication_ingestion.retreive_pdf_link import (
+        retrieve_pdf_link_from_pmc,
+    )
+
+    # First resolve a known PMCID using the shared helper
+    pmc_info = retrieve_pdf_link_from_pmc("10.1038/s41564-020-00861-0")
+    pmcid = pmc_info.get("pmcid")
     assert pmcid is not None
 
     pdf = fetch_pdf_bytes(pmcid)
