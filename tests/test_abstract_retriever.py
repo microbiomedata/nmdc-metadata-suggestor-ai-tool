@@ -200,7 +200,10 @@ class TestGetAbstractClassificationGate:
         responses.add(responses.GET, f"{OPENALEX_API_URL}/https://doi.org/{doi}", json={})
         responses.add(responses.GET, PUBMED_ID_CONVERTER, json={"records": []})
         result = get_doi_description_or_abstract(doi, skip_classification=True)
-        assert result.error == "No description or abstract found in any source. Check source_errors for details."
+        assert (
+            result.error
+            == "No description or abstract found in any source. Check source_errors for details."
+        )
 
 
 class TestGetAbstractWaterfall:
@@ -331,7 +334,10 @@ class TestGetAbstractWaterfall:
             doi, sources=["openalex", "crossref", "pubmed", "content_negotiation"]
         )
         assert result.context is None
-        assert result.error == "No description or abstract found in any source. Check source_errors for details."
+        assert (
+            result.error
+            == "No description or abstract found in any source. Check source_errors for details."
+        )
 
     @responses.activate
     def test_network_errors_waterfall_continues(self) -> None:
@@ -361,7 +367,10 @@ class TestGetAbstractWaterfall:
             doi, sources=["openalex", "crossref", "pubmed", "content_negotiation"]
         )
         assert result.context is None
-        assert result.error == "No description or abstract found in any source. Check source_errors for details."
+        assert (
+            result.error
+            == "No description or abstract found in any source. Check source_errors for details."
+        )
 
     @responses.activate
     def test_source_recorded_on_hit(self) -> None:
@@ -525,7 +534,10 @@ class TestSourceSelection:
         responses.add(responses.GET, f"{CROSSREF_API_URL}/{doi}", json={"message": {}})
         result = get_doi_description_or_abstract(doi, sources=["openalex", "crossref"])
         assert result.context is None
-        assert result.error == "No description or abstract found in any source. Check source_errors for details."
+        assert (
+            result.error
+            == "No description or abstract found in any source. Check source_errors for details."
+        )
 
     @responses.activate
     def test_invalid_source_ignored(self) -> None:
@@ -557,7 +569,10 @@ class TestSourceSelection:
         responses.add(responses.GET, PUBMED_ID_CONVERTER, json={"records": []})
         result = get_doi_description_or_abstract(doi)
         assert result.context is None
-        assert result.error == "No description or abstract found in any source. Check source_errors for details."
+        assert (
+            result.error
+            == "No description or abstract found in any source. Check source_errors for details."
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -615,7 +630,10 @@ def test_get_abstract_real_elsevier_doi() -> None:
         assert result.context_type is not None
     else:
         # Known Elsevier holdout — all sources tried, clean failure
-        assert result.error == "No description or abstract found in any source. Check source_errors for details."
+        assert (
+            result.error
+            == "No description or abstract found in any source. Check source_errors for details."
+        )
 
 
 @integration
@@ -623,7 +641,10 @@ def test_get_abstract_real_soil_science_doi() -> None:
     """10.2136 — Soil Science Society of America book chapter."""
     result = get_doi_description_or_abstract("10.2136/sssabookser5.3.c16")
     # Book chapters may or may not have content; verify graceful handling
-    assert result.error is None or "Source errors occurred. Check source_errors field for details" in result.error
+    assert (
+        result.error is None
+        or "Source errors occurred. Check source_errors field for details" in result.error
+    )
     if result.context:
         assert result.raw_context is not None
         assert result.context_type is not None
@@ -635,7 +656,10 @@ def test_get_abstract_real_protocols_io_doi() -> None:
     result = get_doi_description_or_abstract("10.17504/protocols.io.kxygxyydkl8j/v1")
     # Category is unmapped (None), so gate allows it through.
     # protocols.io DOIs typically don't have content in the traditional sources.
-    assert result.error is None or "Source errors occurred. Check source_errors field for details" in result.error
+    assert (
+        result.error is None
+        or "Source errors occurred. Check source_errors field for details" in result.error
+    )
     # Should NOT be refused as non-publication (category is None, not dataset/award)
     if result.error:
         assert "not a publication" not in result.error

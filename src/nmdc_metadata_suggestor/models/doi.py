@@ -66,11 +66,11 @@ class SourceRetrievalResult(BaseModel):
     source: str | None = None
     provider: str | None = None
     attempts: list[str] = Field(default_factory=list)
-    # DOI ingestion / Publication context fields (dataset/repository descriptions) 
+    # DOI ingestion / Publication context fields (dataset/repository descriptions)
     context: str | None = None
     raw_context: str | None = None
     context_type: str | None = None
-    
+
     source_errors: dict[str, str] = Field(default_factory=dict)
     pmid: str | None = None
     error: str | None = None
