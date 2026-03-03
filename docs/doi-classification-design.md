@@ -206,6 +206,23 @@ loaded at import time — the entry point or container is responsible for
 providing environment variables. This keeps the library importable without
 side effects and avoids `python-dotenv` path issues in Docker/CI.
 
+### Springer Nature Data Solutions — API rate limits (Basic Plan)
+
+Source: https://dev.springernature.com/docs/rate-limit-details/rate-limits/?source=data-solutions
+(as of 2026-03-02)
+
+| API Service | Requests/Min | Requests/Day | Notes |
+|-------------|-------------|-------------|-------|
+| Metadata API | 100 | 300 | Contact Sales for Premium |
+| Meta API (Versioned Metadata) | 100 | 300 | Contact Sales for Premium |
+| Open Access API | 100 | 200 | Contact Sales for Premium |
+| Full Text API | 200 | 200 | Depends on agreement |
+
+Day limits are tight (200–300/day). The Full Text API allows burst (200/min)
+but caps at 200 total requests per day. For batch processing of DOIs, the
+waterfall should prefer Europe PMC full text (no rate limits, no key) and
+fall back to Springer Nature only for content not in PMC.
+
 ---
 
 ## 5. Test Fixture

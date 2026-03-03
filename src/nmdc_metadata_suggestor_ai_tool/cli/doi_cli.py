@@ -22,7 +22,10 @@ from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import (
     validate_doi,
 )
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.main import get_doi_description_or_abstract
-from nmdc_metadata_suggestor_ai_tool.publication_ingestion.europepmc_fulltext import get_full_text
+from nmdc_metadata_suggestor_ai_tool.publication_ingestion.europepmc_fulltext import (
+    fetch_pdf_bytes,
+    get_full_text,
+)
 
 
 def _print_json(obj: object) -> None:
@@ -134,6 +137,19 @@ def cmd_get_fulltext(raw_doi: str, out_dir: str | None = None) -> None:
             xml_path = out_path / f"{slug}.xml"
             xml_path.write_text(result.full_text_xml)
             print(f"  -> {xml_path}", file=sys.stderr)
+
+        # Download and save PDF.
+        if result.pmcid:
+            print(f"  Downloading PDF for {result.pmcid}...", file=sys.stderr)
+            pdf = fetch_pdf_bytes(result.pmcid)
+            if pdf:
+                pdf_path = out_path / f"{slug}.pdf"
+                pdf_path.write_bytes(pdf)
+                print(
+                    f"  -> {pdf_path} ({len(pdf):,} bytes)", file=sys.stderr
+                )
+            else:
+                print("  PDF download failed or not available", file=sys.stderr)
     else:
         # Replace large XML with length indicator for terminal output.
         if dump.get("full_text_xml"):
