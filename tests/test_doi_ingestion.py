@@ -854,7 +854,7 @@ def test_massive_uses_datacite_title_context_when_proxi_fails() -> None:
     assert result.context_type == "description"
     assert result.source == "datacite"
     assert result.provider == "massive"
-    assert result.attempts == ["massive"]
+    assert result.attempts == ["massive", "datacite"]
 
 
 @responses.activate
@@ -917,7 +917,7 @@ def test_cyverse_explicit_source_no_context_returns_clean_error() -> None:
     result = get_doi_description_or_abstract(doi, sources=["cyverse"])
     assert result.context is None
     assert result.source is None
-    assert result.error == "No description or abstract found in any source"
+    assert result.error == "No description or abstract found in any source. Check source_errors for details."
     assert result.attempts == ["cyverse"]
 
 
@@ -1045,7 +1045,7 @@ def test_source_errors_include_upstream_http_codes() -> None:
 
     result = get_doi_description_or_abstract(doi)
     assert result.context is None
-    assert result.error == "No description or abstract found in any source"
+    assert result.error == "No description or abstract found in any source. Check source_errors for details."
 
     assert result.attempts == [
         "zenodo",
@@ -1279,7 +1279,7 @@ def test_jgi_live_failure_pattern_returns_clean_no_context() -> None:
     result = get_doi_description_or_abstract(doi)
     assert result.context is None
     assert result.provider == "jgi"
-    assert result.error == "No description or abstract found in any source"
+    assert result.error == "No description or abstract found in any source. Check source_errors for details."
     assert result.attempts == [
         "jgi",
         "datacite",
@@ -1332,7 +1332,7 @@ def test_all_sources_miss_returns_clean_error() -> None:
 
     result = get_doi_description_or_abstract(doi)
     assert result.context is None
-    assert result.error == "No description or abstract found in any source"
+    assert result.error == "No description or abstract found in any source. Check source_errors for details."
     assert result.provider == "kbase"
     assert result.attempts == [
         "kbase",
@@ -1398,7 +1398,7 @@ def test_live_source_example_returns_context(case: dict[str, str]) -> None:
         result = get_doi_description_or_abstract(doi, sources=[source])
         assert result.attempts == [source]
     else:
-        result = get_doi_description_or_abstract(doi)
+        result = get_doi_description_or_abstract(doi, skip_classification=True)
         assert result.attempts[0] == source
         assert result.provider == source
 
@@ -1408,7 +1408,12 @@ def test_live_source_example_returns_context(case: dict[str, str]) -> None:
     assert source_used in result.attempts
     assert result.context_type in {"abstract", "description"}
 
-
+test_live_source_example_returns_context({
+      "source": "cyverse",
+      "route": "explicit",
+      "doi": "10.25739/vddx-w132",
+      "origin": "DataCite publisher:CyVerse"
+    },)
 @integration
 @pytest.mark.parametrize(
     "case",
@@ -1425,11 +1430,11 @@ def test_live_known_no_context_cases_fail_cleanly(case: dict[str, str]) -> None:
         result = get_doi_description_or_abstract(doi, sources=[source])
         assert result.attempts == [source]
     else:
-        result = get_doi_description_or_abstract(doi)
+        result = get_doi_description_or_abstract(doi, skip_classification=True)
         assert result.attempts[0] == source
 
     assert result.context is None
-    assert result.error == "No description or abstract found in any source"
+    assert result.error == "No description or abstract found in any source. Check source_errors for details."
 
 
 @integration

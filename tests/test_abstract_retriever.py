@@ -200,7 +200,7 @@ class TestGetAbstractClassificationGate:
         responses.add(responses.GET, f"{OPENALEX_API_URL}/https://doi.org/{doi}", json={})
         responses.add(responses.GET, PUBMED_ID_CONVERTER, json={"records": []})
         result = get_doi_description_or_abstract(doi, skip_classification=True)
-        assert result.error == "No description or abstract found in any source"
+        assert result.error == "No description or abstract found in any source. Check source_errors for details."
 
 
 class TestGetAbstractWaterfall:
@@ -227,7 +227,6 @@ class TestGetAbstractWaterfall:
     def test_openalex_hit(self) -> None:
         """OpenAlex returns abstract, waterfall stops immediately."""
         doi = SAMPLE_DOI
-        _mock_classify_as_publication(doi)
         responses.add(
             responses.GET,
             f"{OPENALEX_API_URL}/https://doi.org/{doi}",
@@ -243,7 +242,6 @@ class TestGetAbstractWaterfall:
     def test_openalex_miss_crossref_hit(self) -> None:
         """OpenAlex has no abstract, Crossref does."""
         doi = SAMPLE_DOI
-        _mock_classify_as_publication(doi)
         # OpenAlex miss
         responses.add(responses.GET, f"{OPENALEX_API_URL}/https://doi.org/{doi}", json={})
         # Crossref hit
@@ -262,7 +260,6 @@ class TestGetAbstractWaterfall:
     def test_pubmed_fallback(self) -> None:
         """OpenAlex + Crossref miss, PubMed has it."""
         doi = SAMPLE_DOI
-        _mock_classify_as_publication(doi)
         # OpenAlex miss
         responses.add(responses.GET, f"{OPENALEX_API_URL}/https://doi.org/{doi}", json={})
         # Crossref miss
@@ -284,7 +281,6 @@ class TestGetAbstractWaterfall:
     def test_content_negotiation_fallback(self) -> None:
         """OpenAlex + Crossref + PubMed miss, content negotiation provides the abstract."""
         doi = SAMPLE_DOI
-        _mock_classify_as_publication(doi)
         # OpenAlex miss
         responses.add(responses.GET, f"{OPENALEX_API_URL}/https://doi.org/{doi}", json={})
         # Crossref miss
@@ -308,7 +304,6 @@ class TestGetAbstractWaterfall:
     def test_content_negotiation_note_fallback(self) -> None:
         """Content negotiation note field is used as fallback when no abstract."""
         doi = SAMPLE_DOI
-        _mock_classify_as_publication(doi)
         responses.add(responses.GET, f"{OPENALEX_API_URL}/https://doi.org/{doi}", json={})
         responses.add(responses.GET, f"{CROSSREF_API_URL}/{doi}", json={"message": {}})
         responses.add(responses.GET, PUBMED_ID_CONVERTER, json={"records": []})
@@ -328,7 +323,6 @@ class TestGetAbstractWaterfall:
     def test_all_miss(self) -> None:
         """All sources return nothing — graceful None."""
         doi = SAMPLE_DOI
-        _mock_classify_as_publication(doi)
         responses.add(responses.GET, f"{OPENALEX_API_URL}/https://doi.org/{doi}", json={})
         responses.add(responses.GET, f"{CROSSREF_API_URL}/{doi}", json={"message": {}})
         responses.add(responses.GET, PUBMED_ID_CONVERTER, json={"records": []})
@@ -337,13 +331,12 @@ class TestGetAbstractWaterfall:
             doi, sources=["openalex", "crossref", "pubmed", "content_negotiation"]
         )
         assert result.context is None
-        assert result.error == "No description or abstract found in any source"
+        assert result.error == "No description or abstract found in any source. Check source_errors for details."
 
     @responses.activate
     def test_network_errors_waterfall_continues(self) -> None:
         """Each source errors, waterfall continues to next."""
         doi = SAMPLE_DOI
-        _mock_classify_as_publication(doi)
         responses.add(
             responses.GET,
             f"{OPENALEX_API_URL}/https://doi.org/{doi}",
@@ -368,13 +361,12 @@ class TestGetAbstractWaterfall:
             doi, sources=["openalex", "crossref", "pubmed", "content_negotiation"]
         )
         assert result.context is None
-        assert result.error == "No description or abstract found in any source"
+        assert result.error == "No description or abstract found in any source. Check source_errors for details."
 
     @responses.activate
     def test_source_recorded_on_hit(self) -> None:
         """The source field records which source returned a result."""
         doi = SAMPLE_DOI
-        _mock_classify_as_publication(doi)
         responses.add(responses.GET, f"{OPENALEX_API_URL}/https://doi.org/{doi}", json={})
         responses.add(
             responses.GET,
@@ -408,7 +400,6 @@ class TestContentFormatClassification:
     def test_crossref_plain_text_format(self) -> None:
         """Crossref abstract without XML tags → plain_text, raw == content."""
         doi = SAMPLE_DOI
-        _mock_classify_as_publication(doi)
         responses.add(responses.GET, f"{OPENALEX_API_URL}/https://doi.org/{doi}", json={})
         responses.add(
             responses.GET,
@@ -424,7 +415,6 @@ class TestContentFormatClassification:
     def test_crossref_jats_raw_preserved(self) -> None:
         """Crossref JATS → content is stripped but raw_content has original XML."""
         doi = SAMPLE_DOI
-        _mock_classify_as_publication(doi)
         responses.add(responses.GET, f"{OPENALEX_API_URL}/https://doi.org/{doi}", json={})
         jats = "<jats:p>An <jats:italic>important</jats:italic> finding.</jats:p>"
         responses.add(
@@ -440,7 +430,6 @@ class TestContentFormatClassification:
     def test_content_negotiation_jats_raw_preserved(self) -> None:
         """Content negotiation JATS → raw_content has original tags."""
         doi = SAMPLE_DOI
-        _mock_classify_as_publication(doi)
         responses.add(responses.GET, f"{OPENALEX_API_URL}/https://doi.org/{doi}", json={})
         responses.add(responses.GET, f"{CROSSREF_API_URL}/{doi}", json={"message": {}})
         responses.add(responses.GET, PUBMED_ID_CONVERTER, json={"records": []})
@@ -461,7 +450,6 @@ class TestContentFormatClassification:
     def test_openalex_raw_is_json(self) -> None:
         """OpenAlex raw_content is the JSON-serialized inverted index."""
         doi = SAMPLE_DOI
-        _mock_classify_as_publication(doi)
         inverted = {"Hello": [0], "world": [1]}
         responses.add(
             responses.GET,
@@ -487,7 +475,6 @@ class TestSourceSelection:
     def test_single_source_crossref(self) -> None:
         """Only try Crossref, skip OpenAlex entirely."""
         doi = SAMPLE_DOI
-        _mock_classify_as_publication(doi)
         responses.add(
             responses.GET,
             f"{CROSSREF_API_URL}/{doi}",
@@ -501,7 +488,6 @@ class TestSourceSelection:
     def test_single_source_pubmed(self) -> None:
         """Only try PubMed."""
         doi = SAMPLE_DOI
-        _mock_classify_as_publication(doi)
         responses.add(
             responses.GET,
             PUBMED_ID_CONVERTER,
@@ -516,7 +502,6 @@ class TestSourceSelection:
     def test_reversed_order(self) -> None:
         """Crossref before OpenAlex — Crossref hits, OpenAlex never called."""
         doi = SAMPLE_DOI
-        _mock_classify_as_publication(doi)
         responses.add(
             responses.GET,
             f"{CROSSREF_API_URL}/{doi}",
@@ -536,18 +521,16 @@ class TestSourceSelection:
     def test_subset_miss_all(self) -> None:
         """Two sources tried, both miss — error returned."""
         doi = SAMPLE_DOI
-        _mock_classify_as_publication(doi)
         responses.add(responses.GET, f"{OPENALEX_API_URL}/https://doi.org/{doi}", json={})
         responses.add(responses.GET, f"{CROSSREF_API_URL}/{doi}", json={"message": {}})
         result = get_doi_description_or_abstract(doi, sources=["openalex", "crossref"])
         assert result.context is None
-        assert result.error == "No description or abstract found in any source"
+        assert result.error == "No description or abstract found in any source. Check source_errors for details."
 
     @responses.activate
     def test_invalid_source_ignored(self) -> None:
         """Unknown source names are silently skipped."""
         doi = SAMPLE_DOI
-        _mock_classify_as_publication(doi)
         responses.add(
             responses.GET,
             f"{CROSSREF_API_URL}/{doi}",
@@ -574,7 +557,7 @@ class TestSourceSelection:
         responses.add(responses.GET, PUBMED_ID_CONVERTER, json={"records": []})
         result = get_doi_description_or_abstract(doi)
         assert result.context is None
-        assert result.error == "No description or abstract found in any source"
+        assert result.error == "No description or abstract found in any source. Check source_errors for details."
 
 
 # ---------------------------------------------------------------------------
@@ -632,7 +615,7 @@ def test_get_abstract_real_elsevier_doi() -> None:
         assert result.context_type is not None
     else:
         # Known Elsevier holdout — all sources tried, clean failure
-        assert result.error == "No description or abstract found in any source"
+        assert result.error == "No description or abstract found in any source. Check source_errors for details."
 
 
 @integration
@@ -640,7 +623,7 @@ def test_get_abstract_real_soil_science_doi() -> None:
     """10.2136 — Soil Science Society of America book chapter."""
     result = get_doi_description_or_abstract("10.2136/sssabookser5.3.c16")
     # Book chapters may or may not have content; verify graceful handling
-    assert result.error is None or "No description or abstract found" in result.error
+    assert result.error is None or "Source errors occurred. Check source_errors field for details" in result.error
     if result.context:
         assert result.raw_context is not None
         assert result.context_type is not None
@@ -652,7 +635,7 @@ def test_get_abstract_real_protocols_io_doi() -> None:
     result = get_doi_description_or_abstract("10.17504/protocols.io.kxygxyydkl8j/v1")
     # Category is unmapped (None), so gate allows it through.
     # protocols.io DOIs typically don't have content in the traditional sources.
-    assert result.error is None or "No description or abstract found" in result.error
+    assert result.error is None or "Source errors occurred. Check source_errors field for details" in result.error
     # Should NOT be refused as non-publication (category is None, not dataset/award)
     if result.error:
         assert "not a publication" not in result.error

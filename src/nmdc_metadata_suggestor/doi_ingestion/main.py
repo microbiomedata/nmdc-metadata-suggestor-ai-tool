@@ -78,9 +78,9 @@ def get_doi_description_or_abstract(
     Args:
         doi: A DOI string in any common format (bare, URL, ``doi:`` prefix).
         sources: Which sources to try, in order. Defaults to all available sources.
-        skip_classification: If True, skip DOI classification and go straight
-            to the waterfall. Useful when the caller has already verified the
-            DOI type.
+        skip_classification: If True, skip DOI classification/gating and go
+            straight to source waterfall selection. When ``sources`` is
+            explicitly provided, classification/gating is skipped regardless.
 
     Returns:
         SourceRetrievalResult with the abstract/description text and metadata, or an error.
@@ -94,7 +94,7 @@ def get_doi_description_or_abstract(
     provider = infer_provider_from_doi(doi)
 
     classification: DoiClassification | None = None
-    if not skip_classification:
+    if not skip_classification and sources is None:
         classification = classify_doi(doi)
         if not classification.is_valid:
             return SourceRetrievalResult(
@@ -128,7 +128,7 @@ def get_doi_description_or_abstract(
         provider=provider,
         attempts=attempts,
         source_errors=source_errors,
-        error="No description or abstract found in any source",
+        error="No description or abstract found in any source. Check source_errors for details.. Check source_errors for details.",
     )
 
 
@@ -228,6 +228,9 @@ def _fetch_resolver_context(
     if context is None:
         return None
     result_source = context.source or source
+    result_attempts = attempts
+    if result_source not in result_attempts:
+        result_attempts = [*result_attempts, result_source]
     return SourceRetrievalResult(
         doi=doi,
         context=context.text,
@@ -235,7 +238,7 @@ def _fetch_resolver_context(
         context_type=context.kind,
         provider=provider,
         source=result_source,
-        attempts=attempts,
+        attempts=result_attempts,
         source_errors=source_errors,
         error=(
             "Source errors occurred. Check source_errors field for details."
