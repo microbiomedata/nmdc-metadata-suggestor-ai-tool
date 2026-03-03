@@ -72,5 +72,4 @@ class SourceRetrievalResult(BaseModel):
     context_type: str | None = None
 
     source_errors: dict[str, str] = Field(default_factory=dict)
-    pmid: str | None = None
     error: str | None = None
