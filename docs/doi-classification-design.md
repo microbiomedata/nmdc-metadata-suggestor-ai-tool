@@ -228,6 +228,17 @@ at https://dev.elsevier.com/ and request an institutional key via your library.
 https://dev.springernature.com/ — no institutional affiliation required. Keys
 are per-account; for production use consider a shared team account.
 
+**Springer Nature Metadata API — generative AI restriction:** The Metadata API
+agreement (Section 8.2) explicitly prohibits using **non-OA abstracts** "in
+connection with generative artificial intelligence systems." This means non-OA
+abstracts obtained via the Springer Nature Metadata API **must not** be sent to
+Claude or any other LLM. OA abstracts (governed by their Creative Commons
+license) are not affected. In practice, most Springer Nature abstracts in our
+waterfall come from OpenAlex or Crossref first (which have no such restriction),
+so the Springer Nature API is only reached as a fallback. If the Springer Nature
+step does return a non-OA abstract, it should be flagged or excluded from LLM
+input. The Open Access API has no such restriction — all its content is CC-licensed.
+
 ### How credentials flow in each environment
 
 | Environment | How env vars are set |
