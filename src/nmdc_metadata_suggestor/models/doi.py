@@ -79,8 +79,8 @@ class SourceRetrievalResult(BaseModel):
         default=None, description="URLs to the publication or resource (txt, JAT, pdf)"
     )
 
-    publication_doi: str | None = Field(
+    publication_dois: list[str] | None = Field(
         default=None,
-        description="DOI of the publication associated with the context. "
+        description="DOIs of the publication(s) associated with the context. "
         "ONLY FILL IF DIFFERENT FROM THE REQUESTED DOI.",
     )

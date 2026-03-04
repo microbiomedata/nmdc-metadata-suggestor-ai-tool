@@ -39,7 +39,7 @@ def test_try_osti_retrieve_abstract_success() -> None:
     assert result.raw_text == abstract_text
     assert result.source == "osti"
     assert result.urls is None
-    assert result.supplemental_doi is None
+    assert result.publication_dois is None
     assert errors == []
 
 
@@ -94,7 +94,7 @@ def test_try_osti_uses_osti_pdf_link_for_journal_article() -> None:
     assert result.text == abstract_text
     assert result.raw_text == abstract_text
     assert result.urls == [pdf_url]
-    assert result.supplemental_doi == journal_article_doi
+    assert result.publication_dois[0] == journal_article_doi
     assert result.source == "osti"
 
 
@@ -125,7 +125,7 @@ def test_try_osti_pdf_link_without_description_returns_context_with_empty_text()
     assert result.text == ""
     assert result.raw_text == ""
     assert result.urls == [pdf_url]
-    assert result.supplemental_doi == journal_article_doi
+    assert result.publication_dois[0] == journal_article_doi
     assert any("No abstract/description found" in error for error in errors)
     assert not any("no abstract/description or pdf link" in error.lower() for error in errors)
 

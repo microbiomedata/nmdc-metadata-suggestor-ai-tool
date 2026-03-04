@@ -14,4 +14,4 @@ class ResolverContext(NamedTuple):
     # Used when the publication DOI differs from the requested DOI
     # (for example, when referring to a supplemental DOI) to avoid
     # confusion with the main DOI of the context.
-    supplemental_doi: str | None = None
+    publication_dois: list[str] | None = None

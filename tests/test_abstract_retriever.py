@@ -226,13 +226,13 @@ class TestGetAbstractWaterfall:
         assert result.source == "osti"
         assert result.attempts == ["osti"]
         assert result.publication_urls is None
-        assert result.publication_doi is None
+        assert result.publication_dois is None
 
     @responses.activate
     def test_osti_hit_propagates_publication_link_and_doi(self) -> None:
         """OSTI fulltext links and supplemental DOI are propagated to result fields."""
         requested_doi = "10.15485/1234567"
-        publication_doi = "10.1038/s41564-020-00861-0"
+        publication_dois = "10.1038/s41564-020-00861-0"
         pdf_url = "https://example.com/article.pdf"
         _mock_classify_as_publication(requested_doi)
         responses.add(
@@ -241,7 +241,7 @@ class TestGetAbstractWaterfall:
             json=[
                 {
                     "product_type": "Journal Article",
-                    "doi": publication_doi,
+                    "doi": publication_dois,
                     "description": "OSTI abstract text.",
                     "links": [{"rel": "fulltext", "href": pdf_url}],
                 }
@@ -252,7 +252,7 @@ class TestGetAbstractWaterfall:
         assert result.source == "osti"
         assert result.publication_urls is not None
         assert str(result.publication_urls[0]) == pdf_url
-        assert result.publication_doi == publication_doi
+        assert result.publication_dois[0] == publication_dois
 
     @responses.activate
     def test_openalex_hit(self) -> None:

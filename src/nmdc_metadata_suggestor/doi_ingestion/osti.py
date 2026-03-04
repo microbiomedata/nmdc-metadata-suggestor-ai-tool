@@ -45,7 +45,7 @@ def try_osti(doi: str, errors: list[str] | None = None) -> ResolverContext | Non
     else:
         append_error(errors, "No abstract/description found in OSTI record")
 
-    pdf_url: str | None = None
+    pdf_url: list[str] = []
     ja_doi = record.get("doi")
     if record.get("product_type") == "Journal Article":
         links = record.get("links")
@@ -56,7 +56,7 @@ def try_osti(doi: str, errors: list[str] | None = None) -> ResolverContext | Non
                 if link.get("rel") == "fulltext":
                     href = link.get("href")
                     if isinstance(href, str) and href.strip():
-                        pdf_url = href.strip()
+                        pdf_url.append(href.strip())
                         break
 
     if not abstract and not pdf_url:
@@ -68,8 +68,8 @@ def try_osti(doi: str, errors: list[str] | None = None) -> ResolverContext | Non
         raw_text=raw_description if isinstance(raw_description, str) else "",
         kind="description",
         source="osti",
-        urls=[pdf_url] if pdf_url else None,
-        supplemental_doi=ja_doi if isinstance(ja_doi, str) and ja_doi != doi else None,
+        urls=pdf_url if pdf_url else None,
+        publication_dois=[ja_doi] if isinstance(ja_doi, str) and doi not in ja_doi else None,
     )
 
 
