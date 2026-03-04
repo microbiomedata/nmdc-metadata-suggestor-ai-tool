@@ -1,4 +1,4 @@
-.PHONY: help dev-install test test-integration lint format clean docker-build docker-run docker-dev validate-doi classify-doi classify-fixture get-abstract get-abstracts
+.PHONY: help dev-install test test-integration lint lint-fix format clean docker-build docker-run docker-dev validate-doi classify-doi classify-fixture get-abstract get-abstracts
 
 help: ## Show this help message
 	@echo "Usage: make [target]"
@@ -24,6 +24,9 @@ test-integration: ## Run integration tests against real APIs
 lint: ## Run linters
 	uv run ruff check src tests
 	uv run mypy src
+
+lint-fix: ## Auto-fix fixable lint errors
+	uv run ruff check --fix src tests
 
 format: ## Format code
 	uv run black src tests

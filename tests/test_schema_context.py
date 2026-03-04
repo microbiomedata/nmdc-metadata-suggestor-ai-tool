@@ -8,6 +8,7 @@ import pytest
 
 from nmdc_metadata_suggestor.schema_context import SchemaContextBuilder, get_schema_view
 
+
 def test_get_schema_view_loads_and_returns_schema_view() -> None:
     sv = get_schema_view()
     assert sv is not None
