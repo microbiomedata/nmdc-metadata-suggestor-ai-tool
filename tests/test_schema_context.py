@@ -90,7 +90,7 @@ def test_get_interface_schema_populates_env_triad_enum_values() -> None:
             assert slot.enum_total_count > 0
 
 
-def test_extract_slot_enum_values_for_llm_context(capsys) -> None:
+def test_extract_slot_enum_values_for_llm_context() -> None:
     """Demonstrate how a developer extracts permissible values for a single
     slot (e.g., env_medium) from a specific interface and formats them as
     context suitable for passing to an LLM.
@@ -103,12 +103,8 @@ def test_extract_slot_enum_values_for_llm_context(capsys) -> None:
     """
     builder = SchemaContextBuilder()
     schema = builder.get_interface_schema("SoilInterface")
-
-    # Step 1: Find the slot by name
     env_medium = next(s for s in schema.slots if s.name == "env_medium")
     assert len(env_medium.enum_values) > 0
-
-    # Step 3: Build an LLM-ready prompt fragment from the permissible values
     terms = [
         f"- {ev.text}: {ev.description}" if ev.description else f"- {ev.text}"
         for ev in env_medium.enum_values
@@ -118,16 +114,10 @@ def test_extract_slot_enum_values_for_llm_context(capsys) -> None:
         f"from the NMDC submission schema for SoilInterface.\n"
         f"Select the most appropriate value given the sample context:\n" + "\n".join(terms)
     )
-
     # Verify the prompt fragment is well-formed
     assert "env_medium" in prompt_fragment
     assert "permissible values" in prompt_fragment
     assert len(terms) == env_medium.enum_total_count
-
-    # Print so developers can see the shape of the output with pytest -s
-    print("\n--- Example LLM prompt fragment for env_medium (SoilInterface) ---")
-    print(prompt_fragment[:500])
-    print(f"... ({len(terms)} total terms)")
 
 
 def test_format_multi_interface_context_separated() -> None:
