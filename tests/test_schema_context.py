@@ -92,7 +92,7 @@ def test_get_interface_schema_populates_env_triad_enum_values() -> None:
 
 def test_extract_slot_enum_values_for_llm_context(capsys) -> None:
     """Demonstrate how a developer extracts permissible values for a single
-    slot (e.g. env_medium) from a specific interface and formats them as
+    slot (e.g., env_medium) from a specific interface and formats them as
     context suitable for passing to an LLM.
 
     Usage pattern:
@@ -106,9 +106,6 @@ def test_extract_slot_enum_values_for_llm_context(capsys) -> None:
 
     # Step 1: Find the slot by name
     env_medium = next(s for s in schema.slots if s.name == "env_medium")
-
-    # Step 2: enum_values is already populated (via any_of resolution)
-    assert env_medium.enum_values is not None
     assert len(env_medium.enum_values) > 0
 
     # Step 3: Build an LLM-ready prompt fragment from the permissible values
