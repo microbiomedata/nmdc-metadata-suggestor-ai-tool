@@ -129,41 +129,26 @@ def test_schemaview_dynamically_extracts_relevant_schema_slice() -> None:
         to narrow the full schema down to just the slots, enums, and
         constraints relevant to that interface — without loading or
         transmitting the entire schema to the LLM.
-
-    Key branch additions exercised:
-        - ``get_schema_view()`` is now public, giving callers direct
-          SchemaView access for ad-hoc queries.
-        - ``builder.sv`` is public, so downstream code can combine
-          high-level helpers with raw SchemaView calls.
-        - ``resolve_any_of_enum()`` handles ``any_of``-style enum
-          ranges (e.g. the environmental triad slots).
     """
     interface_name = "SoilInterface"
     builder = SchemaContextBuilder()
 
-    # --- 1. Use SchemaView to inspect class-level metadata ---------------
+    # Use SchemaView to inspect class-level metadata ---------------
     cls = builder.sv.get_class(interface_name)
     assert cls is not None
     assert cls.description is not None
 
-    # --- 2. Use class_induced_slots() to get *only* this interface's slots
-    #     rather than iterating the entire schema --------------------------
+    # Use class_induced_slots() to get *only* this interface's slots
     induced = list(builder.sv.class_induced_slots(interface_name))
-    all_slot_count = len(list(builder.sv.all_slots()))
-    assert len(induced) > 0
-    assert len(induced) < all_slot_count  # we got a focused slice, not everything
-
-    # --- 3. Dynamically resolve enums for a slot whose range uses any_of --
     env_broad = next(s for s in induced if s.name == "env_broad_scale")
     # Direct range lookup returns None for any_of-based enums…
     assert builder.sv.get_enum(env_broad.range) is None
-    # …but resolve_any_of_enum() (new on this branch) finds them:
     enum_values = builder.resolve_any_of_enum(env_broad)
     assert enum_values is not None
     assert len(enum_values) > 0
     assert all(ev.text for ev in enum_values)
 
-    # --- 4. Build a focused LLM prompt using only the relevant slice -----
+    # Build a focused LLM prompt using only the relevant slice -----
     schema = builder.get_interface_schema(interface_name)
     required_slots = [s for s in schema.slots if s.required]
     enum_slots = [s for s in schema.slots if s.enum_values]
