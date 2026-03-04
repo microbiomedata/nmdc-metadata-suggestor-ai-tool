@@ -5,7 +5,7 @@ Data classes for DOI validation, classification, and abstract retrieval.
 
 from enum import StrEnum
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field
 
 
 class DoiCategory(StrEnum):
@@ -75,7 +75,7 @@ class SourceRetrievalResult(BaseModel):
     error: str | None = None
 
     # publication related fields
-    publication_urls: list[HttpUrl] | None = Field(
+    publication_urls: list[str] | None = Field(
         default=None, description="URLs to the publication or resource (txt, JAT, pdf)"
     )
 

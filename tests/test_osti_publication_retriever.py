@@ -99,6 +99,38 @@ def test_try_osti_uses_osti_pdf_link_for_journal_article() -> None:
 
 
 @responses.activate
+def test_try_osti_pdf_link_without_description_returns_context_with_empty_text() -> None:
+    """Return context when a fulltext link exists even if description is missing."""
+    requested_doi = "10.15485/1234567"
+    journal_article_doi = "10.1038/s41564-020-00861-0"
+    pdf_url = "https://example.com/article.pdf"
+
+    responses.add(
+        responses.GET,
+        OSTI_E2_API_URL,
+        json=[
+            {
+                "product_type": "Journal Article",
+                "doi": journal_article_doi,
+                "links": [{"rel": "fulltext", "href": pdf_url}],
+            }
+        ],
+        status=200,
+    )
+
+    errors: list[str] = []
+    result = try_osti(requested_doi, errors=errors)
+
+    assert isinstance(result, ResolverContext)
+    assert result.text == ""
+    assert result.raw_text == ""
+    assert result.urls == [pdf_url]
+    assert result.supplemental_doi == journal_article_doi
+    assert any("No abstract/description found" in error for error in errors)
+    assert not any("no abstract/description or pdf link" in error.lower() for error in errors)
+
+
+@responses.activate
 def test_try_osti_404_returns_none_with_errors() -> None:
     """Handle 404 responses from both E2 and fallback OSTI API endpoints."""
     doi = "10.15485/9999999"

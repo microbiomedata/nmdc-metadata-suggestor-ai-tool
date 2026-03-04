@@ -11,7 +11,7 @@ class ResolverContext(NamedTuple):
     kind: str
     source: str | None = None
     urls: list[str] | None = None
-    # field used in the instance the publication doi is different
-    # than the requested doi (e.g. for a supplemental doi),
-    # to avoid confusion with the main DOI of the context
+    # Used when the publication DOI differs from the requested DOI
+    # (for example, when referring to a supplemental DOI) to avoid
+    # confusion with the main DOI of the context.
     supplemental_doi: str | None = None
