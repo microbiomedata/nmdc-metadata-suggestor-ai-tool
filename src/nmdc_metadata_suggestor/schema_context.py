@@ -11,6 +11,7 @@ import functools
 import importlib.resources
 from collections import defaultdict
 
+from linkml_runtime.linkml_model import SlotDefinition  # type: ignore[import-untyped]
 from linkml_runtime.utils.schemaview import SchemaView  # type: ignore[import-untyped]
 
 from nmdc_metadata_suggestor.constants import (
@@ -79,7 +80,7 @@ class SchemaContextBuilder:
             if name.endswith(INTERFACE_CLASS_SUFFIX) and name not in EXCLUDED_INTERFACE_CLASSES
         )
 
-    def resolve_any_of_enum(self, slot) -> list[EnumValueInfo] | None:  # noqa: ANN001
+    def resolve_any_of_enum(self, slot: SlotDefinition) -> list[EnumValueInfo] | None:
         """Extract enum values from the first enum-typed ``any_of`` entry on a slot."""
         if not slot.any_of:
             return None

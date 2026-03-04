@@ -120,6 +120,85 @@ def test_extract_slot_enum_values_for_llm_context() -> None:
     assert len(terms) == env_medium.enum_total_count
 
 
+def test_schemaview_dynamically_extracts_relevant_schema_slice() -> None:
+    """Demonstrate how SchemaView queries let us dynamically extract only
+    the relevant slice of the schema based on a user's submission context.
+
+    Scenario:
+        A user is filling out a SoilInterface submission.  We use SchemaView
+        to narrow the full schema down to just the slots, enums, and
+        constraints relevant to that interface — without loading or
+        transmitting the entire schema to the LLM.
+
+    Key branch additions exercised:
+        - ``get_schema_view()`` is now public, giving callers direct
+          SchemaView access for ad-hoc queries.
+        - ``builder.sv`` is public, so downstream code can combine
+          high-level helpers with raw SchemaView calls.
+        - ``resolve_any_of_enum()`` handles ``any_of``-style enum
+          ranges (e.g. the environmental triad slots).
+    """
+    interface_name = "SoilInterface"
+    builder = SchemaContextBuilder()
+
+    # --- 1. Use SchemaView to inspect class-level metadata ---------------
+    cls = builder.sv.get_class(interface_name)
+    assert cls is not None
+    assert cls.description is not None
+
+    # --- 2. Use class_induced_slots() to get *only* this interface's slots
+    #     rather than iterating the entire schema --------------------------
+    induced = list(builder.sv.class_induced_slots(interface_name))
+    all_slot_count = len(list(builder.sv.all_slots()))
+    assert len(induced) > 0
+    assert len(induced) < all_slot_count  # we got a focused slice, not everything
+
+    # --- 3. Dynamically resolve enums for a slot whose range uses any_of --
+    env_broad = next(s for s in induced if s.name == "env_broad_scale")
+    # Direct range lookup returns None for any_of-based enums…
+    assert builder.sv.get_enum(env_broad.range) is None
+    # …but resolve_any_of_enum() (new on this branch) finds them:
+    enum_values = builder.resolve_any_of_enum(env_broad)
+    assert enum_values is not None
+    assert len(enum_values) > 0
+    assert all(ev.text for ev in enum_values)
+
+    # --- 4. Build a focused LLM prompt using only the relevant slice -----
+    schema = builder.get_interface_schema(interface_name)
+    required_slots = [s for s in schema.slots if s.required]
+    enum_slots = [s for s in schema.slots if s.enum_values]
+
+    prompt_lines = [
+        f"# Schema context for {interface_name}",
+        f"{schema.description}",
+        "",
+        f"## Required fields ({len(required_slots)} of {schema.total_slot_count})",
+    ]
+    for slot in required_slots:
+        constraint = f" (type: {slot.range})" if slot.range else ""
+        prompt_lines.append(f"- {slot.name}{constraint}: {slot.description or ''}")
+
+    prompt_lines.append("")
+    prompt_lines.append(f"## Fields with controlled vocabularies ({len(enum_slots)})")
+    for slot in enum_slots:
+        prompt_lines.append(f"- {slot.name}: {slot.enum_total_count} allowed values")
+
+    prompt = "\n".join(prompt_lines)
+
+    # Verify the prompt is a focused, well-formed slice — not the whole schema
+    assert interface_name in prompt
+    assert "Required fields" in prompt
+    assert "controlled vocabularies" in prompt
+    assert len(required_slots) == schema.required_slot_count
+    assert len(required_slots) < schema.total_slot_count
+    assert len(enum_slots) > 0
+    # env triad slots should appear among enum-bearing slots
+    enum_slot_names = {s.name for s in enum_slots}
+    assert "env_broad_scale" in enum_slot_names
+    assert "env_local_scale" in enum_slot_names
+    assert "env_medium" in enum_slot_names
+
+
 def test_format_multi_interface_context_separated() -> None:
     builder = SchemaContextBuilder()
     ctx = builder.format_multi_interface_context(["SoilInterface", "WaterInterface"])
