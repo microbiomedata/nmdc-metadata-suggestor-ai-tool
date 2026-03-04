@@ -63,6 +63,7 @@ def test_get_interface_schema_all_enum_values_included() -> None:
         if slot.enum_values is not None:
             assert slot.enum_total_count == len(slot.enum_values)
 
+
 # TODO: expand/refine these as the middleware develops.
 def test_format_interface_context_contains_class_name() -> None:
     builder = SchemaContextBuilder()
