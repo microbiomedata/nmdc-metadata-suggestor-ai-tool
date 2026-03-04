@@ -18,8 +18,8 @@ from nmdc_metadata_suggestor.constants import (
     INTERFACE_CLASS_SUFFIX,
 )
 from nmdc_metadata_suggestor.models.schema import (
+    DhInterface,
     EnumValueInfo,
-    InterfaceSchema,
     SlotInfo,
 )
 
@@ -27,34 +27,66 @@ from nmdc_metadata_suggestor.models.schema import (
 @functools.lru_cache(maxsize=1)
 def get_schema_view() -> SchemaView:
     """Load and cache the NMDC submission schema as a SchemaView."""
-    schema_path = importlib.resources.files("nmdc_submission_schema.schema").joinpath(
+    schema_ref = importlib.resources.files("nmdc_submission_schema.schema").joinpath(
         "nmdc_submission_schema.yaml"
     )
-    return SchemaView(str(schema_path))
+    with importlib.resources.as_file(schema_ref) as schema_path:
+        return SchemaView(str(schema_path))
+
+
+def format_slot(slot: SlotInfo) -> list[str]:
+    """Format a single slot as Markdown lines for LLM context."""
+    slot_lines: list[str] = []
+    markers: list[str] = []
+    if slot.required:
+        markers.append("REQUIRED")
+    if slot.recommended:
+        markers.append("recommended")
+    marker_str = f" [{', '.join(markers)}]" if markers else ""
+    slot_lines.append(f"- **{slot.name}**{marker_str}")
+    if slot.description:
+        slot_lines.append(f"  {slot.description}")
+    details: list[str] = []
+    if slot.range:
+        details.append(f"type: {slot.range}")
+    if slot.multivalued:
+        details.append("multivalued")
+    if slot.pattern:
+        details.append(f"pattern: `{slot.pattern}`")
+    if slot.minimum_value is not None:
+        details.append(f"min: {slot.minimum_value}")
+    if slot.maximum_value is not None:
+        details.append(f"max: {slot.maximum_value}")
+    if details:
+        slot_lines.append(f"  ({', '.join(details)})")
+    if slot.enum_values:
+        values_text = ", ".join(ev.text for ev in slot.enum_values)
+        slot_lines.append(f"  Allowed values: {values_text}")
+    return slot_lines
 
 
 class SchemaContextBuilder:
     """Builds LLM-ready context from the NMDC submission schema."""
 
     def __init__(self, schema_view: SchemaView | None = None) -> None:
-        self._sv = schema_view or get_schema_view()
+        self.sv = schema_view or get_schema_view()
 
     def list_interfaces(self) -> list[str]:
-        """Return sorted list of concrete interface class names."""
+        """Return a sorted list of concrete interface class names."""
         return sorted(
             name
-            for name in self._sv.all_classes()
+            for name in self.sv.all_classes()
             if name.endswith(INTERFACE_CLASS_SUFFIX) and name not in EXCLUDED_INTERFACE_CLASSES
         )
 
-    def get_interface_schema(self, class_name: str) -> InterfaceSchema:
+    def get_interface_schema(self, class_name: str) -> DhInterface:
         """Extract full schema info for a single interface class."""
-        cls = self._sv.get_class(class_name)
+        cls = self.sv.get_class(class_name)
         if cls is None:
             raise ValueError(f"Unknown class: {class_name}")
 
-        ancestors = [a for a in self._sv.class_ancestors(class_name) if a != class_name]
-        induced_slots = self._sv.class_induced_slots(class_name)
+        ancestors = [a for a in self.sv.class_ancestors(class_name) if a != class_name]
+        induced_slots = self.sv.class_induced_slots(class_name)
 
         slots: list[SlotInfo] = []
         slot_groups: set[str] = set()
@@ -66,7 +98,7 @@ class SchemaContextBuilder:
             enum_total_count = None
 
             if s.range:
-                enum_def = self._sv.get_enum(s.range)
+                enum_def = self.sv.get_enum(s.range)
                 if enum_def is not None:
                     pvs = enum_def.permissible_values or {}
                     enum_total_count = len(pvs)
@@ -105,7 +137,7 @@ class SchemaContextBuilder:
                 )
             )
 
-        return InterfaceSchema(
+        return DhInterface(
             class_name=class_name,
             description=str(cls.description) if cls.description else None,
             ancestors=ancestors,
@@ -117,10 +149,9 @@ class SchemaContextBuilder:
         )
 
     def format_interface_context(self, class_name: str) -> str:
-        """Format schema info as structured markdown for LLM context."""
+        """Format schema info as structured Markdown for LLM context."""
         schema = self.get_interface_schema(class_name)
-        lines: list[str] = []
-        lines.append(f"# {schema.class_name}")
+        lines: list[str] = [f"# {schema.class_name}"]
         if schema.description:
             lines.append(f"\n{schema.description}")
         lines.append(
@@ -139,35 +170,6 @@ class SchemaContextBuilder:
                 grouped[slot.slot_group].append(slot)
             else:
                 ungrouped.append(slot)
-
-        def format_slot(slot: SlotInfo) -> list[str]:
-            slot_lines: list[str] = []
-            markers: list[str] = []
-            if slot.required:
-                markers.append("REQUIRED")
-            if slot.recommended:
-                markers.append("recommended")
-            marker_str = f" [{', '.join(markers)}]" if markers else ""
-            slot_lines.append(f"- **{slot.name}**{marker_str}")
-            if slot.description:
-                slot_lines.append(f"  {slot.description}")
-            details: list[str] = []
-            if slot.range:
-                details.append(f"type: {slot.range}")
-            if slot.multivalued:
-                details.append("multivalued")
-            if slot.pattern:
-                details.append(f"pattern: `{slot.pattern}`")
-            if slot.minimum_value is not None:
-                details.append(f"min: {slot.minimum_value}")
-            if slot.maximum_value is not None:
-                details.append(f"max: {slot.maximum_value}")
-            if details:
-                slot_lines.append(f"  ({', '.join(details)})")
-            if slot.enum_values:
-                values_text = ", ".join(ev.text for ev in slot.enum_values)
-                slot_lines.append(f"  Allowed values: {values_text}")
-            return slot_lines
 
         for group_name in schema.slot_groups:
             if group_name in grouped:

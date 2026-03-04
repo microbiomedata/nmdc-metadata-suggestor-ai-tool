@@ -100,12 +100,6 @@ TARGET_PROVIDER_PREFIXES: dict[str, str] = {
     "10.11578": "osti",
 }
 
-# ---------------------------------------------------------------------------
-# Schema context builder
-# ---------------------------------------------------------------------------
-INTERFACE_CLASS_SUFFIX = "Interface"
-EXCLUDED_INTERFACE_CLASSES: frozenset[str] = frozenset({"DhInterface"})
-
 TARGET_PROVIDER_KEYWORDS: dict[str, str] = {
     "environmental data initiative": "edi",
     "emsl": "emsl",
@@ -120,3 +114,9 @@ TARGET_PROVIDER_KEYWORDS: dict[str, str] = {
     "zenodo": "zenodo",
     "cyverse": "cyverse",
 }
+
+# ---------------------------------------------------------------------------
+# Schema context builder
+# ---------------------------------------------------------------------------
+INTERFACE_CLASS_SUFFIX = "Interface"
+EXCLUDED_INTERFACE_CLASSES: frozenset[str] = frozenset({"DhInterface"})

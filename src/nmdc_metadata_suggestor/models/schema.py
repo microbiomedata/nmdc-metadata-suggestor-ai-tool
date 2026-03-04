@@ -11,7 +11,7 @@ class EnumValueInfo(BaseModel):
 
 
 class SlotInfo(BaseModel):
-    """Metadata for a single slot (field) in an NMDC submission interface."""
+    """Metadata for a single slot (field) in an NMDC submission."""
 
     name: str
     description: str | None = None
@@ -25,15 +25,15 @@ class SlotInfo(BaseModel):
     maximum_value: str | None = None
     enum_values: list[EnumValueInfo] | None = Field(
         default=None,
-        description="Permissible values when the range is an enum (may be truncated)",
+        description=("Permissible values when the range is an enum"),
     )
     enum_total_count: int | None = Field(
         default=None,
-        description="Total number of enum values (before truncation)",
+        description="Total number of enum values",
     )
 
 
-class InterfaceSchema(BaseModel):
+class DhInterface(BaseModel):
     """Extracted schema information for one NMDC submission interface class."""
 
     class_name: str
