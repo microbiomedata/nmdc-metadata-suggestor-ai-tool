@@ -120,3 +120,4 @@ TARGET_PROVIDER_KEYWORDS: dict[str, str] = {
 # ---------------------------------------------------------------------------
 INTERFACE_CLASS_SUFFIX = "Interface"
 EXCLUDED_INTERFACE_CLASSES: frozenset[str] = frozenset({"DhInterface"})
+ENV_TRIAD_SLOTS: tuple[str, ...] = ("env_broad_scale", "env_local_scale", "env_medium")
