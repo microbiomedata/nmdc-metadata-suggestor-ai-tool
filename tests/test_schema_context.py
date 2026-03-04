@@ -91,15 +91,9 @@ def test_get_interface_schema_populates_env_triad_enum_values() -> None:
 
 
 def test_extract_slot_enum_values_for_llm_context() -> None:
-    """Demonstrate how a developer extracts permissible values for a single
-    slot (e.g., env_medium) from a specific interface and formats them as
-    context suitable for passing to an LLM.
-
-    Usage pattern:
-        1. Get the full interface schema via get_interface_schema()
-        2. Find the slot of interest
-        3. Read its enum_values — these are already resolved from any_of
-        4. Format as a prompt fragment for the LLM
+    """Extracts permissible values for a single
+    slot (e.g., env_medium) from a specific interface and format them as
+    context for the next step.
     """
     builder = SchemaContextBuilder()
     schema = builder.get_interface_schema("SoilInterface")
@@ -114,21 +108,19 @@ def test_extract_slot_enum_values_for_llm_context() -> None:
         f"from the NMDC submission schema for SoilInterface.\n"
         f"Select the most appropriate value given the sample context:\n" + "\n".join(terms)
     )
-    # Verify the prompt fragment is well-formed
+    # Verify the prompt fragment
     assert "env_medium" in prompt_fragment
     assert "permissible values" in prompt_fragment
     assert len(terms) == env_medium.enum_total_count
 
 
-def test_schemaview_dynamically_extracts_relevant_schema_slice() -> None:
-    """Demonstrate how SchemaView queries let us dynamically extract only
-    the relevant slice of the schema based on a user's submission context.
+def test_extracts_relevant_schema() -> None:
+    """Extract only the relevant slice of the schema based on a user's submission context.
 
     Scenario:
-        A user is filling out a SoilInterface submission.  We use SchemaView
-        to narrow the full schema down to just the slots, enums, and
-        constraints relevant to that interface — without loading or
-        transmitting the entire schema to the LLM.
+        A user is filling out a SoilInterface submission.  Narrow
+        the full schema down to just the slots, enums, and
+        constraints relevant to that interface.
     """
     interface_name = "SoilInterface"
     builder = SchemaContextBuilder()
