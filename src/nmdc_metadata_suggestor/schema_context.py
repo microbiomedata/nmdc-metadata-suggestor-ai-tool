@@ -25,7 +25,7 @@ from nmdc_metadata_suggestor.models.schema import (
 
 
 @functools.lru_cache(maxsize=1)
-def _get_schema_view() -> SchemaView:
+def get_schema_view() -> SchemaView:
     """Load and cache the NMDC submission schema as a SchemaView."""
     schema_path = importlib.resources.files("nmdc_submission_schema.schema").joinpath(
         "nmdc_submission_schema.yaml"
@@ -37,7 +37,7 @@ class SchemaContextBuilder:
     """Builds LLM-ready context from the NMDC submission schema."""
 
     def __init__(self, schema_view: SchemaView | None = None) -> None:
-        self._sv = schema_view or _get_schema_view()
+        self._sv = schema_view or get_schema_view()
 
     def list_interfaces(self) -> list[str]:
         """Return sorted list of concrete interface class names."""
@@ -140,7 +140,7 @@ class SchemaContextBuilder:
             else:
                 ungrouped.append(slot)
 
-        def _format_slot(slot: SlotInfo) -> list[str]:
+        def format_slot(slot: SlotInfo) -> list[str]:
             slot_lines: list[str] = []
             markers: list[str] = []
             if slot.required:
@@ -173,12 +173,12 @@ class SchemaContextBuilder:
             if group_name in grouped:
                 lines.append(f"\n## {group_name}")
                 for slot in grouped[group_name]:
-                    lines.extend(_format_slot(slot))
+                    lines.extend(format_slot(slot))
 
         if ungrouped:
             lines.append("\n## Other fields")
             for slot in ungrouped:
-                lines.extend(_format_slot(slot))
+                lines.extend(format_slot(slot))
 
         return "\n".join(lines)
 
