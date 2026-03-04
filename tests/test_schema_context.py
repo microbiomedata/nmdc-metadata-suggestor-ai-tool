@@ -77,40 +77,6 @@ def test_format_interface_context_contains_required_marker() -> None:
     assert "REQUIRED" in ctx
 
 
-def test_get_env_triad_enums_soil_returns_all_three_slots() -> None:
-    builder = SchemaContextBuilder()
-    result = builder.get_env_triad_enums("SoilInterface")
-    assert set(result.keys()) == {"env_broad_scale", "env_local_scale", "env_medium"}
-    for values in result.values():
-        assert len(values) > 0
-
-
-def test_get_env_triad_enums_soil_counts() -> None:
-    builder = SchemaContextBuilder()
-    result = builder.get_env_triad_enums("SoilInterface")
-    assert len(result["env_broad_scale"]) == 52
-    assert len(result["env_local_scale"]) == 83
-    assert len(result["env_medium"]) == 85
-
-
-@pytest.mark.parametrize(
-    "class_name",
-    ["SoilInterface", "SedimentInterface", "WaterInterface", "PlantAssociatedInterface"],
-)
-def test_get_env_triad_enums_all_sample_types(class_name: str) -> None:
-    builder = SchemaContextBuilder()
-    result = builder.get_env_triad_enums(class_name)
-    assert set(result.keys()) == {"env_broad_scale", "env_local_scale", "env_medium"}
-    for values in result.values():
-        assert len(values) > 0
-
-
-def test_get_env_triad_enums_unknown_class_raises_value_error() -> None:
-    builder = SchemaContextBuilder()
-    with pytest.raises(ValueError, match="Unknown class"):
-        builder.get_env_triad_enums("NonexistentInterface")
-
-
 def test_get_interface_schema_populates_env_triad_enum_values() -> None:
     """Verify get_interface_schema populates enum_values for env triad slots."""
     builder = SchemaContextBuilder()
@@ -122,6 +88,49 @@ def test_get_interface_schema_populates_env_triad_enum_values() -> None:
             assert slot.enum_total_count is not None
             assert slot.enum_total_count == len(slot.enum_values)
             assert slot.enum_total_count > 0
+
+
+def test_extract_slot_enum_values_for_llm_context(capsys) -> None:
+    """Demonstrate how a developer extracts permissible values for a single
+    slot (e.g. env_medium) from a specific interface and formats them as
+    context suitable for passing to an LLM.
+
+    Usage pattern:
+        1. Get the full interface schema via get_interface_schema()
+        2. Find the slot of interest
+        3. Read its enum_values — these are already resolved from any_of
+        4. Format as a prompt fragment for the LLM
+    """
+    builder = SchemaContextBuilder()
+    schema = builder.get_interface_schema("SoilInterface")
+
+    # Step 1: Find the slot by name
+    env_medium = next(s for s in schema.slots if s.name == "env_medium")
+
+    # Step 2: enum_values is already populated (via any_of resolution)
+    assert env_medium.enum_values is not None
+    assert len(env_medium.enum_values) > 0
+
+    # Step 3: Build an LLM-ready prompt fragment from the permissible values
+    terms = [
+        f"- {ev.text}: {ev.description}" if ev.description else f"- {ev.text}"
+        for ev in env_medium.enum_values
+    ]
+    prompt_fragment = (
+        f"The field '{env_medium.name}' accepts {len(terms)} permissible values "
+        f"from the NMDC submission schema for SoilInterface.\n"
+        f"Select the most appropriate value given the sample context:\n" + "\n".join(terms)
+    )
+
+    # Verify the prompt fragment is well-formed
+    assert "env_medium" in prompt_fragment
+    assert "permissible values" in prompt_fragment
+    assert len(terms) == env_medium.enum_total_count
+
+    # Print so developers can see the shape of the output with pytest -s
+    print("\n--- Example LLM prompt fragment for env_medium (SoilInterface) ---")
+    print(prompt_fragment[:500])
+    print(f"... ({len(terms)} total terms)")
 
 
 def test_format_multi_interface_context_separated() -> None:

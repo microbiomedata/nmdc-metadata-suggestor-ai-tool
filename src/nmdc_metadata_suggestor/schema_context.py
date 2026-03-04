@@ -14,7 +14,6 @@ from collections import defaultdict
 from linkml_runtime.utils.schemaview import SchemaView  # type: ignore[import-untyped]
 
 from nmdc_metadata_suggestor.constants import (
-    ENV_TRIAD_SLOTS,
     EXCLUDED_INTERFACE_CLASSES,
     INTERFACE_CLASS_SUFFIX,
 )
@@ -79,28 +78,6 @@ class SchemaContextBuilder:
             for name in self.sv.all_classes()
             if name.endswith(INTERFACE_CLASS_SUFFIX) and name not in EXCLUDED_INTERFACE_CLASSES
         )
-
-    def get_env_triad_enums(self, class_name: str) -> dict[str, list[EnumValueInfo]]:
-        """Return env triad enum values for a given interface class.
-
-        Uses SchemaView's ``induced_slot`` which propagates ``any_of`` from
-        ``slot_usage``.  For each env triad slot, finds the first ``any_of``
-        entry whose range is a known enum and resolves its permissible values.
-
-        Returns a dict keyed by slot name with lists of ``EnumValueInfo``.
-        Only slots that have an enum via ``any_of`` are included.
-        """
-        cls = self.sv.get_class(class_name)
-        if cls is None:
-            raise ValueError(f"Unknown class: {class_name}")
-
-        result: dict[str, list[EnumValueInfo]] = {}
-        for slot_name in ENV_TRIAD_SLOTS:
-            enum_values = self.resolve_any_of_enum(self.sv.induced_slot(slot_name, class_name))
-            if enum_values is not None:
-                result[slot_name] = enum_values
-
-        return result
 
     def resolve_any_of_enum(self, slot) -> list[EnumValueInfo] | None:  # noqa: ANN001
         """Extract enum values from the first enum-typed ``any_of`` entry on a slot."""
