@@ -10,6 +10,8 @@ dependencies = [
     "google-auth>=2.0.0",
     "requests>=2.31.0",
     "google-genai>=1.62.0",
+    "linkml-runtime>=1.7.0",
+    "nmdc-submission-schema>=11.0.0",
 ]
 
 [project.optional-dependencies]
