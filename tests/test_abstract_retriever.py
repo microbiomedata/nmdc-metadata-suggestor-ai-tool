@@ -256,7 +256,10 @@ class TestGetAbstractWaterfall:
 
     @responses.activate
     def test_osti_link_only_continues_to_crossref_and_accumulates_metadata(self) -> None:
-        """OSTI link-only result should not stop waterfall; Crossref text should still be returned."""
+        """
+        OSTI link-only result should not stop waterfall
+        Crossref text should still be returned.
+        """
         requested_doi = "10.15485/7654321"
         publication_doi = "10.1093/nar/gkac972"
         pdf_url = "https://example.org/fulltext.pdf"
