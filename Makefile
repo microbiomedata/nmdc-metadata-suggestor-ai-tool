@@ -25,9 +25,6 @@ lint: ## Run linters
 	uv run ruff check src tests
 	uv run mypy src
 
-lint-fix: ## Auto-fix fixable lint errors
-	uv run ruff check --fix src tests
-
 format: ## Format code
 	uv run black src tests
 	uv run ruff check --fix src tests
