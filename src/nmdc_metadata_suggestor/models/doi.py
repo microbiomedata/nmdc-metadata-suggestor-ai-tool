@@ -73,3 +73,14 @@ class SourceRetrievalResult(BaseModel):
 
     source_errors: dict[str, str] = Field(default_factory=dict)
     error: str | None = None
+
+    # publication related fields
+    publication_urls: list[str] | None = Field(
+        default=None, description="URLs to the publication or resource (txt, JATS, pdf)"
+    )
+
+    publication_dois: list[str] | None = Field(
+        default=None,
+        description="DOIs of the publication(s) associated with the context. "
+        "ONLY FILL IF DIFFERENT FROM THE REQUESTED DOI.",
+    )
