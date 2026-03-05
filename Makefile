@@ -25,7 +25,7 @@ lint: ## Run linters
 	uv run ruff check src tests
 	uv run mypy src
 
-format: ## Format code
+format: ## This is a two part command that both checks, then auto-fixes formatting issues where it can.
 	uv run black src tests
 	uv run ruff check --fix src tests
 
