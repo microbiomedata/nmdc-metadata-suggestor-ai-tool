@@ -255,6 +255,37 @@ class TestGetAbstractWaterfall:
         assert result.publication_dois[0] == publication_dois
 
     @responses.activate
+    def test_osti_link_only_continues_to_crossref_and_accumulates_metadata(self) -> None:
+        """OSTI link-only result should not stop waterfall; Crossref text should still be returned."""
+        requested_doi = "10.15485/7654321"
+        publication_doi = "10.1093/nar/gkac972"
+        pdf_url = "https://example.org/fulltext.pdf"
+        responses.add(
+            responses.GET,
+            OSTI_E2_API_URL,
+            json=[
+                {
+                    "product_type": "Journal Article",
+                    "doi": publication_doi,
+                    "description": "",
+                    "links": [{"rel": "fulltext", "href": pdf_url}],
+                }
+            ],
+        )
+        responses.add(
+            responses.GET,
+            f"{CROSSREF_API_URL}/{requested_doi}",
+            json={"message": {"abstract": "<jats:p>Crossref abstract.</jats:p>"}},
+        )
+
+        result = get_doi_description_or_abstract(requested_doi, sources=["osti", "crossref"])
+        assert result.source == "crossref"
+        assert result.context == "Crossref abstract."
+        assert result.attempts == ["osti", "crossref"]
+        assert result.publication_urls == [pdf_url]
+        assert result.publication_dois == [publication_doi]
+
+    @responses.activate
     def test_openalex_hit(self) -> None:
         """OpenAlex returns abstract, waterfall stops immediately."""
         doi = SAMPLE_DOI

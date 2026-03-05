@@ -122,8 +122,8 @@ def test_try_osti_pdf_link_without_description_returns_context_with_empty_text()
     result = try_osti(requested_doi, errors=errors)
 
     assert isinstance(result, ResolverContext)
-    assert result.text == ""
-    assert result.raw_text == ""
+    assert result.text is None
+    assert result.raw_text is None
     assert result.urls == [pdf_url]
     assert result.publication_dois[0] == journal_article_doi
     assert any("No abstract/description found" in error for error in errors)

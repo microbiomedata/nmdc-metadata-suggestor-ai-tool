@@ -39,7 +39,7 @@ def try_osti(doi: str, errors: list[str] | None = None) -> ResolverContext | Non
     record = data[0] if isinstance(data, list) else data
 
     raw_description = record.get("description")
-    abstract = ""
+    abstract = None
     if isinstance(raw_description, str):
         abstract = clean_text(raw_description)
     else:
@@ -65,7 +65,7 @@ def try_osti(doi: str, errors: list[str] | None = None) -> ResolverContext | Non
 
     return ResolverContext(
         text=abstract,
-        raw_text=raw_description if isinstance(raw_description, str) else "",
+        raw_text=raw_description if isinstance(raw_description, str) else None,
         kind="description",
         source="osti",
         urls=pdf_url if pdf_url else None,

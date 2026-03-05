@@ -111,24 +111,75 @@ def get_doi_description_or_abstract(
 
     source_errors: SourceErrors = {}
     attempts: list[str] = []
+
+    def merge_unique(existing: list[str] | None, incoming: list[str] | None) -> list[str] | None:
+        """Merge two lists of strings while preserving order and deduplicating."""
+        if not incoming:
+            return existing
+        return list(dict.fromkeys([*(existing or []), *incoming]))
+
+    accumulated_publication_urls: list[str] | None = None
+    accumulated_publication_dois: list[str] | None = None
+    winning_result: SourceRetrievalResult | None = None
     # loop through sources in order
-    # return the first successful result, recording errors for observability
+    # accumulate publication link metadata, but only stop once text is found
     for source in sources:
         fetcher = _SOURCE_FETCHERS.get(source)
         if fetcher is None:
             continue
-        attempts.append(source)
+
+        attempts = merge_unique(attempts, [source]) or attempts
         result = fetcher(doi, provider, attempts, source_errors)
-        if result is not None:
-            return result
-    # if we got here, no sources returned a result.
+        if result is None:
+            continue
+
+        attempts = merge_unique(attempts, result.attempts) or attempts
+
+        if result.provider:
+            provider = result.provider
+
+        accumulated_publication_urls = merge_unique(
+            accumulated_publication_urls,
+            result.publication_urls,
+        )
+        accumulated_publication_dois = merge_unique(
+            accumulated_publication_dois,
+            result.publication_dois,
+        )
+
+        if result.context:
+            winning_result = result
+            break
+
+    if winning_result:
+        return SourceRetrievalResult(
+            doi=doi,
+            context=winning_result.context,
+            raw_context=winning_result.raw_context,
+            context_type=winning_result.context_type,
+            publication_urls=accumulated_publication_urls,
+            publication_dois=accumulated_publication_dois,
+            provider=provider,
+            source=winning_result.source,
+            attempts=attempts,
+            source_errors=source_errors,
+            error=(
+                "Source errors occurred. Check source_errors field for details."
+                if source_errors
+                else None
+            ),
+        )
+
+    # if we got here, no sources returned usable summary text.
     # Return an error with details of all source failures for observability.
     return SourceRetrievalResult(
         doi=doi,
+        publication_urls=accumulated_publication_urls,
+        publication_dois=accumulated_publication_dois,
         provider=provider,
         attempts=attempts,
         source_errors=source_errors,
-        error="No description or abstract found in any source. " "Check source_errors for details.",
+        error="No description or abstract found in any source. Check source_errors for details.",
     )
 
 

@@ -76,7 +76,7 @@ class SourceRetrievalResult(BaseModel):
 
     # publication related fields
     publication_urls: list[str] | None = Field(
-        default=None, description="URLs to the publication or resource (txt, JAT, pdf)"
+        default=None, description="URLs to the publication or resource (txt, JATS, pdf)"
     )
 
     publication_dois: list[str] | None = Field(
