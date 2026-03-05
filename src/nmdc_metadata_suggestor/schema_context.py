@@ -19,12 +19,8 @@ from nmdc_metadata_suggestor.constants import (
     INTERFACE_CLASS_SUFFIX,
 )
 from nmdc_metadata_suggestor.models.schema import (
-    DhInterface,
     EnumValueInfo,
-<<<<<<< Updated upstream
-=======
     InterfaceSchemaClass,
->>>>>>> Stashed changes
     SlotInfo,
 )
 
@@ -84,7 +80,6 @@ class SchemaContextBuilder:
             if name.endswith(INTERFACE_CLASS_SUFFIX) and name not in EXCLUDED_INTERFACE_CLASSES
         )
 
-<<<<<<< Updated upstream
     def resolve_any_of_enum(self, slot: SlotDefinition) -> list[EnumValueInfo] | None:
         """Extract enum values from the first enum-typed ``any_of`` entry on a slot."""
         if not slot.any_of:
@@ -103,10 +98,7 @@ class SchemaContextBuilder:
                     ]
         return None
 
-    def get_interface_schema(self, class_name: str) -> DhInterface:
-=======
     def get_interface_schema(self, class_name: str) -> InterfaceSchemaClass:
->>>>>>> Stashed changes
         """Extract full schema info for a single interface class."""
         cls = self.sv.get_class(class_name)
         if cls is None:
@@ -170,11 +162,7 @@ class SchemaContextBuilder:
                 )
             )
 
-<<<<<<< Updated upstream
-        return DhInterface(
-=======
         return InterfaceSchemaClass(
->>>>>>> Stashed changes
             class_name=class_name,
             description=str(cls.description) if cls.description else None,
             ancestors=ancestors,

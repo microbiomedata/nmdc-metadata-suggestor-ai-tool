@@ -33,11 +33,7 @@ class SlotInfo(BaseModel):
     )
 
 
-<<<<<<< Updated upstream
-class DhInterface(BaseModel):
-=======
 class InterfaceSchemaClass(BaseModel):
->>>>>>> Stashed changes
     """Extracted schema information for one NMDC submission interface class."""
 
     class_name: str
