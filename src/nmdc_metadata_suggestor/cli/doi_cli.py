@@ -158,9 +158,7 @@ def _read_dois_from_file(file_path: Path) -> list[str]:
         actual_col = (reader.fieldnames or [])[fieldnames.index(col)]
         return list(
             dict.fromkeys(
-                row[actual_col].strip()
-                for row in reader
-                if row.get(actual_col, "").strip()
+                row[actual_col].strip() for row in reader if row.get(actual_col, "").strip()
             )
         )
 
