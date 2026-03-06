@@ -1,6 +1,8 @@
 """Unified LLM client for Vertex AI (Gemini and Claude)."""
 
+import base64
 import os
+from pathlib import Path
 from typing import Any, cast
 
 import google.auth.transport.requests
@@ -9,9 +11,6 @@ from google import genai
 from google.genai import types as genai_types
 from google.oauth2 import service_account
 from openai import OpenAI
-from pathlib import Path
-
-import base64
 
 from nmdc_metadata_suggestor.doi_ingestion.doi_utils import request_with_retry
 from nmdc_metadata_suggestor.system_prompt import system_prompt
@@ -44,7 +43,7 @@ PNNL_GPT_MODELS = [
     "gpt-5.2-project",
     "gpt-4.1-project",
     "o3-project",
-    "o4-mini-project"
+    "o4-mini-project",
 ]
 
 DEFAULT_GEMINI_MODEL = "gemini-2.0-flash"
@@ -75,14 +74,14 @@ class LLMClient:
             raise ValueError(f"Unknown llm_provider '{llm_provider}'. Use 'gemini' or 'claude'.")
         if access_provider not in ("pnnl", "gcp"):
             raise ValueError(f"Unknown access_provider '{access_provider}'. Use 'pnnl' or 'gcp'.")
-        
+
         self.llm_provider = llm_provider
         self.access_provider = access_provider
         self.project = project or GCP_PROJECT_ID
         self.region = region or (GEMINI_REGION if llm_provider == "gemini" else GCP_REGION)
         self.credentials_file = credentials_file or GCP_CREDENTIALS_FILE
         self.messages = []  # List to store the conversation messages
-        
+
         if access_provider == "pnnl":
             # load ai incubator key from env
             if not AI_INCUBATOR_KEY or not BASE_URL:
@@ -95,10 +94,7 @@ class LLMClient:
             self.client = OpenAI(base_url=BASE_URL, api_key=AI_INCUBATOR_KEY)
 
         if access_provider == "gcp":
-            self.client = genai.Client(
-                vertexai=True, project=self.project, location=self.region
-            )
-
+            self.client = genai.Client(vertexai=True, project=self.project, location=self.region)
 
     def generate(
         self,
@@ -145,7 +141,7 @@ class LLMClient:
         max_tokens: int = 4096,
         temperature: float = 0.4,
     ) -> str:
-        
+
         model = model or DEFAULT_GEMINI_MODEL
         config = genai_types.GenerateContentConfig(
             max_output_tokens=max_tokens,
@@ -250,13 +246,13 @@ class LLMClient:
                                 "file_data": pdf_file_data[i],
                             }
                             for i in range(len(pdf_files or []))
-                        ]
+                        ],
                     }
                 ]
             if text:
                 content.append({"role": role, "content": text})
             self.messages.extend(content)
-        
+
         if self.access_provider == "gcp":
             # GCP is a list of the messages
             if file_path:
@@ -264,7 +260,7 @@ class LLMClient:
                 content.append(
                     genai_types.Part.from_bytes(
                         data=file_path.read_bytes(),
-                        mime_type='application/pdf',
+                        mime_type="application/pdf",
                     )
                 )
             if text:
@@ -278,10 +274,16 @@ class LLMClient:
         ----------
         schema (str) : The schema description gathered from user input data.
         """
-        self.add_message(role="user", text="Utilize the following schema context to inform your metadata field recommendations:\n" + schema)
+        self.add_message(
+            role="user",
+            text="Utilize the following schema context to inform your metadata field recommendations:\n"
+            + schema,
+        )
 
     def add_schema_and_slot_examples(self):
         """
-        Add the currated examples of schema, description, and mappings. 
+        Add the currated examples of schema, description, and mappings.
         """
-        raise NotImplementedError("This method is not yet implemented. It will add example mappings from schema context to YAML output to the conversation history to help guide the LLM's recommendations.")
+        raise NotImplementedError(
+            "This method is not yet implemented. It will add example mappings from schema context to YAML output to the conversation history to help guide the LLM's recommendations."
+        )

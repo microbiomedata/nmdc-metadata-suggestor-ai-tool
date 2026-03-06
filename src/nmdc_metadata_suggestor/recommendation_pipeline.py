@@ -1,9 +1,12 @@
-from nmdc_metadata_suggestor.llm_client import LLMClient
-from nmdc_metadata_suggestor.schema_context import SchemaContextBuilder
 from nmdc_metadata_suggestor.doi_ingestion.main import get_doi_description_or_abstract
+from nmdc_metadata_suggestor.llm_client import LLMClient
 from nmdc_metadata_suggestor.publication_ingestion.download_pdf import download_pdf_to_tempfile
+from nmdc_metadata_suggestor.schema_context import SchemaContextBuilder
 
-def run_recommendation_pipeline(doi: str, llm_client: LLMClient, mixis_extensions:list[str], sources: list[str]=None) -> str:
+
+def run_recommendation_pipeline(
+    doi: str, llm_client: LLMClient, mixis_extensions: list[str], sources: list[str] = None
+) -> str:
     """Run the metadata recommendation pipeline with the given prompt.
 
     Returns:
@@ -74,7 +77,12 @@ def run_recommendation_pipeline(doi: str, llm_client: LLMClient, mixis_extension
     # )
     prompt = "Provide recommendations for metadata fields based on the provided information."
     llm_client.add_schema_context(mixis_schema)
-    llm_client.add_message(role="user", text="Utilize the following abstract and PDF content to inform your metadata field recommendations:\n" + abstract, pdf_files=pdf_files)
+    llm_client.add_message(
+        role="user",
+        text="Utilize the following abstract and PDF content to inform your metadata field recommendations:\n"
+        + abstract,
+        pdf_files=pdf_files,
+    )
     response = llm_client.generate(prompt, abstract=abstract, pdf_files=pdf_files)
     return response
 
@@ -84,5 +92,7 @@ if __name__ == "__main__":
     mixis_extensions = ["SoilInterface"]
     # doi = ["10.15485/2478895", "10.15485/1729719", "10.15485/1603775"]
     doi = ["10.1073/pnas.2004192118"]
-    recommended_metadata = run_recommendation_pipeline(doi=doi[0], llm_client=llm_client, mixis_extensions=mixis_extensions, sources=["osti"])
+    recommended_metadata = run_recommendation_pipeline(
+        doi=doi[0], llm_client=llm_client, mixis_extensions=mixis_extensions, sources=["osti"]
+    )
     print(recommended_metadata)
