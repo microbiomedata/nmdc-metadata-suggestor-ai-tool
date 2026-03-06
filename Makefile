@@ -1,4 +1,4 @@
-.PHONY: help dev-install test test-integration lint format clean docker-build docker-run docker-dev validate-doi classify-doi classify-fixture get-abstract get-abstracts
+.PHONY: help dev-install test test-integration lint lint-fix format clean docker-build docker-run docker-dev validate-doi classify-doi classify-fixture get-abstract get-abstracts
 
 help: ## Show this help message
 	@echo "Usage: make [target]"
@@ -25,7 +25,7 @@ lint: ## Run linters but ignore the system prompt in system_prompt.py
 	uv run ruff check src tests --exclude src/nmdc_metadata_suggestor/system_prompt.py
 	uv run mypy src 
 
-format: ## Format code but ignore the system prompt in system_prompt.py
+format: ## This is a two part command that both checks, then auto-fixes formatting issues where it can.
 	uv run black src tests
 	uv run ruff check --fix src tests --exclude src/nmdc_metadata_suggestor/system_prompt.py
 

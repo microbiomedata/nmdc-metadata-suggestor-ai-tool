@@ -225,6 +225,68 @@ class TestGetAbstractWaterfall:
         assert result.raw_context == "OSTI abstract text."
         assert result.source == "osti"
         assert result.attempts == ["osti"]
+        assert result.publication_urls is None
+        assert result.publication_dois is None
+
+    @responses.activate
+    def test_osti_hit_propagates_publication_link_and_doi(self) -> None:
+        """OSTI fulltext links and supplemental DOI are propagated to result fields."""
+        requested_doi = "10.15485/1234567"
+        publication_dois = "10.1038/s41564-020-00861-0"
+        pdf_url = "https://example.com/article.pdf"
+        _mock_classify_as_publication(requested_doi)
+        responses.add(
+            responses.GET,
+            OSTI_E2_API_URL,
+            json=[
+                {
+                    "product_type": "Journal Article",
+                    "doi": publication_dois,
+                    "description": "OSTI abstract text.",
+                    "links": [{"rel": "fulltext", "href": pdf_url}],
+                }
+            ],
+        )
+
+        result = get_doi_description_or_abstract(requested_doi, sources=["osti"])
+        assert result.source == "osti"
+        assert result.publication_urls is not None
+        assert str(result.publication_urls[0]) == pdf_url
+        assert result.publication_dois[0] == publication_dois
+
+    @responses.activate
+    def test_osti_link_only_continues_to_crossref_and_accumulates_metadata(self) -> None:
+        """
+        OSTI link-only result should not stop waterfall
+        Crossref text should still be returned.
+        """
+        requested_doi = "10.15485/7654321"
+        publication_doi = "10.1093/nar/gkac972"
+        pdf_url = "https://example.org/fulltext.pdf"
+        responses.add(
+            responses.GET,
+            OSTI_E2_API_URL,
+            json=[
+                {
+                    "product_type": "Journal Article",
+                    "doi": publication_doi,
+                    "description": "",
+                    "links": [{"rel": "fulltext", "href": pdf_url}],
+                }
+            ],
+        )
+        responses.add(
+            responses.GET,
+            f"{CROSSREF_API_URL}/{requested_doi}",
+            json={"message": {"abstract": "<jats:p>Crossref abstract.</jats:p>"}},
+        )
+
+        result = get_doi_description_or_abstract(requested_doi, sources=["osti", "crossref"])
+        assert result.source == "crossref"
+        assert result.context == "Crossref abstract."
+        assert result.attempts == ["osti", "crossref"]
+        assert result.publication_urls == [pdf_url]
+        assert result.publication_dois == [publication_doi]
 
     @responses.activate
     def test_openalex_hit(self) -> None:

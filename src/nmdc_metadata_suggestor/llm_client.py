@@ -115,6 +115,7 @@ class LLMClient:
                 abstract=abstract,
                 extra_info=extra_info,
             )
+        return ""
 
     def _generate_pnnl(
         self,
