@@ -114,3 +114,9 @@ TARGET_PROVIDER_KEYWORDS: dict[str, str] = {
     "zenodo": "zenodo",
     "cyverse": "cyverse",
 }
+
+# ---------------------------------------------------------------------------
+# Schema context builder
+# ---------------------------------------------------------------------------
+INTERFACE_CLASS_SUFFIX = "Interface"
+EXCLUDED_INTERFACE_CLASSES: frozenset[str] = frozenset({"DhInterface"})

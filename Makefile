@@ -1,4 +1,4 @@
-.PHONY: help dev-install test test-integration lint format clean docker-build docker-run docker-dev validate-doi classify-doi classify-fixture get-abstract get-abstracts
+.PHONY: help dev-install test test-integration lint lint-fix format clean docker-build docker-run docker-dev validate-doi classify-doi classify-fixture get-abstract get-abstracts
 
 help: ## Show this help message
 	@echo "Usage: make [target]"
@@ -25,7 +25,7 @@ lint: ## Run linters
 	uv run ruff check src tests
 	uv run mypy src
 
-format: ## Format code
+format: ## This is a two part command that both checks, then auto-fixes formatting issues where it can.
 	uv run black src tests
 	uv run ruff check --fix src tests
 
