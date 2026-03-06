@@ -1,4 +1,4 @@
-.PHONY: help dev-install test test-integration lint lint-fix format clean docker-build docker-run docker-dev validate-doi classify-doi classify-fixture get-abstract get-abstracts
+.PHONY: help dev-install test test-integration lint lint-fix format clean docker-build docker-run docker-dev validate-doi classify-doi classify-fixture get-abstract get-abstracts get-abstracts-from-file
 
 help: ## Show this help message
 	@echo "Usage: make [target]"
@@ -77,3 +77,6 @@ get-abstract: ## Fetch abstract for a DOI (usage: make get-abstract DOI=10.1038/
 
 get-abstracts: ## Fetch abstracts for all publication DOIs in the fixture
 	$(DOI_CLI) get-abstracts
+
+get-abstracts-from-file: ## Fetch text for DOIs in an external file (usage: make get-abstracts-from-file FILE=dois.tsv [OUT=results/] [SOURCES=crossref,pubmed])
+	$(DOI_CLI) get-abstracts-from-file $(FILE) $(or $(OUT),results) $(if $(SOURCES),sources=$(SOURCES))
