@@ -102,22 +102,15 @@ class LLMClient:
 
     def generate(
         self,
-        prompt: str,
         *,
         model: str | None = None,
-        system: str | None = None,
-        pdf_files: list[str] | None = None,
-        abstract: str | None = None,
-        extra_info: list[str] | None = None,
         max_tokens: int = 4096,
         temperature: float = 0.4,
     ) -> str:
         """Send a prompt and return the response text."""
-        if self.llm_provider == "gcp":
+        if self.access_provider == "gcp":
             return self._generate_gcp(
-                prompt,
                 model=model,
-                system=system,
                 max_tokens=max_tokens,
                 temperature=temperature,
             )
@@ -129,28 +122,20 @@ class LLMClient:
         #         max_tokens=max_tokens,
         #         temperature=temperature,
         #     )
-        elif self.llm_provider == "pnnl":
+        elif self.access_provider == "pnnl":
             return self._generate_pnnl(
-                content=prompt,
                 model=model,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                pdf_files=pdf_files,
-                abstract=abstract,
-                extra_info=extra_info,
             )
         return ""
 
     def _generate_pnnl(
         self,
-        content: list[dict[str, str]] | str,
         *,
         model: str | None,
-        pdf_files: list[str] | None = None,
-        abstract: str | None = None,
-        extra_info: list[str] | None = None,
     ) -> str:
-        response = self.client.responses.create(model=model, input=content)
+        if model is None:
+            model = PNNL_GPT_MODELS[0]  # default to the first model in the list
+        response = self.client.responses.create(model=model, input=self.messages)
         return response.output_text
 
     def _generate_gcp(

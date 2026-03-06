@@ -57,7 +57,7 @@ def try_osti(doi: str, errors: list[str] | None = None) -> ResolverContext | Non
                     href = link.get("href")
                     if isinstance(href, str) and href.strip():
                         pdf_url.append(href.strip())
-                        break
+                    
 
     if not abstract and not pdf_url:
         append_error(errors, "OSTI record contained no abstract/description or PDF link")
