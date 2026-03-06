@@ -46,7 +46,8 @@ def try_osti(doi: str, errors: list[str] | None = None) -> ResolverContext | Non
     else:
         append_error(errors, "No abstract/description found in OSTI record")
 
-    # multiple records for a single DOI are possible in OSTI, so we loop through all and aggregate PDF links
+    # multiple records for a single DOI are possible in OSTI,
+    # so we loop through all and aggregate PDF links
     for record in data:
         ja_doi = record.get("doi")
         if record.get("product_type") == "Journal Article":

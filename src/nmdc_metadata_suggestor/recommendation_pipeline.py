@@ -5,7 +5,10 @@ from nmdc_metadata_suggestor.schema_context import SchemaContextBuilder
 
 
 def run_recommendation_pipeline(
-    doi: str, llm_client: LLMClient, mixis_extensions: list[str], sources: list[str] = None
+    doi: str,
+    llm_client: LLMClient,
+    mixis_extensions: list[str],
+    sources: list[str] | None = None,
 ) -> str:
     """Run the metadata recommendation pipeline with the given prompt.
 
@@ -18,6 +21,7 @@ def run_recommendation_pipeline(
     publication_links = ["https://www.osti.gov/servlets/purl/1787993"]
     builder = SchemaContextBuilder()
     mixis_schema = builder.format_multi_interface_context(mixis_extensions)
+    pdf_files: list[str] | None
     if publication_links:
         pdf_files = []
         for url in publication_links:
@@ -75,15 +79,15 @@ def run_recommendation_pipeline(
     #     "more robust microbes, thereby improving microbial survival and yields in "
     #     "industrial contexts."
     # )
-    prompt = "Provide recommendations for metadata fields based on the provided information."
     llm_client.add_schema_context(mixis_schema)
     llm_client.add_message(
         role="user",
-        text="Utilize the following abstract and PDF content to inform your metadata field recommendations:\n"
+        text="Utilize the following abstract and PDF content to "
+        "inform your metadata field recommendations:\n"
         + abstract,
         pdf_files=pdf_files,
     )
-    response = llm_client.generate(prompt, abstract=abstract, pdf_files=pdf_files)
+    response = llm_client.generate()
     return response
 
 

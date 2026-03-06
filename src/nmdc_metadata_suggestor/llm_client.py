@@ -80,7 +80,8 @@ class LLMClient:
         self.project = project or GCP_PROJECT_ID
         self.region = region or (GEMINI_REGION if llm_provider == "gemini" else GCP_REGION)
         self.credentials_file = credentials_file or GCP_CREDENTIALS_FILE
-        self.messages = []  # List to store the conversation messages
+        self.messages: list[Any] = []  # List to store the conversation messages
+        self.client: OpenAI | genai.Client
 
         if access_provider == "pnnl":
             # load ai incubator key from env
@@ -131,7 +132,8 @@ class LLMClient:
     ) -> str:
         if model is None:
             model = PNNL_GPT_MODELS[0]  # default to the first model in the list
-        response = self.client.responses.create(model=model, input=self.messages)
+        client = cast(OpenAI, self.client)
+        response = client.responses.create(model=model, input=self.messages)
         return response.output_text
 
     def _generate_gcp(
@@ -149,7 +151,8 @@ class LLMClient:
             system_instruction=system_prompt,
         )
 
-        response = self.client.models.generate_content(
+        client = cast(genai.Client, self.client)
+        response = client.models.generate_content(
             model=model,
             contents=self.messages,
             config=config,
@@ -215,7 +218,7 @@ class LLMClient:
             raise RuntimeError("Failed to obtain access token from credentials")
         return cast(str, token)
 
-    def add_message(self, role: str, text: str, pdf_files: list[str] = None):
+    def add_message(self, role: str, text: str, pdf_files: list[str] | None = None) -> None:
         """
         Adds a message to the conversation.
         Parameters
@@ -224,11 +227,11 @@ class LLMClient:
         text (str): The text content of the message.
         pdf_files (list[str]): A list of paths to PDF files to include in the message.
         """
-        content = []
         if self.access_provider == "pnnl":
             # PNNL goes through OpenAI API which supports list[dict]
             # load the pdf bytes and encode to base64
-            pdf_file_data = []
+            pnnl_content: list[dict[str, Any]] = []
+            pdf_file_data: list[str] = []
             if pdf_files:
                 for pdf_file in pdf_files:
                     with open(pdf_file, "rb") as f:
@@ -236,7 +239,7 @@ class LLMClient:
                         encoded = base64.standard_b64encode(pdf_bytes).decode("utf-8")
                         pdf_file_data.append(f"data:application/pdf;base64,{encoded}")
 
-                content = [
+                pnnl_content = [
                     {
                         "role": role,
                         "content": [
@@ -250,24 +253,26 @@ class LLMClient:
                     }
                 ]
             if text:
-                content.append({"role": role, "content": text})
-            self.messages.extend(content)
+                pnnl_content.append({"role": role, "content": text})
+            self.messages.extend(pnnl_content)
 
         if self.access_provider == "gcp":
             # GCP is a list of the messages
-            if file_path:
-                file_path = Path(file_path)
-                content.append(
-                    genai_types.Part.from_bytes(
-                        data=file_path.read_bytes(),
-                        mime_type="application/pdf",
+            gcp_content: list[genai_types.Part | str] = []
+            if pdf_files:
+                for file_path_str in pdf_files:
+                    file_path = Path(file_path_str)
+                    gcp_content.append(
+                        genai_types.Part.from_bytes(
+                            data=file_path.read_bytes(),
+                            mime_type="application/pdf",
+                        )
                     )
-                )
             if text:
-                content.append(text)
-            self.messages.extend(content)
+                gcp_content.append(text)
+            self.messages.extend(gcp_content)
 
-    def add_schema_context(self, schema: str):
+    def add_schema_context(self, schema: str) -> None:
         """
         Adds a schema description message to the conversation.
         Parameters
@@ -276,14 +281,17 @@ class LLMClient:
         """
         self.add_message(
             role="user",
-            text="Utilize the following schema context to inform your metadata field recommendations:\n"
+            text="Utilize the following schema context to "
+            "inform your metadata field recommendations:\n"
             + schema,
         )
 
-    def add_schema_and_slot_examples(self):
+    def add_schema_and_slot_examples(self) -> None:
         """
         Add the currated examples of schema, description, and mappings.
         """
         raise NotImplementedError(
-            "This method is not yet implemented. It will add example mappings from schema context to YAML output to the conversation history to help guide the LLM's recommendations."
+            "This method is not yet implemented. " \
+            "It will add example mappings from schema context to " \
+            "YAML output to the conversation history to help guide the LLM's recommendations."
         )
