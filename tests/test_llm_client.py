@@ -18,20 +18,20 @@ requires_credentials = pytest.mark.skipif(
 )
 
 
-def test_invalid_provider_raises() -> None:
-    with pytest.raises(ValueError, match="Unknown llm_provider"):
-        LLMClient(llm_provider="openai")
+def test_invalid_access_provider_raises() -> None:
+    with pytest.raises(ValueError, match="Unknown access_provider"):
+        LLMClient(access_provider="invalid")
 
 
 @requires_credentials
 def test_default_provider_is_gemini() -> None:
     client = LLMClient()
-    assert client.llm_provider == "gemini"
+    assert client.model == "gemini-2.0-flash"
 
 
 @requires_credentials
 def test_gemini_generate() -> None:
-    client = LLMClient(llm_provider="gemini")
+    client = LLMClient(model="gemini-2.0-flash")
     client.add_message(role="user", text="Reply with exactly: hello")
     response = client.generate(
         model="gemini-2.0-flash",
@@ -43,7 +43,7 @@ def test_gemini_generate() -> None:
 
 @requires_credentials
 def test_gemini_generate_with_system() -> None:
-    client = LLMClient(llm_provider="gemini")
+    client = LLMClient(model="gemini-2.0-flash")
     client.add_message(
         role="system",
         text="You are a biome classification assistant. Always mention ENVO.",
@@ -59,7 +59,7 @@ def test_gemini_generate_with_system() -> None:
 
 @requires_credentials
 def test_claude_generate() -> None:
-    client = LLMClient(llm_provider="claude")
+    client = LLMClient(model="claude-opus-4-6")
     client.add_message(role="user", text="Reply with exactly: hello")
     response = client.generate(
         model="haiku",
@@ -71,7 +71,7 @@ def test_claude_generate() -> None:
 
 @requires_credentials
 def test_claude_generate_with_system() -> None:
-    client = LLMClient(llm_provider="claude")
+    client = LLMClient(model="claude-opus-4-6")
     client.add_message(
         role="system",
         text="You are a biome classification assistant. Always mention ENVO.",
