@@ -12,7 +12,6 @@ from google.genai import types as genai_types
 from google.oauth2 import service_account
 from openai import OpenAI
 
-from nmdc_metadata_suggestor.doi_ingestion.doi_utils import request_with_retry
 from nmdc_metadata_suggestor.system_prompt import system_prompt
 
 load_dotenv()
@@ -51,34 +50,38 @@ DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-5@20250929"
 
 
 class LLMClient:
-    """Vertex AI LLM client supporting Gemini and Claude providers.
+    """LLM client supporting two access providers: PNNL AI Incubator and GCP Vertex AI.
 
     Usage::
 
-        client = LLMClient(llm_provider="gemini")
-        response = client.generate("Your prompt here")
+        # Default path: PNNL AI Incubator (OpenAI-compatible Responses API)
+        client = LLMClient(access_provider="pnnl")
+        client.add_message(role="user", text="Your prompt here")
+        response = client.generate(model="gpt-5-project")
 
-        client = LLMClient(llm_provider="claude")
-        response = client.generate("Your prompt here", model="opus")
+        # GCP Vertex AI path: Gemini via google-genai
+        client = LLMClient(access_provider="gcp", llm_provider="gemini")
+        client.add_message(role="user", text="Your prompt here")
+        response = client.generate(model="gemini-2.0-flash")
     """
 
     def __init__(
         self,
         access_provider: str = "pnnl",
-        llm_provider: str = "gemini",
+        model: str | None = None,
         project: str | None = None,
         region: str | None = None,
         credentials_file: str | None = None,
     ) -> None:
-        if llm_provider not in ("gemini", "claude"):
-            raise ValueError(f"Unknown llm_provider '{llm_provider}'. Use 'gemini' or 'claude'.")
         if access_provider not in ("pnnl", "gcp"):
             raise ValueError(f"Unknown access_provider '{access_provider}'. Use 'pnnl' or 'gcp'.")
 
-        self.llm_provider = llm_provider
+        self.model = model or (
+            PNNL_GPT_MODELS[0] if access_provider == "pnnl" else DEFAULT_GEMINI_MODEL
+        )
         self.access_provider = access_provider
         self.project = project or GCP_PROJECT_ID
-        self.region = region or (GEMINI_REGION if llm_provider == "gemini" else GCP_REGION)
+        self.region = region or GEMINI_REGION
         self.credentials_file = credentials_file or GCP_CREDENTIALS_FILE
         self.messages: list[Any] = []  # List to store the conversation messages
         self.client: OpenAI | genai.Client
@@ -104,47 +107,36 @@ class LLMClient:
         max_tokens: int = 4096,
         temperature: float = 0.4,
     ) -> str:
-        """Send a prompt and return the response text."""
+        """Generate a response from queued conversation messages.
+
+        Dispatches by ``access_provider``:
+        - ``pnnl``: uses OpenAI-compatible Responses API (model defaults to first
+            entry in ``PNNL_GPT_MODELS`` when omitted).
+        - ``gcp``: uses Vertex Gemini ``models.generate_content`` (model defaults
+            to ``DEFAULT_GEMINI_MODEL`` when omitted).
+        """
         if self.access_provider == "gcp":
             return self._generate_gcp(
-                model=model,
                 max_tokens=max_tokens,
                 temperature=temperature,
             )
-        # elif self.llm_provider == "claude":
-        #     return self._generate_claude(
-        #         prompt,
-        #         model=model,
-        #         system=system,
-        #         max_tokens=max_tokens,
-        #         temperature=temperature,
-        #     )
         elif self.access_provider == "pnnl":
-            return self._generate_pnnl(
-                model=model,
-            )
+            return self._generate_pnnl()
         return ""
 
     def _generate_pnnl(
         self,
-        *,
-        model: str | None,
     ) -> str:
-        if model is None:
-            model = PNNL_GPT_MODELS[0]  # default to the first model in the list
         client = cast(OpenAI, self.client)
-        response = client.responses.create(model=model, input=self.messages)
+        response = client.responses.create(model=self.model, input=self.messages)
         return response.output_text
 
     def _generate_gcp(
         self,
-        *,
-        model: str | None = None,
         max_tokens: int = 4096,
         temperature: float = 0.4,
     ) -> str:
 
-        model = model or DEFAULT_GEMINI_MODEL
         config = genai_types.GenerateContentConfig(
             max_output_tokens=max_tokens,
             temperature=temperature,
@@ -153,53 +145,11 @@ class LLMClient:
 
         client = cast(genai.Client, self.client)
         response = client.models.generate_content(
-            model=model,
+            model=self.model,
             contents=self.messages,
             config=config,
         )
         return (response.text or "").strip()
-
-    def _generate_claude(
-        self,
-        prompt: str,
-        *,
-        model: str | None = None,
-        system: str | None = None,
-        max_tokens: int = 4096,
-        temperature: float = 0.4,
-    ) -> str:
-        model_id = CLAUDE_MODELS.get(model, model) if model else DEFAULT_CLAUDE_MODEL
-        token = self._get_access_token()
-
-        url = (
-            f"https://{self.region}-aiplatform.googleapis.com/v1/"
-            f"projects/{self.project}/locations/{self.region}/"
-            f"publishers/anthropic/models/{model_id}:rawPredict"
-        )
-
-        body: dict[str, Any] = {
-            "anthropic_version": "vertex-2023-10-16",
-            "messages": [{"role": "user", "content": prompt}],
-            "max_tokens": max_tokens,
-        }
-        if system:
-            body["system"] = system
-
-        response = request_with_retry(
-            "POST",
-            url,
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json",
-            },
-            json=body,
-            timeout=300,
-        )
-        response.raise_for_status()
-        result = response.json()
-
-        content = result.get("content", [{}])
-        return "".join(block.get("text", "") for block in content).strip()
 
     def _get_access_token(self) -> str:
         """Exchange service account JSON key for a short-lived access token."""
@@ -282,8 +232,7 @@ class LLMClient:
         self.add_message(
             role="user",
             text="Utilize the following schema context to "
-            "inform your metadata field recommendations:\n"
-            + schema,
+            "inform your metadata field recommendations:\n" + schema,
         )
 
     def add_schema_and_slot_examples(self) -> None:
@@ -291,7 +240,7 @@ class LLMClient:
         Add the currated examples of schema, description, and mappings.
         """
         raise NotImplementedError(
-            "This method is not yet implemented. " \
-            "It will add example mappings from schema context to " \
+            "This method is not yet implemented. "
+            "It will add example mappings from schema context to "
             "YAML output to the conversation history to help guide the LLM's recommendations."
         )

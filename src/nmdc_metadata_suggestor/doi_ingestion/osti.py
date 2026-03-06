@@ -48,6 +48,7 @@ def try_osti(doi: str, errors: list[str] | None = None) -> ResolverContext | Non
 
     # multiple records for a single DOI are possible in OSTI,
     # so we loop through all and aggregate PDF links
+    ja_dois = []
     for record in data:
         ja_doi = record.get("doi")
         if record.get("product_type") == "Journal Article":
@@ -60,6 +61,7 @@ def try_osti(doi: str, errors: list[str] | None = None) -> ResolverContext | Non
                         href = link.get("href")
                         if isinstance(href, str) and href.strip():
                             pdf_urls.append(href.strip())
+                            ja_dois.append(ja_doi)
 
     if not abstract and not pdf_urls:
         append_error(errors, "OSTI record contained no abstract/description or PDF link")
@@ -71,7 +73,7 @@ def try_osti(doi: str, errors: list[str] | None = None) -> ResolverContext | Non
         kind="description",
         source="osti",
         urls=pdf_urls if pdf_urls else None,
-        publication_dois=[ja_doi] if isinstance(ja_doi, str) and doi not in ja_doi else None,
+        publication_dois=[d for d in ja_dois if d != doi] if ja_dois else None,
     )
 
 
