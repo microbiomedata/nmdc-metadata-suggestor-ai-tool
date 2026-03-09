@@ -56,12 +56,12 @@ class LLMClient:
 
         # Default path: PNNL AI Incubator (OpenAI-compatible Responses API)
         client = LLMClient(access_provider="pnnl")
-        client.add_message(role="user", text="Your prompt here")
+        client.add_message(text="Your prompt here")
         response = client.generate(model="gpt-5-project")
 
         # GCP Vertex AI path: Gemini via google-genai
         client = LLMClient(access_provider="gcp", llm_provider="gemini")
-        client.add_message(role="user", text="Your prompt here")
+        client.add_message(text="Your prompt here")
         response = client.generate(model="gemini-2.0-flash")
     """
 
@@ -93,8 +93,6 @@ class LLMClient:
                     "AI_INCUBATOR_KEY or AI_INCUBATOR_BASE_URL is not set "
                     "in environment variables."
                 )
-            # add the system prompt as the first message in the conversation
-            self.add_message(role="system", text=system_prompt)
             self.client = OpenAI(base_url=BASE_URL, api_key=AI_INCUBATOR_KEY)
 
         if access_provider == "gcp":
@@ -128,7 +126,9 @@ class LLMClient:
         self,
     ) -> str:
         client = cast(OpenAI, self.client)
-        response = client.responses.create(model=self.model, input=self.messages)
+        response = client.responses.create(
+            model=self.model, input=self.messages, instructions=system_prompt
+        )
         return response.output_text
 
     def _generate_gcp(
@@ -168,7 +168,7 @@ class LLMClient:
             raise RuntimeError("Failed to obtain access token from credentials")
         return cast(str, token)
 
-    def add_message(self, role: str, text: str, pdf_files: list[str] | None = None) -> None:
+    def add_message(self, text: str, pdf_files: list[str] | None = None) -> None:
         """
         Adds a message to the conversation.
         Parameters
@@ -191,7 +191,7 @@ class LLMClient:
 
                 pnnl_content = [
                     {
-                        "role": role,
+                        "role": "user",
                         "content": [
                             {
                                 "type": "input_file",
@@ -203,7 +203,7 @@ class LLMClient:
                     }
                 ]
             if text:
-                pnnl_content.append({"role": role, "content": text})
+                pnnl_content.append({"role": "user", "content": text})
             self.messages.extend(pnnl_content)
 
         if self.access_provider == "gcp":
@@ -230,7 +230,6 @@ class LLMClient:
         schema (str) : The schema description gathered from user input data.
         """
         self.add_message(
-            role="user",
             text="Utilize the following schema context to "
             "inform your metadata field recommendations:\n" + schema,
         )

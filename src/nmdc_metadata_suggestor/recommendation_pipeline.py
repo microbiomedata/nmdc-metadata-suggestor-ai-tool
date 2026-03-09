@@ -34,7 +34,6 @@ def run_recommendation_pipeline(
         pdf_files = None
     llm_client.add_schema_context(mixis_schema)
     llm_client.add_message(
-        role="user",
         text="Utilize the following abstract and PDF content to "
         "inform your metadata field recommendations:\n" + abstract,
         pdf_files=pdf_files,

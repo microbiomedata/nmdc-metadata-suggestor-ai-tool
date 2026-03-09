@@ -45,10 +45,9 @@ def test_gemini_generate() -> None:
 def test_gemini_generate_with_system() -> None:
     client = LLMClient(model="gemini-2.0-flash")
     client.add_message(
-        role="system",
         text="You are a biome classification assistant. Always mention ENVO.",
     )
-    client.add_message(role="user", text="What are you?")
+    client.add_message(text="What are you?")
     response = client.generate(
         model="gemini-2.0-flash",
         max_tokens=200,
@@ -60,7 +59,7 @@ def test_gemini_generate_with_system() -> None:
 @requires_credentials
 def test_claude_generate() -> None:
     client = LLMClient(model="claude-opus-4-6")
-    client.add_message(role="user", text="Reply with exactly: hello")
+    client.add_message(text="Reply with exactly: hello")
     response = client.generate(
         model="haiku",
         max_tokens=50,
@@ -73,10 +72,9 @@ def test_claude_generate() -> None:
 def test_claude_generate_with_system() -> None:
     client = LLMClient(model="claude-opus-4-6")
     client.add_message(
-        role="system",
         text="You are a biome classification assistant. Always mention ENVO.",
     )
-    client.add_message(role="user", text="What are you?")
+    client.add_message(text="What are you?")
     response = client.generate(
         model="haiku",
         max_tokens=200,
