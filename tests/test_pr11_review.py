@@ -2,13 +2,15 @@
 
 These tests fail on the current branch, demonstrating the bugs.
 When the bugs are fixed, these tests should pass.
+
+Note: the signature-based test for _generate_pnnl could alternatively be written
+as a behavioral test using monkeypatch to assert that generate() forwards
+max_tokens and temperature to the underlying method. That approach is more
+resilient to implementation choices like **kwargs. We chose the simpler
+signature check here for readability.
 """
 
 import inspect
-import tempfile
-from pathlib import Path
-
-import pytest
 
 from nmdc_metadata_suggestor.llm_client import LLMClient
 
