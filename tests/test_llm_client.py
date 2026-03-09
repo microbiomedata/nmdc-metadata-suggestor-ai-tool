@@ -32,7 +32,7 @@ def test_default_provider_is_gemini() -> None:
 @requires_credentials
 def test_gemini_generate() -> None:
     client = LLMClient(model="gemini-2.0-flash")
-    client.add_message(role="user", text="Reply with exactly: hello")
+    client.add_message(text="Reply with exactly: hello")
     response = client.generate(
         model="gemini-2.0-flash",
         max_tokens=50,

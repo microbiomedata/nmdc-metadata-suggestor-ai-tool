@@ -30,11 +30,6 @@ GEMINI_MODELS = [
     "gemini-2.0-flash-lite",
 ]
 
-CLAUDE_MODELS = {
-    "opus": "claude-opus-4-6",
-    "sonnet": "claude-sonnet-4-5@20250929",
-    "haiku": "claude-haiku-4-5@20251001",
-}
 
 PNNL_GPT_MODELS = [
     "gpt-5-project",
@@ -46,7 +41,6 @@ PNNL_GPT_MODELS = [
 ]
 
 DEFAULT_GEMINI_MODEL = "gemini-2.0-flash"
-DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-5@20250929"
 
 
 class LLMClient:
@@ -119,15 +113,20 @@ class LLMClient:
                 temperature=temperature,
             )
         elif self.access_provider == "pnnl":
-            return self._generate_pnnl()
+            return self._generate_pnnl(max_tokens=max_tokens, temperature=temperature)
         return ""
 
     def _generate_pnnl(
         self,
+        max_tokens: int = 4096,
+        temperature: float = 0.4,
     ) -> str:
         client = cast(OpenAI, self.client)
         response = client.responses.create(
-            model=self.model, input=self.messages, instructions=system_prompt
+            model=self.model,
+            input=self.messages,
+            instructions=system_prompt,
+            max_output_tokens=max_tokens,
         )
         return response.output_text
 
@@ -173,7 +172,6 @@ class LLMClient:
         Adds a message to the conversation.
         Parameters
         ----------
-        role (str): The role of the message sender must be one of ('user', 'assistant', 'system').
         text (str): The text content of the message.
         pdf_files (list[str]): A list of paths to PDF files to include in the message.
         """
@@ -236,7 +234,7 @@ class LLMClient:
 
     def add_schema_and_slot_examples(self) -> None:
         """
-        Add the currated examples of schema, description, and mappings.
+        Add the curated examples of schema, description, and mappings.
         """
         raise NotImplementedError(
             "This method is not yet implemented. "
