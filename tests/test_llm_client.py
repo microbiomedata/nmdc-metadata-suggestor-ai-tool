@@ -18,22 +18,22 @@ requires_credentials = pytest.mark.skipif(
 )
 
 
-def test_invalid_provider_raises() -> None:
-    with pytest.raises(ValueError, match="Unknown provider"):
-        LLMClient(provider="openai")
+def test_invalid_access_provider_raises() -> None:
+    with pytest.raises(ValueError, match="Unknown access_provider"):
+        LLMClient(access_provider="invalid")
 
 
 @requires_credentials
 def test_default_provider_is_gemini() -> None:
     client = LLMClient()
-    assert client.provider == "gemini"
+    assert client.model == "gemini-2.0-flash"
 
 
 @requires_credentials
 def test_gemini_generate() -> None:
-    client = LLMClient(provider="gemini")
+    client = LLMClient(model="gemini-2.0-flash")
+    client.add_message(text="Reply with exactly: hello")
     response = client.generate(
-        "Reply with exactly: hello",
         model="gemini-2.0-flash",
         max_tokens=50,
     )
@@ -43,11 +43,13 @@ def test_gemini_generate() -> None:
 
 @requires_credentials
 def test_gemini_generate_with_system() -> None:
-    client = LLMClient(provider="gemini")
+    client = LLMClient(model="gemini-2.0-flash")
+    client.add_message(
+        text="You are a biome classification assistant. Always mention ENVO.",
+    )
+    client.add_message(text="What are you?")
     response = client.generate(
-        "What are you?",
         model="gemini-2.0-flash",
-        system="You are a biome classification assistant. Always mention ENVO.",
         max_tokens=200,
     )
     assert isinstance(response, str)
@@ -56,9 +58,9 @@ def test_gemini_generate_with_system() -> None:
 
 @requires_credentials
 def test_claude_generate() -> None:
-    client = LLMClient(provider="claude")
+    client = LLMClient(model="claude-opus-4-6")
+    client.add_message(text="Reply with exactly: hello")
     response = client.generate(
-        "Reply with exactly: hello",
         model="haiku",
         max_tokens=50,
     )
@@ -68,11 +70,13 @@ def test_claude_generate() -> None:
 
 @requires_credentials
 def test_claude_generate_with_system() -> None:
-    client = LLMClient(provider="claude")
+    client = LLMClient(model="claude-opus-4-6")
+    client.add_message(
+        text="You are a biome classification assistant. Always mention ENVO.",
+    )
+    client.add_message(text="What are you?")
     response = client.generate(
-        "What are you?",
         model="haiku",
-        system="You are a biome classification assistant. Always mention ENVO.",
         max_tokens=200,
     )
     assert isinstance(response, str)
