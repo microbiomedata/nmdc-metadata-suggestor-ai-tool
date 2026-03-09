@@ -26,10 +26,12 @@ from nmdc_metadata_suggestor.constants import (
     CROSSREF_API_URL as CROSSREF_API,
 )
 from nmdc_metadata_suggestor.constants import (
+    CYVERSE_DATACOMMONS_API,
     CYVERSE_METADATA_API,
     CYVERSE_METADATA_SEARCH_API,
     DATAONE_CN_SOLR_API,
     DOI_CONTENT_NEGOTIATION_API,
+    DOI_RESOLVER_URL,
     EDI_DOI_API,
     EMSL_PROJECTS_API,
     ESS_DIVE_API,
@@ -62,8 +64,10 @@ FIXTURE_PATH = Path(__file__).parent / "fixtures" / "doi_test_cases.json"
 REAL_WORLD_SOURCE_FIXTURE_PATH = (
     Path(__file__).parent / "fixtures" / "doi_resolver_source_examples.json"
 )
-XML_PAYLOAD_FIXTURE_PATH = Path(__file__).parent / "fixtures" / "doi_xml_payloads.json"
-JSON_PAYLOAD_FIXTURE_PATH = Path(__file__).parent / "fixtures" / "doi_response_payloads.json"
+XML_PAYLOAD_FIXTURE_PATH = Path(
+    __file__).parent / "fixtures" / "doi_xml_payloads.json"
+JSON_PAYLOAD_FIXTURE_PATH = Path(
+    __file__).parent / "fixtures" / "doi_response_payloads.json"
 
 _FIXTURE_PROVIDER_TO_SOURCE: dict[str, str] = {
     "ESS-DIVE": "ess-dive",
@@ -166,7 +170,6 @@ integration = pytest.mark.integration
 
 KNOWN_LIVE_NO_CONTEXT_DOIS = {
     "10.25585/1488274",
-    "10.7946/p22k7v",
 }
 
 
@@ -319,12 +322,14 @@ def _mock_provider_resolver_hit(source: str, doi: str) -> None:
         responses.add(
             responses.POST,
             CYVERSE_METADATA_SEARCH_API,
-            json=_json_payload("fixture_cyverse_search_hit", doi=doi, target_id=target_id),
+            json=_json_payload("fixture_cyverse_search_hit",
+                               doi=doi, target_id=target_id),
         )
         responses.add(
             responses.GET,
             CYVERSE_METADATA_API,
-            json=_json_payload("fixture_cyverse_metadata_hit", target_id=target_id),
+            json=_json_payload(
+                "fixture_cyverse_metadata_hit", target_id=target_id),
         )
         return
 
@@ -365,11 +370,13 @@ def test_real_world_source_fixture_coverage() -> None:
     assert expected_sources <= fixture_sources
 
     for source in expected_sources:
-        count = sum(1 for case in REAL_WORLD_SOURCE_CASES if case["source"] == source)
+        count = sum(
+            1 for case in REAL_WORLD_SOURCE_CASES if case["source"] == source)
         assert count >= 2, f"Expected at least two fixture cases for source '{source}'"
 
     for case in REAL_WORLD_SOURCE_CASES:
-        assert case["doi"].startswith("10."), f"Expected DOI syntax for fixture case: {case}"
+        assert case["doi"].startswith(
+            "10."), f"Expected DOI syntax for fixture case: {case}"
         assert case["route"] in {"default", "explicit"}
 
 
@@ -865,12 +872,14 @@ def test_cyverse_provider_api_abstract_wins() -> None:
     responses.add(
         responses.POST,
         CYVERSE_METADATA_SEARCH_API,
-        json=_json_payload("fixture_cyverse_search_hit", doi=doi, target_id=target_id),
+        json=_json_payload("fixture_cyverse_search_hit",
+                           doi=doi, target_id=target_id),
     )
     responses.add(
         responses.GET,
         CYVERSE_METADATA_API,
-        json=_json_payload("cyverse_provider_metadata_hit", target_id=target_id),
+        json=_json_payload("cyverse_provider_metadata_hit",
+                           target_id=target_id),
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -882,6 +891,67 @@ def test_cyverse_provider_api_abstract_wins() -> None:
 
 
 @responses.activate
+def test_cyverse_datacommons_metadata_fallback_returns_description() -> None:
+    """If Terrain metadata misses, resolve CyVerse context from Data Commons metadata."""
+    doi = "10.25739/hr33-4321"
+    datacommons_path = "/iplant/home/shared/commons_repo/curated/Reicher_PooledProteinTagging_2020"
+    item_id = "a4c1bfac-f74e-11ea-92e8-90e2ba675364"
+    responses.add(
+        responses.POST,
+        CYVERSE_METADATA_SEARCH_API,
+        json=_json_payload("cyverse_search_empty"),
+    )
+    responses.add(
+        responses.GET,
+        f"{DOI_RESOLVER_URL}/{doi}",
+        status=302,
+        headers={
+            "Location": f"https://datacommons.cyverse.org/browse{datacommons_path}"},
+    )
+    responses.add(
+        responses.GET,
+        CYVERSE_DATACOMMONS_API,
+        match=[
+            responses.matchers.query_param_matcher(
+                {
+                    "djng_url_name": "api_stat",
+                    "djng_url_kwarg_path": datacommons_path,
+                }
+            )
+        ],
+        json={"id": item_id},
+    )
+    responses.add(
+        responses.GET,
+        CYVERSE_DATACOMMONS_API,
+        match=[
+            responses.matchers.query_param_matcher(
+                {
+                    "djng_url_name": "api_metadata",
+                    "djng_url_kwarg_item_id": item_id,
+                }
+            )
+        ],
+        json={
+            "metadata": {
+                "Identifier": {"attr": "identifier", "value": doi, "label": "Identifier"},
+                "Description": {
+                    "attr": "description",
+                    "value": "CyVerse Data Commons description text.",
+                    "label": "Description",
+                },
+            }
+        },
+    )
+
+    result = get_doi_description_or_abstract(doi, sources=["cyverse"])
+    assert result.context == "CyVerse Data Commons description text."
+    assert result.context_type == "description"
+    assert result.source == "cyverse"
+    assert result.attempts == ["cyverse"]
+
+
+@responses.activate
 def test_cyverse_miss_falls_back_to_datacite() -> None:
     """If CyVerse API has no matching metadata, continue waterfall to DataCite."""
     doi = "10.17504/cyverse.dataset.67890"
@@ -889,6 +959,11 @@ def test_cyverse_miss_falls_back_to_datacite() -> None:
         responses.POST,
         CYVERSE_METADATA_SEARCH_API,
         json=_json_payload("cyverse_search_empty"),
+    )
+    responses.add(
+        responses.GET,
+        f"{DOI_RESOLVER_URL}/{doi}",
+        status=404,
     )
     responses.add(
         responses.GET,
@@ -907,11 +982,16 @@ def test_cyverse_miss_falls_back_to_datacite() -> None:
 @responses.activate
 def test_cyverse_explicit_source_no_context_returns_clean_error() -> None:
     """Explicit CyVerse-only lookup should fail cleanly when metadata has no context."""
-    doi = "10.7946/p22k7v"
+    doi = "10.17504/cyverse.dataset.67890"
     responses.add(
         responses.POST,
         CYVERSE_METADATA_SEARCH_API,
         json=_json_payload("cyverse_search_empty"),
+    )
+    responses.add(
+        responses.GET,
+        f"{DOI_RESOLVER_URL}/{doi}",
+        status=404,
     )
 
     result = get_doi_description_or_abstract(doi, sources=["cyverse"])
@@ -1001,7 +1081,8 @@ def test_zenodo_prefers_hit_matching_requested_doi() -> None:
 def test_provider_miss_falls_back_to_datacite() -> None:
     """Fall back to DataCite when provider-specific API has no context."""
     doi = "10.5281/zenodo.7406532"
-    responses.add(responses.GET, ZENODO_API, json=_json_payload("zenodo_empty_hits"))
+    responses.add(responses.GET, ZENODO_API,
+                  json=_json_payload("zenodo_empty_hits"))
     responses.add(
         responses.GET,
         f"{DATACITE_API}/{doi}",
@@ -1066,7 +1147,8 @@ def test_source_errors_include_upstream_http_codes() -> None:
     assert "HTTP 429" in result.source_errors["crossref"]
     assert "HTTP 503" in result.source_errors["content_negotiation"]
     assert (
-        "OpenAlex response contained no abstract_inverted_index" in result.source_errors["openalex"]
+        "OpenAlex response contained no abstract_inverted_index" in result.source_errors[
+            "openalex"]
     )
     assert "PubMed ID converter found no PMID for DOI" in result.source_errors["pubmed"]
 
@@ -1448,6 +1530,18 @@ def test_live_known_no_context_cases_fail_cleanly(case: dict[str, str]) -> None:
 
 
 @integration
+@pytest.mark.parametrize("doi", _live_dois_for_source("cyverse"))
+def test_live_cyverse_explicit_source_route_returns_context(doi: str) -> None:
+    """Explicit CyVerse source lookups should resolve context for each curated live DOI."""
+    result = get_doi_description_or_abstract(doi, sources=["cyverse"])
+
+    assert result.context is not None, f"Expected CyVerse context for {doi}; got {result.error!r}"
+    assert result.source == "cyverse"
+    assert result.attempts == ["cyverse"]
+    assert result.context_type in {"abstract", "description"}
+
+
+@integration
 def test_try_edi_live_returns_context_for_curated_doi() -> None:
     """Direct EDI resolver should return context for at least one curated live DOI."""
     edi_dois = _live_dois_for_source("edi")
@@ -1459,7 +1553,8 @@ def test_try_edi_live_returns_context_for_curated_doi() -> None:
         errors: list[str] = []
         context = try_edi(doi, errors=errors)
         if context is None:
-            failures.append(f"{doi}: {'; '.join(errors) if errors else 'no context'}")
+            failures.append(
+                f"{doi}: {'; '.join(errors) if errors else 'no context'}")
             continue
 
         assert context.kind in {"abstract", "description"}
@@ -1468,7 +1563,8 @@ def test_try_edi_live_returns_context_for_curated_doi() -> None:
         return
 
     pytest.fail(
-        "EDI resolver returned no context for all curated live DOIs: " + " | ".join(failures)
+        "EDI resolver returned no context for all curated live DOIs: " +
+        " | ".join(failures)
     )
 
 
@@ -1510,7 +1606,8 @@ def test_try_emsl_live_returns_context_for_curated_doi() -> None:
         errors: list[str] = []
         context = try_emsl(doi, errors=errors)
         if context is None:
-            failures.append(f"{doi}: {'; '.join(errors) if errors else 'no context'}")
+            failures.append(
+                f"{doi}: {'; '.join(errors) if errors else 'no context'}")
             continue
 
         assert context.kind in {"abstract", "description"}
@@ -1519,7 +1616,8 @@ def test_try_emsl_live_returns_context_for_curated_doi() -> None:
         return
 
     pytest.fail(
-        "EMSL resolver returned no context for all curated live DOIs: " + " | ".join(failures)
+        "EMSL resolver returned no context for all curated live DOIs: " +
+        " | ".join(failures)
     )
 
 
@@ -1561,7 +1659,8 @@ def test_try_jgi_live_returns_context_for_curated_doi() -> None:
         errors: list[str] = []
         context = try_jgi(doi, errors=errors)
         if context is None:
-            failures.append(f"{doi}: {'; '.join(errors) if errors else 'no context'}")
+            failures.append(
+                f"{doi}: {'; '.join(errors) if errors else 'no context'}")
             continue
 
         assert context.kind in {"abstract", "description"}
@@ -1570,7 +1669,8 @@ def test_try_jgi_live_returns_context_for_curated_doi() -> None:
         return
 
     pytest.fail(
-        "JGI resolver returned no context for all curated live DOIs: " + " | ".join(failures)
+        "JGI resolver returned no context for all curated live DOIs: " +
+        " | ".join(failures)
     )
 
 
@@ -1612,7 +1712,8 @@ def test_try_kbase_live_returns_context_for_curated_doi() -> None:
         errors: list[str] = []
         context = try_kbase(doi, errors=errors)
         if context is None:
-            failures.append(f"{doi}: {'; '.join(errors) if errors else 'no context'}")
+            failures.append(
+                f"{doi}: {'; '.join(errors) if errors else 'no context'}")
             continue
 
         assert context.kind in {"abstract", "description"}
@@ -1621,7 +1722,8 @@ def test_try_kbase_live_returns_context_for_curated_doi() -> None:
         return
 
     pytest.fail(
-        "KBase resolver returned no context for all curated live DOIs: " + " | ".join(failures)
+        "KBase resolver returned no context for all curated live DOIs: " +
+        " | ".join(failures)
     )
 
 

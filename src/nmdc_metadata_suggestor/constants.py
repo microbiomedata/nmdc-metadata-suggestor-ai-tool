@@ -77,12 +77,17 @@ DOI_CONTENT_NEGOTIATION_API = DOI_RESOLVER_URL
 PROXI_DATASETS_API = "https://proteomecentral.proteomexchange.org/api/proxi/v0.1/datasets"
 CYVERSE_METADATA_API = "https://de.cyverse.org/terrain/filesystem/metadata"
 CYVERSE_METADATA_SEARCH_API = f"{CYVERSE_METADATA_API}/search"
+CYVERSE_DATACOMMONS_API = "https://datacommons.cyverse.org/angular/reverse/"
+CYVERSE_DATACOMMONS_BROWSE_HOST = "datacommons.cyverse.org"
 ZENODO_API = "https://zenodo.org/api/records"
 
 # Safety limits for untrusted XML payloads in DOI resolvers.
-MAX_EDI_METADATA_XML_CHARS = int(os.environ.get("NMDC_EDI_MAX_XML_CHARS", "2000000"))
-MAX_DATAONE_SOLR_XML_CHARS = int(os.environ.get("NMDC_DATAONE_SOLR_MAX_XML_CHARS", "2000000"))
-UNSAFE_XML_DECLARATION_PATTERN = re.compile(r"<!\s*(?:DOCTYPE|ENTITY)\b", re.IGNORECASE)
+MAX_EDI_METADATA_XML_CHARS = int(
+    os.environ.get("NMDC_EDI_MAX_XML_CHARS", "2000000"))
+MAX_DATAONE_SOLR_XML_CHARS = int(os.environ.get(
+    "NMDC_DATAONE_SOLR_MAX_XML_CHARS", "2000000"))
+UNSAFE_XML_DECLARATION_PATTERN = re.compile(
+    r"<!\s*(?:DOCTYPE|ENTITY)\b", re.IGNORECASE)
 
 
 # DOI prefixes that indicate the target provider for context retrieval.
