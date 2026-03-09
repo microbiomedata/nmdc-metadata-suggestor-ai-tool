@@ -11,24 +11,31 @@ signature check here for readability.
 """
 
 import inspect
+from pathlib import Path
 
 from nmdc_metadata_suggestor.llm_client import LLMClient
 
 
-class TestAddMessageAcceptsRole:
-    """add_message() should accept a role parameter, or callers should stop passing it."""
+class TestAddMessageRoleConsistency:
+    """add_message() signature, callers, and docstring should agree on 'role'."""
 
-    def test_add_message_accepts_role_kwarg(self):
-        """test_gemini_generate (line 35) passes role='user' to add_message,
-        but add_message doesn't accept it. Whichever side is wrong, they need to agree."""
-        client = LLMClient.__new__(LLMClient)
-        client.access_provider = "gcp"
-        client.messages = []
-        # This should not raise
-        client.add_message(role="user", text="hello")
+    def test_callers_match_signature(self):
+        """If add_message() doesn't accept 'role', no caller should pass it.
+        If it does accept 'role', callers are free to use it."""
+        sig = inspect.signature(LLMClient.add_message)
+        accepts_role = "role" in sig.parameters
+        if not accepts_role:
+            # Scan test_llm_client.py for callers still passing role=
+            test_source = Path(__file__).parent / "test_llm_client.py"
+            if test_source.exists():
+                content = test_source.read_text()
+                assert "role=" not in content, (
+                    "test_llm_client.py passes role= to add_message() "
+                    "but the signature doesn't accept it"
+                )
 
     def test_docstring_matches_signature(self):
-        """Docstring mentions 'role' parameter but signature only has 'text' and 'pdf_files'."""
+        """Docstring and signature should agree on whether 'role' exists."""
         sig = inspect.signature(LLMClient.add_message)
         if "role" in (LLMClient.add_message.__doc__ or ""):
             assert "role" in sig.parameters, (
@@ -37,15 +44,18 @@ class TestAddMessageAcceptsRole:
 
 
 class TestGeneratePnnlForwardsParams:
-    """_generate_pnnl should forward max_tokens and temperature to the API."""
+    """_generate_pnnl should forward max_tokens to the API.
 
-    def test_generate_pnnl_accepts_tuning_params(self):
-        """The OpenAI Responses API supports max_tokens and temperature,
-        but _generate_pnnl doesn't forward them from generate()."""
+    Note: GPT-5+ and o3/o4 do not support temperature
+    (https://community.openai.com/t/gpt-5-models-temperature/1337957),
+    so we only assert max_tokens is forwarded.
+    """
+
+    def test_generate_pnnl_accepts_max_tokens(self):
+        """generate() accepts max_tokens — _generate_pnnl should too."""
         sig = inspect.signature(LLMClient._generate_pnnl)
         params = set(sig.parameters.keys()) - {"self"}
         assert "max_tokens" in params, "_generate_pnnl ignores max_tokens"
-        assert "temperature" in params, "_generate_pnnl ignores temperature"
 
 
 class TestNoDeadCode:
