@@ -126,7 +126,7 @@ class LLMClient:
             model=self.model,
             input=self.messages,
             instructions=system_prompt,
-            max_output_tokens=max_tokens
+            max_output_tokens=max_tokens,
         )
         return response.output_text
 
