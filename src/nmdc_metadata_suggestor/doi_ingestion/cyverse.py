@@ -29,27 +29,23 @@ def try_cyverse(doi: str, errors: list[str] | None = None) -> ResolverContext | 
     terrain_errors: list[str] = []
     datacommons_errors: list[str] = []
 
-    metadata_avus = _search_cyverse_metadata_for_doi(
-        doi, errors=terrain_errors)
+    metadata_avus = _search_cyverse_metadata_for_doi(doi, errors=terrain_errors)
     if metadata_avus:
         context = _extract_cyverse_context(metadata_avus, doi)
         if context is not None:
             return context
 
         for target_id in _extract_cyverse_target_ids(metadata_avus):
-            target_avus = _fetch_cyverse_target_metadata(
-                target_id, errors=terrain_errors)
+            target_avus = _fetch_cyverse_target_metadata(target_id, errors=terrain_errors)
             if not target_avus:
                 continue
             context = _extract_cyverse_context(target_avus, doi)
             if context is not None:
                 return context
     else:
-        append_error(terrain_errors,
-                     "CyVerse metadata search returned no AVUs")
+        append_error(terrain_errors, "CyVerse metadata search returned no AVUs")
 
-    datacommons_context = _fetch_cyverse_datacommons_context(
-        doi, errors=datacommons_errors)
+    datacommons_context = _fetch_cyverse_datacommons_context(doi, errors=datacommons_errors)
     if datacommons_context is not None:
         if terrain_errors:
             LOGGER.info(
@@ -61,8 +57,7 @@ def try_cyverse(doi: str, errors: list[str] | None = None) -> ResolverContext | 
 
     _append_errors(errors, terrain_errors)
     _append_errors(errors, datacommons_errors)
-    append_error(
-        errors, "CyVerse metadata contained no usable abstract/description")
+    append_error(errors, "CyVerse metadata contained no usable abstract/description")
     return None
 
 
@@ -85,13 +80,11 @@ def _search_cyverse_metadata_for_doi(
             timeout=DEFAULT_TIMEOUT,
         )
         if response.status_code != 200:
-            append_error(
-                errors, f"CyVerse metadata search returned HTTP {response.status_code}")
+            append_error(errors, f"CyVerse metadata search returned HTTP {response.status_code}")
             return []
         payload = response.json()
     except requests.RequestException as exc:
-        append_error(
-            errors, f"CyVerse metadata search failed: {exc.__class__.__name__}")
+        append_error(errors, f"CyVerse metadata search failed: {exc.__class__.__name__}")
         return []
     except ValueError:
         append_error(errors, "CyVerse metadata search returned invalid JSON")
@@ -108,20 +101,17 @@ def _fetch_cyverse_datacommons_context(
     if datacommons_path is None:
         return None
 
-    item_id = _fetch_cyverse_datacommons_item_id(
-        datacommons_path, errors=errors)
+    item_id = _fetch_cyverse_datacommons_item_id(datacommons_path, errors=errors)
     if item_id is None:
         return None
 
-    metadata_payload = _fetch_cyverse_datacommons_metadata(
-        item_id, errors=errors)
+    metadata_payload = _fetch_cyverse_datacommons_metadata(item_id, errors=errors)
     if metadata_payload is None:
         return None
 
     metadata_avus = _extract_cyverse_datacommons_avus(metadata_payload)
     if not metadata_avus:
-        append_error(
-            errors, "CyVerse Data Commons metadata returned no usable fields")
+        append_error(errors, "CyVerse Data Commons metadata returned no usable fields")
         return None
 
     return _extract_cyverse_context(metadata_avus, doi)
@@ -138,32 +128,27 @@ def _resolve_cyverse_datacommons_path(doi: str, errors: list[str] | None = None)
             timeout=DEFAULT_TIMEOUT,
         )
     except requests.RequestException as exc:
-        append_error(
-            errors, f"CyVerse DOI resolution failed: {exc.__class__.__name__}")
+        append_error(errors, f"CyVerse DOI resolution failed: {exc.__class__.__name__}")
         return None
 
     if response.status_code not in {301, 302, 303, 307, 308}:
-        append_error(
-            errors, f"CyVerse DOI resolution returned HTTP {response.status_code}")
+        append_error(errors, f"CyVerse DOI resolution returned HTTP {response.status_code}")
         return None
 
     location = response.headers.get("Location")
     if not isinstance(location, str) or not location.strip():
-        append_error(
-            errors, "CyVerse DOI resolution returned no redirect location")
+        append_error(errors, "CyVerse DOI resolution returned no redirect location")
         return None
 
     landing_url = urljoin(f"{DOI_RESOLVER_URL}/{doi}", location)
     parsed = urlparse(landing_url)
     if parsed.netloc != CYVERSE_DATACOMMONS_BROWSE_HOST or not parsed.path.startswith("/browse/"):
-        append_error(
-            errors, "CyVerse DOI did not resolve to a Data Commons browse URL")
+        append_error(errors, "CyVerse DOI did not resolve to a Data Commons browse URL")
         return None
 
     datacommons_path = parsed.path.removeprefix("/browse")
     if not datacommons_path:
-        append_error(
-            errors, "CyVerse DOI resolved to an empty Data Commons path")
+        append_error(errors, "CyVerse DOI resolved to an empty Data Commons path")
         return None
     return datacommons_path
 
@@ -191,18 +176,15 @@ def _fetch_cyverse_datacommons_item_id(
             return None
         payload = response.json()
     except requests.RequestException as exc:
-        append_error(
-            errors, f"CyVerse Data Commons item lookup failed: {exc.__class__.__name__}")
+        append_error(errors, f"CyVerse Data Commons item lookup failed: {exc.__class__.__name__}")
         return None
     except ValueError:
-        append_error(
-            errors, "CyVerse Data Commons item lookup returned invalid JSON")
+        append_error(errors, "CyVerse Data Commons item lookup returned invalid JSON")
         return None
 
     item_id = payload.get("id") if isinstance(payload, dict) else None
     if not isinstance(item_id, str) or not item_id.strip():
-        append_error(
-            errors, "CyVerse Data Commons item lookup returned no item id")
+        append_error(errors, "CyVerse Data Commons item lookup returned no item id")
         return None
     return item_id
 
@@ -235,13 +217,11 @@ def _fetch_cyverse_datacommons_metadata(
         )
         return None
     except ValueError:
-        append_error(
-            errors, "CyVerse Data Commons metadata returned invalid JSON")
+        append_error(errors, "CyVerse Data Commons metadata returned invalid JSON")
         return None
 
     if not isinstance(payload, dict):
-        append_error(
-            errors, "CyVerse Data Commons metadata returned unexpected JSON")
+        append_error(errors, "CyVerse Data Commons metadata returned unexpected JSON")
         return None
     return payload
 
@@ -282,13 +262,11 @@ def _fetch_cyverse_target_metadata(
             timeout=DEFAULT_TIMEOUT,
         )
         if response.status_code != 200:
-            append_error(
-                errors, f"CyVerse target metadata returned HTTP {response.status_code}")
+            append_error(errors, f"CyVerse target metadata returned HTTP {response.status_code}")
             return []
         payload = response.json()
     except requests.RequestException as exc:
-        append_error(
-            errors, f"CyVerse target metadata request failed: {exc.__class__.__name__}")
+        append_error(errors, f"CyVerse target metadata request failed: {exc.__class__.__name__}")
         return []
     except ValueError:
         append_error(errors, "CyVerse target metadata returned invalid JSON")
@@ -349,8 +327,7 @@ def _extract_cyverse_context(
         if rank < best_rank or (rank == best_rank and len(cleaned) > best_length):
             best_rank = rank
             best_length = len(cleaned)
-            best_context = ResolverContext(
-                text=cleaned, raw_text=raw_value, kind=kind)
+            best_context = ResolverContext(text=cleaned, raw_text=raw_value, kind=kind)
 
     return best_context
 

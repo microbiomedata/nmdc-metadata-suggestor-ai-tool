@@ -82,12 +82,9 @@ CYVERSE_DATACOMMONS_BROWSE_HOST = "datacommons.cyverse.org"
 ZENODO_API = "https://zenodo.org/api/records"
 
 # Safety limits for untrusted XML payloads in DOI resolvers.
-MAX_EDI_METADATA_XML_CHARS = int(
-    os.environ.get("NMDC_EDI_MAX_XML_CHARS", "2000000"))
-MAX_DATAONE_SOLR_XML_CHARS = int(os.environ.get(
-    "NMDC_DATAONE_SOLR_MAX_XML_CHARS", "2000000"))
-UNSAFE_XML_DECLARATION_PATTERN = re.compile(
-    r"<!\s*(?:DOCTYPE|ENTITY)\b", re.IGNORECASE)
+MAX_EDI_METADATA_XML_CHARS = int(os.environ.get("NMDC_EDI_MAX_XML_CHARS", "2000000"))
+MAX_DATAONE_SOLR_XML_CHARS = int(os.environ.get("NMDC_DATAONE_SOLR_MAX_XML_CHARS", "2000000"))
+UNSAFE_XML_DECLARATION_PATTERN = re.compile(r"<!\s*(?:DOCTYPE|ENTITY)\b", re.IGNORECASE)
 
 
 # DOI prefixes that indicate the target provider for context retrieval.

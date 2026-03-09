@@ -64,10 +64,8 @@ FIXTURE_PATH = Path(__file__).parent / "fixtures" / "doi_test_cases.json"
 REAL_WORLD_SOURCE_FIXTURE_PATH = (
     Path(__file__).parent / "fixtures" / "doi_resolver_source_examples.json"
 )
-XML_PAYLOAD_FIXTURE_PATH = Path(
-    __file__).parent / "fixtures" / "doi_xml_payloads.json"
-JSON_PAYLOAD_FIXTURE_PATH = Path(
-    __file__).parent / "fixtures" / "doi_response_payloads.json"
+XML_PAYLOAD_FIXTURE_PATH = Path(__file__).parent / "fixtures" / "doi_xml_payloads.json"
+JSON_PAYLOAD_FIXTURE_PATH = Path(__file__).parent / "fixtures" / "doi_response_payloads.json"
 
 _FIXTURE_PROVIDER_TO_SOURCE: dict[str, str] = {
     "ESS-DIVE": "ess-dive",
@@ -322,14 +320,12 @@ def _mock_provider_resolver_hit(source: str, doi: str) -> None:
         responses.add(
             responses.POST,
             CYVERSE_METADATA_SEARCH_API,
-            json=_json_payload("fixture_cyverse_search_hit",
-                               doi=doi, target_id=target_id),
+            json=_json_payload("fixture_cyverse_search_hit", doi=doi, target_id=target_id),
         )
         responses.add(
             responses.GET,
             CYVERSE_METADATA_API,
-            json=_json_payload(
-                "fixture_cyverse_metadata_hit", target_id=target_id),
+            json=_json_payload("fixture_cyverse_metadata_hit", target_id=target_id),
         )
         return
 
@@ -370,13 +366,11 @@ def test_real_world_source_fixture_coverage() -> None:
     assert expected_sources <= fixture_sources
 
     for source in expected_sources:
-        count = sum(
-            1 for case in REAL_WORLD_SOURCE_CASES if case["source"] == source)
+        count = sum(1 for case in REAL_WORLD_SOURCE_CASES if case["source"] == source)
         assert count >= 2, f"Expected at least two fixture cases for source '{source}'"
 
     for case in REAL_WORLD_SOURCE_CASES:
-        assert case["doi"].startswith(
-            "10."), f"Expected DOI syntax for fixture case: {case}"
+        assert case["doi"].startswith("10."), f"Expected DOI syntax for fixture case: {case}"
         assert case["route"] in {"default", "explicit"}
 
 
@@ -872,14 +866,12 @@ def test_cyverse_provider_api_abstract_wins() -> None:
     responses.add(
         responses.POST,
         CYVERSE_METADATA_SEARCH_API,
-        json=_json_payload("fixture_cyverse_search_hit",
-                           doi=doi, target_id=target_id),
+        json=_json_payload("fixture_cyverse_search_hit", doi=doi, target_id=target_id),
     )
     responses.add(
         responses.GET,
         CYVERSE_METADATA_API,
-        json=_json_payload("cyverse_provider_metadata_hit",
-                           target_id=target_id),
+        json=_json_payload("cyverse_provider_metadata_hit", target_id=target_id),
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -908,8 +900,7 @@ def test_cyverse_datacommons_metadata_fallback_returns_description(
             responses.GET,
             f"{DOI_RESOLVER_URL}/{doi}",
             status=302,
-            headers={
-                "Location": f"https://datacommons.cyverse.org/browse{datacommons_path}"},
+            headers={"Location": f"https://datacommons.cyverse.org/browse{datacommons_path}"},
         )
         responses.add(
             responses.GET,
@@ -1090,8 +1081,7 @@ def test_zenodo_prefers_hit_matching_requested_doi() -> None:
 def test_provider_miss_falls_back_to_datacite() -> None:
     """Fall back to DataCite when provider-specific API has no context."""
     doi = "10.5281/zenodo.7406532"
-    responses.add(responses.GET, ZENODO_API,
-                  json=_json_payload("zenodo_empty_hits"))
+    responses.add(responses.GET, ZENODO_API, json=_json_payload("zenodo_empty_hits"))
     responses.add(
         responses.GET,
         f"{DATACITE_API}/{doi}",
@@ -1156,8 +1146,7 @@ def test_source_errors_include_upstream_http_codes() -> None:
     assert "HTTP 429" in result.source_errors["crossref"]
     assert "HTTP 503" in result.source_errors["content_negotiation"]
     assert (
-        "OpenAlex response contained no abstract_inverted_index" in result.source_errors[
-            "openalex"]
+        "OpenAlex response contained no abstract_inverted_index" in result.source_errors["openalex"]
     )
     assert "PubMed ID converter found no PMID for DOI" in result.source_errors["pubmed"]
 
@@ -1564,8 +1553,7 @@ def test_try_edi_live_returns_context_for_curated_doi() -> None:
         errors: list[str] = []
         context = try_edi(doi, errors=errors)
         if context is None:
-            failures.append(
-                f"{doi}: {'; '.join(errors) if errors else 'no context'}")
+            failures.append(f"{doi}: {'; '.join(errors) if errors else 'no context'}")
             continue
 
         assert context.kind in {"abstract", "description"}
@@ -1574,8 +1562,7 @@ def test_try_edi_live_returns_context_for_curated_doi() -> None:
         return
 
     pytest.fail(
-        "EDI resolver returned no context for all curated live DOIs: " +
-        " | ".join(failures)
+        "EDI resolver returned no context for all curated live DOIs: " + " | ".join(failures)
     )
 
 
@@ -1617,8 +1604,7 @@ def test_try_emsl_live_returns_context_for_curated_doi() -> None:
         errors: list[str] = []
         context = try_emsl(doi, errors=errors)
         if context is None:
-            failures.append(
-                f"{doi}: {'; '.join(errors) if errors else 'no context'}")
+            failures.append(f"{doi}: {'; '.join(errors) if errors else 'no context'}")
             continue
 
         assert context.kind in {"abstract", "description"}
@@ -1627,8 +1613,7 @@ def test_try_emsl_live_returns_context_for_curated_doi() -> None:
         return
 
     pytest.fail(
-        "EMSL resolver returned no context for all curated live DOIs: " +
-        " | ".join(failures)
+        "EMSL resolver returned no context for all curated live DOIs: " + " | ".join(failures)
     )
 
 
@@ -1670,8 +1655,7 @@ def test_try_jgi_live_returns_context_for_curated_doi() -> None:
         errors: list[str] = []
         context = try_jgi(doi, errors=errors)
         if context is None:
-            failures.append(
-                f"{doi}: {'; '.join(errors) if errors else 'no context'}")
+            failures.append(f"{doi}: {'; '.join(errors) if errors else 'no context'}")
             continue
 
         assert context.kind in {"abstract", "description"}
@@ -1680,8 +1664,7 @@ def test_try_jgi_live_returns_context_for_curated_doi() -> None:
         return
 
     pytest.fail(
-        "JGI resolver returned no context for all curated live DOIs: " +
-        " | ".join(failures)
+        "JGI resolver returned no context for all curated live DOIs: " + " | ".join(failures)
     )
 
 
@@ -1723,8 +1706,7 @@ def test_try_kbase_live_returns_context_for_curated_doi() -> None:
         errors: list[str] = []
         context = try_kbase(doi, errors=errors)
         if context is None:
-            failures.append(
-                f"{doi}: {'; '.join(errors) if errors else 'no context'}")
+            failures.append(f"{doi}: {'; '.join(errors) if errors else 'no context'}")
             continue
 
         assert context.kind in {"abstract", "description"}
@@ -1733,8 +1715,7 @@ def test_try_kbase_live_returns_context_for_curated_doi() -> None:
         return
 
     pytest.fail(
-        "KBase resolver returned no context for all curated live DOIs: " +
-        " | ".join(failures)
+        "KBase resolver returned no context for all curated live DOIs: " + " | ".join(failures)
     )
 
 
