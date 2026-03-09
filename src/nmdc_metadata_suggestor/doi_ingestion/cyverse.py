@@ -1,5 +1,6 @@
 """CyVerse DOI resolver."""
 
+import logging
 from urllib.parse import urljoin, urlparse
 
 import requests
@@ -20,10 +21,16 @@ from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
 )
 from nmdc_metadata_suggestor.models.resolver_context import ResolverContext
 
+LOGGER = logging.getLogger(__name__)
+
 
 def try_cyverse(doi: str, errors: list[str] | None = None) -> ResolverContext | None:
     """Return cleaned/raw context from CyVerse Terrain or Data Commons metadata."""
-    metadata_avus = _search_cyverse_metadata_for_doi(doi, errors=errors)
+    terrain_errors: list[str] = []
+    datacommons_errors: list[str] = []
+
+    metadata_avus = _search_cyverse_metadata_for_doi(
+        doi, errors=terrain_errors)
     if metadata_avus:
         context = _extract_cyverse_context(metadata_avus, doi)
         if context is not None:
@@ -31,23 +38,38 @@ def try_cyverse(doi: str, errors: list[str] | None = None) -> ResolverContext | 
 
         for target_id in _extract_cyverse_target_ids(metadata_avus):
             target_avus = _fetch_cyverse_target_metadata(
-                target_id, errors=errors)
+                target_id, errors=terrain_errors)
             if not target_avus:
                 continue
             context = _extract_cyverse_context(target_avus, doi)
             if context is not None:
                 return context
     else:
-        append_error(errors, "CyVerse metadata search returned no AVUs")
+        append_error(terrain_errors,
+                     "CyVerse metadata search returned no AVUs")
 
     datacommons_context = _fetch_cyverse_datacommons_context(
-        doi, errors=errors)
+        doi, errors=datacommons_errors)
     if datacommons_context is not None:
+        if terrain_errors:
+            LOGGER.info(
+                "CyVerse resolved DOI %s through Data Commons after Terrain miss: %s",
+                doi,
+                "; ".join(terrain_errors),
+            )
         return datacommons_context
 
+    _append_errors(errors, terrain_errors)
+    _append_errors(errors, datacommons_errors)
     append_error(
         errors, "CyVerse metadata contained no usable abstract/description")
     return None
+
+
+def _append_errors(errors: list[str] | None, new_errors: list[str]) -> None:
+    """Append unique local errors into the shared resolver error collector."""
+    for message in new_errors:
+        append_error(errors, message)
 
 
 def _search_cyverse_metadata_for_doi(

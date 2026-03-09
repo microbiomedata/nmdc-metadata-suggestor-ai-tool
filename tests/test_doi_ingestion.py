@@ -891,64 +891,73 @@ def test_cyverse_provider_api_abstract_wins() -> None:
 
 
 @responses.activate
-def test_cyverse_datacommons_metadata_fallback_returns_description() -> None:
+def test_cyverse_datacommons_metadata_fallback_returns_description(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """If Terrain metadata misses, resolve CyVerse context from Data Commons metadata."""
     doi = "10.25739/hr33-4321"
     datacommons_path = "/iplant/home/shared/commons_repo/curated/Reicher_PooledProteinTagging_2020"
     item_id = "a4c1bfac-f74e-11ea-92e8-90e2ba675364"
-    responses.add(
-        responses.POST,
-        CYVERSE_METADATA_SEARCH_API,
-        json=_json_payload("cyverse_search_empty"),
-    )
-    responses.add(
-        responses.GET,
-        f"{DOI_RESOLVER_URL}/{doi}",
-        status=302,
-        headers={
-            "Location": f"https://datacommons.cyverse.org/browse{datacommons_path}"},
-    )
-    responses.add(
-        responses.GET,
-        CYVERSE_DATACOMMONS_API,
-        match=[
-            responses.matchers.query_param_matcher(
-                {
-                    "djng_url_name": "api_stat",
-                    "djng_url_kwarg_path": datacommons_path,
+    with caplog.at_level("INFO"):
+        responses.add(
+            responses.POST,
+            CYVERSE_METADATA_SEARCH_API,
+            json=_json_payload("cyverse_search_empty"),
+        )
+        responses.add(
+            responses.GET,
+            f"{DOI_RESOLVER_URL}/{doi}",
+            status=302,
+            headers={
+                "Location": f"https://datacommons.cyverse.org/browse{datacommons_path}"},
+        )
+        responses.add(
+            responses.GET,
+            CYVERSE_DATACOMMONS_API,
+            match=[
+                responses.matchers.query_param_matcher(
+                    {
+                        "djng_url_name": "api_stat",
+                        "djng_url_kwarg_path": datacommons_path,
+                    }
+                )
+            ],
+            json={"id": item_id},
+        )
+        responses.add(
+            responses.GET,
+            CYVERSE_DATACOMMONS_API,
+            match=[
+                responses.matchers.query_param_matcher(
+                    {
+                        "djng_url_name": "api_metadata",
+                        "djng_url_kwarg_item_id": item_id,
+                    }
+                )
+            ],
+            json={
+                "metadata": {
+                    "Identifier": {"attr": "identifier", "value": doi, "label": "Identifier"},
+                    "Description": {
+                        "attr": "description",
+                        "value": "CyVerse Data Commons description text.",
+                        "label": "Description",
+                    },
                 }
-            )
-        ],
-        json={"id": item_id},
-    )
-    responses.add(
-        responses.GET,
-        CYVERSE_DATACOMMONS_API,
-        match=[
-            responses.matchers.query_param_matcher(
-                {
-                    "djng_url_name": "api_metadata",
-                    "djng_url_kwarg_item_id": item_id,
-                }
-            )
-        ],
-        json={
-            "metadata": {
-                "Identifier": {"attr": "identifier", "value": doi, "label": "Identifier"},
-                "Description": {
-                    "attr": "description",
-                    "value": "CyVerse Data Commons description text.",
-                    "label": "Description",
-                },
-            }
-        },
-    )
+            },
+        )
 
-    result = get_doi_description_or_abstract(doi, sources=["cyverse"])
+        result = get_doi_description_or_abstract(doi, sources=["cyverse"])
     assert result.context == "CyVerse Data Commons description text."
     assert result.context_type == "description"
     assert result.source == "cyverse"
     assert result.attempts == ["cyverse"]
+    assert result.error is None
+    assert result.source_errors == {}
+    assert (
+        "CyVerse resolved DOI 10.25739/hr33-4321 through Data Commons after Terrain miss"
+        in caplog.text
+    )
 
 
 @responses.activate
@@ -1539,6 +1548,8 @@ def test_live_cyverse_explicit_source_route_returns_context(doi: str) -> None:
     assert result.source == "cyverse"
     assert result.attempts == ["cyverse"]
     assert result.context_type in {"abstract", "description"}
+    assert result.error is None
+    assert result.source_errors == {}
 
 
 @integration
