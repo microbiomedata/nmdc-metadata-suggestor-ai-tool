@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 from typing import Any, cast
 
+import google.auth
 import google.auth.transport.requests
 from dotenv import load_dotenv
 from google import genai
@@ -41,6 +42,10 @@ PNNL_GPT_MODELS = [
 ]
 
 DEFAULT_GEMINI_MODEL = "gemini-2.0-flash"
+DEFAULT_MAX_TOKENS_BY_PROVIDER: dict[str, int] = {
+    "pnnl": 128000,
+    "gcp": 8192,
+}
 
 
 class LLMClient:
@@ -90,14 +95,25 @@ class LLMClient:
             self.client = OpenAI(base_url=BASE_URL, api_key=AI_INCUBATOR_KEY)
 
         if access_provider == "gcp":
-            self.client = genai.Client(vertexai=True, project=self.project, location=self.region)
+            credentials = self._get_gcp_credentials()
+            if not self.project:
+                raise RuntimeError(
+                    "VERTEX_PROJECT_ID is not set and could not be inferred from credentials. "
+                    "Set VERTEX_PROJECT_ID in your environment."
+                )
+            self.client = genai.Client(
+                vertexai=True,
+                project=self.project,
+                location=self.region,
+                credentials=credentials,
+            )
 
     def generate(
         self,
         *,
         model: str | None = None,
-        max_tokens: int = 4096,
-        temperature: float = 0.4,
+        max_tokens: int | None = None,
+        gemini_temperature: float = 0.4,
     ) -> str:
         """Generate a response from queued conversation messages.
 
@@ -107,19 +123,27 @@ class LLMClient:
         - ``gcp``: uses Vertex Gemini ``models.generate_content`` (model defaults
             to ``DEFAULT_GEMINI_MODEL`` when omitted).
         """
+        if model:
+            self.model = model
+
+        resolved_max_tokens = (
+            max_tokens
+            if max_tokens is not None
+            else DEFAULT_MAX_TOKENS_BY_PROVIDER[self.access_provider]
+        )
+
         if self.access_provider == "gcp":
             return self._generate_gcp(
-                max_tokens=max_tokens,
-                temperature=temperature,
+                max_tokens=resolved_max_tokens,
+                temperature=gemini_temperature,
             )
         elif self.access_provider == "pnnl":
-            return self._generate_pnnl(max_tokens=max_tokens, temperature=temperature)
+            return self._generate_pnnl(max_tokens=resolved_max_tokens)
         return ""
 
     def _generate_pnnl(
         self,
-        max_tokens: int = 4096,
-        temperature: float = 0.4,
+        max_tokens: int,
     ) -> str:
         client = cast(OpenAI, self.client)
         response = client.responses.create(
@@ -132,7 +156,7 @@ class LLMClient:
 
     def _generate_gcp(
         self,
-        max_tokens: int = 4096,
+        max_tokens: int,
         temperature: float = 0.4,
     ) -> str:
 
@@ -150,22 +174,34 @@ class LLMClient:
         )
         return (response.text or "").strip()
 
-    def _get_access_token(self) -> str:
-        """Exchange service account JSON key for a short-lived access token."""
-        if not self.credentials_file or not os.path.exists(self.credentials_file):
-            raise RuntimeError(
-                "GOOGLE_APPLICATION_CREDENTIALS is not set or file not found. "
-                "Set it in your .env to the path of your service account JSON key."
+    def _get_gcp_credentials(self) -> Any:
+        """Get OAuth credentials for Vertex AI (service account file or ADC)."""
+        scopes = ["https://www.googleapis.com/auth/cloud-platform"]
+
+        if self.credentials_file:
+            if not os.path.exists(self.credentials_file):
+                raise RuntimeError(
+                    "GOOGLE_APPLICATION_CREDENTIALS is set but file was not found: "
+                    f"{self.credentials_file}"
+                )
+            credentials = service_account.Credentials.from_service_account_file(
+                self.credentials_file,
+                scopes=scopes,
             )
-        credentials = service_account.Credentials.from_service_account_file(
-            self.credentials_file,
-            scopes=["https://www.googleapis.com/auth/cloud-platform"],
-        )
+            if not self.project:
+                self.project = credentials.project_id
+        else:
+            credentials, inferred_project = google.auth.default(scopes=scopes)
+            if not self.project:
+                self.project = inferred_project
+
         credentials.refresh(google.auth.transport.requests.Request())
-        token = credentials.token
-        if token is None:
-            raise RuntimeError("Failed to obtain access token from credentials")
-        return cast(str, token)
+        if credentials.token is None:
+            raise RuntimeError(
+                "Failed to obtain OAuth token for Vertex AI. "
+                "Check IAM permissions and Google Cloud authentication setup."
+            )
+        return credentials
 
     def add_message(self, text: str, pdf_files: list[str] | None = None) -> None:
         """

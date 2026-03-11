@@ -1,3 +1,6 @@
+import json
+import re
+
 from nmdc_metadata_suggestor.doi_ingestion.main import get_doi_description_or_abstract
 from nmdc_metadata_suggestor.llm_client import LLMClient
 from nmdc_metadata_suggestor.publication_ingestion.download_pdf import download_pdf_to_tempfile
@@ -8,8 +11,9 @@ def run_recommendation_pipeline(
     doi: str,
     llm_client: LLMClient,
     mixis_extensions: list[str],
+    max_tokens: int | None = None,
     sources: list[str] | None = None,
-) -> str:
+) -> dict[str, object]:
     """Run the metadata recommendation pipeline with the given prompt.
 
     Returns:
@@ -38,8 +42,28 @@ def run_recommendation_pipeline(
         "inform your metadata field recommendations:\n" + abstract,
         pdf_files=pdf_files,
     )
-    response = llm_client.generate()
-    return response
+    response = llm_client.generate(max_tokens=max_tokens)
+
+    cleaned_response = re.sub(
+        r"^```(?:json)?\s*\n?|\n?```$",
+        "",
+        response.strip(),
+        flags=re.MULTILINE,
+    ).strip()
+
+    try:
+        parsed_response = json.loads(cleaned_response)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"LLM response was not valid JSON: {exc}") from exc
+
+    if not isinstance(parsed_response, dict):
+        raise ValueError("LLM response JSON must be an object with top-level keys.")
+    
+    # add the LLM model name and provider to the dict for reference
+    parsed_response["model"] = llm_client.model
+    parsed_response["access_provider"] = llm_client.access_provider
+
+    return parsed_response
 
 
 if __name__ == "__main__":
