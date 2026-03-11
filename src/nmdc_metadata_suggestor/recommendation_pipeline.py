@@ -58,7 +58,7 @@ def run_recommendation_pipeline(
 
     if not isinstance(parsed_response, dict):
         raise ValueError("LLM response JSON must be an object with top-level keys.")
-    
+
     # add the LLM model name and provider to the dict for reference
     parsed_response["model"] = llm_client.model
     parsed_response["access_provider"] = llm_client.access_provider
