@@ -1,16 +1,24 @@
 """Tests for the Vertex AI LLM client (Gemini and Claude)."""
 
 import os
+from pathlib import Path
 from typing import Any
 
 import pytest
 
 from nmdc_metadata_suggestor.llm_client import DEFAULT_MAX_TOKENS_BY_PROVIDER, LLMClient
 
-_has_gcp_credentials = (
+_repo_root = Path(__file__).resolve().parent.parent
+_default_credentials_file = _repo_root / "gcp_credentials.json"
+
+if not os.environ.get("GOOGLE_APPLICATION_CREDENTIALS") and _default_credentials_file.exists():
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(_default_credentials_file)
+
+_has_gcp_credentials = bool(
     os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
     or os.environ.get("GCLOUD_PROJECT")
     or os.environ.get("CLOUDSDK_CONFIG")
+    or _default_credentials_file.exists()
 )
 
 requires_credentials = pytest.mark.skipif(
