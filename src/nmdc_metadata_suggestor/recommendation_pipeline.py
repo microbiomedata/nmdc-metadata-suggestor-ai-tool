@@ -1,24 +1,29 @@
 import json
 import re
 
+from pydantic import ValidationError
+
 from nmdc_metadata_suggestor.doi_ingestion.main import get_doi_description_or_abstract
 from nmdc_metadata_suggestor.llm_client import LLMClient
+from nmdc_metadata_suggestor.models.llm_output import LLMOutput
 from nmdc_metadata_suggestor.publication_ingestion.download_pdf import download_pdf_to_tempfile
 from nmdc_metadata_suggestor.schema_context import SchemaContextBuilder
+from nmdc_metadata_suggestor.utils.submission_parser import get_submission_fields
 
 
 def run_recommendation_pipeline(
-    doi: str,
-    llm_client: LLMClient,
-    mixis_extensions: list[str],
+    submission_object: dict,
+    llm_client: LLMClient = LLMClient(access_provider="pnnl"),
     max_tokens: int | None = None,
-    sources: list[str] | None = None,
-) -> dict[str, object]:
+) -> LLMOutput:
     """Run the metadata recommendation pipeline with the given prompt.
 
     Returns:
         The response from the LLM containing the recommended metadata fields.
     """
+    parsed_object = get_submission_fields(submission_object=submission_object)
+    # TODO - get specific fields from the parsed submission object as needed to inform the recommendation, e.g. DOI, title, etc.
+    sources = []
     # based on the DOI, retrieve the abstract and PDF information from OSTI
     result = get_doi_description_or_abstract(doi=doi, skip_classification=True, sources=sources)
     abstract = result.context if result.context else ""
@@ -59,11 +64,15 @@ def run_recommendation_pipeline(
     if not isinstance(parsed_response, dict):
         raise ValueError("LLM response JSON must be an object with top-level keys.")
 
-    # add the LLM model name and provider to the dict for reference
-    parsed_response["model"] = llm_client.model
-    parsed_response["access_provider"] = llm_client.access_provider
+    try:
+        validated_output = LLMOutput.model_validate(parsed_response)
+    except ValidationError as exc:
+        raise ValueError(f"LLM response JSON did not match expected output schema: {exc}") from exc
 
-    return parsed_response
+    validated_output.model = llm_client.model
+    validated_output.access_provider = llm_client.access_provider
+
+    return validated_output
 
 
 if __name__ == "__main__":
@@ -73,4 +82,4 @@ if __name__ == "__main__":
     recommended_metadata = run_recommendation_pipeline(
         doi=doi[0], llm_client=llm_client, mixis_extensions=mixis_extensions, sources=["osti"]
     )
-    print(recommended_metadata)
+    print(recommended_metadata.model_dump())
