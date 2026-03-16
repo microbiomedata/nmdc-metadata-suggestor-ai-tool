@@ -26,10 +26,12 @@ from nmdc_metadata_suggestor.constants import (
     CROSSREF_API_URL as CROSSREF_API,
 )
 from nmdc_metadata_suggestor.constants import (
+    CYVERSE_DATACOMMONS_API,
     CYVERSE_METADATA_API,
     CYVERSE_METADATA_SEARCH_API,
     DATAONE_CN_SOLR_API,
     DOI_CONTENT_NEGOTIATION_API,
+    DOI_RESOLVER_URL,
     EDI_DOI_API,
     EMSL_PROJECTS_API,
     ESS_DIVE_API,
@@ -166,7 +168,6 @@ integration = pytest.mark.integration
 
 KNOWN_LIVE_NO_CONTEXT_DOIS = {
     "10.25585/1488274",
-    "10.7946/p22k7v",
 }
 
 
@@ -882,6 +883,181 @@ def test_cyverse_provider_api_abstract_wins() -> None:
 
 
 @responses.activate
+def test_cyverse_datacommons_metadata_fallback_returns_description(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """If Terrain metadata misses, resolve CyVerse context from Data Commons metadata."""
+    doi = "10.25739/hr33-4321"
+    datacommons_path = "/iplant/home/shared/commons_repo/curated/Reicher_PooledProteinTagging_2020"
+    item_id = "a4c1bfac-f74e-11ea-92e8-90e2ba675364"
+    with caplog.at_level("INFO"):
+        responses.add(
+            responses.POST,
+            CYVERSE_METADATA_SEARCH_API,
+            json=_json_payload("cyverse_search_empty"),
+        )
+        responses.add(
+            responses.GET,
+            f"{DOI_RESOLVER_URL}/{doi}",
+            status=302,
+            headers={"Location": f"https://datacommons.cyverse.org/browse{datacommons_path}"},
+        )
+        responses.add(
+            responses.GET,
+            CYVERSE_DATACOMMONS_API,
+            match=[
+                responses.matchers.query_param_matcher(
+                    {
+                        "djng_url_name": "api_stat",
+                        "djng_url_kwarg_path": datacommons_path,
+                    }
+                )
+            ],
+            json={"id": item_id},
+        )
+        responses.add(
+            responses.GET,
+            CYVERSE_DATACOMMONS_API,
+            match=[
+                responses.matchers.query_param_matcher(
+                    {
+                        "djng_url_name": "api_metadata",
+                        "djng_url_kwarg_item_id": item_id,
+                    }
+                )
+            ],
+            json={
+                "metadata": {
+                    "Identifier": {"attr": "identifier", "value": doi, "label": "Identifier"},
+                    "Description": {
+                        "attr": "description",
+                        "value": "CyVerse Data Commons description text.",
+                        "label": "Description",
+                    },
+                }
+            },
+        )
+
+        result = get_doi_description_or_abstract(doi, sources=["cyverse"])
+    assert result.context == "CyVerse Data Commons description text."
+    assert result.context_type == "description"
+    assert result.source == "cyverse"
+    assert result.attempts == ["cyverse"]
+    assert result.error is None
+    assert result.source_errors == {}
+    assert (
+        "CyVerse resolved DOI 10.25739/hr33-4321 through Data Commons after Terrain miss"
+        in caplog.text
+    )
+
+
+@responses.activate
+def test_cyverse_terrain_unusable_metadata_falls_back_to_datacommons() -> None:
+    """If Terrain finds the DOI but yields no usable context, fall back to Data Commons."""
+    doi = "10.25739/zh2v-4p15"
+    target_id = "df05b5b2-9896-11eb-93b0-90e2ba675364"
+    datacommons_path = (
+        "/iplant/home/shared/commons_repo/curated/"
+        "Carolyn_Lawrence_Dill_GOMAP_Solanum_lycopersicum_ITAG4.1.v1_April_2021.r1"
+    )
+    item_id = target_id
+
+    responses.add(
+        responses.POST,
+        CYVERSE_METADATA_SEARCH_API,
+        json=_json_payload("fixture_cyverse_search_hit", doi=doi, target_id=target_id),
+    )
+    responses.add(
+        responses.GET,
+        CYVERSE_METADATA_API,
+        json={
+            "avus": [
+                {
+                    "attr": "dc.identifier.doi",
+                    "value": doi,
+                    "target_id": target_id,
+                },
+                {
+                    "attr": "creator",
+                    "value": "Carolyn Lawrence-Dill",
+                    "target_id": target_id,
+                },
+            ]
+        },
+    )
+    responses.add(
+        responses.GET,
+        f"{DOI_RESOLVER_URL}/{doi}",
+        status=302,
+        headers={"Location": f"https://datacommons.cyverse.org/browse{datacommons_path}"},
+    )
+    responses.add(
+        responses.GET,
+        CYVERSE_DATACOMMONS_API,
+        match=[
+            responses.matchers.query_param_matcher(
+                {
+                    "djng_url_name": "api_stat",
+                    "djng_url_kwarg_path": datacommons_path,
+                }
+            )
+        ],
+        json={"id": item_id},
+    )
+    responses.add(
+        responses.GET,
+        CYVERSE_DATACOMMONS_API,
+        match=[
+            responses.matchers.query_param_matcher(
+                {
+                    "djng_url_name": "api_metadata",
+                    "djng_url_kwarg_item_id": item_id,
+                }
+            )
+        ],
+        json={
+            "metadata": {
+                "Identifier": {"attr": "identifier", "value": doi, "label": "Identifier"},
+                "Description": {
+                    "attr": "description",
+                    "value": "CyVerse Data Commons fallback description.",
+                    "label": "Description",
+                },
+            }
+        },
+    )
+
+    result = get_doi_description_or_abstract(doi, sources=["cyverse"])
+
+    assert result.context == "CyVerse Data Commons fallback description."
+    assert result.context_type == "description"
+    assert result.source == "cyverse"
+    assert result.attempts == ["cyverse"]
+    assert result.error is None
+    assert result.source_errors == {}
+    assert len(responses.calls) == 5
+    terrain_url_raw = responses.calls[1].request.url
+    assert terrain_url_raw is not None
+    terrain_url_str: str = (
+        terrain_url_raw.decode() if isinstance(terrain_url_raw, bytes) else terrain_url_raw
+    )
+    terrain_parsed = urlparse(terrain_url_str)
+    assert f"{terrain_parsed.scheme}://{terrain_parsed.netloc}{terrain_parsed.path}" == (
+        CYVERSE_METADATA_API
+    )
+    terrain_query: str = terrain_parsed.query
+    assert parse_qs(terrain_query) == {"target-id": [target_id]}
+    doi_request_url_raw = responses.calls[2].request.url
+    assert doi_request_url_raw is not None
+    doi_request_url: str = (
+        doi_request_url_raw.decode()
+        if isinstance(doi_request_url_raw, bytes)
+        else doi_request_url_raw
+    )
+    assert doi_request_url == f"{DOI_RESOLVER_URL}/{doi}"
+
+
+@responses.activate
 def test_cyverse_miss_falls_back_to_datacite() -> None:
     """If CyVerse API has no matching metadata, continue waterfall to DataCite."""
     doi = "10.17504/cyverse.dataset.67890"
@@ -889,6 +1065,11 @@ def test_cyverse_miss_falls_back_to_datacite() -> None:
         responses.POST,
         CYVERSE_METADATA_SEARCH_API,
         json=_json_payload("cyverse_search_empty"),
+    )
+    responses.add(
+        responses.GET,
+        f"{DOI_RESOLVER_URL}/{doi}",
+        status=404,
     )
     responses.add(
         responses.GET,
@@ -907,11 +1088,16 @@ def test_cyverse_miss_falls_back_to_datacite() -> None:
 @responses.activate
 def test_cyverse_explicit_source_no_context_returns_clean_error() -> None:
     """Explicit CyVerse-only lookup should fail cleanly when metadata has no context."""
-    doi = "10.7946/p22k7v"
+    doi = "10.17504/cyverse.dataset.67890"
     responses.add(
         responses.POST,
         CYVERSE_METADATA_SEARCH_API,
         json=_json_payload("cyverse_search_empty"),
+    )
+    responses.add(
+        responses.GET,
+        f"{DOI_RESOLVER_URL}/{doi}",
+        status=404,
     )
 
     result = get_doi_description_or_abstract(doi, sources=["cyverse"])
@@ -1445,6 +1631,20 @@ def test_live_known_no_context_cases_fail_cleanly(case: dict[str, str]) -> None:
         result.error
         == "No description or abstract found in any source. Check source_errors for details."
     )
+
+
+@integration
+@pytest.mark.parametrize("doi", _live_dois_for_source("cyverse"))
+def test_live_cyverse_explicit_source_route_returns_context(doi: str) -> None:
+    """Explicit CyVerse source lookups should resolve context for each curated live DOI."""
+    result = get_doi_description_or_abstract(doi, sources=["cyverse"])
+
+    assert result.context is not None, f"Expected CyVerse context for {doi}; got {result.error!r}"
+    assert result.source == "cyverse"
+    assert result.attempts == ["cyverse"]
+    assert result.context_type in {"abstract", "description"}
+    assert result.error is None
+    assert result.source_errors == {}
 
 
 @integration
