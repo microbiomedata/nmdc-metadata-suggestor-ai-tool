@@ -64,6 +64,10 @@ FIXTURE_PATH = Path(__file__).parent / "fixtures" / "doi_test_cases.json"
 REAL_WORLD_SOURCE_FIXTURE_PATH = (
     Path(__file__).parent / "fixtures" / "doi_resolver_source_examples.json"
 )
+PUBLICATION_METADATA_FIXTURE_PATH = (
+    Path(__file__).parent / "fixtures" /
+    "doi_publication_metadata_examples.json"
+)
 XML_PAYLOAD_FIXTURE_PATH = Path(
     __file__).parent / "fixtures" / "doi_xml_payloads.json"
 JSON_PAYLOAD_FIXTURE_PATH = Path(
@@ -123,6 +127,34 @@ def _load_real_world_source_cases() -> list[dict[str, str]]:
 
 
 REAL_WORLD_SOURCE_CASES = _load_real_world_source_cases()
+
+
+def _load_live_publication_metadata_cases() -> list[dict[str, object]]:
+    """Load curated live DOI cases expected to expose publication metadata."""
+    with open(PUBLICATION_METADATA_FIXTURE_PATH) as f:
+        cases = json.load(f)["cases"]
+
+    normalized: list[dict[str, object]] = []
+    for case in cases:
+        source = case.get("source")
+        doi = case.get("doi")
+        route = case.get("route")
+        expect_publication_urls = case.get("expect_publication_urls")
+        expect_publication_dois = case.get("expect_publication_dois")
+        if not isinstance(source, str) or not isinstance(doi, str):
+            continue
+        if not isinstance(route, str):
+            route = "explicit"
+        normalized.append(
+            {
+                "source": source,
+                "doi": doi,
+                "route": route,
+                "expect_publication_urls": bool(expect_publication_urls),
+                "expect_publication_dois": bool(expect_publication_dois),
+            }
+        )
+    return normalized
 
 
 def _load_xml_payload_fixtures() -> dict[str, str]:
@@ -190,6 +222,7 @@ LIVE_SUCCESS_CASES = _select_live_success_cases(REAL_WORLD_SOURCE_CASES)
 LIVE_KNOWN_NO_CONTEXT_CASES = [
     case for case in REAL_WORLD_SOURCE_CASES if case["doi"] in KNOWN_LIVE_NO_CONTEXT_DOIS
 ]
+LIVE_PUBLICATION_METADATA_CASES = _load_live_publication_metadata_cases()
 
 
 def _live_dois_for_source(source: str) -> list[str]:
@@ -2048,6 +2081,37 @@ def test_live_source_example_returns_context(case: dict[str, str]) -> None:
     source_used = result.source
     assert source_used in result.attempts
     assert result.context_type in {"abstract", "description"}
+
+
+@integration
+@pytest.mark.parametrize(
+    "case",
+    LIVE_PUBLICATION_METADATA_CASES,
+    ids=[f"{case['source']}:{case['doi']}" for case in LIVE_PUBLICATION_METADATA_CASES],
+)
+def test_live_publication_metadata_examples_return_publication_metadata(
+    case: dict[str, object],
+) -> None:
+    """Curated live DOI examples should expose provider publication metadata."""
+    doi = str(case["doi"])
+    source = str(case["source"])
+    route = str(case["route"])
+
+    if route == "explicit":
+        result = get_doi_description_or_abstract(doi, sources=[source])
+        assert result.attempts == [source]
+    else:
+        result = get_doi_description_or_abstract(doi, skip_classification=True)
+        assert result.attempts[0] == source
+
+    assert result.context is not None, f"Expected context for {doi}; got error={result.error!r}"
+    assert result.source == source
+    assert result.provider == source
+
+    if bool(case["expect_publication_urls"]):
+        assert result.publication_urls, f"Expected publication_urls for {doi}"
+    if bool(case["expect_publication_dois"]):
+        assert result.publication_dois, f"Expected publication_dois for {doi}"
 
 
 @integration

@@ -1,0 +1,23 @@
+{
+  "description": "Curated live DOI examples whose provider resolvers currently expose publication metadata.",
+  "curated_date": "2026-03-16",
+  "provenance": "Verified against live provider APIs and the current DOI ingestion implementation.",
+  "cases": [
+    {
+      "source": "figshare",
+      "route": "explicit",
+      "doi": "10.6084/m9.figshare.26988151",
+      "expect_publication_urls": true,
+      "expect_publication_dois": true,
+      "origin": "Figshare article detail exposes files[].download_url and resource_doi/references"
+    },
+    {
+      "source": "zenodo",
+      "route": "explicit",
+      "doi": "10.5281/zenodo.18746325",
+      "expect_publication_urls": true,
+      "expect_publication_dois": true,
+      "origin": "Zenodo record exposes files[].links.self and metadata.related_identifiers"
+    }
+  ]
+}
