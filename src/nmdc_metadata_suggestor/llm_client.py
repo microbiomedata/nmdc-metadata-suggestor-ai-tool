@@ -66,7 +66,7 @@ class LLMClient:
 
     def __init__(
         self,
-        access_provider: str = "pnnl",
+        access_provider: str,
         model: str | None = None,
         project: str | None = None,
         region: str | None = None,
