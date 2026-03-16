@@ -73,7 +73,7 @@ This repository includes a DOI resolution pipeline that can:
 
 The DOI pipeline lives under `src/nmdc_metadata_suggestor/doi_ingestion/`.
 
-Its main entry point is `get_doi_description_or_abstract()` in [src/nmdc_metadata_suggestor/doi_ingestion/main.py](/home/harry/nmdc-metadata-suggestor-ai-tool/src/nmdc_metadata_suggestor/doi_ingestion/main.py).
+Its main entry point is `get_doi_description_or_abstract()` in [src/nmdc_metadata_suggestor/doi_ingestion/main.py](src/nmdc_metadata_suggestor/doi_ingestion/main.py).
 
 ### What It Returns
 
@@ -170,7 +170,7 @@ These provider resolvers are currently wired into the DOI waterfall:
 
 ## DOI CLI
 
-The DOI CLI lives in [src/nmdc_metadata_suggestor/cli/doi_cli.py](/home/harry/nmdc-metadata-suggestor-ai-tool/src/nmdc_metadata_suggestor/cli/doi_cli.py).
+The DOI CLI lives in [src/nmdc_metadata_suggestor/cli/doi_cli.py](src/nmdc_metadata_suggestor/cli/doi_cli.py).
 
 Useful commands:
 
