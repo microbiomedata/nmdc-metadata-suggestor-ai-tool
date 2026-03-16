@@ -47,12 +47,9 @@ def try_ess_dive(doi: str, errors: list[str] | None = None) -> ResolverContext |
                 payload,
                 requested_doi=doi,
             )
-            accumulated_urls = merge_unique_strings(
-                accumulated_urls, publication_urls)
-            accumulated_dois = merge_unique_strings(
-                accumulated_dois, publication_dois)
-            extracted = find_first_text(
-                payload, keys=("abstract", "description"))
+            accumulated_urls = merge_unique_strings(accumulated_urls, publication_urls)
+            accumulated_dois = merge_unique_strings(accumulated_dois, publication_dois)
+            extracted = find_first_text(payload, keys=("abstract", "description"))
             if extracted is not None:
                 key, text = extracted
                 cleaned = clean_text(text)
@@ -65,8 +62,7 @@ def try_ess_dive(doi: str, errors: list[str] | None = None) -> ResolverContext |
                         publication_dois=accumulated_dois,
                     )
         else:
-            append_error(
-                errors, f"ESS-DIVE API returned HTTP {response.status_code}")
+            append_error(errors, f"ESS-DIVE API returned HTTP {response.status_code}")
     except (requests.RequestException, ValueError):
         append_error(errors, "ESS-DIVE API request failed")
 
@@ -79,8 +75,7 @@ def try_ess_dive(doi: str, errors: list[str] | None = None) -> ResolverContext |
             kind=context.kind,
             source=context.source,
             urls=merge_unique_strings(accumulated_urls, context.urls),
-            publication_dois=merge_unique_strings(
-                accumulated_dois, context.publication_dois),
+            publication_dois=merge_unique_strings(accumulated_dois, context.publication_dois),
         )
     if accumulated_urls or accumulated_dois:
         return ResolverContext(
@@ -90,8 +85,7 @@ def try_ess_dive(doi: str, errors: list[str] | None = None) -> ResolverContext |
             urls=accumulated_urls,
             publication_dois=accumulated_dois,
         )
-    append_error(
-        errors, "ESS-DIVE DataONE fallback returned no usable context")
+    append_error(errors, "ESS-DIVE DataONE fallback returned no usable context")
     return None
 
 
@@ -121,8 +115,7 @@ def _build_ess_dive_dataone_queries(doi: str) -> list[str]:
         if not candidate or candidate in seen:
             continue
         seen.add(candidate)
-        queries.append(
-            f'datasource:"urn:node:ESS_DIVE" AND seriesId:*{candidate}*')
+        queries.append(f'datasource:"urn:node:ESS_DIVE" AND seriesId:*{candidate}*')
     return queries
 
 
@@ -146,13 +139,11 @@ def _fetch_dataone_solr_docs(
             timeout=DEFAULT_TIMEOUT,
         )
         if response.status_code != 200:
-            append_error(
-                errors, f"DataONE Solr returned HTTP {response.status_code}")
+            append_error(errors, f"DataONE Solr returned HTTP {response.status_code}")
             return []
         return _parse_dataone_solr_docs(response.text)
     except requests.RequestException as exc:
-        append_error(
-            errors, f"DataONE Solr request failed: {exc.__class__.__name__}")
+        append_error(errors, f"DataONE Solr request failed: {exc.__class__.__name__}")
         return []
 
 
@@ -218,8 +209,7 @@ def _extract_ess_dive_dataone_context(
         else:
             fallback_matches.append(doc)
 
-    sorted_docs = _sort_dataone_docs_for_context(
-        exact_matches or fallback_matches)
+    sorted_docs = _sort_dataone_docs_for_context(exact_matches or fallback_matches)
 
     for doc in sorted_docs:
         selected = _extract_ess_dive_dataone_doc_text(doc)
@@ -328,8 +318,7 @@ def _extract_ess_dive_publication_metadata(
         for key in ("relatedIdentifiers", "related_identifiers", "related_materials"):
             publication_dois = merge_unique_strings(
                 publication_dois,
-                extract_related_publication_dois(
-                    record.get(key), requested_doi=requested_doi),
+                extract_related_publication_dois(record.get(key), requested_doi=requested_doi),
             )
 
         for key in ("publicationDOI", "publication_doi", "resource_doi"):
