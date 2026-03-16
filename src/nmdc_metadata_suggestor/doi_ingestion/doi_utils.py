@@ -217,7 +217,15 @@ def merge_unique_strings(
     existing: list[str] | None, incoming: list[str] | None
 ) -> list[str] | None:
     """Merge two string lists while preserving order and removing duplicates."""
-    merged = list(dict.fromkeys([*(existing or []), *(incoming or [])]))
+    merged: list[str] = []
+    seen: set[str] = set()
+
+    for value in [*(existing or []), *(incoming or [])]:
+        if value in seen:
+            continue
+        seen.add(value)
+        merged.append(value)
+
     return merged or None
 
 
