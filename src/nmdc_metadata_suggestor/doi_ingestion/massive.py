@@ -40,8 +40,7 @@ def try_massive(doi: str, errors: list[str] | None = None) -> ResolverContext | 
         redirect_location=redirect_location,
         errors=errors,
     )
-    publication_search_accessions = _search_proxi_accessions_by_doi(
-        doi, errors=errors)
+    publication_search_accessions = _search_proxi_accessions_by_doi(doi, errors=errors)
 
     for accession in redirect_accessions:
         payload = _fetch_proxi_dataset(accession, errors=errors)
@@ -49,10 +48,8 @@ def try_massive(doi: str, errors: list[str] | None = None) -> ResolverContext | 
             continue
         context = _extract_massive_context(payload, requested_doi=doi)
         if context is not None:
-            accumulated_urls = merge_unique_strings(
-                accumulated_urls, context.urls)
-            accumulated_dois = merge_unique_strings(
-                accumulated_dois, context.publication_dois)
+            accumulated_urls = merge_unique_strings(accumulated_urls, context.urls)
+            accumulated_dois = merge_unique_strings(accumulated_dois, context.publication_dois)
             if context.text:
                 return ResolverContext(
                     text=context.text,
@@ -69,10 +66,8 @@ def try_massive(doi: str, errors: list[str] | None = None) -> ResolverContext | 
             continue
         context = _extract_massive_context(payload, requested_doi=doi)
         if context is not None:
-            accumulated_urls = merge_unique_strings(
-                accumulated_urls, context.urls)
-            accumulated_dois = merge_unique_strings(
-                accumulated_dois, context.publication_dois)
+            accumulated_urls = merge_unique_strings(accumulated_urls, context.urls)
+            accumulated_dois = merge_unique_strings(accumulated_dois, context.publication_dois)
             if context.text:
                 return ResolverContext(
                     text=context.text,
@@ -85,18 +80,14 @@ def try_massive(doi: str, errors: list[str] | None = None) -> ResolverContext | 
 
     landing_page_urls = _collect_massive_landing_page_candidates(
         redirect_location,
-        merge_unique_strings(redirect_accessions,
-                             publication_search_accessions)
-        or [],
+        merge_unique_strings(redirect_accessions, publication_search_accessions) or [],
     )
     for page_url in landing_page_urls:
-        context = _fetch_massive_landing_page_context(
-            page_url, requested_doi=doi, errors=errors)
+        context = _fetch_massive_landing_page_context(page_url, requested_doi=doi, errors=errors)
         if context is None:
             continue
         accumulated_urls = merge_unique_strings(accumulated_urls, context.urls)
-        accumulated_dois = merge_unique_strings(
-            accumulated_dois, context.publication_dois)
+        accumulated_dois = merge_unique_strings(accumulated_dois, context.publication_dois)
         if context.text:
             return ResolverContext(
                 text=context.text,
@@ -166,13 +157,11 @@ def _resolve_doi_redirect_location(doi: str, errors: list[str] | None = None) ->
             allow_redirects=False,
         )
     except requests.RequestException as exc:
-        append_error(
-            errors, f"DOI redirect lookup failed: {exc.__class__.__name__}")
+        append_error(errors, f"DOI redirect lookup failed: {exc.__class__.__name__}")
         return None
 
     if response.status_code not in {301, 302, 303, 307, 308}:
-        append_error(
-            errors, f"DOI redirect lookup returned HTTP {response.status_code}")
+        append_error(errors, f"DOI redirect lookup returned HTTP {response.status_code}")
         return None
 
     location = response.headers.get("Location")
@@ -215,10 +204,7 @@ def _collect_massive_landing_page_candidates(
                     seen.add(accession)
 
     for accession in accessions:
-        page_url = (
-            "https://massive.ucsd.edu/ProteoSAFe/dataset.jsp"
-            f"?accession={accession}"
-        )
+        page_url = "https://massive.ucsd.edu/ProteoSAFe/dataset.jsp" f"?accession={accession}"
         if page_url in seen:
             continue
         seen.add(page_url)
@@ -264,17 +250,14 @@ def _fetch_proxi_dataset_rows(
             timeout=DEFAULT_TIMEOUT,
         )
         if response.status_code != 200:
-            append_error(
-                errors, f"PROXI dataset rows request returned HTTP {response.status_code}")
+            append_error(errors, f"PROXI dataset rows request returned HTTP {response.status_code}")
             return []
         payload = response.json()
     except requests.RequestException as exc:
-        append_error(
-            errors, f"PROXI dataset rows request failed: {exc.__class__.__name__}")
+        append_error(errors, f"PROXI dataset rows request failed: {exc.__class__.__name__}")
         return []
     except ValueError:
-        append_error(
-            errors, "PROXI dataset rows request returned invalid JSON")
+        append_error(errors, "PROXI dataset rows request returned invalid JSON")
         return []
 
     datasets = payload.get("datasets")
@@ -320,13 +303,11 @@ def _fetch_proxi_dataset(
             timeout=DEFAULT_TIMEOUT,
         )
         if response.status_code != 200:
-            append_error(
-                errors, f"PROXI dataset request returned HTTP {response.status_code}")
+            append_error(errors, f"PROXI dataset request returned HTTP {response.status_code}")
             return None
         payload = response.json()
     except requests.RequestException as exc:
-        append_error(
-            errors, f"PROXI dataset request failed: {exc.__class__.__name__}")
+        append_error(errors, f"PROXI dataset request failed: {exc.__class__.__name__}")
         return None
     except ValueError:
         append_error(errors, "PROXI dataset request returned invalid JSON")
@@ -433,9 +414,7 @@ def _fetch_massive_landing_page_context(
     )
 
 
-def _extract_massive_page_publication_dois(
-    html_text: str, requested_doi: str
-) -> list[str] | None:
+def _extract_massive_page_publication_dois(html_text: str, requested_doi: str) -> list[str] | None:
     """Extract publication DOIs from the MassIVE landing page publications block."""
     publication_dois: list[str] | None = None
 
@@ -464,13 +443,11 @@ def _extract_massive_context_from_datacite_titles(
             timeout=DEFAULT_TIMEOUT,
         )
         if response.status_code != 200:
-            append_error(
-                errors, f"DataCite API returned HTTP {response.status_code}")
+            append_error(errors, f"DataCite API returned HTTP {response.status_code}")
             return None
         attrs = response.json().get("data", {}).get("attributes", {})
     except requests.RequestException as exc:
-        append_error(
-            errors, f"DataCite API request failed: {exc.__class__.__name__}")
+        append_error(errors, f"DataCite API request failed: {exc.__class__.__name__}")
         return None
     except ValueError:
         append_error(errors, "DataCite API returned invalid JSON")
@@ -510,16 +487,14 @@ def _extract_massive_publication_metadata(
         )
         publication_dois = merge_unique_strings(
             publication_dois,
-            extract_related_publication_dois(
-                value, requested_doi=requested_doi),
+            extract_related_publication_dois(value, requested_doi=requested_doi),
         )
         if isinstance(value, list):
             for item in value:
                 if isinstance(item, str):
                     publication_dois = merge_unique_strings(
                         publication_dois,
-                        extract_doi_references(
-                            item, requested_doi=requested_doi),
+                        extract_doi_references(item, requested_doi=requested_doi),
                     )
 
     for key in ("publication", "citation", "publication_doi"):

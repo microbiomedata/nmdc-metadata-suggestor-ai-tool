@@ -26,13 +26,11 @@ def try_zenodo(doi: str, errors: list[str] | None = None) -> ResolverContext | N
             timeout=DEFAULT_TIMEOUT,
         )
         if response.status_code != 200:
-            append_error(
-                errors, f"Zenodo API returned HTTP {response.status_code}")
+            append_error(errors, f"Zenodo API returned HTTP {response.status_code}")
             return None
         payload = response.json()
     except requests.RequestException as exc:
-        append_error(
-            errors, f"Zenodo API request failed: {exc.__class__.__name__}")
+        append_error(errors, f"Zenodo API request failed: {exc.__class__.__name__}")
         return None
     except ValueError:
         append_error(errors, "Zenodo API returned invalid JSON")
@@ -53,8 +51,7 @@ def try_zenodo(doi: str, errors: list[str] | None = None) -> ResolverContext | N
         metadata = hit.get("metadata", {})
         if not isinstance(metadata, dict):
             continue
-        publication_urls = extract_document_urls_from_file_entries(
-            hit.get("files"))
+        publication_urls = extract_document_urls_from_file_entries(hit.get("files"))
         publication_dois = extract_related_publication_dois(
             metadata.get("related_identifiers"),
             requested_doi=doi,

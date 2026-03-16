@@ -37,13 +37,10 @@ from nmdc_metadata_suggestor.models.doi import (
 
 DEFAULT_RETRY_ATTEMPTS = int(os.environ.get("NMDC_HTTP_RETRY_ATTEMPTS", "3"))
 # Default backoff is 0 to avoid introducing real sleep delays by default (e.g., in tests).
-DEFAULT_RETRY_BACKOFF_SECONDS = float(
-    os.environ.get("NMDC_HTTP_RETRY_BACKOFF_SECONDS", "0"))
-MAX_RETRY_DELAY_SECONDS = float(os.environ.get(
-    "NMDC_HTTP_MAX_RETRY_DELAY_SECONDS", "30"))
+DEFAULT_RETRY_BACKOFF_SECONDS = float(os.environ.get("NMDC_HTTP_RETRY_BACKOFF_SECONDS", "0"))
+MAX_RETRY_DELAY_SECONDS = float(os.environ.get("NMDC_HTTP_MAX_RETRY_DELAY_SECONDS", "30"))
 RETRY_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
-SESSION_POOL_CONNECTIONS = int(
-    os.environ.get("NMDC_HTTP_POOL_CONNECTIONS", "20"))
+SESSION_POOL_CONNECTIONS = int(os.environ.get("NMDC_HTTP_POOL_CONNECTIONS", "20"))
 SESSION_POOL_MAXSIZE = int(os.environ.get("NMDC_HTTP_POOL_MAXSIZE", "100"))
 
 LOGGER = logging.getLogger(__name__)
@@ -53,10 +50,8 @@ DOI_REFERENCE_PATTERN = re.compile(
 )
 HTTP_URL_PATTERN = re.compile(r"https?://\S+", re.IGNORECASE)
 TRAILING_DOI_DELIMITERS = ".,;:]}>\"'"
-DOCUMENT_FILE_EXTENSIONS = (".pdf", ".doc", ".docx",
-                            ".html", ".htm", ".xml", ".nxml", ".jats")
-DOCUMENT_URL_HINTS = ("download", "fulltext", "full-text",
-                      "/content", "article", "manuscript")
+DOCUMENT_FILE_EXTENSIONS = (".pdf", ".doc", ".docx", ".html", ".htm", ".xml", ".nxml", ".jats")
+DOCUMENT_URL_HINTS = ("download", "fulltext", "full-text", "/content", "article", "manuscript")
 DOCUMENT_MIMETYPE_HINTS = (
     "pdf",
     "html",
@@ -122,8 +117,7 @@ def request_with_retry(
 
     for attempt in range(1, max_attempts + 1):
         try:
-            response = _HTTP_SESSION.request(
-                method, url, timeout=timeout, **request_kwargs)
+            response = _HTTP_SESSION.request(method, url, timeout=timeout, **request_kwargs)
             if response.status_code not in retry_status_codes:
                 return response
 
@@ -155,8 +149,7 @@ def request_with_retry(
         return response
     if last_exception is not None:
         raise last_exception
-    raise RuntimeError(
-        "request_with_retry exited without response or exception")
+    raise RuntimeError("request_with_retry exited without response or exception")
 
 
 def _retry_delay_seconds(
@@ -292,13 +285,11 @@ def text_mentions_doi(text: str, requested_doi: str) -> bool:
 
 def extract_doi_references(text: str, requested_doi: str | None = None) -> list[str]:
     """Return unique DOI references found in text, excluding the requested DOI."""
-    requested_normalized = normalize_doi(
-        requested_doi).lower() if requested_doi else None
+    requested_normalized = normalize_doi(requested_doi).lower() if requested_doi else None
     matches: list[str] = []
     seen: set[str] = set()
     for match in DOI_REFERENCE_PATTERN.finditer(text):
-        candidate = normalize_doi(
-            _strip_trailing_doi_delimiters(match.group(0))).strip()
+        candidate = normalize_doi(_strip_trailing_doi_delimiters(match.group(0))).strip()
         if not candidate:
             continue
         lowered = candidate.lower()
@@ -552,7 +543,7 @@ def normalize_doi(raw: str) -> str:
         "http://dx.doi.org/",
     ):
         if doi.lower().startswith(url_prefix):
-            doi = doi[len(url_prefix):]
+            doi = doi[len(url_prefix) :]
             break
     if doi.lower().startswith("doi:"):
         doi = doi[4:]
@@ -722,8 +713,7 @@ def _classify_crossref(doi: str, prefix: str | None, ra: str) -> DoiClassificati
             resource_type=resource_type,
             publisher=msg.get("publisher"),
             prefix=prefix,
-            inferred_nmdc_category=infer_nmdc_category(
-                ra, resource_type, None),
+            inferred_nmdc_category=infer_nmdc_category(ra, resource_type, None),
         )
     except (requests.RequestException, ValueError) as e:
         return DoiClassification(
@@ -757,8 +747,7 @@ def _classify_datacite(doi: str, prefix: str | None, ra: str) -> DoiClassificati
             resource_type_general=resource_type_general,
             publisher=attrs.get("publisher"),
             prefix=prefix,
-            inferred_nmdc_category=infer_nmdc_category(
-                ra, resource_type, resource_type_general),
+            inferred_nmdc_category=infer_nmdc_category(ra, resource_type, resource_type_general),
         )
     except (requests.RequestException, ValueError) as e:
         return DoiClassification(

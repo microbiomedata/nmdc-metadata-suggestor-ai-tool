@@ -29,8 +29,7 @@ def try_jgi(doi: str, errors: list[str] | None = None) -> ResolverContext | None
             continue
         seen_queries.add(query_value)
 
-        params: dict[str, str] = {"q": query_value,
-                                  "api_version": "2", "x": "10", "p": "1"}
+        params: dict[str, str] = {"q": query_value, "api_version": "2", "x": "10", "p": "1"}
         if use_project_field:
             params["f"] = "project_id"
 
@@ -43,13 +42,11 @@ def try_jgi(doi: str, errors: list[str] | None = None) -> ResolverContext | None
                 timeout=DEFAULT_TIMEOUT,
             )
             if response.status_code != 200:
-                append_error(
-                    errors, f"JGI API returned HTTP {response.status_code}")
+                append_error(errors, f"JGI API returned HTTP {response.status_code}")
                 continue
             payload = response.json()
         except requests.RequestException as exc:
-            append_error(
-                errors, f"JGI API request failed: {exc.__class__.__name__}")
+            append_error(errors, f"JGI API request failed: {exc.__class__.__name__}")
             continue
         except ValueError:
             append_error(errors, "JGI API returned invalid JSON")

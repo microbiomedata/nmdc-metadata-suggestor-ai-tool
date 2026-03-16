@@ -26,13 +26,11 @@ def try_emsl(doi: str, errors: list[str] | None = None) -> ResolverContext | Non
         append_error(errors, "Could not extract EMSL project id from DOI")
         return None
 
-    sciencecentral_context = _fetch_emsl_sciencecentral_context(
-        project_id, errors=errors)
+    sciencecentral_context = _fetch_emsl_sciencecentral_context(project_id, errors=errors)
     if sciencecentral_context is not None:
         return sciencecentral_context
 
-    external_context = _fetch_emsl_external_context(
-        project_id, requested_doi=doi, errors=errors)
+    external_context = _fetch_emsl_external_context(project_id, requested_doi=doi, errors=errors)
     if external_context is not None:
         return external_context
 
@@ -89,8 +87,7 @@ def _fetch_emsl_sciencecentral_context(
 
     project = _extract_emsl_sciencecentral_project(payload, project_id)
     if project is None:
-        append_error(
-            errors, "EMSL ScienceCentral API returned no matching study")
+        append_error(errors, "EMSL ScienceCentral API returned no matching study")
         return None
     return _extract_emsl_context(project)
 
@@ -137,13 +134,11 @@ def _fetch_emsl_external_context(
             timeout=DEFAULT_TIMEOUT,
         )
         if response.status_code != 200:
-            append_error(
-                errors, f"EMSL API returned HTTP {response.status_code}")
+            append_error(errors, f"EMSL API returned HTTP {response.status_code}")
             return None
         payload = response.json()
     except requests.RequestException as exc:
-        append_error(
-            errors, f"EMSL API request failed: {exc.__class__.__name__}")
+        append_error(errors, f"EMSL API request failed: {exc.__class__.__name__}")
         return None
     except ValueError:
         append_error(errors, "EMSL API returned invalid JSON")

@@ -25,8 +25,7 @@ def try_figshare(doi: str, errors: list[str] | None = None) -> ResolverContext |
     if context:
         return context
 
-    context = _try_figshare_entity_lookup(
-        doi, FIGSHARE_COLLECTIONS_API, errors=errors)
+    context = _try_figshare_entity_lookup(doi, FIGSHARE_COLLECTIONS_API, errors=errors)
     if context:
         return context
     append_error(errors, "Figshare APIs returned no usable description")
@@ -57,8 +56,7 @@ def _try_figshare_entity_lookup(
         )
         return None
     except ValueError:
-        append_error(
-            errors, f"Figshare endpoint {endpoint} returned invalid JSON")
+        append_error(errors, f"Figshare endpoint {endpoint} returned invalid JSON")
         return None
     return _extract_figshare_context_with_detail(payload, endpoint, errors=errors)
 
@@ -77,8 +75,7 @@ def _extract_figshare_context_with_detail(
     for candidate in candidates:
         detail = _fetch_figshare_detail(candidate, endpoint, errors=errors)
         if detail is not None:
-            publication_urls, publication_dois = _extract_figshare_publication_metadata(
-                detail)
+            publication_urls, publication_dois = _extract_figshare_publication_metadata(detail)
             context = _extract_figshare_text(detail)
             if context:
                 return ResolverContext(
@@ -97,8 +94,7 @@ def _extract_figshare_context_with_detail(
                     publication_dois=publication_dois,
                 )
 
-        publication_urls, publication_dois = _extract_figshare_publication_metadata(
-            candidate)
+        publication_urls, publication_dois = _extract_figshare_publication_metadata(candidate)
         context = _extract_figshare_text(candidate)
         if context:
             return ResolverContext(
@@ -141,13 +137,11 @@ def _fetch_figshare_detail(
             timeout=DEFAULT_TIMEOUT,
         )
         if response.status_code != 200:
-            append_error(
-                errors, f"Figshare detail request returned HTTP {response.status_code}")
+            append_error(errors, f"Figshare detail request returned HTTP {response.status_code}")
             return None
         payload = response.json()
     except requests.RequestException as exc:
-        append_error(
-            errors, f"Figshare detail request failed: {exc.__class__.__name__}")
+        append_error(errors, f"Figshare detail request failed: {exc.__class__.__name__}")
         return None
     except ValueError:
         append_error(errors, "Figshare detail request returned invalid JSON")
@@ -174,8 +168,7 @@ def _extract_figshare_publication_metadata(
     record: dict[str, object],
 ) -> tuple[list[str] | None, list[str] | None]:
     """Extract direct document links and related publication DOIs from Figshare records."""
-    publication_urls = extract_document_urls_from_file_entries(
-        record.get("files"))
+    publication_urls = extract_document_urls_from_file_entries(record.get("files"))
 
     publication_dois: list[str] | None = None
     resource_doi = record.get("resource_doi")

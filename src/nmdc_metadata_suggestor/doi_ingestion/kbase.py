@@ -46,13 +46,11 @@ def try_kbase(doi: str, errors: list[str] | None = None) -> ResolverContext | No
             timeout=DEFAULT_TIMEOUT,
         )
         if response.status_code != 200:
-            append_error(
-                errors, f"KBase search API returned HTTP {response.status_code}")
+            append_error(errors, f"KBase search API returned HTTP {response.status_code}")
             return None
         data = response.json()
     except requests.RequestException as exc:
-        append_error(
-            errors, f"KBase search API request failed: {exc.__class__.__name__}")
+        append_error(errors, f"KBase search API request failed: {exc.__class__.__name__}")
         return None
     except ValueError:
         append_error(errors, "KBase search API returned invalid JSON")
@@ -70,8 +68,7 @@ def try_kbase(doi: str, errors: list[str] | None = None) -> ResolverContext | No
     workspace_context = _try_kbase_workspace_ref(doi, errors=errors)
     if workspace_context is not None:
         return workspace_context
-    append_error(
-        errors, "KBase APIs returned no matching abstract/description")
+    append_error(errors, "KBase APIs returned no matching abstract/description")
     return None
 
 
@@ -146,8 +143,7 @@ def _try_kbase_workspace_ref(doi: str, errors: list[str] | None = None) -> Resol
     """Return context from KBase workspace object info inferred from DOI token."""
     workspace_tokens = _extract_kbase_workspace_tokens(doi)
     if workspace_tokens is None:
-        append_error(
-            errors, "Could not extract KBase workspace token from DOI")
+        append_error(errors, "Could not extract KBase workspace token from DOI")
         return None
     wsid, token = workspace_tokens
 
@@ -196,13 +192,11 @@ def _fetch_kbase_object_info(ref: str, errors: list[str] | None = None) -> list[
             timeout=DEFAULT_TIMEOUT,
         )
         if response.status_code != 200:
-            append_error(
-                errors, f"KBase workspace API returned HTTP {response.status_code}")
+            append_error(errors, f"KBase workspace API returned HTTP {response.status_code}")
             return None
         data = response.json()
     except requests.RequestException as exc:
-        append_error(
-            errors, f"KBase workspace API request failed: {exc.__class__.__name__}")
+        append_error(errors, f"KBase workspace API request failed: {exc.__class__.__name__}")
         return None
     except ValueError:
         append_error(errors, "KBase workspace API returned invalid JSON")
@@ -267,8 +261,7 @@ def _extract_kbase_object_info_context(
             kind="description",
         )
 
-    summary = _build_kbase_object_metadata_summary(
-        object_name, object_type, metadata)
+    summary = _build_kbase_object_metadata_summary(object_name, object_type, metadata)
     if summary is not None:
         cleaned = clean_text(summary)
         if cleaned:
@@ -310,8 +303,7 @@ def _build_kbase_object_metadata_summary(
 
     label = _humanize_kbase_object_name(object_name)
     type_text = (
-        object_type.strip() if isinstance(
-            object_type, str) and object_type.strip() else None
+        object_type.strip() if isinstance(object_type, str) and object_type.strip() else None
     )
 
     context_parts: list[str] = []

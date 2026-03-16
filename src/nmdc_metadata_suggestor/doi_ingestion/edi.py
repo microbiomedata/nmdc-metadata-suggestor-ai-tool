@@ -33,21 +33,18 @@ def try_edi(doi: str, errors: list[str] | None = None) -> ResolverContext | None
             timeout=DEFAULT_TIMEOUT,
         )
         if response.status_code != 200:
-            append_error(
-                errors, f"EDI metadata request returned HTTP {response.status_code}")
+            append_error(errors, f"EDI metadata request returned HTTP {response.status_code}")
             return None
         xml_text = response.text
         if len(xml_text) > MAX_EDI_METADATA_XML_CHARS:
             append_error(errors, "EDI metadata XML exceeded size limit")
             return None
         if UNSAFE_XML_DECLARATION_PATTERN.search(xml_text):
-            append_error(
-                errors, "EDI metadata XML contains unsafe declarations")
+            append_error(errors, "EDI metadata XML contains unsafe declarations")
             return None
         root = ET.fromstring(xml_text)
     except requests.RequestException as exc:
-        append_error(
-            errors, f"EDI metadata request failed: {exc.__class__.__name__}")
+        append_error(errors, f"EDI metadata request failed: {exc.__class__.__name__}")
         return None
     except ET.ParseError:
         append_error(errors, "EDI metadata response was not valid XML")
@@ -61,8 +58,7 @@ def try_edi(doi: str, errors: list[str] | None = None) -> ResolverContext | None
             kind="abstract",
         )
 
-    description = extract_first_xml_text(
-        root, {"purpose", "description", "title"})
+    description = extract_first_xml_text(root, {"purpose", "description", "title"})
     if description:
         return ResolverContext(
             text=description,
@@ -83,12 +79,10 @@ def _resolve_edi_metadata_url(doi: str, errors: list[str] | None = None) -> str 
             timeout=DEFAULT_TIMEOUT,
         )
         if response.status_code != 200:
-            append_error(
-                errors, f"EDI DOI API returned HTTP {response.status_code}")
+            append_error(errors, f"EDI DOI API returned HTTP {response.status_code}")
             return None
     except requests.RequestException as exc:
-        append_error(
-            errors, f"EDI DOI API request failed: {exc.__class__.__name__}")
+        append_error(errors, f"EDI DOI API request failed: {exc.__class__.__name__}")
         return None
 
     for line in response.text.splitlines():
