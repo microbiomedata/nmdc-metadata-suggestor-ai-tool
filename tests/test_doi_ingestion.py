@@ -141,19 +141,27 @@ def _load_live_publication_metadata_cases() -> list[dict[str, object]]:
         route = case.get("route")
         expect_publication_urls = case.get("expect_publication_urls")
         expect_publication_dois = case.get("expect_publication_dois")
+        allow_fallback = case.get("allow_fallback")
+        expected_source = case.get("expected_source")
+        expected_provider = case.get("expected_provider")
         if not isinstance(source, str) or not isinstance(doi, str):
             continue
         if not isinstance(route, str):
             route = "explicit"
-        normalized.append(
-            {
-                "source": source,
-                "doi": doi,
-                "route": route,
-                "expect_publication_urls": bool(expect_publication_urls),
-                "expect_publication_dois": bool(expect_publication_dois),
-            }
-        )
+        normalized_case: dict[str, object] = {
+            "source": source,
+            "doi": doi,
+            "route": route,
+            "expect_publication_urls": bool(expect_publication_urls),
+            "expect_publication_dois": bool(expect_publication_dois),
+        }
+        if isinstance(allow_fallback, bool):
+            normalized_case["allow_fallback"] = allow_fallback
+        if isinstance(expected_source, str):
+            normalized_case["expected_source"] = expected_source
+        if isinstance(expected_provider, str):
+            normalized_case["expected_provider"] = expected_provider
+        normalized.append(normalized_case)
     return normalized
 
 
@@ -1143,6 +1151,74 @@ def test_massive_proxi_miss_falls_back_to_datacite() -> None:
 
 
 @responses.activate
+def test_massive_landing_page_publication_doi_falls_back_and_is_preserved() -> None:
+    """Use publication DOI from the MassIVE HTML landing page when PROXI is incomplete."""
+    doi = "10.25345/C5SZ1P"
+    accession = "MSV000086686"
+    publication_doi = "10.1242/jeb.242387"
+    landing_page_url = (
+        "https://massive.ucsd.edu/ProteoSAFe/dataset.jsp"
+        f"?accession={accession}"
+    )
+    responses.add(
+        responses.GET,
+        f"{DOI_CONTENT_NEGOTIATION_API}/{doi}",
+        status=302,
+        headers={"Location": landing_page_url},
+    )
+    responses.add(
+        responses.GET,
+        f"{PROXI_DATASETS_API}/{accession}",
+        json=_json_payload("proxi_error_not_reserved"),
+    )
+    for _ in range(3):
+        responses.add(
+            responses.GET,
+            PROXI_DATASETS_API,
+            json=_json_payload("proxi_empty_datasets"),
+        )
+    responses.add(
+        responses.GET,
+        landing_page_url,
+        body="""
+        <html>
+          <body>
+            <div class="dataset-block">
+              <h2>Publications</h2>
+              <p>
+                <span style="font-style:italic;">
+                  Cold-acclimation induces life stage-specific responses.
+                </span><br/>
+                J Exp Biol jeb.242387.
+                https://doi.org/10.1242/jeb.242387.
+              </p>
+            </div>
+          </body>
+        </html>
+        """,
+        content_type="text/html",
+    )
+    responses.add(
+        responses.GET,
+        f"{DATACITE_API}/{doi}",
+        json=_datacite_abstract_payload(
+            "DataCite fallback after MassIVE landing page publication metadata"
+        ),
+    )
+
+    result = get_doi_description_or_abstract(doi)
+
+    assert result.context == (
+        "DataCite fallback after MassIVE landing page publication metadata"
+    )
+    assert result.source == "datacite"
+    assert result.provider == "massive"
+    assert result.attempts == ["massive", "datacite"]
+    assert result.publication_urls is None
+    assert result.publication_dois == [publication_doi]
+
+
+@responses.activate
 def test_massive_uses_datacite_title_context_when_proxi_fails() -> None:
     """Use DataCite subtitle/title fallback and report DataCite as source."""
     doi = "10.25345/c5kk94s01"
@@ -2096,17 +2172,23 @@ def test_live_publication_metadata_examples_return_publication_metadata(
     doi = str(case["doi"])
     source = str(case["source"])
     route = str(case["route"])
+    allow_fallback = bool(case.get("allow_fallback"))
+    expected_source = str(case.get("expected_source") or source)
+    expected_provider = str(case.get("expected_provider") or source)
 
     if route == "explicit":
         result = get_doi_description_or_abstract(doi, sources=[source])
-        assert result.attempts == [source]
+        if allow_fallback:
+            assert result.attempts[0] == source
+        else:
+            assert result.attempts == [source]
     else:
         result = get_doi_description_or_abstract(doi, skip_classification=True)
         assert result.attempts[0] == source
 
     assert result.context is not None, f"Expected context for {doi}; got error={result.error!r}"
-    assert result.source == source
-    assert result.provider == source
+    assert result.source == expected_source
+    assert result.provider == expected_provider
 
     if bool(case["expect_publication_urls"]):
         assert result.publication_urls, f"Expected publication_urls for {doi}"

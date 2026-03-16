@@ -1,6 +1,7 @@
 """MassIVE DOI resolver via ProteomeCentral PROXI."""
 
 import re
+from urllib.parse import parse_qs, urlparse
 
 import requests
 
@@ -23,13 +24,26 @@ from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
 )
 from nmdc_metadata_suggestor.models.resolver_context import ResolverContext
 
+MASSIVE_PUBLICATIONS_BLOCK_PATTERN = re.compile(
+    r"<h2>\s*Publications\s*</h2>(.*?)</div>",
+    re.IGNORECASE | re.DOTALL,
+)
+
 
 def try_massive(doi: str, errors: list[str] | None = None) -> ResolverContext | None:
     """Return cleaned/raw context from MassIVE via ProteomeCentral lookups."""
     accumulated_urls: list[str] | None = None
     accumulated_dois: list[str] | None = None
+    redirect_location = _resolve_doi_redirect_location(doi, errors=errors)
+    redirect_accessions = _collect_massive_accession_candidates(
+        doi,
+        redirect_location=redirect_location,
+        errors=errors,
+    )
+    publication_search_accessions = _search_proxi_accessions_by_doi(
+        doi, errors=errors)
 
-    for accession in _collect_massive_accession_candidates(doi, errors=errors):
+    for accession in redirect_accessions:
         payload = _fetch_proxi_dataset(accession, errors=errors)
         if payload is None:
             continue
@@ -49,7 +63,7 @@ def try_massive(doi: str, errors: list[str] | None = None) -> ResolverContext | 
                     publication_dois=accumulated_dois,
                 )
 
-    for accession in _search_proxi_accessions_by_doi(doi, errors=errors):
+    for accession in publication_search_accessions:
         payload = _fetch_proxi_dataset(accession, errors=errors)
         if payload is None:
             continue
@@ -68,6 +82,30 @@ def try_massive(doi: str, errors: list[str] | None = None) -> ResolverContext | 
                     urls=accumulated_urls,
                     publication_dois=accumulated_dois,
                 )
+
+    landing_page_urls = _collect_massive_landing_page_candidates(
+        redirect_location,
+        merge_unique_strings(redirect_accessions,
+                             publication_search_accessions)
+        or [],
+    )
+    for page_url in landing_page_urls:
+        context = _fetch_massive_landing_page_context(
+            page_url, requested_doi=doi, errors=errors)
+        if context is None:
+            continue
+        accumulated_urls = merge_unique_strings(accumulated_urls, context.urls)
+        accumulated_dois = merge_unique_strings(
+            accumulated_dois, context.publication_dois)
+        if context.text:
+            return ResolverContext(
+                text=context.text,
+                raw_text=context.raw_text,
+                kind=context.kind,
+                source=context.source,
+                urls=accumulated_urls,
+                publication_dois=accumulated_dois,
+            )
 
     context = _extract_massive_context_from_datacite_titles(doi, errors=errors)
     if context is not None:
@@ -91,7 +129,11 @@ def try_massive(doi: str, errors: list[str] | None = None) -> ResolverContext | 
     return None
 
 
-def _collect_massive_accession_candidates(doi: str, errors: list[str] | None = None) -> list[str]:
+def _collect_massive_accession_candidates(
+    doi: str,
+    redirect_location: str | None = None,
+    errors: list[str] | None = None,
+) -> list[str]:
     """Collect likely ProteomeXchange/MassIVE accessions for a DOI."""
     candidates: list[str] = []
     seen: set[str] = set()
@@ -101,7 +143,9 @@ def _collect_massive_accession_candidates(doi: str, errors: list[str] | None = N
             seen.add(accession)
             candidates.append(accession)
 
-    location = _resolve_doi_redirect_location(doi, errors=errors)
+    location = redirect_location
+    if location is None:
+        location = _resolve_doi_redirect_location(doi, errors=errors)
     if location is not None:
         for accession in _extract_massive_accessions(location):
             if accession not in seen:
@@ -148,6 +192,39 @@ def _extract_massive_accessions(text: str) -> list[str]:
         seen.add(match)
         accessions.append(match)
     return accessions
+
+
+def _collect_massive_landing_page_candidates(
+    redirect_location: str | None, accessions: list[str]
+) -> list[str]:
+    """Return likely MassIVE dataset landing pages for HTML fallback scraping."""
+    candidates: list[str] = []
+    seen: set[str] = set()
+
+    if isinstance(redirect_location, str) and redirect_location.strip():
+        parsed = urlparse(redirect_location.strip())
+        if parsed.netloc.lower() == "massive.ucsd.edu":
+            normalized = redirect_location.strip()
+            seen.add(normalized)
+            candidates.append(normalized)
+
+            accession_values = parse_qs(parsed.query).get("accession", [])
+            for value in accession_values:
+                accession = value.strip().upper()
+                if accession:
+                    seen.add(accession)
+
+    for accession in accessions:
+        page_url = (
+            "https://massive.ucsd.edu/ProteoSAFe/dataset.jsp"
+            f"?accession={accession}"
+        )
+        if page_url in seen:
+            continue
+        seen.add(page_url)
+        candidates.append(page_url)
+
+    return candidates
 
 
 def _search_proxi_accessions_by_doi(doi: str, errors: list[str] | None = None) -> list[str]:
@@ -311,6 +388,68 @@ def _extract_massive_context(
             publication_dois=publication_dois,
         )
     return None
+
+
+def _fetch_massive_landing_page_context(
+    page_url: str,
+    requested_doi: str,
+    errors: list[str] | None = None,
+) -> ResolverContext | None:
+    """Extract publication metadata from a MassIVE landing page HTML fallback."""
+    try:
+        response = request_with_retry(
+            "GET",
+            page_url,
+            headers={"User-Agent": USER_AGENT},
+            timeout=DEFAULT_TIMEOUT,
+        )
+    except requests.RequestException as exc:
+        append_error(
+            errors,
+            f"MassIVE landing page request failed: {exc.__class__.__name__}",
+        )
+        return None
+
+    if response.status_code != 200:
+        append_error(
+            errors,
+            f"MassIVE landing page request returned HTTP {response.status_code}",
+        )
+        return None
+
+    publication_dois = _extract_massive_page_publication_dois(
+        response.text,
+        requested_doi=requested_doi,
+    )
+    if not publication_dois:
+        return None
+
+    return ResolverContext(
+        text=None,
+        raw_text=None,
+        kind="description",
+        source="massive",
+        publication_dois=publication_dois,
+    )
+
+
+def _extract_massive_page_publication_dois(
+    html_text: str, requested_doi: str
+) -> list[str] | None:
+    """Extract publication DOIs from the MassIVE landing page publications block."""
+    publication_dois: list[str] | None = None
+
+    for match in MASSIVE_PUBLICATIONS_BLOCK_PATTERN.finditer(html_text):
+        publication_text = clean_text(match.group(1))
+        publication_dois = merge_unique_strings(
+            publication_dois,
+            extract_doi_references(
+                publication_text,
+                requested_doi=requested_doi,
+            ),
+        )
+
+    return publication_dois
 
 
 def _extract_massive_context_from_datacite_titles(

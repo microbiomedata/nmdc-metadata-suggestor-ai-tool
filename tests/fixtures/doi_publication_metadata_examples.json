@@ -18,6 +18,17 @@
       "expect_publication_urls": true,
       "expect_publication_dois": true,
       "origin": "Zenodo record exposes files[].links.self and metadata.related_identifiers"
+    },
+    {
+      "source": "massive",
+      "route": "explicit",
+      "doi": "10.25345/C5SZ1P",
+      "allow_fallback": true,
+      "expected_source": "datacite",
+      "expected_provider": "massive",
+      "expect_publication_urls": false,
+      "expect_publication_dois": true,
+      "origin": "MassIVE landing page publications block exposes linked article DOI even when PROXI detail is unavailable"
     }
   ]
 }
