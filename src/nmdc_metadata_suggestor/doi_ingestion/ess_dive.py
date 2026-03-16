@@ -16,7 +16,11 @@ from nmdc_metadata_suggestor.constants import (
 from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     append_error,
     clean_text,
+    extract_document_urls_from_file_entries,
+    extract_doi_references,
+    extract_related_publication_dois,
     find_first_text,
+    merge_unique_strings,
     normalize_doi,
     request_with_retry,
 )
@@ -25,6 +29,9 @@ from nmdc_metadata_suggestor.models.resolver_context import ResolverContext
 
 def try_ess_dive(doi: str, errors: list[str] | None = None) -> ResolverContext | None:
     """Return context from ESS-DIVE if available."""
+    accumulated_urls: list[str] | None = None
+    accumulated_dois: list[str] | None = None
+
     try:
         response = request_with_retry(
             "GET",
@@ -35,7 +42,16 @@ def try_ess_dive(doi: str, errors: list[str] | None = None) -> ResolverContext |
         )
         if response.status_code == 200:
             payload = response.json()
-            extracted = find_first_text(payload, keys=("abstract", "description"))
+            publication_urls, publication_dois = _extract_ess_dive_publication_metadata(
+                payload,
+                requested_doi=doi,
+            )
+            accumulated_urls = merge_unique_strings(
+                accumulated_urls, publication_urls)
+            accumulated_dois = merge_unique_strings(
+                accumulated_dois, publication_dois)
+            extracted = find_first_text(
+                payload, keys=("abstract", "description"))
             if extracted is not None:
                 key, text = extracted
                 cleaned = clean_text(text)
@@ -44,17 +60,38 @@ def try_ess_dive(doi: str, errors: list[str] | None = None) -> ResolverContext |
                         text=cleaned,
                         raw_text=text,
                         kind="abstract" if key == "abstract" else "description",
+                        urls=accumulated_urls,
+                        publication_dois=accumulated_dois,
                     )
         else:
-            append_error(errors, f"ESS-DIVE API returned HTTP {response.status_code}")
+            append_error(
+                errors, f"ESS-DIVE API returned HTTP {response.status_code}")
     except (requests.RequestException, ValueError):
         append_error(errors, "ESS-DIVE API request failed")
 
     # ESS-DIVE's Dataset API may require auth for anonymous callers.
     context = _try_ess_dive_dataone(doi, errors=errors)
-    if context is None:
-        append_error(errors, "ESS-DIVE DataONE fallback returned no usable context")
-    return context
+    if context is not None:
+        return ResolverContext(
+            text=context.text,
+            raw_text=context.raw_text,
+            kind=context.kind,
+            source=context.source,
+            urls=merge_unique_strings(accumulated_urls, context.urls),
+            publication_dois=merge_unique_strings(
+                accumulated_dois, context.publication_dois),
+        )
+    if accumulated_urls or accumulated_dois:
+        return ResolverContext(
+            text=None,
+            raw_text=None,
+            kind="description",
+            urls=accumulated_urls,
+            publication_dois=accumulated_dois,
+        )
+    append_error(
+        errors, "ESS-DIVE DataONE fallback returned no usable context")
+    return None
 
 
 def _try_ess_dive_dataone(doi: str, errors: list[str] | None = None) -> ResolverContext | None:
@@ -83,7 +120,8 @@ def _build_ess_dive_dataone_queries(doi: str) -> list[str]:
         if not candidate or candidate in seen:
             continue
         seen.add(candidate)
-        queries.append(f'datasource:"urn:node:ESS_DIVE" AND seriesId:*{candidate}*')
+        queries.append(
+            f'datasource:"urn:node:ESS_DIVE" AND seriesId:*{candidate}*')
     return queries
 
 
@@ -107,11 +145,13 @@ def _fetch_dataone_solr_docs(
             timeout=DEFAULT_TIMEOUT,
         )
         if response.status_code != 200:
-            append_error(errors, f"DataONE Solr returned HTTP {response.status_code}")
+            append_error(
+                errors, f"DataONE Solr returned HTTP {response.status_code}")
             return []
         return _parse_dataone_solr_docs(response.text)
     except requests.RequestException as exc:
-        append_error(errors, f"DataONE Solr request failed: {exc.__class__.__name__}")
+        append_error(
+            errors, f"DataONE Solr request failed: {exc.__class__.__name__}")
         return []
 
 
@@ -221,3 +261,41 @@ def _sort_dataone_docs_for_context(docs: list[dict[str, object]]) -> list[dict[s
         ),
         reverse=True,
     )
+
+
+def _extract_ess_dive_publication_metadata(
+    payload: object, requested_doi: str
+) -> tuple[list[str] | None, list[str] | None]:
+    """Extract direct document links and related publication DOIs from ESS-DIVE payloads."""
+    publication_urls: list[str] | None = None
+    publication_dois: list[str] | None = None
+
+    data_entries = payload.get("data") if isinstance(payload, dict) else None
+    records = data_entries if isinstance(data_entries, list) else [payload]
+
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+
+        for key in ("files", "documents", "publications"):
+            publication_urls = merge_unique_strings(
+                publication_urls,
+                extract_document_urls_from_file_entries(record.get(key)),
+            )
+
+        for key in ("relatedIdentifiers", "related_identifiers", "related_materials"):
+            publication_dois = merge_unique_strings(
+                publication_dois,
+                extract_related_publication_dois(
+                    record.get(key), requested_doi=requested_doi),
+            )
+
+        for key in ("publicationDOI", "publication_doi", "resource_doi"):
+            value = record.get(key)
+            if isinstance(value, str):
+                publication_dois = merge_unique_strings(
+                    publication_dois,
+                    extract_doi_references(value, requested_doi=requested_doi),
+                )
+
+    return publication_urls, publication_dois

@@ -12,6 +12,7 @@ import time
 import xml.etree.ElementTree as ET
 from email.utils import parsedate_to_datetime
 from typing import Any
+from urllib.parse import urlparse
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -36,10 +37,13 @@ from nmdc_metadata_suggestor.models.doi import (
 
 DEFAULT_RETRY_ATTEMPTS = int(os.environ.get("NMDC_HTTP_RETRY_ATTEMPTS", "3"))
 # Default backoff is 0 to avoid introducing real sleep delays by default (e.g., in tests).
-DEFAULT_RETRY_BACKOFF_SECONDS = float(os.environ.get("NMDC_HTTP_RETRY_BACKOFF_SECONDS", "0"))
-MAX_RETRY_DELAY_SECONDS = float(os.environ.get("NMDC_HTTP_MAX_RETRY_DELAY_SECONDS", "30"))
+DEFAULT_RETRY_BACKOFF_SECONDS = float(
+    os.environ.get("NMDC_HTTP_RETRY_BACKOFF_SECONDS", "0"))
+MAX_RETRY_DELAY_SECONDS = float(os.environ.get(
+    "NMDC_HTTP_MAX_RETRY_DELAY_SECONDS", "30"))
 RETRY_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
-SESSION_POOL_CONNECTIONS = int(os.environ.get("NMDC_HTTP_POOL_CONNECTIONS", "20"))
+SESSION_POOL_CONNECTIONS = int(
+    os.environ.get("NMDC_HTTP_POOL_CONNECTIONS", "20"))
 SESSION_POOL_MAXSIZE = int(os.environ.get("NMDC_HTTP_POOL_MAXSIZE", "100"))
 
 LOGGER = logging.getLogger(__name__)
@@ -47,7 +51,39 @@ DOI_REFERENCE_PATTERN = re.compile(
     r"(?:https?://doi\.org/|doi:)?10\.\d{4,9}/\S+",
     re.IGNORECASE,
 )
+HTTP_URL_PATTERN = re.compile(r"https?://\S+", re.IGNORECASE)
 TRAILING_DOI_DELIMITERS = ".,;:]}>\"'"
+DOCUMENT_FILE_EXTENSIONS = (".pdf", ".doc", ".docx",
+                            ".html", ".htm", ".xml", ".nxml", ".jats")
+DOCUMENT_URL_HINTS = ("download", "fulltext", "full-text",
+                      "/content", "article", "manuscript")
+DOCUMENT_MIMETYPE_HINTS = (
+    "pdf",
+    "html",
+    "xml",
+    "msword",
+    "wordprocessingml",
+    "jats",
+    "nxml",
+)
+PUBLICATION_RELATION_HINTS = (
+    "published",
+    "supplement",
+    "document",
+    "described",
+    "reference",
+    "review",
+)
+PUBLICATION_RESOURCE_TYPE_HINTS = (
+    "publication",
+    "article",
+    "journal",
+    "preprint",
+    "report",
+    "book",
+    "conference",
+    "text",
+)
 
 _HTTP_SESSION = requests.Session()
 _HTTP_ADAPTER = HTTPAdapter(
@@ -86,7 +122,8 @@ def request_with_retry(
 
     for attempt in range(1, max_attempts + 1):
         try:
-            response = _HTTP_SESSION.request(method, url, timeout=timeout, **request_kwargs)
+            response = _HTTP_SESSION.request(
+                method, url, timeout=timeout, **request_kwargs)
             if response.status_code not in retry_status_codes:
                 return response
 
@@ -118,7 +155,8 @@ def request_with_retry(
         return response
     if last_exception is not None:
         raise last_exception
-    raise RuntimeError("request_with_retry exited without response or exception")
+    raise RuntimeError(
+        "request_with_retry exited without response or exception")
 
 
 def _retry_delay_seconds(
@@ -173,6 +211,14 @@ def append_error(errors: list[str] | None, message: str) -> None:
         return
     if message not in errors:
         errors.append(message)
+
+
+def merge_unique_strings(
+    existing: list[str] | None, incoming: list[str] | None
+) -> list[str] | None:
+    """Merge two string lists while preserving order and removing duplicates."""
+    merged = list(dict.fromkeys([*(existing or []), *(incoming or [])]))
+    return merged or None
 
 
 def strip_jats_xml(xml_abstract: str) -> str:
@@ -234,6 +280,183 @@ def text_mentions_doi(text: str, requested_doi: str) -> bool:
         if normalize_doi(candidate).lower() == requested_normalized:
             return True
     return False
+
+
+def extract_doi_references(text: str, requested_doi: str | None = None) -> list[str]:
+    """Return unique DOI references found in text, excluding the requested DOI."""
+    requested_normalized = normalize_doi(
+        requested_doi).lower() if requested_doi else None
+    matches: list[str] = []
+    seen: set[str] = set()
+    for match in DOI_REFERENCE_PATTERN.finditer(text):
+        candidate = normalize_doi(
+            _strip_trailing_doi_delimiters(match.group(0))).strip()
+        if not candidate:
+            continue
+        lowered = candidate.lower()
+        if requested_normalized is not None and lowered == requested_normalized:
+            continue
+        if lowered in seen:
+            continue
+        seen.add(lowered)
+        matches.append(candidate)
+    return matches
+
+
+def extract_http_urls(text: str) -> list[str]:
+    """Return unique HTTP(S) URLs found in text."""
+    urls: list[str] = []
+    seen: set[str] = set()
+    for match in HTTP_URL_PATTERN.finditer(text):
+        candidate = _strip_trailing_doi_delimiters(match.group(0)).strip()
+        normalized = normalize_http_url(candidate)
+        if normalized is None:
+            continue
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        urls.append(normalized)
+    return urls
+
+
+def normalize_http_url(value: object) -> str | None:
+    """Normalize a candidate HTTP(S) URL string."""
+    if not isinstance(value, str):
+        return None
+    stripped = _strip_trailing_doi_delimiters(value.strip())
+    if not stripped:
+        return None
+    parsed = urlparse(stripped)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return None
+    return stripped
+
+
+def looks_like_document_name(name: object) -> bool:
+    """Return True when a filename looks like a document we can ingest."""
+    if not isinstance(name, str):
+        return False
+    lowered = name.strip().lower()
+    return any(lowered.endswith(ext) for ext in DOCUMENT_FILE_EXTENSIONS)
+
+
+def looks_like_document_mimetype(mimetype: object) -> bool:
+    """Return True when a mimetype looks like a publication/document asset."""
+    if not isinstance(mimetype, str):
+        return False
+    lowered = mimetype.strip().lower()
+    return any(token in lowered for token in DOCUMENT_MIMETYPE_HINTS)
+
+
+def looks_like_document_url(url: str) -> bool:
+    """Return True when a URL points at a likely document/full-text asset."""
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return False
+    lowered_path = parsed.path.lower()
+    lowered_full = f"{parsed.path}?{parsed.query}".lower()
+    if any(lowered_path.endswith(ext) for ext in DOCUMENT_FILE_EXTENSIONS):
+        return True
+    return any(token in lowered_full for token in DOCUMENT_URL_HINTS)
+
+
+def extract_document_urls_from_file_entries(entries: object) -> list[str]:
+    """Extract likely document URLs from provider file/link entry lists."""
+    if not isinstance(entries, list):
+        return []
+
+    urls: list[str] = []
+    seen: set[str] = set()
+
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+
+        name = entry.get("name") or entry.get("filename") or entry.get("key")
+        mimetype = (
+            entry.get("mimetype")
+            or entry.get("mime_type")
+            or entry.get("content_type")
+            or entry.get("type")
+        )
+        url_candidates: list[str] = []
+
+        for key in ("download_url", "url", "href", "link"):
+            normalized = normalize_http_url(entry.get(key))
+            if normalized is not None:
+                url_candidates.append(normalized)
+
+        links = entry.get("links")
+        if isinstance(links, dict):
+            for key in ("self", "download", "content", "href", "url"):
+                normalized = normalize_http_url(links.get(key))
+                if normalized is not None:
+                    url_candidates.append(normalized)
+
+        for candidate in url_candidates:
+            if not (
+                looks_like_document_url(candidate)
+                or looks_like_document_name(name)
+                or looks_like_document_mimetype(mimetype)
+            ):
+                continue
+            if candidate in seen:
+                continue
+            seen.add(candidate)
+            urls.append(candidate)
+
+    return urls
+
+
+def related_identifier_looks_publication(entry: object) -> bool:
+    """Return True when a related identifier entry likely points to a publication."""
+    if not isinstance(entry, dict):
+        return False
+
+    relation = entry.get("relationType") or entry.get("relation")
+    resource_type = entry.get("resourceType") or entry.get("resource_type")
+
+    relation_text = relation.lower() if isinstance(relation, str) else ""
+    resource_text = resource_type.lower() if isinstance(resource_type, str) else ""
+
+    if any(token in relation_text for token in PUBLICATION_RELATION_HINTS):
+        return True
+    if any(token in resource_text for token in PUBLICATION_RESOURCE_TYPE_HINTS):
+        return True
+    return False
+
+
+def extract_related_publication_dois(
+    entries: object, requested_doi: str | None = None
+) -> list[str]:
+    """Extract publication DOI candidates from related-identifier style entries."""
+    if not isinstance(entries, list):
+        return []
+
+    dois: list[str] = []
+    seen: set[str] = set()
+
+    for entry in entries:
+        if not isinstance(entry, dict) or not related_identifier_looks_publication(entry):
+            continue
+
+        identifier = (
+            entry.get("relatedIdentifier")
+            or entry.get("identifier")
+            or entry.get("doi")
+            or entry.get("url")
+        )
+        if not isinstance(identifier, str):
+            continue
+
+        for doi in extract_doi_references(identifier, requested_doi=requested_doi):
+            lowered = doi.lower()
+            if lowered in seen:
+                continue
+            seen.add(lowered)
+            dois.append(doi)
+
+    return dois
 
 
 def _strip_trailing_doi_delimiters(token: str) -> str:
@@ -321,7 +544,7 @@ def normalize_doi(raw: str) -> str:
         "http://dx.doi.org/",
     ):
         if doi.lower().startswith(url_prefix):
-            doi = doi[len(url_prefix) :]
+            doi = doi[len(url_prefix):]
             break
     if doi.lower().startswith("doi:"):
         doi = doi[4:]
@@ -491,7 +714,8 @@ def _classify_crossref(doi: str, prefix: str | None, ra: str) -> DoiClassificati
             resource_type=resource_type,
             publisher=msg.get("publisher"),
             prefix=prefix,
-            inferred_nmdc_category=infer_nmdc_category(ra, resource_type, None),
+            inferred_nmdc_category=infer_nmdc_category(
+                ra, resource_type, None),
         )
     except (requests.RequestException, ValueError) as e:
         return DoiClassification(
@@ -525,7 +749,8 @@ def _classify_datacite(doi: str, prefix: str | None, ra: str) -> DoiClassificati
             resource_type_general=resource_type_general,
             publisher=attrs.get("publisher"),
             prefix=prefix,
-            inferred_nmdc_category=infer_nmdc_category(ra, resource_type, resource_type_general),
+            inferred_nmdc_category=infer_nmdc_category(
+                ra, resource_type, resource_type_general),
         )
     except (requests.RequestException, ValueError) as e:
         return DoiClassification(

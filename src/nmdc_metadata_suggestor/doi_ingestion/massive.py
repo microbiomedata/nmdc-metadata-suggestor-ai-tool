@@ -14,6 +14,10 @@ from nmdc_metadata_suggestor.constants import (
 from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     append_error,
     clean_text,
+    extract_document_urls_from_file_entries,
+    extract_doi_references,
+    extract_related_publication_dois,
+    merge_unique_strings,
     request_with_retry,
     text_mentions_doi,
 )
@@ -22,25 +26,67 @@ from nmdc_metadata_suggestor.models.resolver_context import ResolverContext
 
 def try_massive(doi: str, errors: list[str] | None = None) -> ResolverContext | None:
     """Return cleaned/raw context from MassIVE via ProteomeCentral lookups."""
+    accumulated_urls: list[str] | None = None
+    accumulated_dois: list[str] | None = None
+
     for accession in _collect_massive_accession_candidates(doi, errors=errors):
         payload = _fetch_proxi_dataset(accession, errors=errors)
         if payload is None:
             continue
-        context = _extract_massive_context(payload)
+        context = _extract_massive_context(payload, requested_doi=doi)
         if context is not None:
-            return context
+            accumulated_urls = merge_unique_strings(
+                accumulated_urls, context.urls)
+            accumulated_dois = merge_unique_strings(
+                accumulated_dois, context.publication_dois)
+            if context.text:
+                return ResolverContext(
+                    text=context.text,
+                    raw_text=context.raw_text,
+                    kind=context.kind,
+                    source=context.source,
+                    urls=accumulated_urls,
+                    publication_dois=accumulated_dois,
+                )
 
     for accession in _search_proxi_accessions_by_doi(doi, errors=errors):
         payload = _fetch_proxi_dataset(accession, errors=errors)
         if payload is None:
             continue
-        context = _extract_massive_context(payload)
+        context = _extract_massive_context(payload, requested_doi=doi)
         if context is not None:
-            return context
+            accumulated_urls = merge_unique_strings(
+                accumulated_urls, context.urls)
+            accumulated_dois = merge_unique_strings(
+                accumulated_dois, context.publication_dois)
+            if context.text:
+                return ResolverContext(
+                    text=context.text,
+                    raw_text=context.raw_text,
+                    kind=context.kind,
+                    source=context.source,
+                    urls=accumulated_urls,
+                    publication_dois=accumulated_dois,
+                )
 
     context = _extract_massive_context_from_datacite_titles(doi, errors=errors)
     if context is not None:
-        return context
+        return ResolverContext(
+            text=context.text,
+            raw_text=context.raw_text,
+            kind=context.kind,
+            source=context.source,
+            urls=accumulated_urls,
+            publication_dois=accumulated_dois,
+        )
+    if accumulated_urls or accumulated_dois:
+        return ResolverContext(
+            text=None,
+            raw_text=None,
+            kind="description",
+            urls=accumulated_urls,
+            publication_dois=accumulated_dois,
+        )
     append_error(errors, "MassIVE/PROXI lookup returned no usable context")
     return None
 
@@ -76,11 +122,13 @@ def _resolve_doi_redirect_location(doi: str, errors: list[str] | None = None) ->
             allow_redirects=False,
         )
     except requests.RequestException as exc:
-        append_error(errors, f"DOI redirect lookup failed: {exc.__class__.__name__}")
+        append_error(
+            errors, f"DOI redirect lookup failed: {exc.__class__.__name__}")
         return None
 
     if response.status_code not in {301, 302, 303, 307, 308}:
-        append_error(errors, f"DOI redirect lookup returned HTTP {response.status_code}")
+        append_error(
+            errors, f"DOI redirect lookup returned HTTP {response.status_code}")
         return None
 
     location = response.headers.get("Location")
@@ -139,14 +187,17 @@ def _fetch_proxi_dataset_rows(
             timeout=DEFAULT_TIMEOUT,
         )
         if response.status_code != 200:
-            append_error(errors, f"PROXI dataset rows request returned HTTP {response.status_code}")
+            append_error(
+                errors, f"PROXI dataset rows request returned HTTP {response.status_code}")
             return []
         payload = response.json()
     except requests.RequestException as exc:
-        append_error(errors, f"PROXI dataset rows request failed: {exc.__class__.__name__}")
+        append_error(
+            errors, f"PROXI dataset rows request failed: {exc.__class__.__name__}")
         return []
     except ValueError:
-        append_error(errors, "PROXI dataset rows request returned invalid JSON")
+        append_error(
+            errors, "PROXI dataset rows request returned invalid JSON")
         return []
 
     datasets = payload.get("datasets")
@@ -192,11 +243,13 @@ def _fetch_proxi_dataset(
             timeout=DEFAULT_TIMEOUT,
         )
         if response.status_code != 200:
-            append_error(errors, f"PROXI dataset request returned HTTP {response.status_code}")
+            append_error(
+                errors, f"PROXI dataset request returned HTTP {response.status_code}")
             return None
         payload = response.json()
     except requests.RequestException as exc:
-        append_error(errors, f"PROXI dataset request failed: {exc.__class__.__name__}")
+        append_error(
+            errors, f"PROXI dataset request failed: {exc.__class__.__name__}")
         return None
     except ValueError:
         append_error(errors, "PROXI dataset request returned invalid JSON")
@@ -207,7 +260,9 @@ def _fetch_proxi_dataset(
     return None
 
 
-def _extract_massive_context(payload: dict[str, object]) -> ResolverContext | None:
+def _extract_massive_context(
+    payload: dict[str, object], requested_doi: str
+) -> ResolverContext | None:
     """Extract best available context from a PROXI dataset payload."""
     status = payload.get("status")
     if isinstance(status, str) and status.strip().lower() == "error":
@@ -217,19 +272,44 @@ def _extract_massive_context(payload: dict[str, object]) -> ResolverContext | No
         if isinstance(status_value, str) and status_value.strip().lower() == "error":
             return None
 
+    publication_urls, publication_dois = _extract_massive_publication_metadata(
+        payload,
+        requested_doi=requested_doi,
+    )
+
     for key in ("description", "dataset_description", "summary"):
         value = payload.get(key)
         if isinstance(value, str) and value.strip():
             cleaned = clean_text(value)
             if cleaned:
-                return ResolverContext(text=cleaned, raw_text=value, kind="description")
+                return ResolverContext(
+                    text=cleaned,
+                    raw_text=value,
+                    kind="description",
+                    urls=publication_urls,
+                    publication_dois=publication_dois,
+                )
 
     for key in ("title", "dataset_title"):
         value = payload.get(key)
         if isinstance(value, str) and value.strip():
             cleaned = clean_text(value)
             if cleaned:
-                return ResolverContext(text=cleaned, raw_text=value, kind="description")
+                return ResolverContext(
+                    text=cleaned,
+                    raw_text=value,
+                    kind="description",
+                    urls=publication_urls,
+                    publication_dois=publication_dois,
+                )
+    if publication_urls or publication_dois:
+        return ResolverContext(
+            text=None,
+            raw_text=None,
+            kind="description",
+            urls=publication_urls,
+            publication_dois=publication_dois,
+        )
     return None
 
 
@@ -245,11 +325,13 @@ def _extract_massive_context_from_datacite_titles(
             timeout=DEFAULT_TIMEOUT,
         )
         if response.status_code != 200:
-            append_error(errors, f"DataCite API returned HTTP {response.status_code}")
+            append_error(
+                errors, f"DataCite API returned HTTP {response.status_code}")
             return None
         attrs = response.json().get("data", {}).get("attributes", {})
     except requests.RequestException as exc:
-        append_error(errors, f"DataCite API request failed: {exc.__class__.__name__}")
+        append_error(
+            errors, f"DataCite API request failed: {exc.__class__.__name__}")
         return None
     except ValueError:
         append_error(errors, "DataCite API returned invalid JSON")
@@ -272,6 +354,44 @@ def _extract_massive_context_from_datacite_titles(
         kind="description",
         source="datacite",
     )
+
+
+def _extract_massive_publication_metadata(
+    payload: dict[str, object], requested_doi: str
+) -> tuple[list[str] | None, list[str] | None]:
+    """Extract publication file URLs and linked publication DOIs from PROXI payloads."""
+    publication_urls: list[str] | None = None
+    publication_dois: list[str] | None = None
+
+    for key in ("files", "datasetFiles", "publications", "fullDatasetLinks", "links"):
+        value = payload.get(key)
+        publication_urls = merge_unique_strings(
+            publication_urls,
+            extract_document_urls_from_file_entries(value),
+        )
+        publication_dois = merge_unique_strings(
+            publication_dois,
+            extract_related_publication_dois(
+                value, requested_doi=requested_doi),
+        )
+        if isinstance(value, list):
+            for item in value:
+                if isinstance(item, str):
+                    publication_dois = merge_unique_strings(
+                        publication_dois,
+                        extract_doi_references(
+                            item, requested_doi=requested_doi),
+                    )
+
+    for key in ("publication", "citation", "publication_doi"):
+        value = payload.get(key)
+        if isinstance(value, str):
+            publication_dois = merge_unique_strings(
+                publication_dois,
+                extract_doi_references(value, requested_doi=requested_doi),
+            )
+
+    return publication_urls, publication_dois
 
 
 def _pick_massive_datacite_title(titles: list[object]) -> str | None:

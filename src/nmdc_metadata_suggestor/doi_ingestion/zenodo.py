@@ -6,6 +6,8 @@ from nmdc_metadata_suggestor.constants import DEFAULT_TIMEOUT, USER_AGENT, ZENOD
 from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     append_error,
     clean_text,
+    extract_document_urls_from_file_entries,
+    extract_related_publication_dois,
     normalize_doi,
     request_with_retry,
 )
@@ -24,11 +26,13 @@ def try_zenodo(doi: str, errors: list[str] | None = None) -> ResolverContext | N
             timeout=DEFAULT_TIMEOUT,
         )
         if response.status_code != 200:
-            append_error(errors, f"Zenodo API returned HTTP {response.status_code}")
+            append_error(
+                errors, f"Zenodo API returned HTTP {response.status_code}")
             return None
         payload = response.json()
     except requests.RequestException as exc:
-        append_error(errors, f"Zenodo API request failed: {exc.__class__.__name__}")
+        append_error(
+            errors, f"Zenodo API request failed: {exc.__class__.__name__}")
         return None
     except ValueError:
         append_error(errors, "Zenodo API returned invalid JSON")
@@ -49,11 +53,31 @@ def try_zenodo(doi: str, errors: list[str] | None = None) -> ResolverContext | N
         metadata = hit.get("metadata", {})
         if not isinstance(metadata, dict):
             continue
+        publication_urls = extract_document_urls_from_file_entries(
+            hit.get("files"))
+        publication_dois = extract_related_publication_dois(
+            metadata.get("related_identifiers"),
+            requested_doi=doi,
+        )
         description = metadata.get("description")
         if isinstance(description, str):
             cleaned = clean_text(description)
             if cleaned:
-                return ResolverContext(text=cleaned, raw_text=description, kind="description")
+                return ResolverContext(
+                    text=cleaned,
+                    raw_text=description,
+                    kind="description",
+                    urls=publication_urls or None,
+                    publication_dois=publication_dois or None,
+                )
+        if publication_urls or publication_dois:
+            return ResolverContext(
+                text=None,
+                raw_text=None,
+                kind="description",
+                urls=publication_urls or None,
+                publication_dois=publication_dois or None,
+            )
     append_error(errors, "Zenodo response contained no usable description")
     return None
 

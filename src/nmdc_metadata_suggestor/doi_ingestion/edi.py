@@ -13,7 +13,11 @@ from nmdc_metadata_suggestor.constants import (
 )
 from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     append_error,
+    extract_doi_references,
     extract_first_xml_text,
+    extract_http_urls,
+    looks_like_document_url,
+    merge_unique_strings,
     request_with_retry,
 )
 from nmdc_metadata_suggestor.models.resolver_context import ResolverContext
@@ -33,30 +37,57 @@ def try_edi(doi: str, errors: list[str] | None = None) -> ResolverContext | None
             timeout=DEFAULT_TIMEOUT,
         )
         if response.status_code != 200:
-            append_error(errors, f"EDI metadata request returned HTTP {response.status_code}")
+            append_error(
+                errors, f"EDI metadata request returned HTTP {response.status_code}")
             return None
         xml_text = response.text
         if len(xml_text) > MAX_EDI_METADATA_XML_CHARS:
             append_error(errors, "EDI metadata XML exceeded size limit")
             return None
         if UNSAFE_XML_DECLARATION_PATTERN.search(xml_text):
-            append_error(errors, "EDI metadata XML contains unsafe declarations")
+            append_error(
+                errors, "EDI metadata XML contains unsafe declarations")
             return None
         root = ET.fromstring(xml_text)
     except requests.RequestException as exc:
-        append_error(errors, f"EDI metadata request failed: {exc.__class__.__name__}")
+        append_error(
+            errors, f"EDI metadata request failed: {exc.__class__.__name__}")
         return None
     except ET.ParseError:
         append_error(errors, "EDI metadata response was not valid XML")
         return None
 
+    publication_urls, publication_dois = _extract_edi_publication_metadata(
+        root, requested_doi=doi)
+
     abstract = extract_first_xml_text(root, {"abstract"})
     if abstract:
-        return ResolverContext(text=abstract, raw_text=abstract, kind="abstract")
+        return ResolverContext(
+            text=abstract,
+            raw_text=abstract,
+            kind="abstract",
+            urls=publication_urls,
+            publication_dois=publication_dois,
+        )
 
-    description = extract_first_xml_text(root, {"purpose", "description", "title"})
+    description = extract_first_xml_text(
+        root, {"purpose", "description", "title"})
     if description:
-        return ResolverContext(text=description, raw_text=description, kind="description")
+        return ResolverContext(
+            text=description,
+            raw_text=description,
+            kind="description",
+            urls=publication_urls,
+            publication_dois=publication_dois,
+        )
+    if publication_urls or publication_dois:
+        return ResolverContext(
+            text=None,
+            raw_text=None,
+            kind="description",
+            urls=publication_urls,
+            publication_dois=publication_dois,
+        )
     append_error(errors, "EDI metadata contained no abstract/description text")
     return None
 
@@ -71,10 +102,12 @@ def _resolve_edi_metadata_url(doi: str, errors: list[str] | None = None) -> str 
             timeout=DEFAULT_TIMEOUT,
         )
         if response.status_code != 200:
-            append_error(errors, f"EDI DOI API returned HTTP {response.status_code}")
+            append_error(
+                errors, f"EDI DOI API returned HTTP {response.status_code}")
             return None
     except requests.RequestException as exc:
-        append_error(errors, f"EDI DOI API request failed: {exc.__class__.__name__}")
+        append_error(
+            errors, f"EDI DOI API request failed: {exc.__class__.__name__}")
         return None
 
     for line in response.text.splitlines():
@@ -83,3 +116,27 @@ def _resolve_edi_metadata_url(doi: str, errors: list[str] | None = None) -> str 
             return candidate
     append_error(errors, "EDI DOI API response did not include metadata URL")
     return None
+
+
+def _extract_edi_publication_metadata(
+    root: ET.Element, requested_doi: str
+) -> tuple[list[str] | None, list[str] | None]:
+    """Extract publication file URLs and linked DOIs from EDI EML metadata."""
+    publication_urls: list[str] | None = None
+    publication_dois: list[str] | None = None
+
+    for element in root.iter():
+        raw = "".join(element.itertext()).strip()
+        if not raw:
+            continue
+        publication_urls = merge_unique_strings(
+            publication_urls,
+            [url for url in extract_http_urls(
+                raw) if looks_like_document_url(url)],
+        )
+        publication_dois = merge_unique_strings(
+            publication_dois,
+            extract_doi_references(raw, requested_doi=requested_doi),
+        )
+
+    return publication_urls, publication_dois
