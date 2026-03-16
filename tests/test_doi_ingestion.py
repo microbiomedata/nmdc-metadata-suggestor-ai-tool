@@ -35,6 +35,7 @@ from nmdc_metadata_suggestor.constants import (
     DOI_RESOLVER_URL,
     EDI_DOI_API,
     EMSL_PROJECTS_API,
+    EMSL_SCIENCECENTRAL_STUDY_LIGHT_API,
     ESS_DIVE_API,
     FIGSHARE_API,
     FIGSHARE_COLLECTIONS_API,
@@ -312,6 +313,22 @@ def _mock_provider_resolver_hit(source: str, doi: str) -> None:
     if source == "emsl":
         match = re.search(r"\.proj\.\d{4}\.(\d+)(?:/|$)", doi)
         project_id = match.group(1) if match is not None else "48483"
+        responses.add(
+            responses.POST,
+            EMSL_SCIENCECENTRAL_STUDY_LIGHT_API,
+            json={
+                "hits": {
+                    "hits": [
+                        {
+                            "_source": {
+                                "id": project_id,
+                                "abstract": "Fixture EMSL abstract.",
+                            }
+                        }
+                    ]
+                }
+            },
+        )
         responses.add(
             responses.GET,
             f"{EMSL_PROJECTS_API}/{project_id}",
@@ -687,8 +704,24 @@ def test_edi_unsafe_metadata_xml_falls_back_to_datacite() -> None:
 
 @responses.activate
 def test_emsl_provider_api_abstract_wins() -> None:
-    """Resolve EMSL award DOI to project details and return abstract text."""
+    """Prefer ScienceCentral text when resolving an EMSL DOI."""
     doi = "10.46936/jejc.proj.2014.48483/60005501"
+    responses.add(
+        responses.POST,
+        EMSL_SCIENCECENTRAL_STUDY_LIGHT_API,
+        json={
+            "hits": {
+                "hits": [
+                    {
+                        "_source": {
+                            "id": "48483",
+                            "abstract": "ScienceCentral abstract text.",
+                        }
+                    }
+                ]
+            }
+        },
+    )
     responses.add(
         responses.GET,
         f"{EMSL_PROJECTS_API}/48483",
@@ -696,7 +729,7 @@ def test_emsl_provider_api_abstract_wins() -> None:
     )
 
     result = get_doi_description_or_abstract(doi)
-    assert result.context == "EMSL project abstract text."
+    assert result.context == "ScienceCentral abstract text."
     assert result.context_type == "abstract"
     assert result.source == "emsl"
     assert result.provider == "emsl"
@@ -709,6 +742,11 @@ def test_emsl_link_only_falls_back_and_preserves_publication_metadata() -> None:
     doi = "10.46936/jejc.proj.2014.48483/60005501"
     publication_doi = "10.1000/emsl-paper"
     publication_url = "https://example.org/emsl-paper.pdf"
+    responses.add(
+        responses.POST,
+        EMSL_SCIENCECENTRAL_STUDY_LIGHT_API,
+        json={"hits": {"hits": []}},
+    )
     responses.add(
         responses.GET,
         f"{EMSL_PROJECTS_API}/48483",
@@ -745,6 +783,11 @@ def test_emsl_mismatch_falls_back_to_datacite() -> None:
     """If EMSL project lookup DOI does not match, continue waterfall."""
     doi = "10.46936/jejc.proj.2014.48483/60005501"
     responses.add(
+        responses.POST,
+        EMSL_SCIENCECENTRAL_STUDY_LIGHT_API,
+        json={"hits": {"hits": []}},
+    )
+    responses.add(
         responses.GET,
         f"{EMSL_PROJECTS_API}/48483",
         json=_json_payload("emsl_mismatch_project"),
@@ -761,6 +804,79 @@ def test_emsl_mismatch_falls_back_to_datacite() -> None:
     assert result.source == "datacite"
     assert result.provider == "emsl"
     assert result.attempts == ["emsl", "datacite"]
+
+
+@responses.activate
+def test_emsl_sciencecentral_text_merges_external_publication_metadata() -> None:
+    """Keep ScienceCentral text while enriching publication metadata from external EMSL."""
+    doi = "10.46936/jejc.proj.2014.48483/60005501"
+    publication_doi = "10.1000/emsl-paper"
+    publication_url = "https://example.org/emsl-paper.pdf"
+    responses.add(
+        responses.POST,
+        EMSL_SCIENCECENTRAL_STUDY_LIGHT_API,
+        json={
+            "hits": {
+                "hits": [
+                    {
+                        "_source": {
+                            "id": "48483",
+                            "abstract": "ScienceCentral abstract text.",
+                        }
+                    }
+                ]
+            }
+        },
+    )
+    responses.add(
+        responses.GET,
+        f"{EMSL_PROJECTS_API}/48483",
+        json={
+            "award_doi": doi,
+            "publications": [
+                {
+                    "url": publication_url,
+                    "relatedIdentifier": publication_doi,
+                    "relation": "isPublishedIn",
+                    "resource_type": "journal-article",
+                }
+            ],
+        },
+    )
+
+    result = get_doi_description_or_abstract(doi)
+
+    assert result.context == "ScienceCentral abstract text."
+    assert result.context_type == "abstract"
+    assert result.source == "emsl"
+    assert result.provider == "emsl"
+    assert result.attempts == ["emsl"]
+    assert result.publication_urls == [publication_url]
+    assert result.publication_dois == [publication_doi]
+
+
+@responses.activate
+def test_emsl_sciencecentral_miss_falls_back_to_external_text() -> None:
+    """Use the external EMSL projects API when ScienceCentral returns no matching study."""
+    doi = "10.46936/jejc.proj.2014.48483/60005501"
+    responses.add(
+        responses.POST,
+        EMSL_SCIENCECENTRAL_STUDY_LIGHT_API,
+        json={"hits": {"hits": []}},
+    )
+    responses.add(
+        responses.GET,
+        f"{EMSL_PROJECTS_API}/48483",
+        json=_json_payload("emsl_provider_hit", doi=doi),
+    )
+
+    result = get_doi_description_or_abstract(doi)
+
+    assert result.context == "EMSL project abstract text."
+    assert result.context_type == "abstract"
+    assert result.source == "emsl"
+    assert result.provider == "emsl"
+    assert result.attempts == ["emsl"]
 
 
 @responses.activate

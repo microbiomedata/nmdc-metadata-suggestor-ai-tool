@@ -66,6 +66,7 @@ CITEPROC_JSON_ACCEPT = "application/vnd.citationstyles.csl+json"
 # ---------------------------------------------------------------------------
 EDI_DOI_API = "https://pasta.lternet.edu/package/doi"
 EMSL_PROJECTS_API = "https://api.emsl.pnnl.gov/external/projects"
+EMSL_SCIENCECENTRAL_STUDY_LIGHT_API = "https://sc-data.emsl.pnnl.gov/study/light"
 ESS_DIVE_API = "https://api.ess-dive.lbl.gov/packages"
 DATAONE_CN_SOLR_API = "https://cn.dataone.org/cn/v2/query/solr/"
 DATAONE_CN_OBJECT_API = "https://cn.dataone.org/cn/v2/object"
