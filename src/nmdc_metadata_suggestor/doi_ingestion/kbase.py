@@ -13,10 +13,6 @@ from nmdc_metadata_suggestor.constants import (
 from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     append_error,
     clean_text,
-    extract_doi_references,
-    extract_http_urls,
-    looks_like_document_url,
-    merge_unique_strings,
     request_with_retry,
     text_mentions_doi,
 )
@@ -67,46 +63,13 @@ def try_kbase(doi: str, errors: list[str] | None = None) -> ResolverContext | No
         append_error(errors, "KBase search API response missing result object")
         return None
 
-    accumulated_urls: list[str] | None = None
-    accumulated_dois: list[str] | None = None
-
     context = _extract_kbase_context(result, doi)
     if context is not None:
-        accumulated_urls = merge_unique_strings(accumulated_urls, context.urls)
-        accumulated_dois = merge_unique_strings(
-            accumulated_dois, context.publication_dois)
-        if context.text:
-            return ResolverContext(
-                text=context.text,
-                raw_text=context.raw_text,
-                kind=context.kind,
-                source=context.source,
-                urls=accumulated_urls,
-                publication_dois=accumulated_dois,
-            )
+        return context
 
     workspace_context = _try_kbase_workspace_ref(doi, errors=errors)
     if workspace_context is not None:
-        return ResolverContext(
-            text=workspace_context.text,
-            raw_text=workspace_context.raw_text,
-            kind=workspace_context.kind,
-            source=workspace_context.source,
-            urls=merge_unique_strings(
-                accumulated_urls, workspace_context.urls),
-            publication_dois=merge_unique_strings(
-                accumulated_dois,
-                workspace_context.publication_dois,
-            ),
-        )
-    if accumulated_urls or accumulated_dois:
-        return ResolverContext(
-            text=None,
-            raw_text=None,
-            kind="description",
-            urls=accumulated_urls,
-            publication_dois=accumulated_dois,
-        )
+        return workspace_context
     append_error(
         errors, "KBase APIs returned no matching abstract/description")
     return None
@@ -121,8 +84,6 @@ def _extract_kbase_context(result: dict[str, object], requested_doi: str) -> Res
     best_matching_text: str | None = None
     best_fallback_text: str | None = None
     best_title: str | None = None
-    publication_urls: list[str] | None = None
-    publication_dois: list[str] | None = None
 
     for hit in hits:
         if not isinstance(hit, dict):
@@ -134,14 +95,6 @@ def _extract_kbase_context(result: dict[str, object], requested_doi: str) -> Res
         title = doc.get("narrative_title")
         if best_title is None and isinstance(title, str) and title.strip():
             best_title = title
-            publication_urls = merge_unique_strings(
-                publication_urls,
-                _extract_kbase_document_urls(title),
-            )
-            publication_dois = merge_unique_strings(
-                publication_dois,
-                extract_doi_references(title, requested_doi=requested_doi),
-            )
 
         cells = doc.get("cells")
         if not isinstance(cells, list):
@@ -153,15 +106,6 @@ def _extract_kbase_context(result: dict[str, object], requested_doi: str) -> Res
             desc = cell.get("desc")
             if not isinstance(desc, str) or not desc.strip():
                 continue
-
-            publication_urls = merge_unique_strings(
-                publication_urls,
-                _extract_kbase_document_urls(desc),
-            )
-            publication_dois = merge_unique_strings(
-                publication_dois,
-                extract_doi_references(desc, requested_doi=requested_doi),
-            )
 
             if text_mentions_doi(desc, requested_doi):
                 if best_matching_text is None or len(desc) > len(best_matching_text):
@@ -176,8 +120,6 @@ def _extract_kbase_context(result: dict[str, object], requested_doi: str) -> Res
                 text=cleaned,
                 raw_text=best_matching_text,
                 kind="description",
-                urls=publication_urls,
-                publication_dois=publication_dois,
             )
 
     if best_fallback_text:
@@ -187,8 +129,6 @@ def _extract_kbase_context(result: dict[str, object], requested_doi: str) -> Res
                 text=cleaned,
                 raw_text=best_fallback_text,
                 kind="description",
-                urls=publication_urls,
-                publication_dois=publication_dois,
             )
 
     if best_title:
@@ -198,17 +138,7 @@ def _extract_kbase_context(result: dict[str, object], requested_doi: str) -> Res
                 text=cleaned,
                 raw_text=best_title,
                 kind="description",
-                urls=publication_urls,
-                publication_dois=publication_dois,
             )
-    if publication_urls or publication_dois:
-        return ResolverContext(
-            text=None,
-            raw_text=None,
-            kind="description",
-            urls=publication_urls,
-            publication_dois=publication_dois,
-        )
     return None
 
 
@@ -312,11 +242,6 @@ def _extract_kbase_object_info_context(
     if not isinstance(metadata, dict):
         metadata = {}
 
-    publication_urls, publication_dois = _extract_kbase_metadata_publication_metadata(
-        metadata,
-        requested_doi=requested_doi,
-    )
-
     candidates: list[str] = []
     for key in ("description", "name", "title", "narrative_nice_name"):
         value = metadata.get(key)
@@ -340,8 +265,6 @@ def _extract_kbase_object_info_context(
             text=cleaned,
             raw_text=raw,
             kind="description",
-            urls=publication_urls,
-            publication_dois=publication_dois,
         )
 
     summary = _build_kbase_object_metadata_summary(
@@ -353,17 +276,7 @@ def _extract_kbase_object_info_context(
                 text=cleaned,
                 raw_text=summary,
                 kind="description",
-                urls=publication_urls,
-                publication_dois=publication_dois,
             )
-    if publication_urls or publication_dois:
-        return ResolverContext(
-            text=None,
-            raw_text=None,
-            kind="description",
-            urls=publication_urls,
-            publication_dois=publication_dois,
-        )
     return None
 
 
@@ -422,30 +335,3 @@ def _humanize_kbase_object_name(object_name: object) -> str | None:
     humanized = re.sub(r"[_\-.]+", " ", stripped)
     humanized = re.sub(r"\s+", " ", humanized).strip()
     return humanized or None
-
-
-def _extract_kbase_document_urls(text: str) -> list[str]:
-    """Extract likely document URLs from free-text KBase narrative content."""
-    return [url for url in extract_http_urls(text) if looks_like_document_url(url)]
-
-
-def _extract_kbase_metadata_publication_metadata(
-    metadata: dict[str, object], requested_doi: str
-) -> tuple[list[str] | None, list[str] | None]:
-    """Extract publication links and related DOIs from KBase object metadata strings."""
-    publication_urls: list[str] | None = None
-    publication_dois: list[str] | None = None
-
-    for value in metadata.values():
-        if not isinstance(value, str) or not value.strip():
-            continue
-        publication_urls = merge_unique_strings(
-            publication_urls,
-            _extract_kbase_document_urls(value),
-        )
-        publication_dois = merge_unique_strings(
-            publication_dois,
-            extract_doi_references(value, requested_doi=requested_doi),
-        )
-
-    return publication_urls, publication_dois

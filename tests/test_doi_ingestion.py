@@ -422,7 +422,7 @@ def test_fixture_provider_dois_use_expected_resolvers(doi: str, expected_source:
     """Fixture provider DOIs should resolve via their specific source first."""
     _mock_provider_resolver_hit(expected_source, doi)
 
-    result = get_doi_description_or_abstract(doi)
+    result = get_doi_description_or_abstract(doi, sources=[expected_source])
     assert result.context is not None
     assert result.source == expected_source
     assert result.provider == expected_source
@@ -503,7 +503,7 @@ def test_datacite_prefers_abstract_over_description() -> None:
         json=_json_payload("datacite_prefers_abstract"),
     )
 
-    result = get_doi_description_or_abstract(doi)
+    result = get_doi_description_or_abstract(doi, sources=["datacite"])
     assert result.context == "Primary abstract"
     assert result.context_type == "abstract"
     assert result.source == "datacite"
@@ -630,8 +630,8 @@ def test_edi_provider_api_abstract_wins() -> None:
 
 
 @responses.activate
-def test_edi_link_only_falls_back_and_preserves_publication_metadata() -> None:
-    """EDI link-only metadata should continue the waterfall and retain publication links."""
+def test_edi_link_only_falls_back_without_publication_metadata() -> None:
+    """EDI should ignore unconfirmed publication metadata and continue the waterfall."""
     doi = "10.6073/pasta/abc123"
     metadata_url = "https://pasta.lternet.edu/package/metadata/eml/edi/123/1"
     publication_doi = "10.1000/edi-paper"
@@ -666,8 +666,8 @@ def test_edi_link_only_falls_back_and_preserves_publication_metadata() -> None:
     assert result.context == "DataCite fallback after EDI link-only metadata"
     assert result.source == "datacite"
     assert result.attempts == ["edi", "datacite"]
-    assert result.publication_urls == [publication_url]
-    assert result.publication_dois == [publication_doi]
+    assert result.publication_urls is None
+    assert result.publication_dois is None
 
 
 @responses.activate
@@ -722,23 +722,18 @@ def test_emsl_provider_api_abstract_wins() -> None:
             }
         },
     )
-    responses.add(
-        responses.GET,
-        f"{EMSL_PROJECTS_API}/48483",
-        json=_json_payload("emsl_provider_hit", doi=doi),
-    )
-
-    result = get_doi_description_or_abstract(doi)
+    result = get_doi_description_or_abstract(doi, sources=["emsl"])
     assert result.context == "ScienceCentral abstract text."
     assert result.context_type == "abstract"
     assert result.source == "emsl"
     assert result.provider == "emsl"
     assert result.attempts == ["emsl"]
+    assert len(responses.calls) == 1
 
 
 @responses.activate
-def test_emsl_link_only_falls_back_and_preserves_publication_metadata() -> None:
-    """EMSL publication links should be preserved when the provider payload has no text."""
+def test_emsl_link_only_falls_back_without_publication_metadata() -> None:
+    """EMSL should ignore unconfirmed publication metadata and continue the waterfall."""
     doi = "10.46936/jejc.proj.2014.48483/60005501"
     publication_doi = "10.1000/emsl-paper"
     publication_url = "https://example.org/emsl-paper.pdf"
@@ -774,8 +769,8 @@ def test_emsl_link_only_falls_back_and_preserves_publication_metadata() -> None:
     assert result.context == "DataCite fallback after EMSL link-only metadata"
     assert result.source == "datacite"
     assert result.attempts == ["emsl", "datacite"]
-    assert result.publication_urls == [publication_url]
-    assert result.publication_dois == [publication_doi]
+    assert result.publication_urls is None
+    assert result.publication_dois is None
 
 
 @responses.activate
@@ -807,11 +802,9 @@ def test_emsl_mismatch_falls_back_to_datacite() -> None:
 
 
 @responses.activate
-def test_emsl_sciencecentral_text_merges_external_publication_metadata() -> None:
-    """Keep ScienceCentral text while enriching publication metadata from external EMSL."""
+def test_emsl_sciencecentral_text_does_not_query_external_api() -> None:
+    """Avoid the external EMSL API when ScienceCentral already returned usable text."""
     doi = "10.46936/jejc.proj.2014.48483/60005501"
-    publication_doi = "10.1000/emsl-paper"
-    publication_url = "https://example.org/emsl-paper.pdf"
     responses.add(
         responses.POST,
         EMSL_SCIENCECENTRAL_STUDY_LIGHT_API,
@@ -828,31 +821,16 @@ def test_emsl_sciencecentral_text_merges_external_publication_metadata() -> None
             }
         },
     )
-    responses.add(
-        responses.GET,
-        f"{EMSL_PROJECTS_API}/48483",
-        json={
-            "award_doi": doi,
-            "publications": [
-                {
-                    "url": publication_url,
-                    "relatedIdentifier": publication_doi,
-                    "relation": "isPublishedIn",
-                    "resource_type": "journal-article",
-                }
-            ],
-        },
-    )
-
-    result = get_doi_description_or_abstract(doi)
+    result = get_doi_description_or_abstract(doi, sources=["emsl"])
 
     assert result.context == "ScienceCentral abstract text."
     assert result.context_type == "abstract"
     assert result.source == "emsl"
     assert result.provider == "emsl"
     assert result.attempts == ["emsl"]
-    assert result.publication_urls == [publication_url]
-    assert result.publication_dois == [publication_doi]
+    assert result.publication_urls is None
+    assert result.publication_dois is None
+    assert len(responses.calls) == 1
 
 
 @responses.activate
@@ -898,8 +876,8 @@ def test_jgi_provider_api_lay_description_wins() -> None:
 
 
 @responses.activate
-def test_jgi_link_only_falls_back_and_preserves_publication_metadata() -> None:
-    """JGI publication link metadata should survive a later DataCite text fallback."""
+def test_jgi_link_only_falls_back_without_publication_metadata() -> None:
+    """JGI should ignore unconfirmed publication metadata and continue the waterfall."""
     doi = "10.25585/1487763"
     publication_doi = "10.1000/jgi-paper"
     publication_url = "https://example.org/jgi-paper.pdf"
@@ -933,8 +911,8 @@ def test_jgi_link_only_falls_back_and_preserves_publication_metadata() -> None:
     assert result.context == "DataCite fallback after JGI link-only metadata"
     assert result.source == "datacite"
     assert result.attempts == ["jgi", "datacite"]
-    assert result.publication_urls == [publication_url]
-    assert result.publication_dois == [publication_doi]
+    assert result.publication_urls is None
+    assert result.publication_dois is None
 
 
 @responses.activate
@@ -1004,8 +982,8 @@ def test_kbase_provider_api_description_wins() -> None:
 
 
 @responses.activate
-def test_kbase_link_only_falls_back_and_preserves_publication_metadata() -> None:
-    """KBase workspace publication links should not stop the waterfall before text fallback."""
+def test_kbase_link_only_falls_back_without_publication_metadata() -> None:
+    """KBase should ignore unconfirmed publication metadata and continue the waterfall."""
     doi = "10.25982/156785.278/2588866"
     publication_doi = "10.1000/kbase-paper"
     publication_url = "https://example.org/kbase-paper.pdf"
@@ -1054,8 +1032,8 @@ def test_kbase_link_only_falls_back_and_preserves_publication_metadata() -> None
     assert result.context == "DataCite fallback after KBase link-only metadata"
     assert result.source == "datacite"
     assert result.attempts == ["kbase", "datacite"]
-    assert result.publication_urls == [publication_url]
-    assert result.publication_dois == [publication_doi]
+    assert result.publication_urls is None
+    assert result.publication_dois is None
 
 
 @responses.activate
@@ -1399,8 +1377,8 @@ def test_cyverse_provider_api_abstract_wins() -> None:
 
 
 @responses.activate
-def test_cyverse_link_only_falls_back_and_preserves_publication_metadata() -> None:
-    """CyVerse AVU publication links should survive a later DataCite text fallback."""
+def test_cyverse_link_only_falls_back_without_publication_metadata() -> None:
+    """CyVerse should ignore unconfirmed publication metadata and continue the waterfall."""
     doi = "10.17504/cyverse.dataset.67890"
     target_id = "7cfd91a9-2e07-4224-9c5b-26a04ce24122"
     publication_doi = "10.1000/cyverse-paper"
@@ -1440,8 +1418,8 @@ def test_cyverse_link_only_falls_back_and_preserves_publication_metadata() -> No
     assert result.context == "DataCite fallback after CyVerse link-only metadata"
     assert result.source == "datacite"
     assert result.attempts == ["cyverse", "datacite"]
-    assert result.publication_urls == [publication_url]
-    assert result.publication_dois == [publication_doi]
+    assert result.publication_urls is None
+    assert result.publication_dois is None
 
 
 @responses.activate

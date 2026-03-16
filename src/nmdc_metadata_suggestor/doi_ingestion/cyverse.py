@@ -17,10 +17,6 @@ from nmdc_metadata_suggestor.constants import (
 from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     append_error,
     clean_text,
-    extract_doi_references,
-    extract_http_urls,
-    looks_like_document_url,
-    merge_unique_strings,
     request_with_retry,
 )
 from nmdc_metadata_suggestor.models.resolver_context import ResolverContext
@@ -32,27 +28,13 @@ def try_cyverse(doi: str, errors: list[str] | None = None) -> ResolverContext | 
     """Return cleaned/raw context from CyVerse Terrain or Data Commons metadata."""
     terrain_errors: list[str] = []
     datacommons_errors: list[str] = []
-    accumulated_urls: list[str] | None = None
-    accumulated_dois: list[str] | None = None
 
     metadata_avus = _search_cyverse_metadata_for_doi(
         doi, errors=terrain_errors)
     if metadata_avus:
         context = _extract_cyverse_context(metadata_avus, doi)
         if context is not None:
-            accumulated_urls = merge_unique_strings(
-                accumulated_urls, context.urls)
-            accumulated_dois = merge_unique_strings(
-                accumulated_dois, context.publication_dois)
-            if context.text:
-                return ResolverContext(
-                    text=context.text,
-                    raw_text=context.raw_text,
-                    kind=context.kind,
-                    source=context.source,
-                    urls=accumulated_urls,
-                    publication_dois=accumulated_dois,
-                )
+            return context
 
         for target_id in _extract_cyverse_target_ids(metadata_avus):
             target_avus = _fetch_cyverse_target_metadata(
@@ -61,19 +43,7 @@ def try_cyverse(doi: str, errors: list[str] | None = None) -> ResolverContext | 
                 continue
             context = _extract_cyverse_context(target_avus, doi)
             if context is not None:
-                accumulated_urls = merge_unique_strings(
-                    accumulated_urls, context.urls)
-                accumulated_dois = merge_unique_strings(
-                    accumulated_dois, context.publication_dois)
-                if context.text:
-                    return ResolverContext(
-                        text=context.text,
-                        raw_text=context.raw_text,
-                        kind=context.kind,
-                        source=context.source,
-                        urls=accumulated_urls,
-                        publication_dois=accumulated_dois,
-                    )
+                return context
     else:
         append_error(terrain_errors,
                      "CyVerse metadata search returned no AVUs")
@@ -92,21 +62,6 @@ def try_cyverse(doi: str, errors: list[str] | None = None) -> ResolverContext | 
             raw_text=datacommons_context.raw_text,
             kind=datacommons_context.kind,
             source=datacommons_context.source,
-            urls=merge_unique_strings(
-                accumulated_urls, datacommons_context.urls),
-            publication_dois=merge_unique_strings(
-                accumulated_dois,
-                datacommons_context.publication_dois,
-            ),
-        )
-
-    if accumulated_urls or accumulated_dois:
-        return ResolverContext(
-            text=None,
-            raw_text=None,
-            kind="description",
-            urls=accumulated_urls,
-            publication_dois=accumulated_dois,
         )
 
     _append_errors(errors, terrain_errors)
@@ -380,10 +335,6 @@ def _extract_cyverse_context(
     best_rank = 99
     best_length = -1
     best_context: ResolverContext | None = None
-    publication_urls, publication_dois = _extract_cyverse_publication_metadata(
-        avus,
-        requested_doi=requested_doi,
-    )
 
     for avu in _iter_cyverse_avus(avus):
         attr = avu.get("attr")
@@ -407,20 +358,8 @@ def _extract_cyverse_context(
                 text=cleaned,
                 raw_text=raw_value,
                 kind=kind,
-                urls=publication_urls,
-                publication_dois=publication_dois,
             )
 
-    if best_context is not None:
-        return best_context
-    if publication_urls or publication_dois:
-        return ResolverContext(
-            text=None,
-            raw_text=None,
-            kind="description",
-            urls=publication_urls,
-            publication_dois=publication_dois,
-        )
     return best_context
 
 
@@ -467,40 +406,3 @@ def _cyverse_value_is_requested_doi(value: str, requested_doi: str) -> bool:
         f"https://doi.org/{doi_value}",
         f"http://doi.org/{doi_value}",
     }
-
-
-def _extract_cyverse_publication_metadata(
-    avus: list[dict[str, object]], requested_doi: str
-) -> tuple[list[str] | None, list[str] | None]:
-    """Extract publication-like document URLs and DOIs from CyVerse AVUs."""
-    publication_urls: list[str] | None = None
-    publication_dois: list[str] | None = None
-
-    for avu in _iter_cyverse_avus(avus):
-        attr = avu.get("attr")
-        value = avu.get("value")
-        if not isinstance(attr, str) or not isinstance(value, str) or not value.strip():
-            continue
-
-        attr_lower = attr.strip().lower()
-        extracted_urls = [url for url in extract_http_urls(
-            value) if looks_like_document_url(url)]
-        extracted_dois = extract_doi_references(
-            value, requested_doi=requested_doi)
-
-        if extracted_urls:
-            publication_urls = merge_unique_strings(
-                publication_urls, extracted_urls)
-
-        if extracted_dois and (
-            "publication" in attr_lower
-            or "citation" in attr_lower
-            or "manuscript" in attr_lower
-            or "article" in attr_lower
-            or "reference" in attr_lower
-            or not _cyverse_value_is_requested_doi(value, requested_doi)
-        ):
-            publication_dois = merge_unique_strings(
-                publication_dois, extracted_dois)
-
-    return publication_urls, publication_dois

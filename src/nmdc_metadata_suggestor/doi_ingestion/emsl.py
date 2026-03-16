@@ -13,10 +13,6 @@ from nmdc_metadata_suggestor.constants import (
 from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     append_error,
     clean_text,
-    extract_document_urls_from_file_entries,
-    extract_doi_references,
-    extract_related_publication_dois,
-    merge_unique_strings,
     normalize_doi,
     request_with_retry,
 )
@@ -30,47 +26,16 @@ def try_emsl(doi: str, errors: list[str] | None = None) -> ResolverContext | Non
         append_error(errors, "Could not extract EMSL project id from DOI")
         return None
 
-    accumulated_urls: list[str] | None = None
-    accumulated_dois: list[str] | None = None
-    preferred_context: ResolverContext | None = None
-
     sciencecentral_context = _fetch_emsl_sciencecentral_context(
-        project_id, requested_doi=doi, errors=errors)
+        project_id, errors=errors)
     if sciencecentral_context is not None:
-        accumulated_urls = merge_unique_strings(
-            accumulated_urls, sciencecentral_context.urls)
-        accumulated_dois = merge_unique_strings(
-            accumulated_dois, sciencecentral_context.publication_dois)
-        if sciencecentral_context.text:
-            preferred_context = sciencecentral_context
+        return sciencecentral_context
 
     external_context = _fetch_emsl_external_context(
         project_id, requested_doi=doi, errors=errors)
     if external_context is not None:
-        accumulated_urls = merge_unique_strings(
-            accumulated_urls, external_context.urls)
-        accumulated_dois = merge_unique_strings(
-            accumulated_dois, external_context.publication_dois)
-        if preferred_context is None and external_context.text:
-            preferred_context = external_context
+        return external_context
 
-    if preferred_context is not None:
-        return ResolverContext(
-            text=preferred_context.text,
-            raw_text=preferred_context.raw_text,
-            kind=preferred_context.kind,
-            source=preferred_context.source,
-            urls=accumulated_urls,
-            publication_dois=accumulated_dois,
-        )
-    if accumulated_urls or accumulated_dois:
-        return ResolverContext(
-            text=None,
-            raw_text=None,
-            kind="description",
-            urls=accumulated_urls,
-            publication_dois=accumulated_dois,
-        )
     append_error(errors, "EMSL APIs contained no abstract/description fields")
     return None
 
@@ -86,7 +51,6 @@ def _extract_emsl_project_id(doi: str) -> str | None:
 
 def _fetch_emsl_sciencecentral_context(
     project_id: str,
-    requested_doi: str,
     errors: list[str] | None = None,
 ) -> ResolverContext | None:
     """Return EMSL context from the ScienceCentral study search API."""
@@ -128,7 +92,7 @@ def _fetch_emsl_sciencecentral_context(
         append_error(
             errors, "EMSL ScienceCentral API returned no matching study")
         return None
-    return _extract_emsl_context(project, requested_doi=requested_doi)
+    return _extract_emsl_context(project)
 
 
 def _extract_emsl_sciencecentral_project(
@@ -191,18 +155,11 @@ def _fetch_emsl_external_context(
             append_error(errors, f"EMSL award_doi mismatch: {award_doi}")
             return None
 
-    return _extract_emsl_context(payload, requested_doi=requested_doi)
+    return _extract_emsl_context(payload)
 
 
-def _extract_emsl_context(
-    payload: dict[str, object], requested_doi: str
-) -> ResolverContext | None:
-    """Extract context text and publication metadata from an EMSL payload."""
-    publication_urls, publication_dois = _extract_emsl_publication_metadata(
-        payload,
-        requested_doi=requested_doi,
-    )
-
+def _extract_emsl_context(payload: dict[str, object]) -> ResolverContext | None:
+    """Extract context text from an EMSL payload."""
     abstract = payload.get("abstract")
     if isinstance(abstract, str) and abstract.strip():
         cleaned = clean_text(abstract)
@@ -211,8 +168,6 @@ def _extract_emsl_context(
                 text=cleaned,
                 raw_text=abstract,
                 kind="abstract",
-                urls=publication_urls,
-                publication_dois=publication_dois,
             )
 
     for key in ("title", "project_type"):
@@ -224,60 +179,5 @@ def _extract_emsl_context(
                     text=cleaned,
                     raw_text=value,
                     kind="description",
-                    urls=publication_urls,
-                    publication_dois=publication_dois,
                 )
-    if publication_urls or publication_dois:
-        return ResolverContext(
-            text=None,
-            raw_text=None,
-            kind="description",
-            urls=publication_urls,
-            publication_dois=publication_dois,
-        )
     return None
-
-
-def _extract_emsl_publication_metadata(
-    payload: dict[str, object], requested_doi: str
-) -> tuple[list[str] | None, list[str] | None]:
-    """Extract publication file links and related publication DOIs from EMSL payloads."""
-    publication_urls: list[str] | None = None
-    publication_dois: list[str] | None = None
-
-    for key in ("files", "documents", "publications", "related_publications"):
-        publication_urls = merge_unique_strings(
-            publication_urls,
-            extract_document_urls_from_file_entries(payload.get(key)),
-        )
-        publication_dois = merge_unique_strings(
-            publication_dois,
-            extract_related_publication_dois(
-                payload.get(key), requested_doi=requested_doi),
-        )
-
-    for key in ("publication_url", "fulltext_url", "pdf_url"):
-        value = payload.get(key)
-        if isinstance(value, str):
-            publication_urls = merge_unique_strings(
-                publication_urls,
-                extract_document_urls_from_file_entries([{"url": value}]),
-            )
-
-    for key in ("publication_doi", "publication_dois"):
-        value = payload.get(key)
-        if isinstance(value, str):
-            publication_dois = merge_unique_strings(
-                publication_dois,
-                extract_doi_references(value, requested_doi=requested_doi),
-            )
-        elif isinstance(value, list):
-            for item in value:
-                if isinstance(item, str):
-                    publication_dois = merge_unique_strings(
-                        publication_dois,
-                        extract_doi_references(
-                            item, requested_doi=requested_doi),
-                    )
-
-    return publication_urls, publication_dois
