@@ -29,6 +29,14 @@
       "expect_publication_urls": false,
       "expect_publication_dois": true,
       "origin": "MassIVE landing page publications block exposes linked article DOI even when PROXI detail is unavailable"
+    },
+    {
+      "source": "ess-dive",
+      "route": "explicit",
+      "doi": "10.15485/2588483",
+      "expect_publication_urls": false,
+      "expect_publication_dois": true,
+      "origin": "Public DataONE EML for the ESS-DIVE package includes additionalInfo/Related References with multiple linked DOIs"
     }
   ]
 }

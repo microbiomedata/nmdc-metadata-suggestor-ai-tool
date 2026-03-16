@@ -29,6 +29,7 @@ from nmdc_metadata_suggestor.constants import (
     CYVERSE_DATACOMMONS_API,
     CYVERSE_METADATA_API,
     CYVERSE_METADATA_SEARCH_API,
+    DATAONE_CN_OBJECT_API,
     DATAONE_CN_SOLR_API,
     DOI_CONTENT_NEGOTIATION_API,
     DOI_RESOLVER_URL,
@@ -1866,6 +1867,23 @@ def test_ess_dive_api_401_uses_dataone_fallback() -> None:
         body=XML_PAYLOAD_FIXTURES["dataone_ess_dive_hit_xml"],
         content_type="application/xml",
     )
+    responses.add(
+        responses.GET,
+        f"{DATAONE_CN_OBJECT_API}/ess-dive-abc-20260101",
+        body="""
+        <eml:eml xmlns:eml="https://eml.ecoinformatics.org/eml-2.2.0">
+          <dataset>
+            <additionalInfo>
+              <section>
+                <title>Related References</title>
+                <para>Example reference. https://doi.org/10.1000/ess-dive-related</para>
+              </section>
+            </additionalInfo>
+          </dataset>
+        </eml:eml>
+        """,
+        content_type="application/xml",
+    )
 
     result = get_doi_description_or_abstract(doi)
     assert result.context == "ESS-DIVE DataONE abstract text."
@@ -1873,6 +1891,7 @@ def test_ess_dive_api_401_uses_dataone_fallback() -> None:
     assert result.source == "ess-dive"
     assert result.provider == "ess-dive"
     assert result.attempts == ["ess-dive"]
+    assert result.publication_dois == ["10.1000/ess-dive-related"]
 
 
 @responses.activate
@@ -1944,6 +1963,23 @@ def test_ess_dive_dataone_query_tries_uppercase_variant_for_wtr_dois() -> None:
         callback=dataone_callback,
         content_type="application/xml",
     )
+    responses.add(
+        responses.GET,
+        f"{DATAONE_CN_OBJECT_API}/ess-dive-wtr-20260101",
+        body="""
+        <eml:eml xmlns:eml="https://eml.ecoinformatics.org/eml-2.2.0">
+          <dataset>
+            <additionalInfo>
+              <section>
+                <title>Related References</title>
+                <para>WTR reference doi:10.1000/wtr-paper</para>
+              </section>
+            </additionalInfo>
+          </dataset>
+        </eml:eml>
+        """,
+        content_type="application/xml",
+    )
 
     result = get_doi_description_or_abstract(doi)
     assert result.context == "ESS-DIVE WTR abstract text."
@@ -1951,6 +1987,70 @@ def test_ess_dive_dataone_query_tries_uppercase_variant_for_wtr_dois() -> None:
     assert result.source == "ess-dive"
     assert result.provider == "ess-dive"
     assert result.attempts == ["ess-dive"]
+    assert result.publication_dois == ["10.1000/wtr-paper"]
+
+
+@responses.activate
+def test_ess_dive_dataone_eml_related_references_fall_back_and_preserve_publication_metadata(
+) -> None:
+    """Extract publication DOIs from public DataONE EML additionalInfo."""
+    doi = "10.15485/2588483"
+    object_id = "ess-dive-0519947ef6788d7-20251219T174757620"
+    responses.add(
+        responses.GET,
+        ESS_DIVE_API,
+        status=401,
+        json=_json_payload("unauthorized_detail"),
+    )
+    responses.add(
+        responses.GET,
+        DATAONE_CN_SOLR_API,
+        body=f"""<?xml version="1.0" encoding="UTF-8"?>
+        <response>
+          <result name="response" numFound="1" start="0">
+            <doc>
+              <str name="id">{object_id}</str>
+              <str name="seriesId">doi:{doi}</str>
+              <str name="datasource">urn:node:ESS_DIVE</str>
+              <arr name="abstract">
+                <str>ESS-DIVE DataONE abstract text for related references case.</str>
+              </arr>
+            </doc>
+          </result>
+        </response>
+        """,
+        content_type="application/xml",
+    )
+    responses.add(
+        responses.GET,
+        f"{DATAONE_CN_OBJECT_API}/{object_id}",
+        body="""
+        <eml:eml xmlns:eml="https://eml.ecoinformatics.org/eml-2.2.0">
+          <dataset>
+            <additionalInfo>
+              <section>
+                <title>Related References</title>
+                <para>ESS-DIVE reporting format https://doi.org/10.15485/1866026</para>
+                <para>Associated paper https://doi.org/10.1029/2023WR036456</para>
+              </section>
+            </additionalInfo>
+          </dataset>
+        </eml:eml>
+        """,
+        content_type="application/xml",
+    )
+
+    result = get_doi_description_or_abstract(doi)
+
+    assert result.context == "ESS-DIVE DataONE abstract text for related references case."
+    assert result.context_type == "abstract"
+    assert result.source == "ess-dive"
+    assert result.provider == "ess-dive"
+    assert result.attempts == ["ess-dive"]
+    assert result.publication_dois == [
+        "10.15485/1866026",
+        "10.1029/2023WR036456",
+    ]
 
 
 @responses.activate

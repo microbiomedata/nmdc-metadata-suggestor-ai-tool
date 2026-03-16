@@ -68,6 +68,7 @@ EDI_DOI_API = "https://pasta.lternet.edu/package/doi"
 EMSL_PROJECTS_API = "https://api.emsl.pnnl.gov/external/projects"
 ESS_DIVE_API = "https://api.ess-dive.lbl.gov/packages"
 DATAONE_CN_SOLR_API = "https://cn.dataone.org/cn/v2/query/solr/"
+DATAONE_CN_OBJECT_API = "https://cn.dataone.org/cn/v2/object"
 FIGSHARE_API = "https://api.figshare.com/v2/articles"
 FIGSHARE_COLLECTIONS_API = "https://api.figshare.com/v2/collections"
 JGI_SEARCH_API = "https://files.jgi.doe.gov/search/"
@@ -82,9 +83,12 @@ CYVERSE_DATACOMMONS_BROWSE_HOST = "datacommons.cyverse.org"
 ZENODO_API = "https://zenodo.org/api/records"
 
 # Safety limits for untrusted XML payloads in DOI resolvers.
-MAX_EDI_METADATA_XML_CHARS = int(os.environ.get("NMDC_EDI_MAX_XML_CHARS", "2000000"))
-MAX_DATAONE_SOLR_XML_CHARS = int(os.environ.get("NMDC_DATAONE_SOLR_MAX_XML_CHARS", "2000000"))
-UNSAFE_XML_DECLARATION_PATTERN = re.compile(r"<!\s*(?:DOCTYPE|ENTITY)\b", re.IGNORECASE)
+MAX_EDI_METADATA_XML_CHARS = int(
+    os.environ.get("NMDC_EDI_MAX_XML_CHARS", "2000000"))
+MAX_DATAONE_SOLR_XML_CHARS = int(os.environ.get(
+    "NMDC_DATAONE_SOLR_MAX_XML_CHARS", "2000000"))
+UNSAFE_XML_DECLARATION_PATTERN = re.compile(
+    r"<!\s*(?:DOCTYPE|ENTITY)\b", re.IGNORECASE)
 
 
 # DOI prefixes that indicate the target provider for context retrieval.

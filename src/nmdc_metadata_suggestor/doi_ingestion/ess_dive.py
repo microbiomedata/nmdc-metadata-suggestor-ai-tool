@@ -6,6 +6,7 @@ import xml.etree.ElementTree as ET
 import requests
 
 from nmdc_metadata_suggestor.constants import (
+    DATAONE_CN_OBJECT_API,
     DATAONE_CN_SOLR_API,
     DEFAULT_TIMEOUT,
     ESS_DIVE_API,
@@ -100,7 +101,7 @@ def _try_ess_dive_dataone(doi: str, errors: list[str] | None = None) -> Resolver
         docs = _fetch_dataone_solr_docs(query, errors=errors)
         if not docs:
             continue
-        context = _extract_ess_dive_dataone_context(docs, doi)
+        context = _extract_ess_dive_dataone_context(docs, doi, errors=errors)
         if context is not None:
             return context
     return None
@@ -198,7 +199,9 @@ def _parse_dataone_solr_docs(xml_text: str) -> list[dict[str, object]]:
 
 
 def _extract_ess_dive_dataone_context(
-    docs: list[dict[str, object]], requested_doi: str
+    docs: list[dict[str, object]],
+    requested_doi: str,
+    errors: list[str] | None = None,
 ) -> ResolverContext | None:
     """Extract abstract/description context from DataONE ESS-DIVE docs."""
     exact_matches: list[dict[str, object]] = []
@@ -216,6 +219,11 @@ def _extract_ess_dive_dataone_context(
             fallback_matches.append(doc)
 
     for doc in _sort_dataone_docs_for_context(exact_matches or fallback_matches):
+        publication_dois = _extract_ess_dive_dataone_publication_dois(
+            doc,
+            requested_doi=requested_doi,
+            errors=errors,
+        )
         for key, kind in (
             ("abstract", "abstract"),
             ("description", "description"),
@@ -227,7 +235,19 @@ def _extract_ess_dive_dataone_context(
                 continue
             cleaned = clean_text(raw)
             if cleaned:
-                return ResolverContext(text=cleaned, raw_text=raw, kind=kind)
+                return ResolverContext(
+                    text=cleaned,
+                    raw_text=raw,
+                    kind=kind,
+                    publication_dois=publication_dois,
+                )
+        if publication_dois:
+            return ResolverContext(
+                text=None,
+                raw_text=None,
+                kind="description",
+                publication_dois=publication_dois,
+            )
     return None
 
 
@@ -299,3 +319,96 @@ def _extract_ess_dive_publication_metadata(
                 )
 
     return publication_urls, publication_dois
+
+
+def _extract_ess_dive_dataone_publication_dois(
+    doc: dict[str, object],
+    requested_doi: str,
+    errors: list[str] | None = None,
+) -> list[str] | None:
+    """Extract linked publication DOIs from a public DataONE EML object."""
+    identifier = _extract_dataone_doc_string(doc.get("id"))
+    if identifier is None:
+        return None
+
+    xml_text = _fetch_dataone_object_xml(identifier, errors=errors)
+    if xml_text is None:
+        return None
+
+    if len(xml_text) > MAX_DATAONE_SOLR_XML_CHARS:
+        append_error(errors, "DataONE object XML exceeded size limit")
+        return None
+    if UNSAFE_XML_DECLARATION_PATTERN.search(xml_text):
+        append_error(errors, "DataONE object XML contains unsafe declarations")
+        return None
+
+    try:
+        root = ET.fromstring(xml_text)
+    except ET.ParseError:
+        append_error(errors, "DataONE object XML was not valid XML")
+        return None
+
+    publication_dois: list[str] | None = None
+    for section in root.iter():
+        if _xml_local_name(section.tag) != "section":
+            continue
+
+        section_title = ""
+        section_text_parts: list[str] = []
+        for child in section:
+            local_name = _xml_local_name(child.tag)
+            child_text = clean_text("".join(child.itertext()))
+            if not child_text:
+                continue
+            if local_name == "title":
+                section_title = child_text.lower()
+            elif local_name == "para":
+                section_text_parts.append(child_text)
+
+        if "related references" not in section_title:
+            continue
+
+        publication_dois = merge_unique_strings(
+            publication_dois,
+            extract_doi_references(
+                " ".join(section_text_parts),
+                requested_doi=requested_doi,
+            ),
+        )
+
+    return publication_dois
+
+
+def _fetch_dataone_object_xml(
+    identifier: str,
+    errors: list[str] | None = None,
+) -> str | None:
+    """Fetch a public DataONE metadata object by identifier."""
+    try:
+        response = request_with_retry(
+            "GET",
+            f"{DATAONE_CN_OBJECT_API}/{identifier}",
+            headers={"User-Agent": USER_AGENT},
+            timeout=DEFAULT_TIMEOUT,
+        )
+    except requests.RequestException as exc:
+        append_error(
+            errors,
+            f"DataONE object request failed: {exc.__class__.__name__}",
+        )
+        return None
+
+    if response.status_code != 200:
+        append_error(
+            errors,
+            f"DataONE object request returned HTTP {response.status_code}",
+        )
+        return None
+    return response.text
+
+
+def _xml_local_name(tag: str) -> str:
+    """Return XML localname for a namespaced ElementTree tag."""
+    if "}" in tag:
+        return tag.rsplit("}", 1)[-1]
+    return tag
