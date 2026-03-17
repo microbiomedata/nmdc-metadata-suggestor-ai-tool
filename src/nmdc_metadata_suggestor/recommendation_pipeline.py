@@ -13,7 +13,7 @@ from nmdc_metadata_suggestor.utils.submission_parser import get_submission_field
 
 def run_recommendation_pipeline(
     submission_object: dict,
-    llm_client: LLMClient = LLMClient(access_provider="pnnl"),
+    llm_client: LLMClient,
     max_tokens: int | None = None,
 ) -> LLMOutput:
     """Run the metadata recommendation pipeline with the given prompt.
@@ -79,7 +79,13 @@ if __name__ == "__main__":
     llm_client = LLMClient(access_provider="pnnl")
     mixis_extensions = ["SoilInterface"]
     doi = ["10.1073/pnas.2004192118"]
+    submission = {
+        "doi": doi[0],
+        "title": "Microbial community composition and diversity in rice straw digestion bioreactors with and without dairy manure",
+        "authors": ["Author A", "Author B"],
+        "publication_year": 2021,
+    }
     recommended_metadata = run_recommendation_pipeline(
-        doi=doi[0], llm_client=llm_client, mixis_extensions=mixis_extensions, sources=["osti"]
+        submission_object=submission, llm_client=llm_client, max_tokens=1024
     )
     print(recommended_metadata.model_dump())

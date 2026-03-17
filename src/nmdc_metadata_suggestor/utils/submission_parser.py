@@ -32,7 +32,7 @@ def get_submission_fields(submission_object: dict) -> dict:
     protocol_descs = []
     protocol_names = []
     for protocol_section in ["mpProtocols", "mbProtocols", "mbGcProtocols", "lipProtocols", "nomProtocols", "nomLcProtocols"]:
-        protocols = multiomics_form.get(protocol_section, {})
+        protocols = multiomics_form.get(protocol_section) or {}
         for protocol in protocols.values():
             if protocol and isinstance(protocol, dict):
                 doi = protocol.get("doi")
@@ -47,7 +47,7 @@ def get_submission_fields(submission_object: dict) -> dict:
     
 
     # sample environment form fields
-    mixis_extensions = metadata_submission.get("projectName", [])
+    mixis_extensions = metadata_submission.get("packageName", [])
     
     return {
         "description": description,
