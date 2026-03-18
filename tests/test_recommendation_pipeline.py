@@ -1,10 +1,18 @@
 from types import SimpleNamespace
+from pathlib import Path
 
 import pytest
 
 from nmdc_metadata_suggestor import recommendation_pipeline
+from nmdc_metadata_suggestor.llm_client import LLMClient
 
+def load_sample_submission_object() -> dict:
+    """Load a sample submission object from the test fixtures."""
+    import json
 
+    sample_path = Path(__file__).parent / "fixtures" / "test_submission.json"
+    with open(sample_path, "r") as f:
+        return json.load(f)
 class _FakeLLMClient:
     def __init__(self, response: str) -> None:
         self.response = response
@@ -66,3 +74,11 @@ def test_run_recommendation_pipeline_raises_for_invalid_output_schema(
             llm_client=client,
             mixis_extensions=["SoilInterface"],
         )
+
+def test_run_recommendation_pipeline(requires_credentials: None) -> None:
+    sample_submission_object = load_sample_submission_object()
+    llm_client = LLMClient(access_provider="gcp")
+    recommended_metadata = recommendation_pipeline.run_recommendation_pipeline(
+        submission_object=sample_submission_object, llm_client=llm_client
+    )
+    print(recommended_metadata.model_dump())

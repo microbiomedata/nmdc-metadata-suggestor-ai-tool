@@ -1,3 +1,20 @@
+from enum import Enum
+
+class MixisExtensions(Enum):
+    """A mapping of NMDC Submission schema interface names to the submission portal's form section"""
+    BuiltEnvInterface = "built environment"
+    AirInterface = "air"
+    SoilInterface = "soil"
+    HostAssociatedInterface = "host-associated"
+    WaterInterface = "water"
+    SedimentInterface = "sediment"
+    BiofilmInterface = "microbial mat_biofilm"
+    HcrCoresInterface = "hydrocarbon resources - cores"
+    HcrFluidsSwabsInterface = "hydrocarbon resources - fluids swabs"
+    MiscEnvsInterface = "miscellaneous natural or artifical environment"
+    PlantAssociatedInterface = "plant-associated"
+
+
 def get_submission_fields(submission_object: dict) -> dict:
     """
     Extract relevant fields from the submission object for metadata recommendation.
@@ -18,14 +35,13 @@ def get_submission_fields(submission_object: dict) -> dict:
     notes = study_form.get("notes", None)
     study_name = study_form.get("studyName", None)
     data_dois = study_form.get("dataDois", [])
-    publication_dois = study_form.get("publicationDois", None)
-    dois = [doi.get("value") for doi in (data_dois or []) + (publication_dois or []) if doi.get("value")]
+    publication_dois = study_form.get("publicationDois", []) or []
     gold_study_id = study_form.get("GOLDStudyId", None)
 
     # multiomics form fields
     jgi_study_id = multiomics_form.get("JGIStudyId", None)
     awarddois = multiomics_form.get("awardDois", [])
-    award_dois = [doi.get("value") for doi in (awarddois or []) if doi.get("value")]
+
     # get all protocol DOIs, descriptions, names from the multiomics form
     # go from multiomics form-protocol->externalprotocol->doi, description, name
     protocol_dois = []
@@ -39,7 +55,7 @@ def get_submission_fields(submission_object: dict) -> dict:
                 desc = protocol.get("description")
                 name = protocol.get("name")
                 if isinstance(doi, str) and doi.strip():
-                    protocol_dois.append(doi.strip())
+                    protocol_dois.append({"value": doi.strip(), "provider": None})
                 if isinstance(desc, str) and desc.strip():
                     protocol_descs.append(desc.strip())
                 if isinstance(name, str) and name.strip():
@@ -47,17 +63,25 @@ def get_submission_fields(submission_object: dict) -> dict:
     
 
     # sample environment form fields
-    mixis_extensions = metadata_submission.get("packageName", [])
+    mixis_extensions_strings = metadata_submission.get("packageName", [])
+    mixis_extensions = []
+    # get the interface names
+    for ext in mixis_extensions_strings:
+        try:
+            mixis_extensions.append(MixisExtensions(ext).name)
+        except ValueError:
+            print(f"Warning: Unrecognized mixis extension '{ext}' in submission data.")
     
+    # combine list[dict]
+    combined_dois = data_dois + publication_dois + awarddois + protocol_dois
+
     return {
         "description": description,
         "notes": notes,
         "study_name": study_name,
-        "dois": dois,
+        "dois": combined_dois,
         "gold_study_id": gold_study_id,
         "jgi_study_id": jgi_study_id,
-        "award_dois": award_dois,
-        "protocol_dois": protocol_dois,
         "protocol_descs": protocol_descs,
         "protocol_names": protocol_names,
         "mixis_extensions": mixis_extensions,

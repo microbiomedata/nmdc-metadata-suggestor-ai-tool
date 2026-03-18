@@ -31,17 +31,22 @@
       "soil"
     ],
     "studyForm": {
-      "studyName": "Bea's Cool Submission with Protocols for Testing Automation",
+      "studyName": "Soil metabolome response to whole-ecosystem warming at the Spruce and Peatland Responses under Changing Environments experiment",
       "piName": "Bea Meluch",
       "piEmail": "beata.meluch@pnnl.gov",
       "piOrcid": "0009-0008-4055-9921",
       "fundingSources": [],
-      "dataDois": [],
+      "dataDois": [
+        {
+          "value": "10.1073/pnas.2004192118",
+          "provider": "osti"
+        }
+      ],
       "publicationDois": null,
       "linkOutWebpage": [],
       "studyDate": null,
-      "description": "MS automation squad is going to retrieve this submission info programmatically",
-      "notes": "Here are some good notes.",
+      "description": "In this study, a suite of complementary environmental geochemical analyses, including NMR and gas chromatography-mass spectrometry (GC-MS) analyses of central metabolites, Fourier transform ion cyclotron resonance mass spectrometry (FTICR-MS) of secondary metabolites, and lipidomics, was used to investigate the influence of organic matter (OM) quality on the heterotrophic microbial mechanisms controlling peatland CO2, CH4, and CO2:CH4 porewater production ratios in response to climate warming. Our investigations leverage the Spruce and Peatland Responses under Changing Environments (SPRUCE) experiment, where air and peat warming were combined in a whole-ecosystem warming treatment. We hypothesized that warming would enhance the production of plant-derived metabolites, resulting in increased labile OM inputs to the surface peat, thereby enhancing microbial activity and greenhouse gas production. Because shallow peat is most susceptible to enhanced warming, increases in labile OM inputs to the surface, in particular, are likely to result in significant changes to CO2 and CH4 dynamics and methanogenic pathways. In support of this hypothesis, significant correlations were observed between metabolites and temperature consistent with increased availability of labile substrates, which may stimulate more rapid turnover of microbial proteins. An increase in the abundance of methanogenic genes in response to the increase in the abundance of labile substrates was accompanied by a shift toward acetoclastic and methylotrophic methanogenesis. Our results suggest that as peatland vegetation trends toward increasing vascular plant cover with warming, we can expect a concomitant shift toward increasingly methanogenic conditions and amplified climate–peatland feedbacks.",
+      "notes": "",
       "contributors": [],
       "alternativeNames": [],
       "GOLDStudyId": "",
