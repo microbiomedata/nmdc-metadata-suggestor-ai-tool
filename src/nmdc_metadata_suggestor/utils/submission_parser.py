@@ -106,9 +106,7 @@ def get_submission_fields(submission_object: dict) -> dict:
             print(f"Warning: Unrecognized mixis extension '{ext}' in submission data.")
 
     # combine and dedupe DOI list[dict]
-    combined_dois = make_unique_doi_list(
-        data_dois + publication_dois + awarddois + protocol_dois
-    )
+    combined_dois = make_unique_doi_list(data_dois + publication_dois + awarddois + protocol_dois)
 
     return {
         "description": description,
