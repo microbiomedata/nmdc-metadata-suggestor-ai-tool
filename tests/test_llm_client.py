@@ -59,7 +59,7 @@ def test_default_provider_is_gemini(requires_credentials: None) -> None:
 
 
 def test_gemini_generate(requires_credentials: None) -> None:
-    client = LLMClient(access_provider="gcp", model="gemini-2.0-flash")
+    client = LLMClient(access_provider="gcp", model="gemini-2.5-flash")
     client.add_message(text="Reply with exactly: hello")
     response = client.generate(
         model="gemini-2.0-flash",

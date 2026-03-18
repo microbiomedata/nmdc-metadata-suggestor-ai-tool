@@ -75,6 +75,7 @@ def _download_with_cffi(url: str, dest: str) -> None:
     with open(dest, "wb") as f:
         f.write(resp.content)
 
+
 def remove_temp_file(path: str) -> None:
     """Remove the temporary file at *path*."""
     try:

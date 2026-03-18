@@ -1,13 +1,15 @@
 import json
 import re
-import os
 
 from pydantic import ValidationError
 
 from nmdc_metadata_suggestor.doi_ingestion.main import get_doi_description_or_abstract
 from nmdc_metadata_suggestor.llm_client import LLMClient
 from nmdc_metadata_suggestor.models.llm_output import LLMOutput
-from nmdc_metadata_suggestor.publication_ingestion.download_pdf import download_pdf_to_tempfile, remove_temp_file
+from nmdc_metadata_suggestor.publication_ingestion.download_pdf import (
+    download_pdf_to_tempfile,
+    remove_temp_file,
+)
 from nmdc_metadata_suggestor.schema_context import SchemaContextBuilder
 from nmdc_metadata_suggestor.utils.submission_parser import get_submission_fields
 
@@ -37,16 +39,19 @@ def clean_and_validate_output(raw_output: str) -> LLMOutput:
 
     return validated_output
 
+
 def run_recommendation_pipeline(
     submission_object: dict,
     llm_client: LLMClient,
     max_tokens: int | None = None,
 ) -> LLMOutput:
-    """Run the metadata recommendation pipeline for a given submission object and LLM client.
+    """Run the metadata recommendation pipeline for a submission and LLM client.
+
     Parameters:
-        submission_object: The raw submission object containing all metadata fields from the NMDC submission system.
-        llm_client: An instance of the LLMClient class, which handles interactions with the language model.
-        max_tokens: Optional maximum number of tokens to allow in the LLM output response.
+        submission_object: Raw submission object containing NMDC metadata fields.
+        llm_client: LLM client instance used for model interaction.
+        max_tokens: Optional maximum number of output response tokens.
+
     Returns:
         The response from the LLM containing the recommended metadata fields.
     """
@@ -58,23 +63,34 @@ def run_recommendation_pipeline(
     study_name = parsed_submission_object.get("study_name", "")
     protocol_descs = parsed_submission_object.get("protocol_descs", [])
     protocol_names = parsed_submission_object.get("protocol_names", [])
-    
+
     # TODO: do not yet have jgi or gold id look up - only by DOI, so skipping for now
     # gold_study_id = parsed_submission_object.get("gold_study_id", "")
     # jgi_study_id = parsed_submission_object.get("jgi_study_id", "")
 
     # add the submission context to the LLM
-    llm_client.add_message(text=f"Submission description: {description}\nNotes: {notes}\nStudy name: {study_name}\nProtocol descriptions: {'; '.join(protocol_descs)}\nProtocol names: {'; '.join(protocol_names)}")
+    submission_context = (
+        f"Submission description: {description}\n"
+        f"Notes: {notes}\n"
+        f"Study name: {study_name}\n"
+        f"Protocol descriptions: {'; '.join(protocol_descs)}\n"
+        f"Protocol names: {'; '.join(protocol_names)}"
+    )
+    llm_client.add_message(text=submission_context)
     publication_links: list[str] = []
     # loop through dois and retrieve abstracts/descriptions to add to the LLM context
     for doi, provider in parsed_submission_object.get("dois", []):
         # based on the DOI, retrieve the abstract and PDF if available, and add to the LLM context
-        result = get_doi_description_or_abstract(doi=doi, skip_classification=True, sources=provider)
+        result = get_doi_description_or_abstract(
+            doi=doi, skip_classification=True, sources=provider
+        )
         abstract = result.context if result.context else None
         if result.publication_urls:
             publication_links.extend(result.publication_urls)
         if abstract is not None:
-            llm_client.add_message(text=f"Context retrieved for DOI {doi} from provider {provider}:\n{abstract}")
+            llm_client.add_message(
+                text=f"Context retrieved for DOI {doi} from provider {provider}:\n{abstract}"
+            )
 
     # collect pdf files if available, and add the abstract and PDF content to the LLM context
     pdf_files: list[str] | None
@@ -111,46 +127,3 @@ def run_recommendation_pipeline(
     validated_output.model = llm_client.model
     validated_output.access_provider = llm_client.access_provider
     return validated_output
-
-
-if __name__ == "__main__":
-    # Example usage
-    from nmdc_metadata_suggestor.llm_client import LLMClient
-
-    # Initialize the LLM client (this will require proper authentication setup)
-    llm_client = LLMClient(access_provider="gcp")
-
-    # Load a sample submission object (replace with actual submission data)
-    sample_submission = {
-        "metadata_submission": {
-            "studyForm": {
-                "description": "This is a sample study description.",
-                "notes": "These are some sample notes about the study.",
-                "studyName": "Sample Study",
-                "dataDois": [{"value": "10.1234/example.doi", "provider": "crossref"}],
-                "publicationDois": [{"value": "10.5678/example.pubdoi", "provider": "crossref"}],
-                "GOLDStudyId": "GOLD12345",
-            },
-            "multiOmicsForm": {
-                "JGIStudyId": "JGI67890",
-                "awardDois": [{"value": "10.9012/example.awarddoi", "provider": "crossref"}],
-                "mpProtocols": {
-                    "protocol1": {
-                        "doi": "10.1111/example.protocoldoi",
-                        "description": "This is a sample protocol description.",
-                        "name": "Sample Protocol",
-                    }
-                },
-            },
-            "packageName": ["soil"],
-        }
-    }
-    # llm_client.add_message(text="This is a test message to the LLM to demonstrate the recommendation pipeline.")
-    # llm_client.generate()  # Warm up the model with a test message
-    # Run the recommendation pipeline
-    recommendations = run_recommendation_pipeline(
-        submission_object=sample_submission,
-        llm_client=llm_client,
-    )
-
-    print(recommendations)

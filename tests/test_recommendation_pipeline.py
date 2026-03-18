@@ -1,18 +1,21 @@
-from types import SimpleNamespace
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from nmdc_metadata_suggestor import recommendation_pipeline
 from nmdc_metadata_suggestor.llm_client import LLMClient
 
+
 def load_sample_submission_object() -> dict:
     """Load a sample submission object from the test fixtures."""
     import json
 
     sample_path = Path(__file__).parent / "fixtures" / "test_submission.json"
-    with open(sample_path, "r") as f:
+    with open(sample_path) as f:
         return json.load(f)
+
+
 class _FakeLLMClient:
     def __init__(self, response: str) -> None:
         self.response = response
@@ -47,14 +50,17 @@ def test_run_recommendation_pipeline_validates_and_returns_output(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _stub_common_inputs(monkeypatch)
+    sample_submission_object = load_sample_submission_object()
     client = _FakeLLMClient(
-        response='{"metadata_fields":[{"field_name":"env_broad_scale","reason":"Required for submission.","value":"soil"}]}'
+        response=(
+            '{"metadata_fields":[{"field_name":"env_broad_scale",'
+            '"reason":"Required for submission.","value":"soil"}]}'
+        )
     )
 
     result = recommendation_pipeline.run_recommendation_pipeline(
-        doi="10.1234/example",
+        submission_object=sample_submission_object,
         llm_client=client,
-        mixis_extensions=["SoilInterface"],
     )
 
     assert result.metadata_fields[0].field_name == "env_broad_scale"
@@ -66,14 +72,17 @@ def test_run_recommendation_pipeline_raises_for_invalid_output_schema(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _stub_common_inputs(monkeypatch)
-    client = _FakeLLMClient(response='{"metadata_fields":[{"field_name":"env_broad_scale","value":"soil"}]}')
+    sample_submission_object = load_sample_submission_object()
+    client = _FakeLLMClient(
+        response='{"metadata_fields":[{"field_name":"env_broad_scale","value":"soil"}]}'
+    )
 
     with pytest.raises(ValueError, match="expected output schema"):
         recommendation_pipeline.run_recommendation_pipeline(
-            doi="10.1234/example",
+            submission_object=sample_submission_object,
             llm_client=client,
-            mixis_extensions=["SoilInterface"],
         )
+
 
 def test_run_recommendation_pipeline(requires_credentials: None) -> None:
     sample_submission_object = load_sample_submission_object()

@@ -8,7 +8,10 @@ class MetadataFieldSuggestion(BaseModel):
 
     field_name: str
     reason: str
-    value: str | list | dict = ""  # Value can be of any type depending on the field, but default to empty string if not provided
+    value: str | list | dict = (
+        # Value can be any type depending on the field.
+        ""
+    )
 
 
 class LLMOutput(BaseModel):

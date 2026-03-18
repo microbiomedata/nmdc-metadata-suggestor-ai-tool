@@ -1,7 +1,9 @@
 from enum import Enum
 
+
 class MixisExtensions(Enum):
-    """A mapping of NMDC Submission schema interface names to the submission portal's form section"""
+    """Map NMDC interface names to submission portal form sections."""
+
     BuiltEnvInterface = "built environment"
     AirInterface = "air"
     SoilInterface = "soil"
@@ -15,6 +17,23 @@ class MixisExtensions(Enum):
     PlantAssociatedInterface = "plant-associated"
 
 
+def make_unique_doi_list(entries: list[dict]) -> list[dict]:
+    """Return unique dict entries. Preserves original order."""
+    deduped_entries = []
+    seen = set()
+
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        key = tuple(sorted(entry.items()))
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped_entries.append(entry)
+
+    return deduped_entries
+
+
 def get_submission_fields(submission_object: dict) -> dict:
     """
     Extract relevant fields from the submission object for metadata recommendation.
@@ -23,8 +42,16 @@ def get_submission_fields(submission_object: dict) -> dict:
     - notes
     - study name
     - dois
+    - gold study id
+    - jgi study id
+    - protocol descriptions
+    - protocol names
+    - mixis extensions (mapped to interface names)
 
-
+    Parameters:
+        submission_object: Raw submission object containing NMDC metadata fields.
+    Returns:
+        A dict with the extracted fields.
     """
     metadata_submission = submission_object.get("metadata_submission", {})
     study_form = metadata_submission.get("studyForm", {})
@@ -47,7 +74,14 @@ def get_submission_fields(submission_object: dict) -> dict:
     protocol_dois = []
     protocol_descs = []
     protocol_names = []
-    for protocol_section in ["mpProtocols", "mbProtocols", "mbGcProtocols", "lipProtocols", "nomProtocols", "nomLcProtocols"]:
+    for protocol_section in [
+        "mpProtocols",
+        "mbProtocols",
+        "mbGcProtocols",
+        "lipProtocols",
+        "nomProtocols",
+        "nomLcProtocols",
+    ]:
         protocols = multiomics_form.get(protocol_section) or {}
         for protocol in protocols.values():
             if protocol and isinstance(protocol, dict):
@@ -60,7 +94,6 @@ def get_submission_fields(submission_object: dict) -> dict:
                     protocol_descs.append(desc.strip())
                 if isinstance(name, str) and name.strip():
                     protocol_names.append(name.strip())
-    
 
     # sample environment form fields
     mixis_extensions_strings = metadata_submission.get("packageName", [])
@@ -71,9 +104,11 @@ def get_submission_fields(submission_object: dict) -> dict:
             mixis_extensions.append(MixisExtensions(ext).name)
         except ValueError:
             print(f"Warning: Unrecognized mixis extension '{ext}' in submission data.")
-    
-    # combine list[dict]
-    combined_dois = data_dois + publication_dois + awarddois + protocol_dois
+
+    # combine and dedupe DOI list[dict]
+    combined_dois = make_unique_doi_list(
+        data_dois + publication_dois + awarddois + protocol_dois
+    )
 
     return {
         "description": description,

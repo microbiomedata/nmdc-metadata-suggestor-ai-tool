@@ -170,6 +170,8 @@ class LLMClient:
             contents=self.messages,
             config=config,
         )
+        if response.text is None:
+            raise RuntimeError("GCP model returned an empty text response.")
         return response.text
 
     def _get_gcp_credentials(self) -> Any:
