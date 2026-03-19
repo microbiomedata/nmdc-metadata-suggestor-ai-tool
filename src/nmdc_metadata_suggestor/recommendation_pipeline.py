@@ -27,7 +27,11 @@ def clean_and_validate_output(raw_output: str) -> LLMOutput:
     try:
         parsed_response = json.loads(cleaned_response)
     except json.JSONDecodeError as exc:
-        raise ValueError(f"LLM response was not valid JSON: {exc}") from exc
+        raise ValueError(
+            f"LLM response was not valid JSON: {exc}\n"
+            f"Raw output from LLM: {raw_output}\n"
+            f"Cleaned response: {cleaned_response}"
+        ) from exc
 
     if not isinstance(parsed_response, dict):
         raise ValueError("LLM response JSON must be an object with top-level keys.")
