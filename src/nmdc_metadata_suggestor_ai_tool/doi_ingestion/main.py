@@ -6,32 +6,32 @@ waterfall (DataCite, Crossref, content negotiation).
 
 from collections.abc import Callable
 
-from nmdc_metadata_suggestor.constants import DOI_PATTERN
-from nmdc_metadata_suggestor.doi_ingestion.content_negotiation import (
+from nmdc_metadata_suggestor_ai_tool.constants import DOI_PATTERN
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.content_negotiation import (
     try_content_negotiation_context,
 )
-from nmdc_metadata_suggestor.doi_ingestion.crossref import try_crossref_context
-from nmdc_metadata_suggestor.doi_ingestion.cyverse import try_cyverse
-from nmdc_metadata_suggestor.doi_ingestion.datacite import try_datacite
-from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.crossref import try_crossref_context
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.cyverse import try_cyverse
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.datacite import try_datacite
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import (
     classify_doi,
     infer_provider_from_doi,
     infer_provider_from_text,
     normalize_doi,
 )
-from nmdc_metadata_suggestor.doi_ingestion.edi import try_edi
-from nmdc_metadata_suggestor.doi_ingestion.emsl import try_emsl
-from nmdc_metadata_suggestor.doi_ingestion.ess_dive import try_ess_dive
-from nmdc_metadata_suggestor.doi_ingestion.figshare import try_figshare
-from nmdc_metadata_suggestor.doi_ingestion.jgi import try_jgi
-from nmdc_metadata_suggestor.doi_ingestion.kbase import try_kbase
-from nmdc_metadata_suggestor.doi_ingestion.massive import try_massive
-from nmdc_metadata_suggestor.doi_ingestion.openalex import try_openalex
-from nmdc_metadata_suggestor.doi_ingestion.osti import try_osti
-from nmdc_metadata_suggestor.doi_ingestion.pubmed import try_pubmed
-from nmdc_metadata_suggestor.doi_ingestion.zenodo import try_zenodo
-from nmdc_metadata_suggestor.models.doi import DoiClassification, SourceRetrievalResult
-from nmdc_metadata_suggestor.models.resolver_context import ResolverContext
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.edi import try_edi
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.emsl import try_emsl
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.ess_dive import try_ess_dive
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.figshare import try_figshare
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.jgi import try_jgi
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.kbase import try_kbase
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.massive import try_massive
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.openalex import try_openalex
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.osti import try_osti
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.pubmed import try_pubmed
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.zenodo import try_zenodo
+from nmdc_metadata_suggestor_ai_tool.models.doi import DoiClassification, SourceRetrievalResult
+from nmdc_metadata_suggestor_ai_tool.models.resolver_context import ResolverContext
 
 SourceErrors = dict[str, str]
 Fetcher = Callable[[str, str | None, list[str], SourceErrors], SourceRetrievalResult | None]

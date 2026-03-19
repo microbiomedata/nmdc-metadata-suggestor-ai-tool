@@ -1,16 +1,16 @@
 import requests
 
-from nmdc_metadata_suggestor.constants import (
+from nmdc_metadata_suggestor_ai_tool.constants import (
     DEFAULT_TIMEOUT,
     PUBMED_EFETCH,
     PUBMED_ID_CONVERTER,
     USER_AGENT,
 )
-from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import (
     append_error,
     request_with_retry,
 )
-from nmdc_metadata_suggestor.models.resolver_context import ResolverContext
+from nmdc_metadata_suggestor_ai_tool.models.resolver_context import ResolverContext
 
 
 def try_pubmed(doi: str, errors: list[str] | None = None) -> ResolverContext | None:

@@ -22,10 +22,10 @@ import pytest
 import responses
 from requests import PreparedRequest
 
-from nmdc_metadata_suggestor.constants import (
+from nmdc_metadata_suggestor_ai_tool.constants import (
     CROSSREF_API_URL as CROSSREF_API,
 )
-from nmdc_metadata_suggestor.constants import (
+from nmdc_metadata_suggestor_ai_tool.constants import (
     CYVERSE_DATACOMMONS_API,
     CYVERSE_METADATA_API,
     CYVERSE_METADATA_SEARCH_API,
@@ -45,18 +45,18 @@ from nmdc_metadata_suggestor.constants import (
     PUBMED_ID_CONVERTER,
     ZENODO_API,
 )
-from nmdc_metadata_suggestor.constants import (
+from nmdc_metadata_suggestor_ai_tool.constants import (
     DATACITE_API_URL as DATACITE_API,
 )
-from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import (
     DEFAULT_RETRY_ATTEMPTS,
     text_mentions_doi,
 )
-from nmdc_metadata_suggestor.doi_ingestion.edi import try_edi
-from nmdc_metadata_suggestor.doi_ingestion.emsl import try_emsl
-from nmdc_metadata_suggestor.doi_ingestion.jgi import try_jgi
-from nmdc_metadata_suggestor.doi_ingestion.kbase import try_kbase
-from nmdc_metadata_suggestor.doi_ingestion.main import (
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.edi import try_edi
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.emsl import try_emsl
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.jgi import try_jgi
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.kbase import try_kbase
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.main import (
     get_doi_description_or_abstract,
 )
 

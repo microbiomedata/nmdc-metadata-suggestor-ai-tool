@@ -766,8 +766,8 @@ wheels = [
 ]
 
 [[package]]
-name = "nmdc-metadata-suggestor"
-version = "0.1.0"
+name = "nmdc-metadata-suggestor-ai-tool"
+version = "1.0.1"
 source = { editable = "." }
 dependencies = [
     { name = "curl-cffi" },

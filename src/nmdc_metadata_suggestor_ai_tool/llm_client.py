@@ -13,7 +13,7 @@ from google.genai import types as genai_types
 from google.oauth2 import service_account
 from openai import OpenAI
 
-from nmdc_metadata_suggestor.system_prompt import system_prompt
+from nmdc_metadata_suggestor_ai_tool.system_prompt import system_prompt
 
 load_dotenv()
 

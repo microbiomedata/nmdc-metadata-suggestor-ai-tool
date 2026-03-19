@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from nmdc_metadata_suggestor.utils.submission_parser import get_submission_fields
+from nmdc_metadata_suggestor_ai_tool.utils.submission_parser import get_submission_fields
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 

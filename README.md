@@ -1,4 +1,4 @@
-# nmdc-metadata-suggestor
+# nmdc-metadata-suggestor-ai-tool
 
 A Python application for the NMDC Submission portal metadata suggestor tool, powered by AI. This project uses modern Python tooling with [uv](https://github.com/astral-sh/uv) for dependency management and Docker for containerization.
 
@@ -36,9 +36,22 @@ A Python application for the NMDC Submission portal metadata suggestor tool, pow
    # Edit .env and add your API keys
    ```
 
-5. **Run the application**:
+5. **Use the package in Python**:
    ```bash
-   uv run nmdc-suggestor
+   uv run python
+   ```
+
+   ```python
+   from nmdc_metadata_suggestor_ai_tool.llm_client import LLMClient
+   from nmdc_metadata_suggestor_ai_tool.recommendation_pipeline import run_recommendation_pipeline
+
+   submission_object = {
+       # NMDC submission JSON payload
+   }
+
+   client = LLMClient(access_provider="gcp")
+   result = run_recommendation_pipeline(submission_object, client)
+   print(result.model_dump())
    ```
 
 ### Option 2: Using Docker
@@ -73,21 +86,21 @@ A Python application for the NMDC Submission portal metadata suggestor tool, pow
 ```
 nmdc-metadata-suggestor-ai-tool/
 ├── src/
-│   └── nmdc_metadata_suggestor/
+│   └── nmdc_metadata_suggestor_ai_tool/
 │       ├── __init__.py
-│       ├── main.py                          # Main entry point
+│       ├── recommendation_pipeline.py       # Pipeline orchestration
 │       ├── llm_client.py                    # LLM client for AI interactions
 │       ├── cli/
 │       │   ├── __init__.py
-│       │   └── doi_cli.py                   # CLI for DOI operations
+│       │   └── doi_cli.py                   # DOI operations CLI
 │       ├── models/
 │       │   ├── __init__.py
 │       │   ├── doi.py                       # DOI data models
-│       │   └── publication.py               # Publication data models
+│       │   └── llm_output.py                # LLM output model
 │       └── publication_ingestion/
 │           ├── __init__.py
-│           ├── abstract_retriever.py        # Abstract retrieval logic
-│           └── doi_utils.py                 # DOI utilities
+│           ├── download_pdf.py              # PDF retrieval logic
+│           └── retreive_pdf_link.py         # PDF link discovery
 ├── tests/                                    # Test files
 ├── scripts/                                  # Vertex AI test scripts
 ├── docs/                                     # Documentation
@@ -189,6 +202,6 @@ docker run --env-file .env nmdc-suggestor:latest
 
 ## License
 
-[Specify your license here]
+See [LICENSE](LICENSE) for licensing terms.
 
 
