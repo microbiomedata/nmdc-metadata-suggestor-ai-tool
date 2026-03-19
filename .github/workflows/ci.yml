@@ -37,8 +37,8 @@ jobs:
 
     - name: Run linting
       run: |
-        uv run ruff check src tests --exclude src/nmdc_metadata_suggestor/system_prompt.py
-        uv run black --check src tests --exclude src/nmdc_metadata_suggestor/system_prompt.py
+        uv run ruff check src tests --exclude src/nmdc_metadata_suggestor_ai_tool/system_prompt.py
+        uv run black --check src tests --exclude src/nmdc_metadata_suggestor_ai_tool/system_prompt.py
 
     - name: Run type checking
       run: uv run mypy src

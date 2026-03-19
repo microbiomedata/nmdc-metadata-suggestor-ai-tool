@@ -1,6 +1,6 @@
 [project]
 name = "nmdc-metadata-suggestor-ai-tool"
-version = "1.0.0"
+version = "1.0.1"
 description = "NMDC Submission portal metadata suggestor tool, powered by AI"
 readme = "README.md"
 requires-python = ">=3.12"
