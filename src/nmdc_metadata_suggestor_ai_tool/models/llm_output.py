@@ -8,7 +8,7 @@ class MetadataFieldSuggestion(BaseModel):
 
     field_name: str
     reason: str
-    value: str | list | dict = (
+    value: str | list | dict | int | float = (
         # Value can be any type depending on the field.
         ""
     )
