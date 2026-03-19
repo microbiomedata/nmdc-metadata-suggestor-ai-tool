@@ -1,13 +1,13 @@
 from typing import Any
 
-from nmdc_metadata_suggestor.constants import (
+from nmdc_metadata_suggestor_ai_tool.constants import (
     CROSSREF_API_URL,
     DEFAULT_TIMEOUT,
     EUROPEPMC_API_URL,
     PMC_PDF_URL_TEMPLATE,
     USER_AGENT,
 )
-from nmdc_metadata_suggestor.doi_ingestion.doi_utils import request_with_retry
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import request_with_retry
 
 
 def retrieve_pdf_link_from_crossref(id: str) -> dict[str, Any]:

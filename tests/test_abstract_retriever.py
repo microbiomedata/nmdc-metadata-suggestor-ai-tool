@@ -7,7 +7,7 @@ import pytest
 import responses
 from requests.exceptions import ConnectionError as RequestsConnectionError
 
-from nmdc_metadata_suggestor.constants import (
+from nmdc_metadata_suggestor_ai_tool.constants import (
     ALL_SOURCES,
     CROSSREF_API_URL,
     DATACITE_API_URL,
@@ -17,12 +17,12 @@ from nmdc_metadata_suggestor.constants import (
     PUBMED_EFETCH,
     PUBMED_ID_CONVERTER,
 )
-from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import (
     decode_inverted_abstract,
     strip_jats_xml,
 )
-from nmdc_metadata_suggestor.doi_ingestion.main import get_doi_description_or_abstract
-from nmdc_metadata_suggestor.models.doi import SourceRetrievalResult
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.main import get_doi_description_or_abstract
+from nmdc_metadata_suggestor_ai_tool.models.doi import SourceRetrievalResult
 
 integration = pytest.mark.integration
 

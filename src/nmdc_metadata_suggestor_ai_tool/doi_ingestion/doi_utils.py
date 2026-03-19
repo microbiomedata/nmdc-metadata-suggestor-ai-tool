@@ -16,7 +16,7 @@ from typing import Any
 import requests
 from requests.adapters import HTTPAdapter
 
-from nmdc_metadata_suggestor.constants import (
+from nmdc_metadata_suggestor_ai_tool.constants import (
     CROSSREF_API_URL,
     DATACITE_API_URL,
     DEFAULT_TIMEOUT,
@@ -28,7 +28,7 @@ from nmdc_metadata_suggestor.constants import (
     TARGET_PROVIDER_PREFIXES,
     USER_AGENT,
 )
-from nmdc_metadata_suggestor.models.doi import (
+from nmdc_metadata_suggestor_ai_tool.models.doi import (
     DoiCategory,
     DoiClassification,
     DoiValidation,
@@ -408,7 +408,7 @@ def infer_nmdc_category(
     """Infer the NMDC DoiCategoryEnum value from API-provided type information.
 
     Maps Crossref work types and DataCite resourceTypeGeneral values to
-    :class:`~nmdc_metadata_suggestor.models.doi.DoiCategory` members.
+    :class:`~nmdc_metadata_suggestor_ai_tool.models.doi.DoiCategory` members.
     Returns ``None`` for unmapped types (see design doc §2 for the full list).
 
     Args:

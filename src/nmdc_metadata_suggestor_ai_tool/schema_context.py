@@ -14,11 +14,11 @@ from collections import defaultdict
 from linkml_runtime.linkml_model import SlotDefinition  # type: ignore[import-untyped]
 from linkml_runtime.utils.schemaview import SchemaView  # type: ignore[import-untyped]
 
-from nmdc_metadata_suggestor.constants import (
+from nmdc_metadata_suggestor_ai_tool.constants import (
     EXCLUDED_INTERFACE_CLASSES,
     INTERFACE_CLASS_SUFFIX,
 )
-from nmdc_metadata_suggestor.models.schema import (
+from nmdc_metadata_suggestor_ai_tool.models.schema import (
     EnumValueInfo,
     InterfaceSchemaClass,
     SlotInfo,

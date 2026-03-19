@@ -7,18 +7,18 @@ and full-text PDFs links starting from OSTI, then calling Crossref and/or Europe
 
 import requests
 
-from nmdc_metadata_suggestor.constants import (
+from nmdc_metadata_suggestor_ai_tool.constants import (
     DEFAULT_TIMEOUT,
     OSTI_API_URL,
     OSTI_E2_API_URL,
     USER_AGENT,
 )
-from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import (
     append_error,
     clean_text,
     request_with_retry,
 )
-from nmdc_metadata_suggestor.models.resolver_context import ResolverContext
+from nmdc_metadata_suggestor_ai_tool.models.resolver_context import ResolverContext
 
 
 def try_osti(doi: str, errors: list[str] | None = None) -> ResolverContext | None:

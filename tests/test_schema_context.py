@@ -6,7 +6,7 @@ since it's a local, deterministic, no-network-call dependency.
 
 import pytest
 
-from nmdc_metadata_suggestor.schema_context import SchemaContextBuilder, get_schema_view
+from nmdc_metadata_suggestor_ai_tool.schema_context import SchemaContextBuilder, get_schema_view
 
 
 def test_get_schema_view_loads_and_returns_schema_view() -> None:

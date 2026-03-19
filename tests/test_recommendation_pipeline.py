@@ -3,8 +3,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from nmdc_metadata_suggestor import recommendation_pipeline
-from nmdc_metadata_suggestor.llm_client import LLMClient
+from nmdc_metadata_suggestor_ai_tool import recommendation_pipeline
+from nmdc_metadata_suggestor_ai_tool.llm_client import LLMClient
 
 
 def load_sample_submission_object() -> dict:

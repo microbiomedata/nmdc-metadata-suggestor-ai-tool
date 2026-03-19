@@ -1,9 +1,19 @@
 [project]
-name = "nmdc-metadata-suggestor"
-version = "0.1.0"
+name = "nmdc-metadata-suggestor-ai-tool"
+version = "1.0.0"
 description = "NMDC Submission portal metadata suggestor tool, powered by AI"
 readme = "README.md"
 requires-python = ">=3.12"
+license = { file = "LICENSE" }
+keywords = ["nmdc", "metadata", "doi", "llm", "bioinformatics"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3 :: Only",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Operating System :: OS Independent",
+]
 dependencies = [
     "python-dotenv>=1.0.0",
     "pydantic>=2.0.0",
@@ -15,6 +25,11 @@ dependencies = [
     "nmdc-submission-schema>=11.0.0",
     "openai>=2.21.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/microbiomedata/nmdc-metadata-suggestor-ai-tool"
+Repository = "https://github.com/microbiomedata/nmdc-metadata-suggestor-ai-tool"
+Issues = "https://github.com/microbiomedata/nmdc-metadata-suggestor-ai-tool/issues"
 
 [project.optional-dependencies]
 dev = [
@@ -28,15 +43,23 @@ dev = [
     "types-requests>=2.31.0",
 ]
 
-[project.scripts]
-nmdc-suggestor = "nmdc_metadata_suggestor.main:main"
-
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/nmdc_metadata_suggestor"]
+packages = [
+    "src/nmdc_metadata_suggestor_ai_tool",
+]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/nmdc_metadata_suggestor_ai_tool",
+    "tests",
+    "LICENSE",
+    "README.md",
+    "pyproject.toml",
+]
 
 [tool.black]
 line-length = 100

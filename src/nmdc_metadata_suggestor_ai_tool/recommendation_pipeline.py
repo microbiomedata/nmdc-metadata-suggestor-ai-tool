@@ -3,15 +3,15 @@ import re
 
 from pydantic import ValidationError
 
-from nmdc_metadata_suggestor.doi_ingestion.main import get_doi_description_or_abstract
-from nmdc_metadata_suggestor.llm_client import LLMClient
-from nmdc_metadata_suggestor.models.llm_output import LLMOutput
-from nmdc_metadata_suggestor.publication_ingestion.download_pdf import (
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.main import get_doi_description_or_abstract
+from nmdc_metadata_suggestor_ai_tool.llm_client import LLMClient
+from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
+from nmdc_metadata_suggestor_ai_tool.publication_ingestion.download_pdf import (
     download_pdf_to_tempfile,
     remove_temp_file,
 )
-from nmdc_metadata_suggestor.schema_context import SchemaContextBuilder
-from nmdc_metadata_suggestor.utils.submission_parser import get_submission_fields
+from nmdc_metadata_suggestor_ai_tool.schema_context import SchemaContextBuilder
+from nmdc_metadata_suggestor_ai_tool.utils.submission_parser import get_submission_fields
 
 
 def clean_and_validate_output(raw_output: str) -> LLMOutput:
