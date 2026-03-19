@@ -1,30 +1,10 @@
 """Tests for the Vertex AI LLM client (Gemini and Claude)."""
 
-import os
-from pathlib import Path
 from typing import Any
 
 import pytest
 
 from nmdc_metadata_suggestor.llm_client import DEFAULT_MAX_TOKENS_BY_PROVIDER, LLMClient
-
-_repo_root = Path(__file__).resolve().parent.parent
-_default_credentials_file = _repo_root / "gcp_credentials.json"
-
-if not os.environ.get("GOOGLE_APPLICATION_CREDENTIALS") and _default_credentials_file.exists():
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(_default_credentials_file)
-
-_has_gcp_credentials = bool(
-    os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
-    or os.environ.get("GCLOUD_PROJECT")
-    or os.environ.get("CLOUDSDK_CONFIG")
-    or _default_credentials_file.exists()
-)
-
-requires_credentials = pytest.mark.skipif(
-    not _has_gcp_credentials,
-    reason="GCP credentials not available",
-)
 
 
 def test_invalid_access_provider_raises() -> None:
@@ -73,15 +53,13 @@ def test_generate_uses_explicit_max_tokens_override(monkeypatch: Any) -> None:
     assert client.generate(max_tokens=2048) == "ok"
 
 
-@requires_credentials
-def test_default_provider_is_gemini() -> None:
+def test_default_provider_is_gemini(requires_credentials: None) -> None:
     client = LLMClient(access_provider="gcp")
     assert client.model == "gemini-2.0-flash"
 
 
-@requires_credentials
-def test_gemini_generate() -> None:
-    client = LLMClient(access_provider="gcp", model="gemini-2.0-flash")
+def test_gemini_generate(requires_credentials: None) -> None:
+    client = LLMClient(access_provider="gcp", model="gemini-2.5-flash")
     client.add_message(text="Reply with exactly: hello")
     response = client.generate(
         model="gemini-2.0-flash",
@@ -91,8 +69,7 @@ def test_gemini_generate() -> None:
     assert len(response) > 0
 
 
-@requires_credentials
-def test_gemini_generate_with_system() -> None:
+def test_gemini_generate_with_system(requires_credentials: None) -> None:
     client = LLMClient(access_provider="gcp", model="gemini-2.0-flash")
     client.add_message(
         text="You are a biome classification assistant. Always mention ENVO.",

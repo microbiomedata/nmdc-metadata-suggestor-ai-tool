@@ -76,6 +76,16 @@ def _download_with_cffi(url: str, dest: str) -> None:
         f.write(resp.content)
 
 
+def remove_temp_file(path: str) -> None:
+    """Remove the temporary file at *path*."""
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+            print(f"Temporary file {path} deleted.")
+    except Exception as e:
+        print(f"Error deleting temporary file {path}: {e}")
+
+
 if __name__ == "__main__":
     # pdf_url = "https://link.springer.com/content/pdf/10.1186/s12859-024-05977-2.pdf"
     pdf_url = "https://pubs.acs.org/doi/pdf/10.1021/acs.jpcb.5c06231"
@@ -86,7 +96,6 @@ if __name__ == "__main__":
         print(f"File size: {os.path.getsize(temp_file_path):,} bytes")
 
         # for now, delete the temporary file
-        os.remove(temp_file_path)
-        print(f"Temporary file {temp_file_path} deleted.")
+        remove_temp_file(temp_file_path)
     except RuntimeError as e:
         print(e)

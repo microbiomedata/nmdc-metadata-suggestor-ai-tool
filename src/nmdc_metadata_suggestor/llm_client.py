@@ -27,8 +27,6 @@ BASE_URL = os.environ.get("AI_INCUBATOR_BASE_URL")
 GEMINI_MODELS = [
     "gemini-2.5-pro",
     "gemini-2.5-flash",
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
 ]
 
 
@@ -41,10 +39,10 @@ PNNL_GPT_MODELS = [
     "o4-mini-project",
 ]
 
-DEFAULT_GEMINI_MODEL = "gemini-2.0-flash"
+DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
 DEFAULT_MAX_TOKENS_BY_PROVIDER: dict[str, int] = {
     "pnnl": 128000,
-    "gcp": 8192,
+    "gcp": 65535,
 }
 
 
@@ -172,7 +170,11 @@ class LLMClient:
             contents=self.messages,
             config=config,
         )
-        return (response.text or "").strip()
+        if response.text is None:
+            raise RuntimeError(
+                f"GCP model returned an empty text response. Response object: {response}"
+            )
+        return response.text
 
     def _get_gcp_credentials(self) -> Any:
         """Get OAuth credentials for Vertex AI (service account file or ADC)."""

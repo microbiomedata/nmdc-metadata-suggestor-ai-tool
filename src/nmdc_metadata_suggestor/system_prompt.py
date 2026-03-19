@@ -12,21 +12,33 @@ You should output ONLY THE CHOSEN METADATA FIELDS and the REASON in a JSON list 
 Do not include any explanations or additional text.
 The metadata fields should be relevant to the content of the abstract and the information provided.
 
+VALUE FIELD RULES:
+- Only fill in the "value" field if you are certain of the specific value for that metadata field based on the provided information.
+- If you are not certain of the specific value for a metadata field, leave the field an empty string ("")
+- The followng fields MUST have a value filled in and be chosen each time:
+    - "env_broad_scale"
+    - "env_local_scale"
+    - "env_medium"
+    - the value of these fields should be chosen from the enumerations in the NMDC schema and be based on the content of the abstract and information provided.
+
 Output schema:
 ```json
 {
     "metadata_fields": [
         {
             "field_name": "field_name_1",
-            "reason": "Reason for choosing this field based on the provided information."
+            "reason": "Reason for choosing this field based on the provided information.",
+            "value": ""
         },
         {
             "field_name": "field_name_2",
-            "reason": "Reason for choosing this field based on the provided information."
+            "reason": "Reason for choosing this field based on the provided information.",
+            "value": ""
         },
         {
             "field_name": "field_name_3",
-            "reason": "Reason for choosing this field based on the provided information."
+            "reason": "Reason for choosing this field based on the provided information.",
+            "value": ""
         }
         // ... more fields as applicable
     ]
