@@ -53,7 +53,7 @@ def run_recommendation_pipeline(
 
     Parameters:
         submission_object: Raw submission object containing NMDC metadata fields.
-        llm_client: LLM client instance used for model interaction.
+        llm_client: LLMClient instance used for model interaction.
         max_tokens: Optional maximum number of output response tokens.
 
     Returns:
