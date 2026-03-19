@@ -86,7 +86,7 @@ A Python application for the NMDC Submission portal metadata suggestor tool, pow
 ```
 nmdc-metadata-suggestor-ai-tool/
 ├── src/
-│   └── nmdc_metadata_suggestor/
+│   └── nmdc-metadata-suggestor-ai-tool/
 │       ├── __init__.py
 │       ├── recommendation_pipeline.py       # Pipeline orchestration
 │       ├── llm_client.py                    # LLM client for AI interactions
