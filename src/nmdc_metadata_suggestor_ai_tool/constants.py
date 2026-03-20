@@ -121,4 +121,4 @@ TARGET_PROVIDER_KEYWORDS: dict[str, str] = {
 # Schema context builder
 # ---------------------------------------------------------------------------
 INTERFACE_CLASS_SUFFIX = "Interface"
-EXCLUDED_INTERFACE_CLASSES: frozenset[str] = frozenset({"DhInterface"})
+EXCLUDED_INTERFACE_CLASSES: frozenset[str] = frozenset({"DhInterface", "JgiMgInterface", "JgiMgLrInterface", "JgiMtInterface", "EmslInterface"})
