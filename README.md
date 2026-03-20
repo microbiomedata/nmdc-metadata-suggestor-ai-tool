@@ -10,6 +10,23 @@ A Python application for the NMDC Submission portal metadata suggestor tool, pow
 
 ## Quick Start
 
+### LLM Configuration:
+You will need to set up a .env file:
+
+Run 
+```bash
+cp .env-example .env
+```
+
+For access via PNNL's AI Incubator set the following:
+- AI_INCUBATOR_KEY
+- AI_INCUBATOR_BASE_URL
+
+For access via GCP set the following (this is the path to the service-account.json file that Sierra Moxon can provide):
+- GOOGLE_APPLICATION_CREDENTIALS
+
+The LLMClient will read the appropriate variables for `access_provider=pnnl` or `access_provider=gcp`
+
 ### Option 1: Using uv (Local Development)
 
 1. **Install uv** (if not already installed):
