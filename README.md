@@ -145,11 +145,11 @@ uv run pytest tests/test_example.py
 ### Code Quality
 
 ```bash
-# Format code with Black
-uv run black src tests
+# Format code with Ruff
+uv run ruff format
 
 # Lint with Ruff
-uv run ruff check src tests
+uv run ruff check
 
 # Type check with MyPy
 uv run mypy src
@@ -188,7 +188,7 @@ docker-compose up -d
 
 # Execute commands in the container
 docker-compose exec app uv run pytest
-docker-compose exec app uv run black src
+docker-compose exec app uv run ruff format
 
 # Access shell
 docker-compose exec app bash
