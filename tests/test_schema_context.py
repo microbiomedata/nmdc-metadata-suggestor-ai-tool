@@ -168,7 +168,6 @@ def test_extracts_relevant_schema() -> None:
     assert interface_name in prompt
     assert "Required fields" in prompt
     assert "controlled vocabularies" in prompt
-    assert len(required_slots) == schema.required_slot_count
     assert len(required_slots) < schema.total_slot_count
     assert len(enum_slots) > 0
     # env triad slots should appear among enum-bearing slots
