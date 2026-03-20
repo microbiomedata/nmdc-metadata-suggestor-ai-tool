@@ -6,6 +6,7 @@ since it's a local, deterministic, no-network-call dependency.
 
 import pytest
 
+from nmdc_metadata_suggestor_ai_tool.constants import EXCLUDED_INTERFACE_CLASSES, EXCLUDED_SLOTS
 from nmdc_metadata_suggestor_ai_tool.schema_context import SchemaContextBuilder, get_schema_view
 
 
@@ -15,10 +16,11 @@ def test_get_schema_view_loads_and_returns_schema_view() -> None:
     assert len(sv.all_classes()) > 0
 
 
-def test_list_interfaces_excludes_dh_interface() -> None:
+def test_list_interfaces_excludes_interfaces() -> None:
     builder = SchemaContextBuilder()
     interfaces = builder.list_interfaces()
-    assert "DhInterface" not in interfaces
+    for excluded in EXCLUDED_INTERFACE_CLASSES:
+        assert excluded not in interfaces
 
 
 def test_list_interfaces_all_end_with_interface() -> None:
@@ -182,3 +184,17 @@ def test_format_multi_interface_context_separated() -> None:
     assert "# SoilInterface" in ctx
     assert "# WaterInterface" in ctx
     assert "---" in ctx
+
+
+def test_excluded_slots_not_in_interfaces() -> None:
+    """Verify that excluded slots are not present in any interface schemas."""
+    builder = SchemaContextBuilder()
+    interfaces = builder.list_interfaces()
+    slot_names = set()
+    for interface in interfaces:
+        schema = builder.get_interface_schema(interface)
+        for slot in schema.slots:
+            slot_names.add(slot.name)
+
+    for excluded in EXCLUDED_SLOTS:
+        assert excluded not in slot_names, f"{excluded} should be excluded from schemas"

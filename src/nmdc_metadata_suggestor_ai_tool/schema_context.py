@@ -16,6 +16,7 @@ from linkml_runtime.utils.schemaview import SchemaView  # type: ignore[import-un
 
 from nmdc_metadata_suggestor_ai_tool.constants import (
     EXCLUDED_INTERFACE_CLASSES,
+    EXCLUDED_SLOTS,
     INTERFACE_CLASS_SUFFIX,
 )
 from nmdc_metadata_suggestor_ai_tool.models.schema import (
@@ -80,6 +81,10 @@ class SchemaContextBuilder:
             if name.endswith(INTERFACE_CLASS_SUFFIX) and name not in EXCLUDED_INTERFACE_CLASSES
         )
 
+    def filter_excluded_interfaces(self, interface_names: list[str]) -> list[str]:
+        """Filter out interfaces that are in the EXCLUDED_INTERFACE_CLASSES set."""
+        return [name for name in interface_names if name not in EXCLUDED_INTERFACE_CLASSES]
+
     def resolve_any_of_enum(self, slot: SlotDefinition) -> list[EnumValueInfo] | None:
         """Extract enum values from the first enum-typed ``any_of`` entry on a slot."""
         if not slot.any_of:
@@ -100,6 +105,9 @@ class SchemaContextBuilder:
 
     def get_interface_schema(self, class_name: str) -> InterfaceSchemaClass:
         """Extract full schema info for a single interface class."""
+        filtered_class = self.filter_excluded_interfaces([class_name])
+        if not filtered_class:
+            raise ValueError(f"Class {class_name} is excluded")
         cls = self.sv.get_class(class_name)
         if cls is None:
             raise ValueError(f"Unknown class: {class_name}")
@@ -109,10 +117,20 @@ class SchemaContextBuilder:
 
         slots: list[SlotInfo] = []
         slot_groups: set[str] = set()
-        required_count = 0
         recommended_count = 0
 
         for s in induced_slots:
+            # if the slot is required or deprecated, we do not want to include it.
+            # Continue to next slot.
+            is_required = bool(s.required)
+            is_deprecated = bool(s.deprecated)
+            if is_required or is_deprecated:
+                continue
+            # if the slot is in the excluded slots list, we do not want to include it.
+            # Continue to next slot.
+            if s.name in EXCLUDED_SLOTS:
+                continue
+
             enum_values = None
             enum_total_count = None
 
@@ -135,10 +153,8 @@ class SchemaContextBuilder:
                 if enum_values is not None:
                     enum_total_count = len(enum_values)
 
-            is_required = bool(s.required)
             is_recommended = bool(s.recommended)
-            if is_required:
-                required_count += 1
+
             if is_recommended:
                 recommended_count += 1
 
@@ -169,7 +185,6 @@ class SchemaContextBuilder:
             slots=slots,
             slot_groups=sorted(slot_groups),
             total_slot_count=len(slots),
-            required_slot_count=required_count,
             recommended_slot_count=recommended_count,
         )
 
@@ -181,7 +196,6 @@ class SchemaContextBuilder:
             lines.append(f"\n{schema.description}")
         lines.append(
             f"\nTotal fields: {schema.total_slot_count} | "
-            f"Required: {schema.required_slot_count} | "
             f"Recommended: {schema.recommended_slot_count}"
         )
         if schema.ancestors:

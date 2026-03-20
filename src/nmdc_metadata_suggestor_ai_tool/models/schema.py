@@ -42,5 +42,4 @@ class InterfaceSchemaClass(BaseModel):
     slots: list[SlotInfo] = Field(default_factory=list)
     slot_groups: list[str] = Field(default_factory=list)
     total_slot_count: int = 0
-    required_slot_count: int = 0
     recommended_slot_count: int = 0

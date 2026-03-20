@@ -121,4 +121,16 @@ TARGET_PROVIDER_KEYWORDS: dict[str, str] = {
 # Schema context builder
 # ---------------------------------------------------------------------------
 INTERFACE_CLASS_SUFFIX = "Interface"
-EXCLUDED_INTERFACE_CLASSES: frozenset[str] = frozenset({"DhInterface", "JgiMgInterface", "JgiMgLrInterface", "JgiMtInterface", "EmslInterface"})
+EXCLUDED_INTERFACE_CLASSES: frozenset[str] = frozenset(
+    {"DhInterface", "JgiMgInterface", "JgiMgLrInterface", "JgiMtInterface", "EmslInterface"}
+)
+EXCLUDED_SLOTS: frozenset[str] = frozenset(
+    {
+        "ecosystem",
+        "ecosystem_category",
+        "ecosystem_type",
+        "ecosystem_subtype",
+        "specific_ecosystem",
+        "collection_date_inc",
+    }
+)
