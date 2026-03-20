@@ -134,3 +134,5 @@ EXCLUDED_SLOTS: frozenset[str] = frozenset(
         "collection_date_inc",
     }
 )
+
+INCLUDED_REQUIRED_SLOTS = frozenset({"env_broad_scale", "env_local_scale", "env_medium"})

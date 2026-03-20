@@ -43,14 +43,6 @@ def test_get_interface_schema_soil_has_ancestors() -> None:
     assert "DhInterface" in schema.ancestors
 
 
-def test_get_interface_schema_samp_name_is_required() -> None:
-    builder = SchemaContextBuilder()
-    schema = builder.get_interface_schema("SoilInterface")
-    samp_name = next(s for s in schema.slots if s.name == "samp_name")
-    assert samp_name.required is True
-    assert samp_name.description is not None
-
-
 def test_get_interface_schema_unknown_class_raises_value_error() -> None:
     builder = SchemaContextBuilder()
     with pytest.raises(ValueError, match="Unknown class"):
@@ -73,10 +65,10 @@ def test_format_interface_context_contains_class_name() -> None:
     assert "# SoilInterface" in ctx
 
 
-def test_format_interface_context_contains_required_marker() -> None:
+def test_format_interface_context_does_not_contain_required_marker() -> None:
     builder = SchemaContextBuilder()
     ctx = builder.format_interface_context("SoilInterface")
-    assert "REQUIRED" in ctx
+    assert "REQUIRED" not in ctx
 
 
 def test_get_interface_schema_populates_env_triad_enum_values() -> None:
@@ -144,18 +136,13 @@ def test_extracts_relevant_schema() -> None:
 
     # Build a focused LLM prompt using only the relevant slice -----
     schema = builder.get_interface_schema(interface_name)
-    required_slots = [s for s in schema.slots if s.required]
     enum_slots = [s for s in schema.slots if s.enum_values]
 
     prompt_lines = [
         f"# Schema context for {interface_name}",
         f"{schema.description}",
         "",
-        f"## Required fields ({len(required_slots)} of {schema.total_slot_count})",
     ]
-    for slot in required_slots:
-        constraint = f" (type: {slot.range})" if slot.range else ""
-        prompt_lines.append(f"- {slot.name}{constraint}: {slot.description or ''}")
 
     prompt_lines.append("")
     prompt_lines.append(f"## Fields with controlled vocabularies ({len(enum_slots)})")
@@ -166,9 +153,7 @@ def test_extracts_relevant_schema() -> None:
 
     # Verify the prompt is a focused, well-formed slice — not the whole schema
     assert interface_name in prompt
-    assert "Required fields" in prompt
     assert "controlled vocabularies" in prompt
-    assert len(required_slots) < schema.total_slot_count
     assert len(enum_slots) > 0
     # env triad slots should appear among enum-bearing slots
     enum_slot_names = {s.name for s in enum_slots}

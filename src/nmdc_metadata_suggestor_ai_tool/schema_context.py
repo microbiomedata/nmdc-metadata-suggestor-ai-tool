@@ -17,6 +17,7 @@ from linkml_runtime.utils.schemaview import SchemaView  # type: ignore[import-un
 from nmdc_metadata_suggestor_ai_tool.constants import (
     EXCLUDED_INTERFACE_CLASSES,
     EXCLUDED_SLOTS,
+    INCLUDED_REQUIRED_SLOTS,
     INTERFACE_CLASS_SUFFIX,
 )
 from nmdc_metadata_suggestor_ai_tool.models.schema import (
@@ -40,8 +41,6 @@ def format_slot(slot: SlotInfo) -> list[str]:
     """Format a single slot as Markdown lines for LLM context."""
     slot_lines: list[str] = []
     markers: list[str] = []
-    if slot.required:
-        markers.append("REQUIRED")
     if slot.recommended:
         markers.append("recommended")
     marker_str = f" [{', '.join(markers)}]" if markers else ""
@@ -124,7 +123,7 @@ class SchemaContextBuilder:
             # Continue to next slot.
             is_required = bool(s.required)
             is_deprecated = bool(s.deprecated)
-            if is_required or is_deprecated:
+            if (is_required or is_deprecated) and s.name not in INCLUDED_REQUIRED_SLOTS:
                 continue
             # if the slot is in the excluded slots list, we do not want to include it.
             # Continue to next slot.
@@ -166,7 +165,6 @@ class SchemaContextBuilder:
                     name=s.name,
                     description=str(s.description) if s.description else None,
                     range=s.range,
-                    required=is_required,
                     recommended=is_recommended,
                     multivalued=bool(s.multivalued),
                     pattern=s.pattern,
