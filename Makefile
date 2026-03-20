@@ -6,14 +6,14 @@ help: ## Show this help message
 	@echo "Available targets:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
 
-all-install:
-	uv sync --all-extras
+all-install: ## Install all dependencies including dev
+	uv sync
 
 prod-install: ## Install production dependencies
 	uv sync --no-dev
 
-dev-install: ## Install all dependencies including dev
-	uv sync --extra dev
+dev-install: ## Install only dev dependencies
+	uv sync --only-dev
 
 test: ## Run unit tests (mocked, no network)
 	uv run pytest

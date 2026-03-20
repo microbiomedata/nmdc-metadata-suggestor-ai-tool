@@ -31,7 +31,7 @@ Homepage = "https://github.com/microbiomedata/nmdc-metadata-suggestor-ai-tool"
 Repository = "https://github.com/microbiomedata/nmdc-metadata-suggestor-ai-tool"
 Issues = "https://github.com/microbiomedata/nmdc-metadata-suggestor-ai-tool/issues"
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "pytest>=8.0.0",
     "pytest-cov>=4.1.0",

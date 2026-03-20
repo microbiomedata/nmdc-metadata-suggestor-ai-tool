@@ -18,7 +18,7 @@ Thank you for your interest in contributing to the NMDC Metadata Suggestor! This
 4. **Set up your environment**:
    ```bash
    # Install dependencies
-   uv sync --all-extras
+   uv sync
    
    # Create .env file from template
    cp .env.example .env
@@ -36,7 +36,7 @@ Thank you for your interest in contributing to the NMDC Metadata Suggestor! This
 Using uv (recommended):
 ```bash
 # Install dependencies
-uv sync --all-extras
+uv sync
 
 # Create .env file
 cp .env.example .env
