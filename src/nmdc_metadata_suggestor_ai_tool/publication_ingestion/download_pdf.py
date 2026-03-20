@@ -1,9 +1,12 @@
+import logging
 import os
 import tempfile
 from urllib.parse import urlparse
 
 import requests
 from curl_cffi import requests as cffi_requests
+
+logger = logging.getLogger(__name__)
 
 # Domains known to use Cloudflare JS challenges that require browser-like
 # TLS fingerprints.  curl_cffi (via curl-impersonate) is used for these;
@@ -39,7 +42,7 @@ def download_pdf_to_tempfile(url: str) -> str:
     try:
         fd, temp_path = tempfile.mkstemp(suffix=".pdf")
         os.close(fd)
-        print(f"Temporary file created at: {temp_path}")
+        logger.debug(f"Temporary file created at: {temp_path}")
 
         if _needs_browser_impersonation(url):
             _download_with_cffi(url, temp_path)
@@ -81,9 +84,9 @@ def remove_temp_file(path: str) -> None:
     try:
         if os.path.exists(path):
             os.remove(path)
-            print(f"Temporary file {path} deleted.")
-    except Exception as e:
-        print(f"Error deleting temporary file {path}: {e}")
+            logger.debug(f"Temporary file {path} deleted.")
+    except Exception:
+        logger.exception(f"Error deleting temporary file {path}")
 
 
 if __name__ == "__main__":
