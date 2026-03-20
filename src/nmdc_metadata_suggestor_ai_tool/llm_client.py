@@ -87,8 +87,7 @@ class LLMClient:
             # load ai incubator key from env
             if not AI_INCUBATOR_KEY or not BASE_URL:
                 raise RuntimeError(
-                    "AI_INCUBATOR_KEY or AI_INCUBATOR_BASE_URL is not set "
-                    "in environment variables."
+                    "AI_INCUBATOR_KEY or AI_INCUBATOR_BASE_URL is not set in environment variables."
                 )
             self.client = OpenAI(base_url=BASE_URL, api_key=AI_INCUBATOR_KEY)
 
