@@ -18,7 +18,7 @@ Thank you for your interest in contributing to the NMDC Metadata Suggestor! This
 4. **Set up your environment**:
    ```bash
    # Install dependencies
-   uv sync --all-extras
+   uv sync
    
    # Create .env file from template
    cp .env.example .env
@@ -36,7 +36,7 @@ Thank you for your interest in contributing to the NMDC Metadata Suggestor! This
 Using uv (recommended):
 ```bash
 # Install dependencies
-uv sync --all-extras
+uv sync
 
 # Create .env file
 cp .env.example .env
@@ -63,10 +63,10 @@ make lint
 make test
 
 # Or individually:
-uv run black src tests          # Format code
-uv run ruff check src tests     # Lint code
-uv run mypy src                 # Type check
-uv run pytest                   # Run tests
+uv run ruff format     # Format code
+uv run ruff check      # Lint code
+uv run mypy src        # Type check
+uv run pytest          # Run tests
 ```
 
 ### Testing
@@ -91,7 +91,7 @@ uv run pytest tests/test_specific.py
 
 - Follow PEP 8 style guide
 - Use type hints for function signatures
-- Format code with Black (line length: 100)
+- Format code with Ruff (line length: 100)
 - Use Ruff for linting
 - Write descriptive docstrings
 

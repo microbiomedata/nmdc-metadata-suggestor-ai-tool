@@ -6,14 +6,14 @@ help: ## Show this help message
 	@echo "Available targets:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
 
-all-install:
-	uv sync --all-extras
+all-install: ## Install all dependencies including dev
+	uv sync
 
 prod-install: ## Install production dependencies
 	uv sync --no-dev
 
-dev-install: ## Install all dependencies including dev
-	uv sync --extra dev
+dev-install: ## Install only dev dependencies
+	uv sync --only-dev
 
 test: ## Run unit tests (mocked, no network)
 	uv run pytest
@@ -21,13 +21,13 @@ test: ## Run unit tests (mocked, no network)
 test-integration: ## Run integration tests against real APIs
 	uv run pytest -m integration
 
-lint: ## Run linters but ignore the system prompt in system_prompt.py
-	uv run ruff check src tests --exclude src/nmdc_metadata_suggestor_ai_tool/system_prompt.py
+lint: ## Run linters
+	uv run ruff check
 	uv run mypy src 
 
 format: ## This is a two part command that both checks, then auto-fixes formatting issues where it can.
-	uv run black src tests
-	uv run ruff check --fix src tests --exclude src/nmdc_metadata_suggestor_ai_tool/system_prompt.py
+	uv run ruff format
+	uv run ruff check --fix
 
 clean: ## Clean up generated files
 	rm -rf .pytest_cache

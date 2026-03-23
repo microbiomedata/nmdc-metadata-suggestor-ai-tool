@@ -31,12 +31,11 @@ Homepage = "https://github.com/microbiomedata/nmdc-metadata-suggestor-ai-tool"
 Repository = "https://github.com/microbiomedata/nmdc-metadata-suggestor-ai-tool"
 Issues = "https://github.com/microbiomedata/nmdc-metadata-suggestor-ai-tool/issues"
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "pytest>=8.0.0",
     "pytest-cov>=4.1.0",
     "pytest-asyncio>=0.23.0",
-    "black>=24.0.0",
     "ruff>=0.3.0",
     "mypy>=1.8.0",
     "responses>=0.25.0",
@@ -61,13 +60,12 @@ include = [
     "pyproject.toml",
 ]
 
-[tool.black]
-line-length = 100
-target-version = ['py312']
-
 [tool.ruff]
+extend-exclude = [
+    "scripts",
+    "src/nmdc_metadata_suggestor_ai_tool/system_prompt.py"
+]
 line-length = 100
-target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]

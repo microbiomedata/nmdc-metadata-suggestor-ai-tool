@@ -6,5 +6,5 @@ After cloning, run the `/secure-repo` slash command to install local secret scan
 ## Development
 - Use `uv` for dependency management
 - Run tests: `uv run pytest`
-- Format: `uv run black src tests`
-- Lint: `uv run ruff check src tests`
+- Format: `uv run ruff format`
+- Lint: `uv run ruff check`

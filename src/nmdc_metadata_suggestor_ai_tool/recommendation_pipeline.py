@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 
 from pydantic import ValidationError
@@ -13,17 +14,19 @@ from nmdc_metadata_suggestor_ai_tool.publication_ingestion.download_pdf import (
 from nmdc_metadata_suggestor_ai_tool.schema_context import SchemaContextBuilder
 from nmdc_metadata_suggestor_ai_tool.utils.submission_parser import get_submission_fields
 
+logger = logging.getLogger(__name__)
+
 
 def clean_and_validate_output(raw_output: str) -> LLMOutput:
     """Clean the raw output from the LLM and validate it against the expected schema"""
-    print(f"Raw LLM output: {raw_output}")
+    logger.debug(f"Raw LLM output: {raw_output}")
     cleaned_response = re.sub(
         r"^```(?:json)?\s*\n?|\n?```$",
         "",
         raw_output.strip(),
         flags=re.MULTILINE,
     ).strip()
-    print(f"Cleaned LLM response: {cleaned_response}")
+    logger.debug(f"Cleaned LLM response: {cleaned_response}")
     try:
         parsed_response = json.loads(cleaned_response)
     except json.JSONDecodeError as exc:
@@ -104,8 +107,8 @@ def run_recommendation_pipeline(
             try:
                 pdf_path = download_pdf_to_tempfile(str(url))
                 pdf_files.append(pdf_path)
-            except Exception as e:
-                print(f"Error downloading PDF from {url}: {e}")
+            except Exception:
+                logger.exception(f"Error downloading PDF from {url}")
     else:
         pdf_files = None
 
