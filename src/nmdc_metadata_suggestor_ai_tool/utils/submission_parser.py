@@ -1,4 +1,7 @@
+import logging
 from enum import Enum
+
+logger = logging.getLogger(__name__)
 
 
 class MixisExtensions(Enum):
@@ -103,7 +106,7 @@ def get_submission_fields(submission_object: dict) -> dict:
         try:
             mixis_extensions.append(MixisExtensions(ext).name)
         except ValueError:
-            print(f"Warning: Unrecognized mixis extension '{ext}' in submission data.")
+            logger.warning(f"Unrecognized mixis extension '{ext}' in submission data.")
 
     # combine and dedupe DOI list[dict]
     combined_dois = make_unique_doi_list(data_dois + publication_dois + awarddois + protocol_dois)
