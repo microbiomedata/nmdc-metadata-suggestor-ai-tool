@@ -98,7 +98,7 @@ For a DOI lookup, the pipeline does the following:
 2. Infer the likely provider from DOI prefix or source metadata.
 3. Choose a source order.
 4. Query each source in order until one returns usable text.
-5. Preserve publication metadata collected earlier in the waterfall if later sources provide the text.
+5. Preserve publication metadata collected earlier in the waterfall, and allow provider resolvers to add best-effort publication enrichment when they return usable text without linked paper metadata.
 6. Return the winning text plus accumulated publication metadata and source diagnostics.
 
 ### Waterfall Behavior
