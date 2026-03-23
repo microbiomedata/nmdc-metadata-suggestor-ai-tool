@@ -4,7 +4,7 @@ from enum import Enum
 logger = logging.getLogger(__name__)
 
 
-class MixisExtensions(Enum):
+class MixsExtensions(Enum):
     """Map NMDC interface names to submission portal form sections."""
 
     BuiltEnvInterface = "built environment"
@@ -49,7 +49,7 @@ def get_submission_fields(submission_object: dict) -> dict:
     - jgi study id
     - protocol descriptions
     - protocol names
-    - mixis extensions (mapped to interface names)
+    - MIxS extensions (mapped to interface names)
 
     Parameters:
         submission_object: Raw submission object containing NMDC metadata fields.
@@ -99,14 +99,14 @@ def get_submission_fields(submission_object: dict) -> dict:
                     protocol_names.append(name.strip())
 
     # sample environment form fields
-    mixis_extensions_strings = metadata_submission.get("packageName", [])
-    mixis_extensions = []
+    mixs_extensions_strings = metadata_submission.get("packageName", [])
+    mixs_extensions = []
     # get the interface names
-    for ext in mixis_extensions_strings:
+    for ext in mixs_extensions_strings:
         try:
-            mixis_extensions.append(MixisExtensions(ext).name)
+            mixs_extensions.append(MixsExtensions(ext).name)
         except ValueError:
-            logger.warning(f"Unrecognized mixis extension '{ext}' in submission data.")
+            logger.warning(f"Unrecognized MIxS extension '{ext}' in submission data.")
 
     # combine and dedupe DOI list[dict]
     combined_dois = make_unique_doi_list(data_dois + publication_dois + awarddois + protocol_dois)
@@ -120,5 +120,5 @@ def get_submission_fields(submission_object: dict) -> dict:
         "jgi_study_id": jgi_study_id,
         "protocol_descs": protocol_descs,
         "protocol_names": protocol_names,
-        "mixis_extensions": mixis_extensions,
+        "mixs_extensions": mixs_extensions,
     }
