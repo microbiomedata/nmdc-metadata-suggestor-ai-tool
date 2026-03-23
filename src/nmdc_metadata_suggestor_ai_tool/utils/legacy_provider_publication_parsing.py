@@ -9,8 +9,12 @@ import re
 from urllib.parse import parse_qs, urlparse
 
 import requests
-from nmdc_metadata_suggestor.constants import DEFAULT_TIMEOUT, PROXI_DATASETS_API, USER_AGENT
-from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
+from nmdc_metadata_suggestor_ai_tool.constants import (
+    DEFAULT_TIMEOUT,
+    PROXI_DATASETS_API,
+    USER_AGENT,
+)
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import (
     append_error,
     clean_text,
     extract_document_urls_from_file_entries,
