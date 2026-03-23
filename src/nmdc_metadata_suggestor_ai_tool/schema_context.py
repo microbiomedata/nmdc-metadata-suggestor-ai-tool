@@ -121,7 +121,6 @@ class SchemaContextBuilder:
         deprecated_count = 0
 
         for s in induced_slots:
-
             enum_values = None
             enum_total_count = None
 
@@ -195,7 +194,8 @@ class SchemaContextBuilder:
         - Excluded slot names (EXCLUDED_SLOTS)
         - Deprecated slots (unless in INCLUDED_REQUIRED_SLOTS)
         - Required slots (unless in INCLUDED_REQUIRED_SLOTS)
-        This does NOT mutate the input schema, but returns a new instance with updated slot list and counts.
+        This does NOT mutate the input schema, but returns a new instance
+        with updated slot list and counts.
         """
         filtered_slots = []
         required_count = 0
@@ -231,6 +231,7 @@ class SchemaContextBuilder:
     def format_interface_context(self, class_name: str) -> str:
         """Format schema info as structured Markdown for LLM context."""
         schema = self.get_interface_schema(class_name)
+        # added filtering to remove specified slots
         filtered_schema = self.filter_slots(schema)
         lines: list[str] = [f"# {filtered_schema.class_name}"]
         if filtered_schema.description:
