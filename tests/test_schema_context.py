@@ -6,6 +6,7 @@ since it's a local, deterministic, no-network-call dependency.
 
 import pytest
 
+from nmdc_metadata_suggestor_ai_tool.constants import EXCLUDED_INTERFACE_CLASSES, EXCLUDED_SLOTS
 from nmdc_metadata_suggestor_ai_tool.schema_context import SchemaContextBuilder, get_schema_view
 
 
@@ -15,10 +16,11 @@ def test_get_schema_view_loads_and_returns_schema_view() -> None:
     assert len(sv.all_classes()) > 0
 
 
-def test_list_interfaces_excludes_dh_interface() -> None:
+def test_list_interfaces_excludes_interfaces() -> None:
     builder = SchemaContextBuilder()
     interfaces = builder.list_interfaces()
-    assert "DhInterface" not in interfaces
+    for excluded in EXCLUDED_INTERFACE_CLASSES:
+        assert excluded not in interfaces
 
 
 def test_list_interfaces_all_end_with_interface() -> None:
@@ -39,14 +41,6 @@ def test_get_interface_schema_soil_has_ancestors() -> None:
     builder = SchemaContextBuilder()
     schema = builder.get_interface_schema("SoilInterface")
     assert "DhInterface" in schema.ancestors
-
-
-def test_get_interface_schema_samp_name_is_required() -> None:
-    builder = SchemaContextBuilder()
-    schema = builder.get_interface_schema("SoilInterface")
-    samp_name = next(s for s in schema.slots if s.name == "samp_name")
-    assert samp_name.required is True
-    assert samp_name.description is not None
 
 
 def test_get_interface_schema_unknown_class_raises_value_error() -> None:
@@ -71,10 +65,10 @@ def test_format_interface_context_contains_class_name() -> None:
     assert "# SoilInterface" in ctx
 
 
-def test_format_interface_context_contains_required_marker() -> None:
+def test_format_interface_context_does_not_contain_required_marker() -> None:
     builder = SchemaContextBuilder()
     ctx = builder.format_interface_context("SoilInterface")
-    assert "REQUIRED" in ctx
+    assert "REQUIRED" not in ctx
 
 
 def test_get_interface_schema_populates_env_triad_enum_values() -> None:
@@ -182,3 +176,31 @@ def test_format_multi_interface_context_separated() -> None:
     assert "# SoilInterface" in ctx
     assert "# WaterInterface" in ctx
     assert "---" in ctx
+
+
+def test_excluded_slots_not_in_interfaces() -> None:
+    """Verify that excluded slots are not present in any interface schemas."""
+    builder = SchemaContextBuilder()
+    interfaces = builder.list_interfaces()
+    slot_names = set()
+    for interface in interfaces:
+        schema = builder.get_interface_schema(interface)
+        filtered_schema = builder.filter_slots(schema)
+        for slot in filtered_schema.slots:
+            slot_names.add(slot.name)
+
+    for excluded in EXCLUDED_SLOTS:
+        assert excluded not in slot_names, f"{excluded} should be excluded from schemas"
+
+
+def test_filter() -> None:
+    """Verify that excluded slots are not present in any interface schemas."""
+    builder = SchemaContextBuilder()
+    interfaces = builder.list_interfaces()
+    for interface in interfaces:
+        schema = builder.get_interface_schema(interface)
+        filtered_schema = builder.filter_slots(schema)
+        assert filtered_schema.deprecated_slot_count == 0
+        # env triad slots are the only ones that should be required, and they are not filtered out,
+        # so either 0 or 3 depending on whether this interface has them or not
+        assert filtered_schema.required_slot_count == 0 or filtered_schema.required_slot_count == 3

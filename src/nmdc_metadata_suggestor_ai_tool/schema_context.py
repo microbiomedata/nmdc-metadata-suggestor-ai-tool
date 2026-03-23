@@ -16,6 +16,8 @@ from linkml_runtime.utils.schemaview import SchemaView  # type: ignore[import-un
 
 from nmdc_metadata_suggestor_ai_tool.constants import (
     EXCLUDED_INTERFACE_CLASSES,
+    EXCLUDED_SLOTS,
+    INCLUDED_REQUIRED_SLOTS,
     INTERFACE_CLASS_SUFFIX,
 )
 from nmdc_metadata_suggestor_ai_tool.models.schema import (
@@ -39,8 +41,6 @@ def format_slot(slot: SlotInfo) -> list[str]:
     """Format a single slot as Markdown lines for LLM context."""
     slot_lines: list[str] = []
     markers: list[str] = []
-    if slot.required:
-        markers.append("REQUIRED")
     if slot.recommended:
         markers.append("recommended")
     marker_str = f" [{', '.join(markers)}]" if markers else ""
@@ -80,6 +80,10 @@ class SchemaContextBuilder:
             if name.endswith(INTERFACE_CLASS_SUFFIX) and name not in EXCLUDED_INTERFACE_CLASSES
         )
 
+    def filter_excluded_interfaces(self, interface_names: list[str]) -> list[str]:
+        """Filter out interfaces that are in the EXCLUDED_INTERFACE_CLASSES set."""
+        return [name for name in interface_names if name not in EXCLUDED_INTERFACE_CLASSES]
+
     def resolve_any_of_enum(self, slot: SlotDefinition) -> list[EnumValueInfo] | None:
         """Extract enum values from the first enum-typed ``any_of`` entry on a slot."""
         if not slot.any_of:
@@ -100,6 +104,9 @@ class SchemaContextBuilder:
 
     def get_interface_schema(self, class_name: str) -> InterfaceSchemaClass:
         """Extract full schema info for a single interface class."""
+        filtered_class = self.filter_excluded_interfaces([class_name])
+        if not filtered_class:
+            raise ValueError(f"Class {class_name} is excluded")
         cls = self.sv.get_class(class_name)
         if cls is None:
             raise ValueError(f"Unknown class: {class_name}")
@@ -111,6 +118,7 @@ class SchemaContextBuilder:
         slot_groups: set[str] = set()
         required_count = 0
         recommended_count = 0
+        deprecated_count = 0
 
         for s in induced_slots:
             enum_values = None
@@ -134,11 +142,16 @@ class SchemaContextBuilder:
                 enum_values = self.resolve_any_of_enum(s)
                 if enum_values is not None:
                     enum_total_count = len(enum_values)
-
             is_required = bool(s.required)
             is_recommended = bool(s.recommended)
+            is_deprecated = bool(s.deprecated)
+
+            if is_deprecated:
+                deprecated_count += 1
+
             if is_required:
                 required_count += 1
+
             if is_recommended:
                 recommended_count += 1
 
@@ -152,6 +165,7 @@ class SchemaContextBuilder:
                     range=s.range,
                     required=is_required,
                     recommended=is_recommended,
+                    deprecated=is_deprecated,
                     multivalued=bool(s.multivalued),
                     pattern=s.pattern,
                     slot_group=s.slot_group,
@@ -171,32 +185,77 @@ class SchemaContextBuilder:
             total_slot_count=len(slots),
             required_slot_count=required_count,
             recommended_slot_count=recommended_count,
+            deprecated_slot_count=deprecated_count,
+        )
+
+    def filter_slots(self, schema: InterfaceSchemaClass) -> InterfaceSchemaClass:
+        """
+        Return a new InterfaceSchemaClass with slots filtered out based on:
+        - Excluded slot names (EXCLUDED_SLOTS)
+        - Deprecated slots (unless in INCLUDED_REQUIRED_SLOTS)
+        - Required slots (unless in INCLUDED_REQUIRED_SLOTS)
+        This does NOT mutate the input schema, but returns a new instance
+        with updated slot list and counts.
+        """
+        filtered_slots = []
+        required_count = 0
+        recommended_count = 0
+        deprecated_count = 0
+        slot_groups = set()
+        for slot in schema.slots:
+            if slot.name in EXCLUDED_SLOTS:
+                continue
+            if (slot.required or slot.deprecated) and slot.name not in INCLUDED_REQUIRED_SLOTS:
+                continue
+            filtered_slots.append(slot)
+            if slot.required:
+                required_count += 1
+            if slot.recommended:
+                recommended_count += 1
+            if slot.deprecated:
+                deprecated_count += 1
+            if slot.slot_group:
+                slot_groups.add(slot.slot_group)
+        return InterfaceSchemaClass(
+            class_name=schema.class_name,
+            description=schema.description,
+            ancestors=schema.ancestors,
+            slots=filtered_slots,
+            slot_groups=sorted(slot_groups),
+            total_slot_count=len(filtered_slots),
+            required_slot_count=required_count,
+            recommended_slot_count=recommended_count,
+            deprecated_slot_count=deprecated_count,
         )
 
     def format_interface_context(self, class_name: str) -> str:
         """Format schema info as structured Markdown for LLM context."""
         schema = self.get_interface_schema(class_name)
-        lines: list[str] = [f"# {schema.class_name}"]
-        if schema.description:
-            lines.append(f"\n{schema.description}")
-        lines.append(
-            f"\nTotal fields: {schema.total_slot_count} | "
-            f"Required: {schema.required_slot_count} | "
-            f"Recommended: {schema.recommended_slot_count}"
-        )
-        if schema.ancestors:
-            lines.append(f"Ancestors: {', '.join(schema.ancestors)}")
+        # added filtering to remove specified slots
+        filtered_schema = self.filter_slots(schema)
+        lines: list[str] = [f"# {filtered_schema.class_name}"]
+        if filtered_schema.description:
+            lines.append(f"\n{filtered_schema.description}")
+        lines.append(f"\nTotal fields: {filtered_schema.total_slot_count} | ")
+        if filtered_schema.required_slot_count:
+            lines.append(f"Required: {filtered_schema.required_slot_count} | ")
+        if filtered_schema.recommended_slot_count:
+            lines.append(f"Recommended: {filtered_schema.recommended_slot_count} | ")
+        if filtered_schema.deprecated_slot_count:
+            lines.append(f"Deprecated: {filtered_schema.deprecated_slot_count} | ")
+        if filtered_schema.ancestors:
+            lines.append(f"Ancestors: {', '.join(filtered_schema.ancestors)}")
 
         # Group slots by slot_group
         grouped: dict[str, list[SlotInfo]] = defaultdict(list)
         ungrouped: list[SlotInfo] = []
-        for slot in schema.slots:
+        for slot in filtered_schema.slots:
             if slot.slot_group:
                 grouped[slot.slot_group].append(slot)
             else:
                 ungrouped.append(slot)
 
-        for group_name in schema.slot_groups:
+        for group_name in filtered_schema.slot_groups:
             if group_name in grouped:
                 lines.append(f"\n## {group_name}")
                 for slot in grouped[group_name]:
