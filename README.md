@@ -150,14 +150,14 @@ These provider resolvers are currently wired into the DOI waterfall:
 | Provider | Primary API or lookup path | Context text currently retrieved | Publication metadata currently retrieved |
 |---|---|---|---|
 | `osti` | OSTI E2 API, with fallback to legacy OSTI API | Record `description` | Yes. Full-text URLs from journal-article `links[].href` and linked journal-article DOIs |
-| `edi` | EDI DOI API -> PASTA EML metadata | `abstract`, then `purpose` / `description` / `title` | No. Disabled until a stable live publication-metadata example is confirmed |
-| `emsl` | ScienceCentral `study/light`, then EMSL external projects API | `abstract`, then `title` / `project_type` | No. Disabled until a stable live publication-metadata example is confirmed |
+| `edi` | EDI DOI API -> PASTA EML metadata | `abstract`, then `purpose` / `description` / `title` | Best effort only. Shared generic DOI lookup can recover related publication DOIs/PDFs when DataCite exposes `relatedIdentifiers` |
+| `emsl` | ScienceCentral `study/light`, then EMSL external projects API | `abstract`, then `title` / `project_type` | Best effort only. Shared generic DOI lookup can recover related publication DOIs/PDFs when DataCite exposes `relatedIdentifiers` |
 | `ess-dive` | ESS-DIVE packages API, then public DataONE Solr/object fallback | `abstract` or `description` from package metadata or public DataONE EML | Yes. Publication links/DOIs from package metadata, plus related-reference DOIs from public DataONE EML |
 | `figshare` | Figshare articles API, then collections API, with detail fetch when needed | Record or detail `description` | Yes. Document URLs from `files` and related publication DOIs from `resource_doi` / references |
-| `jgi` | JGI search API by project id and DOI | `abstract`, `lay_description`, `description`, `title`, `project_name`, or `name` | No. Disabled until a stable live publication-metadata example is confirmed |
-| `kbase` | KBase narrative search API, then workspace object lookup | Narrative descriptions, titles, workspace metadata summaries | No. Disabled until a stable live publication-metadata example is confirmed |
-| `massive` | DOI redirect -> PROXI dataset lookup -> landing-page HTML fallback | Dataset description text, title/subtitle fallback from DataCite when needed | Yes. Publication links/DOIs from PROXI, plus publication DOIs from the MassIVE landing page `Publications` block |
-| `cyverse` | CyVerse Terrain metadata search, then Data Commons metadata | AVU-based abstract/description/title fields | No. Disabled until a stable live publication-metadata example is confirmed |
+| `jgi` | JGI search API by project id and DOI | `abstract`, `lay_description`, `description`, `title`, `project_name`, or `name` | Best effort only. Shared generic DOI lookup can recover related publication DOIs/PDFs when DataCite exposes `relatedIdentifiers` |
+| `kbase` | KBase narrative search API, then workspace object lookup | Narrative descriptions, titles, workspace metadata summaries | Best effort only. Shared generic DOI lookup can recover related publication DOIs/PDFs when DataCite exposes `relatedIdentifiers` |
+| `massive` | DOI redirect -> PROXI dataset lookup, then DataCite title/subtitle fallback | Dataset description text, title/subtitle fallback from DataCite when needed | Best effort only. Shared generic DOI lookup can recover related publication DOIs/PDFs when DataCite exposes `relatedIdentifiers` |
+| `cyverse` | CyVerse Terrain metadata search, then Data Commons metadata | AVU-based abstract/description/title fields | Best effort only. Shared generic DOI lookup can recover related publication DOIs/PDFs when DataCite exposes `relatedIdentifiers` |
 | `zenodo` | Zenodo records API queried by DOI and concept DOI | Record `metadata.description` | Yes. File URLs from `files` and publication DOIs from `metadata.related_identifiers` |
 
 ### Provider Notes
@@ -165,8 +165,7 @@ These provider resolvers are currently wired into the DOI waterfall:
 - `osti`: OSTI records are not always the publication itself. The resolver checks journal-article entries linked from the OSTI record and captures full-text URLs and linked publication DOIs.
 - `emsl`: The resolver prefers ScienceCentral for context text. If ScienceCentral already returns usable text, it does not spend time calling the external projects API.
 - `ess-dive`: Anonymous ESS-DIVE API access is not always available. The resolver can fall back to public DataONE metadata and still recover related-reference DOIs from EML.
-- `massive`: When PROXI is incomplete, the resolver can still recover publication DOIs from the public MassIVE landing page.
-- `edi`, `emsl`, `jgi`, `kbase`, `cyverse`: These providers currently return context text only. Publication-link discovery is intentionally disabled because we do not yet have stable, confirmed live examples providing publication metadata in a consistent manner.
+- `edi`, `emsl`, `jgi`, `kbase`, `massive`, `cyverse`: Direct provider-specific publication parsing is not used in the active resolver path. These providers now share a best-effort generic publication lookup that starts from DOI registry metadata and then resolves PDF links through generic paper resolvers.
 
 ## DOI CLI
 
