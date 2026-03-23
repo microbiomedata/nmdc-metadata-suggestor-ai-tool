@@ -16,8 +16,8 @@ class SlotInfo(BaseModel):
     name: str
     description: str | None = None
     range: str | None = None
-    recommended: bool = False
     required: bool = False
+    recommended: bool = False
     deprecated: bool = False
     multivalued: bool = False
     pattern: str | None = None
