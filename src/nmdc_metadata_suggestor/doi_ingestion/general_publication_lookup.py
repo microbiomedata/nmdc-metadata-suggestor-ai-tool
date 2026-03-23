@@ -41,6 +41,8 @@ def try_general_publication_lookup(
         urls=publication_urls,
         publication_dois=publication_dois,
     )
+
+
 def _lookup_datacite_related_publication_dois(
     doi: str,
     errors: list[str] | None = None,
