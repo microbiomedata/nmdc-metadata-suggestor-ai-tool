@@ -34,8 +34,7 @@ def search_massive_accessions_by_doi(doi: str, errors: list[str] | None = None) 
     accessions: list[str] = []
 
     for publication_query in query_values:
-        rows = fetch_massive_proxi_dataset_rows(
-            publication_query, errors=errors)
+        rows = fetch_massive_proxi_dataset_rows(publication_query, errors=errors)
         for row in rows:
             accession = extract_massive_proxi_row_accession_for_doi(row, doi)
             if accession is None or accession in seen:
@@ -65,17 +64,14 @@ def fetch_massive_proxi_dataset_rows(
             timeout=DEFAULT_TIMEOUT,
         )
         if response.status_code != 200:
-            append_error(
-                errors, f"PROXI dataset rows request returned HTTP {response.status_code}")
+            append_error(errors, f"PROXI dataset rows request returned HTTP {response.status_code}")
             return []
         payload = response.json()
     except requests.RequestException as exc:
-        append_error(
-            errors, f"PROXI dataset rows request failed: {exc.__class__.__name__}")
+        append_error(errors, f"PROXI dataset rows request failed: {exc.__class__.__name__}")
         return []
     except ValueError:
-        append_error(
-            errors, "PROXI dataset rows request returned invalid JSON")
+        append_error(errors, "PROXI dataset rows request returned invalid JSON")
         return []
 
     datasets = payload.get("datasets")
@@ -149,8 +145,7 @@ def extract_massive_landing_page_publication_dois(
         publication_text = clean_text(match.group(1))
         publication_dois = merge_unique_strings(
             publication_dois,
-            extract_doi_references(
-                publication_text, requested_doi=requested_doi),
+            extract_doi_references(publication_text, requested_doi=requested_doi),
         )
 
     return publication_dois
@@ -171,16 +166,14 @@ def extract_massive_publication_metadata(
         )
         publication_dois = merge_unique_strings(
             publication_dois,
-            extract_related_publication_dois(
-                value, requested_doi=requested_doi),
+            extract_related_publication_dois(value, requested_doi=requested_doi),
         )
         if isinstance(value, list):
             for item in value:
                 if isinstance(item, str):
                     publication_dois = merge_unique_strings(
                         publication_dois,
-                        extract_doi_references(
-                            item, requested_doi=requested_doi),
+                        extract_doi_references(item, requested_doi=requested_doi),
                     )
 
     for key in ("publication", "citation", "publication_doi"):
