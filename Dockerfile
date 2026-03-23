@@ -12,6 +12,7 @@ COPY pyproject.toml .
 COPY .python-version .
 COPY uv.lock .
 COPY README.md .
+COPY LICENSE .
 
 # Install dependencies
 RUN uv sync --frozen --no-dev

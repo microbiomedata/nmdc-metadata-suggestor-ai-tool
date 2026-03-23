@@ -1,0 +1,235 @@
+{
+  "metadata_submission": {
+    "packageName": [
+      "soil"
+    ],
+    "addressForm": {
+      "shipper": {
+        "name": "",
+        "email": "",
+        "phone": "",
+        "line1": "",
+        "line2": "",
+        "city": "",
+        "state": "",
+        "postalCode": "",
+        "country": ""
+      },
+      "expectedShippingDate": null,
+      "shippingConditions": "",
+      "sample": "",
+      "description": "",
+      "experimentalGoals": "",
+      "randomization": "",
+      "usdaRegulated": null,
+      "permitNumber": "",
+      "biosafetyLevel": "",
+      "irbOrHipaa": null,
+      "comments": ""
+    },
+    "templates": [
+      "soil"
+    ],
+    "studyForm": {
+      "studyName": "Soil metabolome response to whole-ecosystem warming at the Spruce and Peatland Responses under Changing Environments experiment",
+      "piName": "Bea Meluch",
+      "piEmail": "beata.meluch@pnnl.gov",
+      "piOrcid": "0009-0008-4055-9921",
+      "fundingSources": [],
+      "dataDois": [
+        {
+          "value": "10.1073/pnas.2004192118",
+          "provider": "osti"
+        }
+      ],
+      "publicationDois": null,
+      "linkOutWebpage": [],
+      "studyDate": null,
+      "description": "In this study, a suite of complementary environmental geochemical analyses, including NMR and gas chromatography-mass spectrometry (GC-MS) analyses of central metabolites, Fourier transform ion cyclotron resonance mass spectrometry (FTICR-MS) of secondary metabolites, and lipidomics, was used to investigate the influence of organic matter (OM) quality on the heterotrophic microbial mechanisms controlling peatland CO2, CH4, and CO2:CH4 porewater production ratios in response to climate warming. Our investigations leverage the Spruce and Peatland Responses under Changing Environments (SPRUCE) experiment, where air and peat warming were combined in a whole-ecosystem warming treatment. We hypothesized that warming would enhance the production of plant-derived metabolites, resulting in increased labile OM inputs to the surface peat, thereby enhancing microbial activity and greenhouse gas production. Because shallow peat is most susceptible to enhanced warming, increases in labile OM inputs to the surface, in particular, are likely to result in significant changes to CO2 and CH4 dynamics and methanogenic pathways. In support of this hypothesis, significant correlations were observed between metabolites and temperature consistent with increased availability of labile substrates, which may stimulate more rapid turnover of microbial proteins. An increase in the abundance of methanogenic genes in response to the increase in the abundance of labile substrates was accompanied by a shift toward acetoclastic and methylotrophic methanogenesis. Our results suggest that as peatland vegetation trends toward increasing vascular plant cover with warming, we can expect a concomitant shift toward increasingly methanogenic conditions and amplified climate–peatland feedbacks.",
+      "notes": "",
+      "contributors": [],
+      "alternativeNames": [],
+      "GOLDStudyId": "",
+      "NCBIBioProjectId": ""
+    },
+    "multiOmicsForm": {
+      "award": "CSP",
+      "awardDois": [
+        {
+          "value": "10.46936/10.25585/60013043",
+          "provider": "jgi"
+        }
+      ],
+      "dataGenerated": false,
+      "doe": true,
+      "facilities": [
+        "JGI"
+      ],
+      "facilityGenerated": null,
+      "JGIStudyId": "510963",
+      "mgCompatible": null,
+      "mgInterleaved": null,
+      "mtCompatible": null,
+      "mtInterleaved": null,
+      "omicsProcessingTypes": [
+        "mp",
+        "mb",
+        "nom",
+        "lipidome-emsl"
+      ],
+      "otherAward": null,
+      "ship": null,
+      "studyNumber": "",
+      "unknownDoi": null,
+      "mpProtocols": {
+        "sampleProtocol": {
+          "url": "",
+          "doi": "doi:10.3791/57343",
+          "name": "",
+          "description": ""
+        },
+        "acquisitionProtocol": {
+          "url": "",
+          "doi": "",
+          "name": "proteomics lc",
+          "description": "Proteomics samples were separated by liquid chromatography using a 90 minute gradient with 1% formic acid in water (A) and 0.1% formic acid in acetonitrile (B) on a C18 hand-pulled column maintained at room temperature.\nThe LC system was interfaced with an Orbitrap mass spectrometer using electrospray ionization. Samples were measured in positive ionization mode using data-dependent acquisition. The full scan was collected in profile, MS2 was collected in centroid mode with HCD (high resolution)."
+        },
+        "dataProtocol": {
+          "url": "https://massive.ucsd.edu/ProteoSAFe/dataset.jsp?task=e6219adfadcf4e40a290235b14341461",
+          "doi": "",
+          "name": null,
+          "description": null
+        }
+      },
+      "mbProtocols": {
+        "sampleProtocol": {
+          "url": "",
+          "doi": "doi:10.3791/57343",
+          "name": "",
+          "description": ""
+        },
+        "acquisitionProtocol": {
+          "url": "",
+          "doi": "",
+          "name": "metabolome lc",
+          "description": "Separation was performed using reverse-phase C18 liquid chromatography, with 10 \u00b5l injected onto a Waters CSH column (dimensions: 3.0 mm x 150 mm, 1.7 \u00b5m particle size), maintained at 42\u00baC. Separation occurs over a 34-minute gradient at a flow rate of 0.25 mL/min. The gradient begins with 60% mobile phase A (ACN/H2O, 40:60, containing 10 mM ammonium acetate) and 40% mobile phase B (ACN/IPA, 10:90, containing 10 mM ammonium acetate) at 0 minutes. By 2 minutes, this shifts to 50% mobile phase A and 50% mobile phase B, progressively transitioning to 40% A and 60% B at 3 minutes, 30% A and 70% B at 12 minutes, and ultimately reaching 1% A and 99% B at 25 minutes and remaining stable until 34 minutes.\nThe LC system was interfaced to an LTQ-Velos Orbitrap mass spectrometer (Thermo Scientific, San Jose, CA) using electrospray ionization. MS/MS data were collected in data-dependent mode using normalized collision energies (NCE) of 35 or 30. Each sample was analyzed in both positive and negative ESI modes."
+        },
+        "dataProtocol": {
+          "url": "https://massive.ucsd.edu/ProteoSAFe/dataset.jsp?task=fcefa3de833e4b77997d8fb1e0f5cad7",
+          "doi": "",
+          "name": null,
+          "description": null
+        }
+      },
+      "mbGcProtocols": null,
+      "lipProtocols": {
+        "sampleProtocol": {
+          "url": "",
+          "doi": "doi:10.3791/57343",
+          "name": "",
+          "description": ""
+        },
+        "acquisitionProtocol": {
+          "url": "",
+          "doi": "",
+          "name": "lc lipid",
+          "description": "Separation was performed using reverse-phase C18 liquid chromatography, with 10 \u00b5l injected onto a Waters CSH column (dimensions: 3.0 mm x 150 mm, 1.7 \u00b5m particle size), maintained at 42\u00baC. Separation occurs over a 34-minute gradient at a flow rate of 0.25 mL/min. The gradient begins with 60% mobile phase A (ACN/H2O, 40:60, containing 10 mM ammonium acetate) and 40% mobile phase B (ACN/IPA, 10:90, containing 10 mM ammonium acetate) at 0 minutes. By 2 minutes, this shifts to 50% mobile phase A and 50% mobile phase B, progressively transitioning to 40% A and 60% B at 3 minutes, 30% A and 70% B at 12 minutes, and ultimately reaching 1% A and 99% B at 25 minutes and remaining stable until 34 minutes.\n\nThe LC system was interfaced to an LTQ-Velos Orbitrap mass spectrometer (Thermo Scientific, San Jose, CA) using electrospray ionization. MS/MS data were collected in data-dependent mode using normalized collision energies (NCE) of 35 or 30. Each sample was analyzed in both positive and negative ESI modes."
+        },
+        "dataProtocol": {
+          "url": "https://massive.ucsd.edu/ProteoSAFe/dataset.jsp?task=fcefa3de833e4b77997d8fb1e0f5cad7",
+          "doi": "",
+          "name": null,
+          "description": null
+        }
+      },
+      "nomProtocols": {
+        "sampleProtocol": {
+          "url": "",
+          "doi": "",
+          "name": "methanol water extraction",
+          "description": "SOM was extracted from soils using 6 g of air-dried soil with 30 mL of ultrapure DI water. Soil water mixtures were shaken for 2 hours at 800 rpm. After shaking, soil mixtures were centrifuged at 6000 rpm for 8 minutes. The supernatant was collected and divided into aliquots for TOC/TN, LC-MS and FTICR-MS. Aliquots collected for TOC/TN and LC-MS were filtered using an ultrapure DI rinsed 0.45 um PES filter and stored frozen until analysis. TOC/TN was determined via Shimadzu TOC-TN analyzer. The aliquot for LC-MS was lyophilized and concentrated to 50x using an 80:20 methanol:water mixture prior to analysis. LC-MS spectra were collected. Concentrated OM samples were analyzed using the Q-Exactive 2 with, using a Hilic column, samples and run in both positive and negative mode. FTICR-MS samples were acidified to pH 2 using concentrated phosphoric acid and salts were removed using Agilent Bond Elut PPL SPE cartridges."
+        },
+        "acquisitionProtocol": {
+          "url": "",
+          "doi": "",
+          "name": "nom fticr",
+          "description": "Extracts were analyzed using Fourier transform ion cyclotron mass spectrometry (FT-ICR-MS) with a 12 T Bruker SolariX equipped with a standard Bruker electrospray ionization (ESI) source using negative polarity acquired in full scan, located at the Environmental Molecular Sciences Laboratory (EMSL) user facility located in Richland, WA, USA."
+        },
+        "dataProtocol": {
+          "url": "https://massive.ucsd.edu/ProteoSAFe/dataset.jsp?task=993f4d04def14767af9c0452ad6808ae",
+          "doi": "",
+          "name": null,
+          "description": null
+        }
+      },
+      "nomLcProtocols": null
+    },
+    "sampleData": {
+      "soil_data": [
+        {
+          "elev": 90,
+          "depth": "0 - 0.1",
+          "lat_lon": "12.34 -56.78",
+          "samp_name": "one very good sample",
+          "env_medium": "frozen soil [ENVO:01001526]",
+          "store_cond": "fresh",
+          "geo_loc_name": "USA: Oregon, Eugene",
+          "growth_facil": "field",
+          "analysis_type": [
+            "metabolomics",
+            "lipidomics",
+            "natural organic matter",
+            "metaproteomics"
+          ],
+          "collection_date": "2024-12-24",
+          "env_broad_scale": "broadleaf forest biome [ENVO:01000197]",
+          "env_local_scale": "dune [ENVO:00000170]",
+          "samp_store_temp": -80
+        }
+      ]
+    },
+    "validationState": {
+      "studyForm": null,
+      "multiOmicsForm": null,
+      "sampleEnvironmentForm": null,
+      "senderShippingInfoForm": null,
+      "sampleMetadata": null
+    }
+  },
+  "status": "Denied",
+  "source_client": "submission_portal",
+  "is_test_submission": false,
+  "id": "0a433718-5c5b-4806-825d-a0d2a1cf850e",
+  "author": {
+    "id": "eb45f8e3-dfd7-4f37-bb0f-686518ac529f",
+    "orcid": "0009-0008-4055-9921",
+    "name": "Beata Meluch",
+    "email": "beata.meluch@pnnl.gov",
+    "is_admin": true
+  },
+  "study_name": "Bea's Cool Submission with Protocols for Testing Automation",
+  "templates": [
+    "soil"
+  ],
+  "date_last_modified": "2026-02-03T01:39:52.671595",
+  "created": "2026-01-28T19:55:35.198939",
+  "sample_count": 1,
+  "reviewers": [],
+  "contributors": [
+    "0009-0008-4055-9921"
+  ],
+  "author_orcid": "0009-0008-4055-9921",
+  "field_notes_metadata": null,
+  "lock_updated": "2026-01-30T00:08:39.158619",
+  "locked_by": {
+    "id": "eb45f8e3-dfd7-4f37-bb0f-686518ac529f",
+    "orcid": "0009-0008-4055-9921",
+    "name": "Beata Meluch",
+    "email": "beata.meluch@pnnl.gov",
+    "is_admin": true
+  },
+  "permission_level": null,
+  "pi_image_url": null,
+  "primary_study_image_url": null,
+  "study_image_urls": []
+}

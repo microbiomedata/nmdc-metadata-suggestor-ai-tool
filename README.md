@@ -1,13 +1,6 @@
-# nmdc-metadata-suggestor
+# nmdc-metadata-suggestor-ai-tool
 
-A Python application for the NMDC Submission Portal metadata suggestor tool, powered by AI.
-
-This repository includes a DOI resolution pipeline that can:
-- validate and classify DOIs
-- retrieve dataset or publication context text
-- route repository-backed DOIs through provider-specific resolvers
-- fall back through generic scholarly metadata sources
-- collect linked publication metadata when a provider exposes it reliably
+A Python application for the NMDC Submission Portal metadata suggestor tool, powered by AI. This repository also includes a DOI resolution pipeline for retrieving dataset or publication context and linked publication metadata.
 
 ## Prerequisites
 
@@ -17,32 +10,60 @@ This repository includes a DOI resolution pipeline that can:
 
 ## Quick Start
 
-### Option 1: Local Development With `uv`
+### LLM Configuration
+
+Create a local environment file:
+
+```bash
+cp .env.example .env
+```
+
+For access via PNNL's AI Incubator, set:
+
+- `AI_INCUBATOR_KEY`
+- `AI_INCUBATOR_BASE_URL`
+
+For access via GCP, set:
+
+- `GOOGLE_APPLICATION_CREDENTIALS`
+
+The `LLMClient` reads the appropriate variables for `access_provider="pnnl"` or `access_provider="gcp"`.
+
+### Option 1: Using uv
 
 1. Install `uv`:
    ```bash
    curl -LsSf https://astral.sh/uv/install.sh | sh
    ```
-
 2. Clone the repository:
    ```bash
    git clone https://github.com/microbiomedata/nmdc-metadata-suggestor-ai-tool.git
    cd nmdc-metadata-suggestor-ai-tool
    ```
-
 3. Install dependencies:
    ```bash
    uv sync
    ```
-
 4. Configure environment:
    ```bash
    cp .env.example .env
    ```
-
-5. Run the application:
+5. Use the package in Python:
    ```bash
-   uv run nmdc-suggestor
+   uv run python
+   ```
+
+   ```python
+   from nmdc_metadata_suggestor_ai_tool.llm_client import LLMClient
+   from nmdc_metadata_suggestor_ai_tool.recommendation_pipeline import run_recommendation_pipeline
+
+   submission_object = {
+       # NMDC submission JSON payload
+   }
+
+   client = LLMClient(access_provider="gcp")
+   result = run_recommendation_pipeline(submission_object, client)
+   print(result.model_dump())
    ```
 
 ### Option 2: Docker
@@ -52,17 +73,14 @@ This repository includes a DOI resolution pipeline that can:
    git clone https://github.com/microbiomedata/nmdc-metadata-suggestor-ai-tool.git
    cd nmdc-metadata-suggestor-ai-tool
    ```
-
 2. Configure environment:
    ```bash
    cp .env.example .env
    ```
-
 3. Run the development container:
    ```bash
    docker-compose up
    ```
-
 4. Or build and run the production image:
    ```bash
    docker build -t nmdc-suggestor .
@@ -71,9 +89,9 @@ This repository includes a DOI resolution pipeline that can:
 
 ## DOI Resolution
 
-The DOI pipeline lives under `src/nmdc_metadata_suggestor/doi_ingestion/`.
+The DOI pipeline lives under `src/nmdc_metadata_suggestor_ai_tool/doi_ingestion/`.
 
-Its main entry point is `get_doi_description_or_abstract()` in [src/nmdc_metadata_suggestor/doi_ingestion/main.py](src/nmdc_metadata_suggestor/doi_ingestion/main.py).
+Its main entry point is `get_doi_description_or_abstract()` in [src/nmdc_metadata_suggestor_ai_tool/doi_ingestion/main.py](src/nmdc_metadata_suggestor_ai_tool/doi_ingestion/main.py).
 
 ### What It Returns
 
@@ -85,7 +103,7 @@ A DOI lookup produces a `SourceRetrievalResult` with these main fields:
 - `provider`: inferred repository/provider, such as `figshare` or `ess-dive`
 - `source`: the source that ultimately supplied the winning text
 - `attempts`: ordered list of sources attempted
-- `publication_urls`: linked publication/document URLs when available
+- `publication_urls`: linked publication or document URLs when available
 - `publication_dois`: linked publication DOIs when available and different from the requested DOI
 - `source_errors`: per-source errors captured during the waterfall
 - `error`: top-level error when no usable context was found
@@ -126,7 +144,7 @@ The generic fallback sources contribute the following:
 |---|---|---|
 | `datacite` | DataCite `descriptions` | Abstract or description text |
 | `crossref` | Crossref `message.abstract` | Abstract text |
-| `content_negotiation` | DOI content negotiation `citeproc+json` | Abstract text, or note/description fallback |
+| `content_negotiation` | DOI content negotiation `citeproc+json` | Abstract text, or note or description fallback |
 | `openalex` | OpenAlex `abstract_inverted_index` | Reconstructed abstract text |
 | `pubmed` | DOI -> PMID -> PubMed efetch | Plain-text abstract |
 
@@ -150,14 +168,14 @@ These provider resolvers are currently wired into the DOI waterfall:
 | Provider | Primary API or lookup path | Context text currently retrieved | Publication metadata currently retrieved |
 |---|---|---|---|
 | `osti` | OSTI E2 API, with fallback to legacy OSTI API | Record `description` | Yes. Full-text URLs from journal-article `links[].href` and linked journal-article DOIs |
-| `edi` | EDI DOI API -> PASTA EML metadata | `abstract`, then `purpose` / `description` / `title` | Best effort only. Shared generic DOI lookup can recover related publication DOIs/PDFs when DataCite exposes `relatedIdentifiers` |
-| `emsl` | ScienceCentral `study/light`, then EMSL external projects API | `abstract`, then `title` / `project_type` | Best effort only. Shared generic DOI lookup can recover related publication DOIs/PDFs when DataCite exposes `relatedIdentifiers` |
-| `ess-dive` | ESS-DIVE packages API, then public DataONE Solr/object fallback | `abstract` or `description` from package metadata or public DataONE EML | Yes. Publication links/DOIs from package metadata, plus related-reference DOIs from public DataONE EML |
-| `figshare` | Figshare articles API, then collections API, with detail fetch when needed | Record or detail `description` | Yes. Document URLs from `files` and related publication DOIs from `resource_doi` / references |
-| `jgi` | JGI search API by project id and DOI | `abstract`, `lay_description`, `description`, `title`, `project_name`, or `name` | Best effort only. Shared generic DOI lookup can recover related publication DOIs/PDFs when DataCite exposes `relatedIdentifiers` |
-| `kbase` | KBase narrative search API, then workspace object lookup | Narrative descriptions, titles, workspace metadata summaries | Best effort only. Shared generic DOI lookup can recover related publication DOIs/PDFs when DataCite exposes `relatedIdentifiers` |
-| `massive` | DOI redirect -> PROXI dataset lookup, then DataCite title/subtitle fallback | Dataset description text, title/subtitle fallback from DataCite when needed | Best effort only. Shared generic DOI lookup can recover related publication DOIs/PDFs when DataCite exposes `relatedIdentifiers` |
-| `cyverse` | CyVerse Terrain metadata search, then Data Commons metadata | AVU-based abstract/description/title fields | Best effort only. Shared generic DOI lookup can recover related publication DOIs/PDFs when DataCite exposes `relatedIdentifiers` |
+| `edi` | EDI DOI API -> PASTA EML metadata | `abstract`, then `purpose` / `description` / `title` | Best effort only. Shared generic DOI lookup can recover related publication DOIs and PDFs when DataCite exposes `relatedIdentifiers` |
+| `emsl` | ScienceCentral `study/light`, then EMSL external projects API | `abstract`, then `title` / `project_type` | Best effort only. Shared generic DOI lookup can recover related publication DOIs and PDFs when DataCite exposes `relatedIdentifiers` |
+| `ess-dive` | ESS-DIVE packages API, then public DataONE Solr or object fallback | `abstract` or `description` from package metadata or public DataONE EML | Yes. Publication links and DOIs from package metadata, plus related-reference DOIs from public DataONE EML |
+| `figshare` | Figshare articles API, then collections API, with detail fetch when needed | Record or detail `description` | Yes. Document URLs from `files` and related publication DOIs from `resource_doi` or references |
+| `jgi` | JGI search API by project id and DOI | `abstract`, `lay_description`, `description`, `title`, `project_name`, or `name` | Best effort only. Shared generic DOI lookup can recover related publication DOIs and PDFs when DataCite exposes `relatedIdentifiers` |
+| `kbase` | KBase narrative search API, then workspace object lookup | Narrative descriptions, titles, workspace metadata summaries | Best effort only. Shared generic DOI lookup can recover related publication DOIs and PDFs when DataCite exposes `relatedIdentifiers` |
+| `massive` | DOI redirect -> PROXI dataset lookup, then DataCite title or subtitle fallback | Dataset description text, title or subtitle fallback from DataCite when needed | Best effort only. Shared generic DOI lookup can recover related publication DOIs and PDFs when DataCite exposes `relatedIdentifiers` |
+| `cyverse` | CyVerse Terrain metadata search, then Data Commons metadata | AVU-based abstract, description, or title fields | Best effort only. Shared generic DOI lookup can recover related publication DOIs and PDFs when DataCite exposes `relatedIdentifiers` |
 | `zenodo` | Zenodo records API queried by DOI and concept DOI | Record `metadata.description` | Yes. File URLs from `files` and publication DOIs from `metadata.related_identifiers` |
 
 ### Provider Notes
@@ -169,22 +187,22 @@ These provider resolvers are currently wired into the DOI waterfall:
 
 ## DOI CLI
 
-The DOI CLI lives in [src/nmdc_metadata_suggestor/cli/doi_cli.py](src/nmdc_metadata_suggestor/cli/doi_cli.py).
+The DOI CLI lives in [src/nmdc_metadata_suggestor_ai_tool/cli/doi_cli.py](src/nmdc_metadata_suggestor_ai_tool/cli/doi_cli.py).
 
 Useful commands:
 
 ```bash
 # Validate a DOI
-uv run python -m nmdc_metadata_suggestor.cli.doi_cli validate 10.1038/s41564-020-00861-0
+uv run python -m nmdc_metadata_suggestor_ai_tool.cli.doi_cli validate 10.1038/s41564-020-00861-0
 
 # Classify a DOI
-uv run python -m nmdc_metadata_suggestor.cli.doi_cli classify 10.1038/s41564-020-00861-0
+uv run python -m nmdc_metadata_suggestor_ai_tool.cli.doi_cli classify 10.1038/s41564-020-00861-0
 
 # Fetch context using the default waterfall
-uv run python -m nmdc_metadata_suggestor.cli.doi_cli get-abstract 10.15485/2588483
+uv run python -m nmdc_metadata_suggestor_ai_tool.cli.doi_cli get-abstract 10.15485/2588483
 
 # Force a specific source order
-uv run python -m nmdc_metadata_suggestor.cli.doi_cli get-abstract 10.25345/C5SZ1P sources=massive,datacite
+uv run python -m nmdc_metadata_suggestor_ai_tool.cli.doi_cli get-abstract 10.25345/C5SZ1P sources=massive,datacite
 ```
 
 ## Development
@@ -194,34 +212,39 @@ uv run python -m nmdc_metadata_suggestor.cli.doi_cli get-abstract 10.25345/C5SZ1
 ```text
 nmdc-metadata-suggestor-ai-tool/
 ├── src/
-│   └── nmdc_metadata_suggestor/
+│   └── nmdc_metadata_suggestor_ai_tool/
+│       ├── __init__.py
 │       ├── cli/
+│       │   ├── __init__.py
 │       │   └── doi_cli.py
 │       ├── doi_ingestion/
-│       │   ├── main.py
-│       │   ├── doi_utils.py
-│       │   ├── datacite.py
-│       │   ├── crossref.py
+│       │   ├── __init__.py
 │       │   ├── content_negotiation.py
-│       │   ├── openalex.py
-│       │   ├── pubmed.py
-│       │   ├── osti.py
+│       │   ├── crossref.py
+│       │   ├── cyverse.py
+│       │   ├── datacite.py
+│       │   ├── doi_utils.py
 │       │   ├── edi.py
 │       │   ├── emsl.py
 │       │   ├── ess_dive.py
 │       │   ├── figshare.py
+│       │   ├── general_publication_lookup.py
 │       │   ├── jgi.py
 │       │   ├── kbase.py
+│       │   ├── main.py
 │       │   ├── massive.py
-│       │   ├── cyverse.py
+│       │   ├── openalex.py
+│       │   ├── osti.py
+│       │   ├── pubmed.py
 │       │   └── zenodo.py
 │       ├── models/
+│       │   ├── __init__.py
 │       │   ├── doi.py
+│       │   ├── llm_output.py
 │       │   ├── resolver_context.py
 │       │   └── schema.py
 │       ├── publication_ingestion/
 │       ├── llm_client.py
-│       ├── main.py
 │       ├── recommendation_pipeline.py
 │       ├── schema_context.py
 │       └── system_prompt.py
@@ -248,13 +271,19 @@ uv run pytest tests/test_doi_ingestion.py
 uv run pytest -m integration
 
 # Coverage
-uv run pytest --cov=src/nmdc_metadata_suggestor
+uv run pytest --cov=src/nmdc_metadata_suggestor_ai_tool
 ```
 
 ### Code Quality
 
 ```bash
-uv run ruff check src tests
+# Format code with Ruff
+uv run ruff format
+
+# Lint with Ruff
+uv run ruff check
+
+# Type check with MyPy
 uv run mypy src
 ```
 
@@ -283,6 +312,7 @@ Examples:
 ```bash
 docker-compose up -d
 docker-compose exec app uv run pytest
+docker-compose exec app uv run ruff format
 docker-compose exec app bash
 docker-compose down
 ```
@@ -303,4 +333,4 @@ docker run --env-file .env nmdc-suggestor:latest
 
 ## License
 
-[Specify your license here]
+See [LICENSE](LICENSE) for licensing terms.
