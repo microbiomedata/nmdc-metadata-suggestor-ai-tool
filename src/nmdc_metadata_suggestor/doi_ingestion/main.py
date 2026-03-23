@@ -286,7 +286,9 @@ def _fetch_resolver_context(
     errors: list[str] = []
     context = resolver(doi, errors)
     publication_context: ResolverContext | None = None
-    if source in SHARED_PUBLICATION_LOOKUP_SOURCES and context is None:
+    if source in SHARED_PUBLICATION_LOOKUP_SOURCES and (
+        context is None or not (context.urls or context.publication_dois)
+    ):
         publication_context = try_general_publication_lookup(doi)
     if len(errors) > 0:
         _record_source_error(source_errors, source, errors)

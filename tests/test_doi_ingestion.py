@@ -349,6 +349,15 @@ def _mock_shared_publication_lookup(
         )
 
 
+def _mock_no_shared_publication_lookup(doi: str, *, datacite_response_count: int = 1) -> None:
+    """Mock a clean generic lookup miss with no related publication identifiers."""
+    _add_repeated_json_response(
+        f"{DATACITE_API}/{doi}",
+        {"data": {"attributes": {}}},
+        datacite_response_count,
+    )
+
+
 def _mock_openalex_miss(doi: str) -> None:
     """Mock OpenAlex call as a clean 'no abstract' miss."""
     responses.add(
@@ -682,9 +691,11 @@ def test_figshare_collection_doi_uses_collection_api() -> None:
 
 @responses.activate
 def test_edi_provider_api_abstract_wins() -> None:
-    """Resolve EDI DOI to EML metadata and extract abstract text first."""
+    """Resolve EDI DOI to EML metadata and enrich with shared publication metadata."""
     doi = "10.6073/pasta/abc123"
     metadata_url = "https://pasta.lternet.edu/package/metadata/eml/edi/123/1"
+    publication_doi = "10.1000/edi-provider-paper"
+    publication_url = "https://example.org/edi-provider-paper.pdf"
     responses.add(
         responses.GET,
         f"{EDI_DOI_API}/doi:{doi}",
@@ -697,6 +708,12 @@ def test_edi_provider_api_abstract_wins() -> None:
         body=XML_PAYLOAD_FIXTURES["edi_provider_abstract_xml"],
         content_type="application/xml",
     )
+    _mock_shared_publication_lookup(
+        doi,
+        publication_doi,
+        publication_url,
+        datacite_text="Unused DataCite fallback text",
+    )
 
     result = get_doi_description_or_abstract(doi)
     assert result.context == "EDI abstract text."
@@ -704,6 +721,8 @@ def test_edi_provider_api_abstract_wins() -> None:
     assert result.source == "edi"
     assert result.provider == "edi"
     assert result.attempts == ["edi"]
+    assert result.publication_urls == [publication_url]
+    assert result.publication_dois == [publication_doi]
 
 
 @responses.activate
@@ -780,8 +799,10 @@ def test_edi_unsafe_metadata_xml_falls_back_to_datacite() -> None:
 
 @responses.activate
 def test_emsl_provider_api_abstract_wins() -> None:
-    """Prefer ScienceCentral text when resolving an EMSL DOI."""
+    """Prefer ScienceCentral text and enrich with shared publication metadata."""
     doi = "10.46936/jejc.proj.2014.48483/60005501"
+    publication_doi = "10.1000/emsl-provider-paper"
+    publication_url = "https://example.org/emsl-provider-paper.pdf"
     responses.add(
         responses.POST,
         EMSL_SCIENCECENTRAL_STUDY_LIGHT_API,
@@ -798,13 +819,20 @@ def test_emsl_provider_api_abstract_wins() -> None:
             }
         },
     )
+    _mock_shared_publication_lookup(
+        doi,
+        publication_doi,
+        publication_url,
+        datacite_text="Unused DataCite fallback text",
+    )
     result = get_doi_description_or_abstract(doi, sources=["emsl"])
     assert result.context == "ScienceCentral abstract text."
     assert result.context_type == "abstract"
     assert result.source == "emsl"
     assert result.provider == "emsl"
     assert result.attempts == ["emsl"]
-    assert len(responses.calls) == 1
+    assert result.publication_urls == [publication_url]
+    assert result.publication_dois == [publication_doi]
 
 
 @responses.activate
@@ -889,6 +917,7 @@ def test_emsl_sciencecentral_text_does_not_query_external_api() -> None:
             }
         },
     )
+    _mock_no_shared_publication_lookup(doi)
     result = get_doi_description_or_abstract(doi, sources=["emsl"])
 
     assert result.context == "ScienceCentral abstract text."
@@ -918,6 +947,7 @@ def test_emsl_sciencecentral_miss_falls_back_to_external_text() -> None:
         f"{EMSL_PROJECTS_API}/48483",
         json=_json_payload("emsl_provider_hit", doi=doi),
     )
+    _mock_no_shared_publication_lookup(doi)
 
     result = get_doi_description_or_abstract(doi)
 
@@ -930,12 +960,20 @@ def test_emsl_sciencecentral_miss_falls_back_to_external_text() -> None:
 
 @responses.activate
 def test_jgi_provider_api_lay_description_wins() -> None:
-    """Resolve JGI DOI via project search and return lay description."""
+    """Resolve JGI DOI via project search and enrich with shared publication metadata."""
     doi = "10.25585/1487763"
+    publication_doi = "10.1000/jgi-provider-paper"
+    publication_url = "https://example.org/jgi-provider-paper.pdf"
     responses.add(
         responses.GET,
         JGI_SEARCH_API,
         json=_json_payload("jgi_lay_description_hit", doi=doi),
+    )
+    _mock_shared_publication_lookup(
+        doi,
+        publication_doi,
+        publication_url,
+        datacite_text="Unused DataCite fallback text",
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -944,6 +982,8 @@ def test_jgi_provider_api_lay_description_wins() -> None:
     assert result.source == "jgi"
     assert result.provider == "jgi"
     assert result.attempts == ["jgi"]
+    assert result.publication_urls == [publication_url]
+    assert result.publication_dois == [publication_doi]
 
 
 @responses.activate
@@ -1026,12 +1066,20 @@ def test_jgi_missing_doi_fields_falls_back_to_datacite() -> None:
 
 @responses.activate
 def test_kbase_provider_api_description_wins() -> None:
-    """Resolve KBase DOI via narrative search and return narrative description text."""
+    """Resolve KBase DOI via narrative search and enrich with shared publication metadata."""
     doi = "10.25982/109073.30/1895615"
+    publication_doi = "10.1000/kbase-provider-paper"
+    publication_url = "https://example.org/kbase-provider-paper.pdf"
     responses.add(
         responses.POST,
         KBASE_SEARCH_API,
         json=_json_payload("kbase_search_hit_description"),
+    )
+    _mock_shared_publication_lookup(
+        doi,
+        publication_doi,
+        publication_url,
+        datacite_text="Unused DataCite fallback text",
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -1042,6 +1090,8 @@ def test_kbase_provider_api_description_wins() -> None:
     assert result.source == "kbase"
     assert result.provider == "kbase"
     assert result.attempts == ["kbase"]
+    assert result.publication_urls == [publication_url]
+    assert result.publication_dois == [publication_doi]
 
 
 @responses.activate
@@ -1149,6 +1199,7 @@ def test_kbase_workspace_narrative_name_used_when_search_misses() -> None:
         KBASE_WORKSPACE_API,
         json=_json_payload("kbase_workspace_name_result"),
     )
+    _mock_no_shared_publication_lookup(doi)
 
     result = get_doi_description_or_abstract(doi)
     assert result.context == "Produced Water DNA Database"
@@ -1177,6 +1228,7 @@ def test_kbase_workspace_object_metadata_summary_used_when_name_is_technical() -
         KBASE_WORKSPACE_API,
         json=_json_payload("kbase_workspace_metadata_result"),
     )
+    _mock_no_shared_publication_lookup(doi)
 
     result = get_doi_description_or_abstract(doi)
     context = result.context
@@ -1193,9 +1245,11 @@ def test_kbase_workspace_object_metadata_summary_used_when_name_is_technical() -
 
 @responses.activate
 def test_massive_provider_api_description_wins() -> None:
-    """Resolve MassIVE DOI via DOI redirect plus ProteomeCentral dataset details."""
+    """Resolve MassIVE DOI via PROXI and enrich with shared publication metadata."""
     doi = "10.25345/C5FX7482Q"
     accession = "MSV000093271"
+    publication_doi = "10.1000/massive-provider-paper"
+    publication_url = "https://example.org/massive-provider-paper.pdf"
     responses.add(
         responses.GET,
         f"{DOI_CONTENT_NEGOTIATION_API}/{doi}",
@@ -1209,6 +1263,12 @@ def test_massive_provider_api_description_wins() -> None:
         f"{PROXI_DATASETS_API}/{accession}",
         json=_json_payload("massive_dataset_detail"),
     )
+    _mock_shared_publication_lookup(
+        doi,
+        publication_doi,
+        publication_url,
+        datacite_text="Unused DataCite fallback text",
+    )
 
     result = get_doi_description_or_abstract(doi)
     assert result.context == "MassIVE dataset description text."
@@ -1216,6 +1276,8 @@ def test_massive_provider_api_description_wins() -> None:
     assert result.source == "massive"
     assert result.provider == "massive"
     assert result.attempts == ["massive"]
+    assert result.publication_urls == [publication_url]
+    assert result.publication_dois == [publication_doi]
 
 
 @responses.activate
@@ -1368,9 +1430,11 @@ def test_massive_uses_datacite_title_context_when_proxi_fails() -> None:
 
 @responses.activate
 def test_cyverse_provider_api_abstract_wins() -> None:
-    """Resolve CyVerse DOI via Terrain metadata and return abstract text."""
+    """Resolve CyVerse DOI via Terrain metadata and enrich with shared publication metadata."""
     doi = "10.17504/cyverse.dataset.12345"
     target_id = "7cfd91a9-2e07-4224-9c5b-26a04ce24122"
+    publication_doi = "10.1000/cyverse-provider-paper"
+    publication_url = "https://example.org/cyverse-provider-paper.pdf"
     responses.add(
         responses.POST,
         CYVERSE_METADATA_SEARCH_API,
@@ -1383,6 +1447,12 @@ def test_cyverse_provider_api_abstract_wins() -> None:
         json=_json_payload("cyverse_provider_metadata_hit",
                            target_id=target_id),
     )
+    _mock_shared_publication_lookup(
+        doi,
+        publication_doi,
+        publication_url,
+        datacite_text="Unused DataCite fallback text",
+    )
 
     result = get_doi_description_or_abstract(doi)
     assert result.context == "CyVerse dataset abstract text."
@@ -1390,6 +1460,8 @@ def test_cyverse_provider_api_abstract_wins() -> None:
     assert result.source == "cyverse"
     assert result.provider == "cyverse"
     assert result.attempts == ["cyverse"]
+    assert result.publication_urls == [publication_url]
+    assert result.publication_dois == [publication_doi]
 
 
 @responses.activate
@@ -1438,10 +1510,12 @@ def test_cyverse_link_only_falls_back_and_uses_shared_publication_lookup() -> No
 def test_cyverse_datacommons_metadata_fallback_returns_description(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """If Terrain metadata misses, resolve CyVerse context from Data Commons metadata."""
+    """If Terrain misses, resolve CyVerse context and shared publication metadata."""
     doi = "10.25739/hr33-4321"
     datacommons_path = "/iplant/home/shared/commons_repo/curated/Reicher_PooledProteinTagging_2020"
     item_id = "a4c1bfac-f74e-11ea-92e8-90e2ba675364"
+    publication_doi = "10.1000/cyverse-datacommons-paper"
+    publication_url = "https://example.org/cyverse-datacommons-paper.pdf"
     with caplog.at_level("INFO"):
         responses.add(
             responses.POST,
@@ -1490,6 +1564,12 @@ def test_cyverse_datacommons_metadata_fallback_returns_description(
                 }
             },
         )
+        _mock_shared_publication_lookup(
+            doi,
+            publication_doi,
+            publication_url,
+            datacite_text="Unused DataCite fallback text",
+        )
 
         result = get_doi_description_or_abstract(doi, sources=["cyverse"])
     assert result.context == "CyVerse Data Commons description text."
@@ -1498,6 +1578,8 @@ def test_cyverse_datacommons_metadata_fallback_returns_description(
     assert result.attempts == ["cyverse"]
     assert result.error is None
     assert result.source_errors == {}
+    assert result.publication_urls == [publication_url]
+    assert result.publication_dois == [publication_doi]
     assert (
         "CyVerse resolved DOI 10.25739/hr33-4321 through Data Commons after Terrain miss"
         in caplog.text
@@ -1581,6 +1663,7 @@ def test_cyverse_terrain_unusable_metadata_falls_back_to_datacommons() -> None:
             }
         },
     )
+    _mock_no_shared_publication_lookup(doi)
 
     result = get_doi_description_or_abstract(doi, sources=["cyverse"])
 
@@ -1590,7 +1673,6 @@ def test_cyverse_terrain_unusable_metadata_falls_back_to_datacommons() -> None:
     assert result.attempts == ["cyverse"]
     assert result.error is None
     assert result.source_errors == {}
-    assert len(responses.calls) == 5
     terrain_url_raw = responses.calls[1].request.url
     assert terrain_url_raw is not None
     terrain_url_str: str = (
