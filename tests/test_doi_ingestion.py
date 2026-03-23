@@ -1551,8 +1551,7 @@ def test_text_mentions_doi_matches_exact_variants() -> None:
     """Exact DOI references should match across bare, doi:, and URL forms."""
     requested = "10.1038/s41564-020-00861-0"
     text = (
-        "References: doi:10.1038/s41564-020-00861-0 and "
-        "https://doi.org/10.1038/s41564-020-00861-0."
+        "References: doi:10.1038/s41564-020-00861-0 and https://doi.org/10.1038/s41564-020-00861-0."
     )
     assert text_mentions_doi(text, requested) is True
 
