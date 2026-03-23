@@ -1,6 +1,6 @@
 {
-  "description": "Curated live DOI examples whose provider resolvers currently expose publication metadata.",
-  "curated_date": "2026-03-16",
+  "description": "Curated live DOI examples whose current DOI workflows expose publication metadata.",
+  "curated_date": "2026-03-23",
   "provenance": "Verified against live provider APIs and the current DOI ingestion implementation.",
   "cases": [
     {
@@ -18,17 +18,6 @@
       "expect_publication_urls": true,
       "expect_publication_dois": true,
       "origin": "Zenodo record exposes files[].links.self and metadata.related_identifiers"
-    },
-    {
-      "source": "massive",
-      "route": "explicit",
-      "doi": "10.25345/C5SZ1P",
-      "allow_fallback": true,
-      "expected_source": "datacite",
-      "expected_provider": "massive",
-      "expect_publication_urls": false,
-      "expect_publication_dois": true,
-      "origin": "MassIVE landing page publications block exposes linked article DOI even when PROXI detail is unavailable"
     },
     {
       "source": "ess-dive",

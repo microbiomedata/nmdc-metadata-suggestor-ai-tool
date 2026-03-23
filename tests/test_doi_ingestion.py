@@ -67,10 +67,13 @@ REAL_WORLD_SOURCE_FIXTURE_PATH = (
     Path(__file__).parent / "fixtures" / "doi_resolver_source_examples.json"
 )
 PUBLICATION_METADATA_FIXTURE_PATH = (
-    Path(__file__).parent / "fixtures" / "doi_publication_metadata_examples.json"
+    Path(__file__).parent / "fixtures" /
+    "doi_publication_metadata_examples.json"
 )
-XML_PAYLOAD_FIXTURE_PATH = Path(__file__).parent / "fixtures" / "doi_xml_payloads.json"
-JSON_PAYLOAD_FIXTURE_PATH = Path(__file__).parent / "fixtures" / "doi_response_payloads.json"
+XML_PAYLOAD_FIXTURE_PATH = Path(
+    __file__).parent / "fixtures" / "doi_xml_payloads.json"
+JSON_PAYLOAD_FIXTURE_PATH = Path(
+    __file__).parent / "fixtures" / "doi_response_payloads.json"
 
 _FIXTURE_PROVIDER_TO_SOURCE: dict[str, str] = {
     "ESS-DIVE": "ess-dive",
@@ -269,6 +272,83 @@ def _datacite_abstract_payload(text: str, publisher: str = "Test Publisher") -> 
     }
 
 
+def _datacite_abstract_with_related_publication_payload(
+    text: str,
+    publication_doi: str,
+    publisher: str = "Test Publisher",
+) -> dict[str, object]:
+    """Return a DataCite abstract payload with one related publication DOI."""
+    payload = _datacite_abstract_payload(text, publisher=publisher)
+    data = payload.get("data")
+    assert isinstance(data, dict)
+    attributes = data.get("attributes")
+    assert isinstance(attributes, dict)
+    attributes["relatedIdentifiers"] = [
+        {
+            "relatedIdentifier": publication_doi,
+            "relatedIdentifierType": "DOI",
+            "relationType": "IsPublishedIn",
+        }
+    ]
+    return payload
+
+
+def _crossref_pdf_payload(pdf_url: str) -> dict[str, object]:
+    """Return a minimal Crossref payload exposing one PDF link."""
+    return {
+        "message": {
+            "link": [
+                {
+                    "URL": pdf_url,
+                    "content-type": "application/pdf",
+                }
+            ]
+        }
+    }
+
+
+def _add_repeated_json_response(url: str, payload: object, count: int) -> None:
+    """Add the same JSON response multiple times for sequential retries/lookups."""
+    for _ in range(count):
+        responses.add(
+            responses.GET,
+            url,
+            json=payload,
+        )
+
+
+def _mock_shared_publication_lookup(
+    doi: str,
+    publication_doi: str,
+    publication_url: str | None,
+    *,
+    datacite_text: str,
+    datacite_response_count: int = 2,
+) -> None:
+    """Mock the shared DataCite -> Crossref publication lookup flow."""
+    datacite_payload = _datacite_abstract_with_related_publication_payload(
+        datacite_text,
+        publication_doi,
+    )
+    _add_repeated_json_response(
+        f"{DATACITE_API}/{doi}",
+        datacite_payload,
+        datacite_response_count,
+    )
+    if publication_url is not None:
+        responses.add(
+            responses.GET,
+            f"{CROSSREF_API}/{publication_doi}",
+            json=_crossref_pdf_payload(publication_url),
+        )
+    else:
+        responses.add(
+            responses.GET,
+            f"{CROSSREF_API}/{publication_doi}",
+            json={"message": {}},
+        )
+
+
 def _mock_openalex_miss(doi: str) -> None:
     """Mock OpenAlex call as a clean 'no abstract' miss."""
     responses.add(
@@ -395,12 +475,14 @@ def _mock_provider_resolver_hit(source: str, doi: str) -> None:
         responses.add(
             responses.POST,
             CYVERSE_METADATA_SEARCH_API,
-            json=_json_payload("fixture_cyverse_search_hit", doi=doi, target_id=target_id),
+            json=_json_payload("fixture_cyverse_search_hit",
+                               doi=doi, target_id=target_id),
         )
         responses.add(
             responses.GET,
             CYVERSE_METADATA_API,
-            json=_json_payload("fixture_cyverse_metadata_hit", target_id=target_id),
+            json=_json_payload(
+                "fixture_cyverse_metadata_hit", target_id=target_id),
         )
         return
 
@@ -441,11 +523,13 @@ def test_real_world_source_fixture_coverage() -> None:
     assert expected_sources <= fixture_sources
 
     for source in expected_sources:
-        count = sum(1 for case in REAL_WORLD_SOURCE_CASES if case["source"] == source)
+        count = sum(
+            1 for case in REAL_WORLD_SOURCE_CASES if case["source"] == source)
         assert count >= 2, f"Expected at least two fixture cases for source '{source}'"
 
     for case in REAL_WORLD_SOURCE_CASES:
-        assert case["doi"].startswith("10."), f"Expected DOI syntax for fixture case: {case}"
+        assert case["doi"].startswith(
+            "10."), f"Expected DOI syntax for fixture case: {case}"
         assert case["route"] in {"default", "explicit"}
 
 
@@ -555,7 +639,8 @@ def test_figshare_link_only_falls_back_and_preserves_publication_metadata() -> N
     responses.add(
         responses.GET,
         f"{DATACITE_API}/{doi}",
-        json=_datacite_abstract_payload("DataCite fallback after Figshare link-only metadata"),
+        json=_datacite_abstract_payload(
+            "DataCite fallback after Figshare link-only metadata"),
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -622,8 +707,8 @@ def test_edi_provider_api_abstract_wins() -> None:
 
 
 @responses.activate
-def test_edi_link_only_falls_back_without_publication_metadata() -> None:
-    """EDI should ignore unconfirmed publication metadata and continue the waterfall."""
+def test_edi_link_only_falls_back_and_uses_shared_publication_lookup() -> None:
+    """EDI should use the shared DOI-based publication lookup on fallback."""
     doi = "10.6073/pasta/abc123"
     metadata_url = "https://pasta.lternet.edu/package/metadata/eml/edi/123/1"
     publication_doi = "10.1000/edi-paper"
@@ -640,16 +725,16 @@ def test_edi_link_only_falls_back_without_publication_metadata() -> None:
         body=(
             "<?xml version='1.0' encoding='UTF-8'?>"
             "<eml:eml xmlns:eml='https://eml.ecoinformatics.org/eml-2.2.0'>"
-            "<dataset><additionalMetadata><metadata>"
-            f"<citation>{publication_url} doi:{publication_doi}</citation>"
+            "<dataset><additionalMetadata><metadata><citation>Reference text only</citation>"
             "</metadata></additionalMetadata></dataset></eml:eml>"
         ),
         content_type="application/xml",
     )
-    responses.add(
-        responses.GET,
-        f"{DATACITE_API}/{doi}",
-        json=_datacite_abstract_payload("DataCite fallback after EDI link-only metadata"),
+    _mock_shared_publication_lookup(
+        doi,
+        publication_doi,
+        publication_url,
+        datacite_text="DataCite fallback after EDI link-only metadata",
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -657,8 +742,8 @@ def test_edi_link_only_falls_back_without_publication_metadata() -> None:
     assert result.context == "DataCite fallback after EDI link-only metadata"
     assert result.source == "datacite"
     assert result.attempts == ["edi", "datacite"]
-    assert result.publication_urls is None
-    assert result.publication_dois is None
+    assert result.publication_urls == [publication_url]
+    assert result.publication_dois == [publication_doi]
 
 
 @responses.activate
@@ -678,10 +763,10 @@ def test_edi_unsafe_metadata_xml_falls_back_to_datacite() -> None:
         body=XML_PAYLOAD_FIXTURES["edi_unsafe_metadata_xml"],
         content_type="application/xml",
     )
-    responses.add(
-        responses.GET,
+    _add_repeated_json_response(
         f"{DATACITE_API}/{doi}",
-        json=_json_payload("datacite_edi_after_unsafe_xml"),
+        _json_payload("datacite_edi_after_unsafe_xml"),
+        2,
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -723,8 +808,8 @@ def test_emsl_provider_api_abstract_wins() -> None:
 
 
 @responses.activate
-def test_emsl_link_only_falls_back_without_publication_metadata() -> None:
-    """EMSL should ignore unconfirmed publication metadata and continue the waterfall."""
+def test_emsl_link_only_falls_back_and_uses_shared_publication_lookup() -> None:
+    """EMSL should use the shared DOI-based publication lookup on fallback."""
     doi = "10.46936/jejc.proj.2014.48483/60005501"
     publication_doi = "10.1000/emsl-paper"
     publication_url = "https://example.org/emsl-paper.pdf"
@@ -738,20 +823,13 @@ def test_emsl_link_only_falls_back_without_publication_metadata() -> None:
         f"{EMSL_PROJECTS_API}/48483",
         json={
             "award_doi": doi,
-            "publications": [
-                {
-                    "url": publication_url,
-                    "relatedIdentifier": publication_doi,
-                    "relation": "isPublishedIn",
-                    "resource_type": "journal-article",
-                }
-            ],
         },
     )
-    responses.add(
-        responses.GET,
-        f"{DATACITE_API}/{doi}",
-        json=_datacite_abstract_payload("DataCite fallback after EMSL link-only metadata"),
+    _mock_shared_publication_lookup(
+        doi,
+        publication_doi,
+        publication_url,
+        datacite_text="DataCite fallback after EMSL link-only metadata",
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -759,8 +837,8 @@ def test_emsl_link_only_falls_back_without_publication_metadata() -> None:
     assert result.context == "DataCite fallback after EMSL link-only metadata"
     assert result.source == "datacite"
     assert result.attempts == ["emsl", "datacite"]
-    assert result.publication_urls is None
-    assert result.publication_dois is None
+    assert result.publication_urls == [publication_url]
+    assert result.publication_dois == [publication_doi]
 
 
 @responses.activate
@@ -777,10 +855,10 @@ def test_emsl_mismatch_falls_back_to_datacite() -> None:
         f"{EMSL_PROJECTS_API}/48483",
         json=_json_payload("emsl_mismatch_project"),
     )
-    responses.add(
-        responses.GET,
+    _add_repeated_json_response(
         f"{DATACITE_API}/{doi}",
-        json=_json_payload("datacite_emsl_fallback"),
+        _json_payload("datacite_emsl_fallback"),
+        2,
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -820,7 +898,10 @@ def test_emsl_sciencecentral_text_does_not_query_external_api() -> None:
     assert result.attempts == ["emsl"]
     assert result.publication_urls is None
     assert result.publication_dois is None
-    assert len(responses.calls) == 1
+    emsl_external_calls = [
+        call for call in responses.calls if call.request.url == f"{EMSL_PROJECTS_API}/48483"
+    ]
+    assert emsl_external_calls == []
 
 
 @responses.activate
@@ -866,8 +947,8 @@ def test_jgi_provider_api_lay_description_wins() -> None:
 
 
 @responses.activate
-def test_jgi_link_only_falls_back_without_publication_metadata() -> None:
-    """JGI should ignore unconfirmed publication metadata and continue the waterfall."""
+def test_jgi_link_only_falls_back_and_uses_shared_publication_lookup() -> None:
+    """JGI should use the shared DOI-based publication lookup on fallback."""
     doi = "10.25585/1487763"
     publication_doi = "10.1000/jgi-paper"
     publication_url = "https://example.org/jgi-paper.pdf"
@@ -875,24 +956,17 @@ def test_jgi_link_only_falls_back_without_publication_metadata() -> None:
         "proposals": [
             {
                 "doi": doi,
-                "publications": [
-                    {
-                        "url": publication_url,
-                        "relatedIdentifier": publication_doi,
-                        "relation": "isPublishedIn",
-                        "resource_type": "journal-article",
-                    }
-                ],
             }
         ],
         "organisms": [],
     }
     responses.add(responses.GET, JGI_SEARCH_API, json=link_only_payload)
     responses.add(responses.GET, JGI_SEARCH_API, json=link_only_payload)
-    responses.add(
-        responses.GET,
-        f"{DATACITE_API}/{doi}",
-        json=_datacite_abstract_payload("DataCite fallback after JGI link-only metadata"),
+    _mock_shared_publication_lookup(
+        doi,
+        publication_doi,
+        publication_url,
+        datacite_text="DataCite fallback after JGI link-only metadata",
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -900,8 +974,8 @@ def test_jgi_link_only_falls_back_without_publication_metadata() -> None:
     assert result.context == "DataCite fallback after JGI link-only metadata"
     assert result.source == "datacite"
     assert result.attempts == ["jgi", "datacite"]
-    assert result.publication_urls is None
-    assert result.publication_dois is None
+    assert result.publication_urls == [publication_url]
+    assert result.publication_dois == [publication_doi]
 
 
 @responses.activate
@@ -913,10 +987,10 @@ def test_jgi_mismatch_falls_back_to_datacite() -> None:
         JGI_SEARCH_API,
         json=_json_payload("jgi_mismatch_payload"),
     )
-    responses.add(
-        responses.GET,
+    _add_repeated_json_response(
         f"{DATACITE_API}/{doi}",
-        json=_json_payload("datacite_jgi_fallback"),
+        _json_payload("datacite_jgi_fallback"),
+        2,
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -936,10 +1010,10 @@ def test_jgi_missing_doi_fields_falls_back_to_datacite() -> None:
         JGI_SEARCH_API,
         json=_json_payload("jgi_missing_doi_payload"),
     )
-    responses.add(
-        responses.GET,
+    _add_repeated_json_response(
         f"{DATACITE_API}/{doi}",
-        json=_json_payload("datacite_jgi_missing_doi_fallback"),
+        _json_payload("datacite_jgi_missing_doi_fallback"),
+        2,
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -971,8 +1045,8 @@ def test_kbase_provider_api_description_wins() -> None:
 
 
 @responses.activate
-def test_kbase_link_only_falls_back_without_publication_metadata() -> None:
-    """KBase should ignore unconfirmed publication metadata and continue the waterfall."""
+def test_kbase_link_only_falls_back_and_uses_shared_publication_lookup() -> None:
+    """KBase should use the shared DOI-based publication lookup on fallback."""
     doi = "10.25982/156785.278/2588866"
     publication_doi = "10.1000/kbase-paper"
     publication_url = "https://example.org/kbase-paper.pdf"
@@ -1000,8 +1074,6 @@ def test_kbase_link_only_falls_back_without_publication_metadata() -> None:
                             "checksum",
                             1,
                             {
-                                "publication_url": publication_url,
-                                "citation": f"doi:{publication_doi}",
                             },
                         ]
                     ]
@@ -1009,10 +1081,11 @@ def test_kbase_link_only_falls_back_without_publication_metadata() -> None:
             ]
         },
     )
-    responses.add(
-        responses.GET,
-        f"{DATACITE_API}/{doi}",
-        json=_datacite_abstract_payload("DataCite fallback after KBase link-only metadata"),
+    _mock_shared_publication_lookup(
+        doi,
+        publication_doi,
+        publication_url,
+        datacite_text="DataCite fallback after KBase link-only metadata",
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -1020,8 +1093,8 @@ def test_kbase_link_only_falls_back_without_publication_metadata() -> None:
     assert result.context == "DataCite fallback after KBase link-only metadata"
     assert result.source == "datacite"
     assert result.attempts == ["kbase", "datacite"]
-    assert result.publication_urls is None
-    assert result.publication_dois is None
+    assert result.publication_urls == [publication_url]
+    assert result.publication_dois == [publication_doi]
 
 
 @responses.activate
@@ -1048,10 +1121,10 @@ def test_kbase_miss_falls_back_to_datacite() -> None:
         KBASE_WORKSPACE_API,
         json=_json_payload("kbase_workspace_not_found"),
     )
-    responses.add(
-        responses.GET,
+    _add_repeated_json_response(
         f"{DATACITE_API}/{doi}",
-        json=_json_payload("datacite_kbase_fallback"),
+        _json_payload("datacite_kbase_fallback"),
+        2,
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -1147,7 +1220,7 @@ def test_massive_provider_api_description_wins() -> None:
 
 @responses.activate
 def test_massive_link_only_falls_back_and_preserves_publication_metadata() -> None:
-    """MassIVE publication links should persist when DataCite supplies the text fallback."""
+    """MassIVE should use the shared DOI-based publication lookup on fallback."""
     doi = "10.25345/C5FX7482Q"
     accession = "MSV000093271"
     publication_doi = "10.1000/massive-paper"
@@ -1163,27 +1236,14 @@ def test_massive_link_only_falls_back_and_preserves_publication_metadata() -> No
     responses.add(
         responses.GET,
         f"{PROXI_DATASETS_API}/{accession}",
-        json={
-            "publications": [
-                {
-                    "url": publication_url,
-                    "relatedIdentifier": publication_doi,
-                    "relation": "isPublishedIn",
-                    "resource_type": "journal-article",
-                }
-            ]
-        },
+        json={"publications": [{"label": "Provider metadata no longer used"}]},
     )
-    for _ in range(3):
-        responses.add(
-            responses.GET,
-            PROXI_DATASETS_API,
-            json=_json_payload("proxi_empty_datasets"),
-        )
-    responses.add(
-        responses.GET,
-        f"{DATACITE_API}/{doi}",
-        json=_datacite_abstract_payload("DataCite fallback after MassIVE link-only metadata"),
+    _mock_shared_publication_lookup(
+        doi,
+        publication_doi,
+        publication_url,
+        datacite_text="DataCite fallback after MassIVE link-only metadata",
+        datacite_response_count=3,
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -1218,10 +1278,10 @@ def test_massive_proxi_miss_falls_back_to_datacite() -> None:
         f"{PROXI_DATASETS_API}",
         json=_json_payload("proxi_empty_datasets"),
     )
-    responses.add(
-        responses.GET,
+    _add_repeated_json_response(
         f"{DATACITE_API}/{doi}",
-        json=_json_payload("datacite_massive_fallback"),
+        _json_payload("datacite_massive_fallback"),
+        3,
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -1233,61 +1293,35 @@ def test_massive_proxi_miss_falls_back_to_datacite() -> None:
 
 
 @responses.activate
-def test_massive_landing_page_publication_doi_falls_back_and_is_preserved() -> None:
-    """Use publication DOI from the MassIVE HTML landing page when PROXI is incomplete."""
+def test_massive_shared_publication_lookup_preserves_doi_without_pdf_url() -> None:
+    """MassIVE should still preserve a related DOI when the shared lookup has no PDF URL."""
     doi = "10.25345/C5SZ1P"
     accession = "MSV000086686"
     publication_doi = "10.1242/jeb.242387"
-    landing_page_url = "https://massive.ucsd.edu/ProteoSAFe/dataset.jsp" f"?accession={accession}"
     responses.add(
         responses.GET,
         f"{DOI_CONTENT_NEGOTIATION_API}/{doi}",
         status=302,
-        headers={"Location": landing_page_url},
+        headers={
+            "Location": f"https://massive.ucsd.edu/ProteoSAFe/dataset.jsp?accession={accession}"
+        },
     )
     responses.add(
         responses.GET,
         f"{PROXI_DATASETS_API}/{accession}",
         json=_json_payload("proxi_error_not_reserved"),
     )
-    for _ in range(3):
-        responses.add(
-            responses.GET,
-            PROXI_DATASETS_API,
-            json=_json_payload("proxi_empty_datasets"),
-        )
-    responses.add(
-        responses.GET,
-        landing_page_url,
-        body="""
-        <html>
-          <body>
-            <div class="dataset-block">
-              <h2>Publications</h2>
-              <p>
-                <span style="font-style:italic;">
-                  Cold-acclimation induces life stage-specific responses.
-                </span><br/>
-                J Exp Biol jeb.242387.
-                https://doi.org/10.1242/jeb.242387.
-              </p>
-            </div>
-          </body>
-        </html>
-        """,
-        content_type="text/html",
-    )
-    responses.add(
-        responses.GET,
-        f"{DATACITE_API}/{doi}",
-        json=_datacite_abstract_payload(
-            "DataCite fallback after MassIVE landing page publication metadata"
-        ),
+    _mock_shared_publication_lookup(
+        doi,
+        publication_doi,
+        None,
+        datacite_text="DataCite fallback after MassIVE shared publication lookup",
+        datacite_response_count=3,
     )
 
     result = get_doi_description_or_abstract(doi)
 
-    assert result.context == ("DataCite fallback after MassIVE landing page publication metadata")
+    assert result.context == "DataCite fallback after MassIVE shared publication lookup"
     assert result.source == "datacite"
     assert result.provider == "massive"
     assert result.attempts == ["massive", "datacite"]
@@ -1340,12 +1374,14 @@ def test_cyverse_provider_api_abstract_wins() -> None:
     responses.add(
         responses.POST,
         CYVERSE_METADATA_SEARCH_API,
-        json=_json_payload("fixture_cyverse_search_hit", doi=doi, target_id=target_id),
+        json=_json_payload("fixture_cyverse_search_hit",
+                           doi=doi, target_id=target_id),
     )
     responses.add(
         responses.GET,
         CYVERSE_METADATA_API,
-        json=_json_payload("cyverse_provider_metadata_hit", target_id=target_id),
+        json=_json_payload("cyverse_provider_metadata_hit",
+                           target_id=target_id),
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -1357,8 +1393,8 @@ def test_cyverse_provider_api_abstract_wins() -> None:
 
 
 @responses.activate
-def test_cyverse_link_only_falls_back_without_publication_metadata() -> None:
-    """CyVerse should ignore unconfirmed publication metadata and continue the waterfall."""
+def test_cyverse_link_only_falls_back_and_uses_shared_publication_lookup() -> None:
+    """CyVerse should use the shared DOI-based publication lookup on fallback."""
     doi = "10.17504/cyverse.dataset.67890"
     target_id = "7cfd91a9-2e07-4224-9c5b-26a04ce24122"
     publication_doi = "10.1000/cyverse-paper"
@@ -1369,8 +1405,6 @@ def test_cyverse_link_only_falls_back_without_publication_metadata() -> None:
         json={
             "avus": [
                 {"attr": "dc.identifier.doi", "value": doi, "target_id": target_id},
-                {"attr": "publication_pdf", "value": publication_url, "target_id": target_id},
-                {"attr": "publication_doi", "value": publication_doi, "target_id": target_id},
             ]
         },
     )
@@ -1384,10 +1418,11 @@ def test_cyverse_link_only_falls_back_without_publication_metadata() -> None:
         f"{DOI_RESOLVER_URL}/{doi}",
         status=404,
     )
-    responses.add(
-        responses.GET,
-        f"{DATACITE_API}/{doi}",
-        json=_datacite_abstract_payload("DataCite fallback after CyVerse link-only metadata"),
+    _mock_shared_publication_lookup(
+        doi,
+        publication_doi,
+        publication_url,
+        datacite_text="DataCite fallback after CyVerse link-only metadata",
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -1395,8 +1430,8 @@ def test_cyverse_link_only_falls_back_without_publication_metadata() -> None:
     assert result.context == "DataCite fallback after CyVerse link-only metadata"
     assert result.source == "datacite"
     assert result.attempts == ["cyverse", "datacite"]
-    assert result.publication_urls is None
-    assert result.publication_dois is None
+    assert result.publication_urls == [publication_url]
+    assert result.publication_dois == [publication_doi]
 
 
 @responses.activate
@@ -1417,7 +1452,8 @@ def test_cyverse_datacommons_metadata_fallback_returns_description(
             responses.GET,
             f"{DOI_RESOLVER_URL}/{doi}",
             status=302,
-            headers={"Location": f"https://datacommons.cyverse.org/browse{datacommons_path}"},
+            headers={
+                "Location": f"https://datacommons.cyverse.org/browse{datacommons_path}"},
         )
         responses.add(
             responses.GET,
@@ -1482,7 +1518,8 @@ def test_cyverse_terrain_unusable_metadata_falls_back_to_datacommons() -> None:
     responses.add(
         responses.POST,
         CYVERSE_METADATA_SEARCH_API,
-        json=_json_payload("fixture_cyverse_search_hit", doi=doi, target_id=target_id),
+        json=_json_payload("fixture_cyverse_search_hit",
+                           doi=doi, target_id=target_id),
     )
     responses.add(
         responses.GET,
@@ -1506,7 +1543,8 @@ def test_cyverse_terrain_unusable_metadata_falls_back_to_datacommons() -> None:
         responses.GET,
         f"{DOI_RESOLVER_URL}/{doi}",
         status=302,
-        headers={"Location": f"https://datacommons.cyverse.org/browse{datacommons_path}"},
+        headers={
+            "Location": f"https://datacommons.cyverse.org/browse{datacommons_path}"},
     )
     responses.add(
         responses.GET,
@@ -1556,7 +1594,8 @@ def test_cyverse_terrain_unusable_metadata_falls_back_to_datacommons() -> None:
     terrain_url_raw = responses.calls[1].request.url
     assert terrain_url_raw is not None
     terrain_url_str: str = (
-        terrain_url_raw.decode() if isinstance(terrain_url_raw, bytes) else terrain_url_raw
+        terrain_url_raw.decode() if isinstance(
+            terrain_url_raw, bytes) else terrain_url_raw
     )
     terrain_parsed = urlparse(terrain_url_str)
     assert f"{terrain_parsed.scheme}://{terrain_parsed.netloc}{terrain_parsed.path}" == (
@@ -1588,10 +1627,10 @@ def test_cyverse_miss_falls_back_to_datacite() -> None:
         f"{DOI_RESOLVER_URL}/{doi}",
         status=404,
     )
-    responses.add(
-        responses.GET,
+    _add_repeated_json_response(
         f"{DATACITE_API}/{doi}",
-        json=_json_payload("datacite_cyverse_fallback"),
+        _json_payload("datacite_cyverse_fallback"),
+        2,
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -1681,7 +1720,8 @@ def test_zenodo_link_only_falls_back_and_preserves_publication_metadata() -> Non
     responses.add(
         responses.GET,
         f"{DATACITE_API}/{doi}",
-        json=_datacite_abstract_payload("DataCite fallback after Zenodo link-only metadata"),
+        json=_datacite_abstract_payload(
+            "DataCite fallback after Zenodo link-only metadata"),
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -1752,7 +1792,8 @@ def test_zenodo_prefers_hit_matching_requested_doi() -> None:
 def test_provider_miss_falls_back_to_datacite() -> None:
     """Fall back to DataCite when provider-specific API has no context."""
     doi = "10.5281/zenodo.7406532"
-    responses.add(responses.GET, ZENODO_API, json=_json_payload("zenodo_empty_hits"))
+    responses.add(responses.GET, ZENODO_API,
+                  json=_json_payload("zenodo_empty_hits"))
     responses.add(
         responses.GET,
         f"{DATACITE_API}/{doi}",
@@ -1817,7 +1858,8 @@ def test_source_errors_include_upstream_http_codes() -> None:
     assert "HTTP 429" in result.source_errors["crossref"]
     assert "HTTP 503" in result.source_errors["content_negotiation"]
     assert (
-        "OpenAlex response contained no abstract_inverted_index" in result.source_errors["openalex"]
+        "OpenAlex response contained no abstract_inverted_index" in result.source_errors[
+            "openalex"]
     )
     assert "PubMed ID converter found no PMID for DOI" in result.source_errors["pubmed"]
 
@@ -1902,7 +1944,8 @@ def test_ess_dive_link_only_falls_back_and_preserves_publication_metadata() -> N
     responses.add(
         responses.GET,
         f"{DATACITE_API}/{doi}",
-        json=_datacite_abstract_payload("DataCite fallback after ESS-DIVE link-only metadata"),
+        json=_datacite_abstract_payload(
+            "DataCite fallback after ESS-DIVE link-only metadata"),
     )
 
     result = get_doi_description_or_abstract(doi)
@@ -2244,10 +2287,10 @@ def test_jgi_live_failure_pattern_returns_clean_no_context() -> None:
         JGI_SEARCH_API,
         json=_json_payload("jgi_empty_response"),
     )
-    responses.add(
-        responses.GET,
+    _add_repeated_json_response(
         f"{DATACITE_API}/{doi}",
-        json=_json_payload("datacite_empty_descriptions"),
+        _json_payload("datacite_empty_descriptions"),
+        2,
     )
     responses.add(
         responses.GET, f"{CROSSREF_API}/{doi}", json=_json_payload("crossref_empty_message")
@@ -2301,10 +2344,10 @@ def test_all_sources_miss_returns_clean_error() -> None:
         KBASE_WORKSPACE_API,
         json=_json_payload("kbase_workspace_not_found"),
     )
-    responses.add(
-        responses.GET,
+    _add_repeated_json_response(
         f"{DATACITE_API}/{doi}",
-        json=_json_payload("datacite_empty_descriptions"),
+        _json_payload("datacite_empty_descriptions"),
+        2,
     )
     responses.add(
         responses.GET, f"{CROSSREF_API}/{doi}", json=_json_payload("crossref_empty_message")
@@ -2488,7 +2531,8 @@ def test_try_edi_live_returns_context_for_curated_doi() -> None:
         errors: list[str] = []
         context = try_edi(doi, errors=errors)
         if context is None:
-            failures.append(f"{doi}: {'; '.join(errors) if errors else 'no context'}")
+            failures.append(
+                f"{doi}: {'; '.join(errors) if errors else 'no context'}")
             continue
 
         assert context.kind in {"abstract", "description"}
@@ -2497,7 +2541,8 @@ def test_try_edi_live_returns_context_for_curated_doi() -> None:
         return
 
     pytest.fail(
-        "EDI resolver returned no context for all curated live DOIs: " + " | ".join(failures)
+        "EDI resolver returned no context for all curated live DOIs: " +
+        " | ".join(failures)
     )
 
 
@@ -2539,7 +2584,8 @@ def test_try_emsl_live_returns_context_for_curated_doi() -> None:
         errors: list[str] = []
         context = try_emsl(doi, errors=errors)
         if context is None:
-            failures.append(f"{doi}: {'; '.join(errors) if errors else 'no context'}")
+            failures.append(
+                f"{doi}: {'; '.join(errors) if errors else 'no context'}")
             continue
 
         assert context.kind in {"abstract", "description"}
@@ -2548,7 +2594,8 @@ def test_try_emsl_live_returns_context_for_curated_doi() -> None:
         return
 
     pytest.fail(
-        "EMSL resolver returned no context for all curated live DOIs: " + " | ".join(failures)
+        "EMSL resolver returned no context for all curated live DOIs: " +
+        " | ".join(failures)
     )
 
 
@@ -2590,7 +2637,8 @@ def test_try_jgi_live_returns_context_for_curated_doi() -> None:
         errors: list[str] = []
         context = try_jgi(doi, errors=errors)
         if context is None:
-            failures.append(f"{doi}: {'; '.join(errors) if errors else 'no context'}")
+            failures.append(
+                f"{doi}: {'; '.join(errors) if errors else 'no context'}")
             continue
 
         assert context.kind in {"abstract", "description"}
@@ -2599,7 +2647,8 @@ def test_try_jgi_live_returns_context_for_curated_doi() -> None:
         return
 
     pytest.fail(
-        "JGI resolver returned no context for all curated live DOIs: " + " | ".join(failures)
+        "JGI resolver returned no context for all curated live DOIs: " +
+        " | ".join(failures)
     )
 
 
@@ -2641,7 +2690,8 @@ def test_try_kbase_live_returns_context_for_curated_doi() -> None:
         errors: list[str] = []
         context = try_kbase(doi, errors=errors)
         if context is None:
-            failures.append(f"{doi}: {'; '.join(errors) if errors else 'no context'}")
+            failures.append(
+                f"{doi}: {'; '.join(errors) if errors else 'no context'}")
             continue
 
         assert context.kind in {"abstract", "description"}
@@ -2650,7 +2700,8 @@ def test_try_kbase_live_returns_context_for_curated_doi() -> None:
         return
 
     pytest.fail(
-        "KBase resolver returned no context for all curated live DOIs: " + " | ".join(failures)
+        "KBase resolver returned no context for all curated live DOIs: " +
+        " | ".join(failures)
     )
 
 

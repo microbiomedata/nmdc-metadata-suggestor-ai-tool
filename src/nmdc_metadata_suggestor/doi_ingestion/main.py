@@ -23,6 +23,9 @@ from nmdc_metadata_suggestor.doi_ingestion.edi import try_edi
 from nmdc_metadata_suggestor.doi_ingestion.emsl import try_emsl
 from nmdc_metadata_suggestor.doi_ingestion.ess_dive import try_ess_dive
 from nmdc_metadata_suggestor.doi_ingestion.figshare import try_figshare
+from nmdc_metadata_suggestor.doi_ingestion.general_publication_lookup import (
+    try_general_publication_lookup,
+)
 from nmdc_metadata_suggestor.doi_ingestion.jgi import try_jgi
 from nmdc_metadata_suggestor.doi_ingestion.kbase import try_kbase
 from nmdc_metadata_suggestor.doi_ingestion.massive import try_massive
@@ -67,6 +70,14 @@ NON_PUBLICATION_RESOURCE_TYPE_GENERAL = {
     "PhysicalObject",
 }
 NON_PUBLICATION_CROSSREF_TYPES = {"component"}
+SHARED_PUBLICATION_LOOKUP_SOURCES = {
+    "edi",
+    "emsl",
+    "massive",
+    "jgi",
+    "cyverse",
+    "kbase",
+}
 
 
 def get_doi_description_or_abstract(
@@ -274,21 +285,31 @@ def _fetch_resolver_context(
     """Run a resolver and normalize successful context into a result object."""
     errors: list[str] = []
     context = resolver(doi, errors)
+    publication_context: ResolverContext | None = None
+    if source in SHARED_PUBLICATION_LOOKUP_SOURCES and context is None:
+        publication_context = try_general_publication_lookup(doi)
     if len(errors) > 0:
         _record_source_error(source_errors, source, errors)
-    if context is None:
+    if context is None and publication_context is None:
         return None
-    result_source = context.source or source
+
+    result_source = context.source or source if context is not None else source
     result_attempts = attempts
     if result_source not in result_attempts:
         result_attempts = [*result_attempts, result_source]
     return SourceRetrievalResult(
         doi=doi,
-        context=context.text,
-        raw_context=context.raw_text,
-        context_type=context.kind,
-        publication_urls=context.urls,
-        publication_dois=context.publication_dois,
+        context=context.text if context is not None else None,
+        raw_context=context.raw_text if context is not None else None,
+        context_type=context.kind if context is not None else None,
+        publication_urls=_merge_unique(
+            context.urls if context is not None else None,
+            publication_context.urls if publication_context is not None else None,
+        ),
+        publication_dois=_merge_unique(
+            context.publication_dois if context is not None else None,
+            publication_context.publication_dois if publication_context is not None else None,
+        ),
         provider=provider,
         source=result_source,
         attempts=result_attempts,
@@ -299,6 +320,13 @@ def _fetch_resolver_context(
             else None
         ),
     )
+
+
+def _merge_unique(existing: list[str] | None, incoming: list[str] | None) -> list[str] | None:
+    """Merge two string lists while preserving order and removing duplicates."""
+    if not incoming:
+        return existing
+    return list(dict.fromkeys([*(existing or []), *incoming]))
 
 
 def _fetch_ess_dive(
