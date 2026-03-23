@@ -136,13 +136,18 @@ def test_extracts_relevant_schema() -> None:
 
     # Build a focused LLM prompt using only the relevant slice -----
     schema = builder.get_interface_schema(interface_name)
+    required_slots = [s for s in schema.slots if s.required]
     enum_slots = [s for s in schema.slots if s.enum_values]
 
     prompt_lines = [
         f"# Schema context for {interface_name}",
         f"{schema.description}",
         "",
+        f"## Required fields ({len(required_slots)} of {schema.total_slot_count})",
     ]
+    for slot in required_slots:
+        constraint = f" (type: {slot.range})" if slot.range else ""
+        prompt_lines.append(f"- {slot.name}{constraint}: {slot.description or ''}")
 
     prompt_lines.append("")
     prompt_lines.append(f"## Fields with controlled vocabularies ({len(enum_slots)})")
@@ -153,7 +158,10 @@ def test_extracts_relevant_schema() -> None:
 
     # Verify the prompt is a focused, well-formed slice — not the whole schema
     assert interface_name in prompt
+    assert "Required fields" in prompt
     assert "controlled vocabularies" in prompt
+    assert len(required_slots) == schema.required_slot_count
+    assert len(required_slots) < schema.total_slot_count
     assert len(enum_slots) > 0
     # env triad slots should appear among enum-bearing slots
     enum_slot_names = {s.name for s in enum_slots}
@@ -177,8 +185,22 @@ def test_excluded_slots_not_in_interfaces() -> None:
     slot_names = set()
     for interface in interfaces:
         schema = builder.get_interface_schema(interface)
-        for slot in schema.slots:
+        filtered_schema = builder.filter_slots(schema)
+        for slot in filtered_schema.slots:
             slot_names.add(slot.name)
 
     for excluded in EXCLUDED_SLOTS:
         assert excluded not in slot_names, f"{excluded} should be excluded from schemas"
+
+
+def test_filter() -> None:
+    """Verify that excluded slots are not present in any interface schemas."""
+    builder = SchemaContextBuilder()
+    interfaces = builder.list_interfaces()
+    for interface in interfaces:
+        schema = builder.get_interface_schema(interface)
+        filtered_schema = builder.filter_slots(schema)
+        assert filtered_schema.deprecated_slot_count == 0
+        # env triad slots are the only ones that should be required, and they are not filtered out,
+        # so either 0 or 3 depending on whether this interface has them or not
+        assert filtered_schema.required_slot_count == 0 or filtered_schema.required_slot_count == 3

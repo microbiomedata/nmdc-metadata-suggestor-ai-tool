@@ -17,6 +17,8 @@ class SlotInfo(BaseModel):
     description: str | None = None
     range: str | None = None
     recommended: bool = False
+    required: bool = False
+    deprecated: bool = False
     multivalued: bool = False
     pattern: str | None = None
     slot_group: str | None = None
@@ -41,4 +43,6 @@ class InterfaceSchemaClass(BaseModel):
     slots: list[SlotInfo] = Field(default_factory=list)
     slot_groups: list[str] = Field(default_factory=list)
     total_slot_count: int = 0
+    required_slot_count: int = 0
     recommended_slot_count: int = 0
+    deprecated_slot_count: int = 0
