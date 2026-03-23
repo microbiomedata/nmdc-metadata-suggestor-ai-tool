@@ -5,11 +5,14 @@ import re
 import requests
 
 from nmdc_metadata_suggestor.constants import (
-    DATACITE_API_URL,
     DEFAULT_TIMEOUT,
     DOI_CONTENT_NEGOTIATION_API,
     PROXI_DATASETS_API,
     USER_AGENT,
+)
+from nmdc_metadata_suggestor.doi_ingestion.datacite import (
+    DataciteAttributesCache,
+    fetch_datacite_attributes,
 )
 from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     append_error,
@@ -19,7 +22,11 @@ from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
 from nmdc_metadata_suggestor.models.resolver_context import ResolverContext
 
 
-def try_massive(doi: str, errors: list[str] | None = None) -> ResolverContext | None:
+def try_massive(
+    doi: str,
+    errors: list[str] | None = None,
+    cache: DataciteAttributesCache | None = None,
+) -> ResolverContext | None:
     """Return cleaned/raw context from MassIVE via ProteomeCentral lookups."""
     redirect_location = _resolve_doi_redirect_location(doi, errors=errors)
     redirect_accessions = _collect_massive_accession_candidates(
@@ -36,7 +43,7 @@ def try_massive(doi: str, errors: list[str] | None = None) -> ResolverContext | 
         if context is not None:
             return context
 
-    context = _extract_massive_context_from_datacite_titles(doi, errors=errors)
+    context = _extract_massive_context_from_datacite_titles(doi, errors=errors, cache=cache)
     if context is not None:
         return context
 
@@ -170,25 +177,13 @@ def _extract_massive_context(payload: dict[str, object]) -> ResolverContext | No
 
 
 def _extract_massive_context_from_datacite_titles(
-    doi: str, errors: list[str] | None = None
+    doi: str,
+    errors: list[str] | None = None,
+    cache: DataciteAttributesCache | None = None,
 ) -> ResolverContext | None:
     """Fallback: derive MassIVE context from DataCite subtitle/title metadata."""
-    try:
-        response = request_with_retry(
-            "GET",
-            f"{DATACITE_API_URL}/{doi}",
-            headers={"User-Agent": USER_AGENT},
-            timeout=DEFAULT_TIMEOUT,
-        )
-        if response.status_code != 200:
-            append_error(errors, f"DataCite API returned HTTP {response.status_code}")
-            return None
-        attrs = response.json().get("data", {}).get("attributes", {})
-    except requests.RequestException as exc:
-        append_error(errors, f"DataCite API request failed: {exc.__class__.__name__}")
-        return None
-    except ValueError:
-        append_error(errors, "DataCite API returned invalid JSON")
+    attrs = fetch_datacite_attributes(doi, errors=errors, cache=cache)
+    if attrs is None:
         return None
 
     titles = attrs.get("titles")

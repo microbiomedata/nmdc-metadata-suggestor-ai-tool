@@ -12,7 +12,7 @@ from nmdc_metadata_suggestor.doi_ingestion.content_negotiation import (
 )
 from nmdc_metadata_suggestor.doi_ingestion.crossref import try_crossref_context
 from nmdc_metadata_suggestor.doi_ingestion.cyverse import try_cyverse
-from nmdc_metadata_suggestor.doi_ingestion.datacite import try_datacite
+from nmdc_metadata_suggestor.doi_ingestion.datacite import DataciteAttributesCache, try_datacite
 from nmdc_metadata_suggestor.doi_ingestion.doi_utils import (
     classify_doi,
     infer_provider_from_doi,
@@ -37,7 +37,10 @@ from nmdc_metadata_suggestor.models.doi import DoiClassification, SourceRetrieva
 from nmdc_metadata_suggestor.models.resolver_context import ResolverContext
 
 SourceErrors = dict[str, str]
-Fetcher = Callable[[str, str | None, list[str], SourceErrors], SourceRetrievalResult | None]
+Fetcher = Callable[
+    [str, str | None, list[str], SourceErrors, DataciteAttributesCache],
+    SourceRetrievalResult | None,
+]
 Resolver = Callable[[str, list[str] | None], ResolverContext | None]
 
 PUBLICATION_API_SOURCES = (
@@ -122,6 +125,7 @@ def get_doi_description_or_abstract(
 
     source_errors: SourceErrors = {}
     attempts: list[str] = []
+    datacite_attributes_cache: DataciteAttributesCache = {}
 
     def merge_unique(existing: list[str] | None, incoming: list[str] | None) -> list[str] | None:
         """Merge two lists of strings while preserving order and deduplicating."""
@@ -140,7 +144,7 @@ def get_doi_description_or_abstract(
             continue
 
         attempts = merge_unique(attempts, [source]) or attempts
-        result = fetcher(doi, provider, attempts, source_errors)
+        result = fetcher(doi, provider, attempts, source_errors, datacite_attributes_cache)
         if result is None:
             continue
 
@@ -280,6 +284,7 @@ def _fetch_resolver_context(
     source: str,
     attempts: list[str],
     source_errors: SourceErrors,
+    datacite_attributes_cache: DataciteAttributesCache,
     resolver: Resolver,
 ) -> SourceRetrievalResult | None:
     """Run a resolver and normalize successful context into a result object."""
@@ -289,7 +294,11 @@ def _fetch_resolver_context(
     if source in SHARED_PUBLICATION_LOOKUP_SOURCES and (
         context is None or not (context.urls or context.publication_dois)
     ):
-        publication_context = try_general_publication_lookup(doi)
+        publication_context = try_general_publication_lookup(
+            doi,
+            errors=None,
+            cache=datacite_attributes_cache,
+        )
     if len(errors) > 0:
         _record_source_error(source_errors, source, errors)
     if context is None and publication_context is None:
@@ -332,74 +341,218 @@ def _merge_unique(existing: list[str] | None, incoming: list[str] | None) -> lis
 
 
 def _fetch_ess_dive(
-    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
+    doi: str,
+    provider: str | None,
+    attempts: list[str],
+    source_errors: SourceErrors,
+    datacite_attributes_cache: DataciteAttributesCache,
 ) -> SourceRetrievalResult | None:
     """Fetch and wrap context from ESS-DIVE-specific API."""
-    return _fetch_resolver_context(doi, provider, "ess-dive", attempts, source_errors, try_ess_dive)
+    return _fetch_resolver_context(
+        doi,
+        provider,
+        "ess-dive",
+        attempts,
+        source_errors,
+        datacite_attributes_cache,
+        try_ess_dive,
+    )
 
 
 def _fetch_edi(
-    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
+    doi: str,
+    provider: str | None,
+    attempts: list[str],
+    source_errors: SourceErrors,
+    datacite_attributes_cache: DataciteAttributesCache,
 ) -> SourceRetrievalResult | None:
     """Fetch and wrap context from EDI's PASTA API."""
-    return _fetch_resolver_context(doi, provider, "edi", attempts, source_errors, try_edi)
+    return _fetch_resolver_context(
+        doi,
+        provider,
+        "edi",
+        attempts,
+        source_errors,
+        datacite_attributes_cache,
+        try_edi,
+    )
 
 
 def _fetch_emsl(
-    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
+    doi: str,
+    provider: str | None,
+    attempts: list[str],
+    source_errors: SourceErrors,
+    datacite_attributes_cache: DataciteAttributesCache,
 ) -> SourceRetrievalResult | None:
     """Fetch and wrap context from EMSL project API."""
-    return _fetch_resolver_context(doi, provider, "emsl", attempts, source_errors, try_emsl)
+    return _fetch_resolver_context(
+        doi,
+        provider,
+        "emsl",
+        attempts,
+        source_errors,
+        datacite_attributes_cache,
+        try_emsl,
+    )
 
 
 def _fetch_figshare(
-    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
+    doi: str,
+    provider: str | None,
+    attempts: list[str],
+    source_errors: SourceErrors,
+    datacite_attributes_cache: DataciteAttributesCache,
 ) -> SourceRetrievalResult | None:
     """Fetch and wrap context from Figshare-specific API."""
-    return _fetch_resolver_context(doi, provider, "figshare", attempts, source_errors, try_figshare)
+    return _fetch_resolver_context(
+        doi,
+        provider,
+        "figshare",
+        attempts,
+        source_errors,
+        datacite_attributes_cache,
+        try_figshare,
+    )
 
 
 def _fetch_jgi(
-    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
+    doi: str,
+    provider: str | None,
+    attempts: list[str],
+    source_errors: SourceErrors,
+    datacite_attributes_cache: DataciteAttributesCache,
 ) -> SourceRetrievalResult | None:
     """Fetch and wrap context from JGI search API."""
-    return _fetch_resolver_context(doi, provider, "jgi", attempts, source_errors, try_jgi)
+    return _fetch_resolver_context(
+        doi,
+        provider,
+        "jgi",
+        attempts,
+        source_errors,
+        datacite_attributes_cache,
+        try_jgi,
+    )
 
 
 def _fetch_kbase(
-    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
+    doi: str,
+    provider: str | None,
+    attempts: list[str],
+    source_errors: SourceErrors,
+    datacite_attributes_cache: DataciteAttributesCache,
 ) -> SourceRetrievalResult | None:
     """Fetch and wrap context from KBase APIs."""
-    return _fetch_resolver_context(doi, provider, "kbase", attempts, source_errors, try_kbase)
+    return _fetch_resolver_context(
+        doi,
+        provider,
+        "kbase",
+        attempts,
+        source_errors,
+        datacite_attributes_cache,
+        try_kbase,
+    )
 
 
 def _fetch_massive(
-    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
+    doi: str,
+    provider: str | None,
+    attempts: list[str],
+    source_errors: SourceErrors,
+    datacite_attributes_cache: DataciteAttributesCache,
 ) -> SourceRetrievalResult | None:
     """Fetch and wrap context from MassIVE via ProteomeCentral PROXI."""
-    return _fetch_resolver_context(doi, provider, "massive", attempts, source_errors, try_massive)
+    errors: list[str] = []
+    context = try_massive(doi, errors=errors, cache=datacite_attributes_cache)
+    publication_context: ResolverContext | None = None
+    if context is None or not (context.urls or context.publication_dois):
+        publication_context = try_general_publication_lookup(
+            doi,
+            errors=None,
+            cache=datacite_attributes_cache,
+        )
+    if len(errors) > 0:
+        _record_source_error(source_errors, "massive", errors)
+    if context is None and publication_context is None:
+        return None
+
+    result_source = context.source or "massive" if context is not None else "massive"
+    result_attempts = attempts
+    if result_source not in result_attempts:
+        result_attempts = [*result_attempts, result_source]
+    return SourceRetrievalResult(
+        doi=doi,
+        context=context.text if context is not None else None,
+        raw_context=context.raw_text if context is not None else None,
+        context_type=context.kind if context is not None else None,
+        publication_urls=_merge_unique(
+            context.urls if context is not None else None,
+            publication_context.urls if publication_context is not None else None,
+        ),
+        publication_dois=_merge_unique(
+            context.publication_dois if context is not None else None,
+            publication_context.publication_dois if publication_context is not None else None,
+        ),
+        provider=provider,
+        source=result_source,
+        attempts=result_attempts,
+        source_errors=source_errors,
+        error=(
+            "Source errors occurred. Check source_errors field for details."
+            if source_errors
+            else None
+        ),
+    )
 
 
 def _fetch_cyverse(
-    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
+    doi: str,
+    provider: str | None,
+    attempts: list[str],
+    source_errors: SourceErrors,
+    datacite_attributes_cache: DataciteAttributesCache,
 ) -> SourceRetrievalResult | None:
     """Fetch and wrap context from CyVerse Terrain metadata APIs."""
-    return _fetch_resolver_context(doi, provider, "cyverse", attempts, source_errors, try_cyverse)
+    return _fetch_resolver_context(
+        doi,
+        provider,
+        "cyverse",
+        attempts,
+        source_errors,
+        datacite_attributes_cache,
+        try_cyverse,
+    )
 
 
 def _fetch_zenodo(
-    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
+    doi: str,
+    provider: str | None,
+    attempts: list[str],
+    source_errors: SourceErrors,
+    datacite_attributes_cache: DataciteAttributesCache,
 ) -> SourceRetrievalResult | None:
     """Fetch and wrap context from Zenodo-specific API."""
-    return _fetch_resolver_context(doi, provider, "zenodo", attempts, source_errors, try_zenodo)
+    return _fetch_resolver_context(
+        doi,
+        provider,
+        "zenodo",
+        attempts,
+        source_errors,
+        datacite_attributes_cache,
+        try_zenodo,
+    )
 
 
 def _fetch_datacite(
-    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
+    doi: str,
+    provider: str | None,
+    attempts: list[str],
+    source_errors: SourceErrors,
+    datacite_attributes_cache: DataciteAttributesCache,
 ) -> SourceRetrievalResult | None:
     """Fetch and wrap context from DataCite metadata."""
     errors: list[str] = []
-    context = try_datacite(doi, errors=errors)
+    context = try_datacite(doi, errors=errors, cache=datacite_attributes_cache)
     if context is None:
         _record_source_error(source_errors, "datacite", errors)
         return None
@@ -420,9 +573,14 @@ def _fetch_datacite(
 
 
 def _fetch_crossref(
-    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
+    doi: str,
+    provider: str | None,
+    attempts: list[str],
+    source_errors: SourceErrors,
+    datacite_attributes_cache: DataciteAttributesCache,
 ) -> SourceRetrievalResult | None:
     """Fetch and wrap context from Crossref metadata."""
+    del datacite_attributes_cache
     errors: list[str] = []
     context = try_crossref_context(doi, errors=errors)
     if context is None:
@@ -445,7 +603,11 @@ def _fetch_crossref(
 
 
 def _fetch_content_negotiation(
-    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
+    doi: str,
+    provider: str | None,
+    attempts: list[str],
+    source_errors: SourceErrors,
+    datacite_attributes_cache: DataciteAttributesCache,
 ) -> SourceRetrievalResult | None:
     """Fetch and wrap context via DOI content negotiation."""
     return _fetch_resolver_context(
@@ -454,29 +616,66 @@ def _fetch_content_negotiation(
         "content_negotiation",
         attempts,
         source_errors,
+        datacite_attributes_cache,
         try_content_negotiation_context,
     )
 
 
 def _fetch_openalex(
-    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
+    doi: str,
+    provider: str | None,
+    attempts: list[str],
+    source_errors: SourceErrors,
+    datacite_attributes_cache: DataciteAttributesCache,
 ) -> SourceRetrievalResult | None:
     """Fetch and wrap context from OpenAlex metadata."""
-    return _fetch_resolver_context(doi, provider, "openalex", attempts, source_errors, try_openalex)
+    return _fetch_resolver_context(
+        doi,
+        provider,
+        "openalex",
+        attempts,
+        source_errors,
+        datacite_attributes_cache,
+        try_openalex,
+    )
 
 
 def _fetch_pubmed(
-    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
+    doi: str,
+    provider: str | None,
+    attempts: list[str],
+    source_errors: SourceErrors,
+    datacite_attributes_cache: DataciteAttributesCache,
 ) -> SourceRetrievalResult | None:
     """Fetch and wrap context from PubMed via NCBI APIs."""
-    return _fetch_resolver_context(doi, provider, "pubmed", attempts, source_errors, try_pubmed)
+    return _fetch_resolver_context(
+        doi,
+        provider,
+        "pubmed",
+        attempts,
+        source_errors,
+        datacite_attributes_cache,
+        try_pubmed,
+    )
 
 
 def _fetch_osti(
-    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
+    doi: str,
+    provider: str | None,
+    attempts: list[str],
+    source_errors: SourceErrors,
+    datacite_attributes_cache: DataciteAttributesCache,
 ) -> SourceRetrievalResult | None:
     """Fetch and wrap context from OSTI API."""
-    return _fetch_resolver_context(doi, provider, "osti", attempts, source_errors, try_osti)
+    return _fetch_resolver_context(
+        doi,
+        provider,
+        "osti",
+        attempts,
+        source_errors,
+        datacite_attributes_cache,
+        try_osti,
+    )
 
 
 _SOURCE_FETCHERS: dict[str, Fetcher] = {

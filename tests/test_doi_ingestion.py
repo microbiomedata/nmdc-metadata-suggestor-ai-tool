@@ -323,7 +323,7 @@ def _mock_shared_publication_lookup(
     publication_url: str | None,
     *,
     datacite_text: str,
-    datacite_response_count: int = 2,
+    datacite_response_count: int = 1,
 ) -> None:
     """Mock the shared DataCite -> Crossref publication lookup flow."""
     datacite_payload = _datacite_abstract_with_related_publication_payload(
@@ -763,6 +763,10 @@ def test_edi_link_only_falls_back_and_uses_shared_publication_lookup() -> None:
     assert result.attempts == ["edi", "datacite"]
     assert result.publication_urls == [publication_url]
     assert result.publication_dois == [publication_doi]
+    datacite_calls = [
+        call for call in responses.calls if call.request.url == f"{DATACITE_API}/{doi}"
+    ]
+    assert len(datacite_calls) == 1
 
 
 @responses.activate
@@ -1426,6 +1430,10 @@ def test_massive_uses_datacite_title_context_when_proxi_fails() -> None:
     assert result.source == "datacite"
     assert result.provider == "massive"
     assert result.attempts == ["massive", "datacite"]
+    datacite_calls = [
+        call for call in responses.calls if call.request.url == f"{DATACITE_API}/{doi}"
+    ]
+    assert len(datacite_calls) == 1
 
 
 @responses.activate
