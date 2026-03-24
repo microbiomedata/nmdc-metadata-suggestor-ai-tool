@@ -307,7 +307,7 @@ def _fetch_resolver_context(
     if context is None and publication_context is None:
         return None
 
-    result_source = context.source or source if context is not None else source
+    result_source = context.source if context is not None and context.source else source
     result_attempts = attempts
     if result_source not in result_attempts:
         result_attempts = [*result_attempts, result_source]
