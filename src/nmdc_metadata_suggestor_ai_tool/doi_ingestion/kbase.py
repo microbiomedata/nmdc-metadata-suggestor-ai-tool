@@ -161,7 +161,7 @@ def _try_kbase_workspace_ref(doi: str, errors: list[str] | None = None) -> Resol
         info = _fetch_kbase_object_info(ref, errors=errors)
         if info is None:
             continue
-        context = _extract_kbase_object_info_context(info, requested_doi=doi)
+        context = _extract_kbase_object_info_context(info)
         if context is not None:
             return context
     return None
@@ -225,9 +225,7 @@ def _fetch_kbase_object_info(ref: str, errors: list[str] | None = None) -> list[
     return info
 
 
-def _extract_kbase_object_info_context(
-    info: list[object], requested_doi: str
-) -> ResolverContext | None:
+def _extract_kbase_object_info_context(info: list[object]) -> ResolverContext | None:
     """Extract description context from a KBase workspace object info tuple."""
     object_name = info[1] if len(info) > 1 else None
     object_type = info[2] if len(info) > 2 else None
