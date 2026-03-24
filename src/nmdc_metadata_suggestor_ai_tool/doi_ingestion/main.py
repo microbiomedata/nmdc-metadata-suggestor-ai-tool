@@ -479,7 +479,7 @@ def _fetch_massive(
     if context is None and publication_context is None:
         return None
 
-    result_source = context.source or "massive" if context is not None else "massive"
+    result_source = (context.source or "massive") if context is not None else "massive"
     result_attempts = attempts
     if result_source not in result_attempts:
         result_attempts = [*result_attempts, result_source]
