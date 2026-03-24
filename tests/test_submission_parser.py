@@ -35,4 +35,4 @@ def test_get_submission_fields_extracts_protocol_metadata_from_fixture() -> None
         "nom fticr",
     ]
     assert len(result["protocol_descs"]) == 5
-    assert result["mixis_extensions"] == ["SoilInterface"]
+    assert result["mixs_extensions"] == ["SoilInterface"]

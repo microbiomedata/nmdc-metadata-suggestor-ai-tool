@@ -63,7 +63,7 @@ def run_recommendation_pipeline(
         The response from the LLM containing the recommended metadata fields.
     """
     parsed_submission_object = get_submission_fields(submission_object=submission_object)
-    mixis_extensions = parsed_submission_object.get("mixis_extensions", [])
+    mixs_extensions = parsed_submission_object.get("mixs_extensions", [])
     doi = parsed_submission_object.get("dois", [])
     description = parsed_submission_object.get("description", "")
     notes = parsed_submission_object.get("notes", "")
@@ -113,8 +113,8 @@ def run_recommendation_pipeline(
         pdf_files = None
 
     builder = SchemaContextBuilder()
-    mixis_schema = builder.format_multi_interface_context(mixis_extensions)
-    llm_client.add_schema_context(mixis_schema)
+    mixs_schema = builder.format_multi_interface_context(mixs_extensions)
+    llm_client.add_schema_context(mixs_schema)
     llm_client.add_message(
         text="Utilize the provided information and PDF content to "
         "inform your metadata field recommendations.",
