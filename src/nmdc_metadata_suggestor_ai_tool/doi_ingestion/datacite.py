@@ -11,9 +11,15 @@ from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import (
     append_error,
     clean_text,
     extract_related_publication_dois,
+    merge_unique_strings,
+    normalize_http_url,
     request_with_retry,
 )
 from nmdc_metadata_suggestor_ai_tool.models.resolver_context import ResolverContext
+from nmdc_metadata_suggestor_ai_tool.publication_ingestion.retreive_pdf_link import (
+    retrieve_pdf_link_from_crossref,
+    retrieve_pdf_link_from_pmc,
+)
 
 type DataciteAttributes = dict[str, object]
 type DataciteAttributesCache = dict[str, DataciteAttributes]
@@ -48,6 +54,40 @@ def try_datacite(
 
     publisher_value = publisher if isinstance(publisher, str) else None
     return ResolverContext(text=cleaned, raw_text=raw, kind=kind, source=publisher_value)
+
+
+def try_datacite_related_publication_lookup(
+    doi: str,
+    errors: list[str] | None = None,
+    cache: DataciteAttributesCache | None = None,
+) -> ResolverContext | None:
+    """Return DataCite-derived related publication DOI/PDF metadata."""
+    attrs = fetch_datacite_attributes(doi, errors=errors, cache=cache)
+    if attrs is None:
+        return None
+
+    publication_dois = extract_related_publication_dois_from_datacite_attributes(
+        attrs,
+        requested_doi=doi,
+    )
+    if not publication_dois:
+        return None
+
+    publication_urls: list[str] | None = None
+    for publication_doi in publication_dois:
+        publication_urls = merge_unique_strings(
+            publication_urls,
+            _lookup_publication_urls(publication_doi),
+        )
+
+    return ResolverContext(
+        text=None,
+        raw_text=None,
+        kind="publication_lookup",
+        source="datacite",
+        urls=publication_urls,
+        publication_dois=publication_dois,
+    )
 
 
 def fetch_datacite_attributes(
@@ -124,3 +164,22 @@ def _pick_datacite_description(descriptions: list[object]) -> tuple[str, str] | 
     if description_candidate is not None:
         return description_candidate, "description"
     return None
+
+
+def _lookup_publication_urls(publication_doi: str) -> list[str] | None:
+    """Resolve likely PDF URLs for a publication DOI through generic resolvers."""
+    publication_urls: list[str] | None = None
+
+    crossref_result = retrieve_pdf_link_from_crossref(publication_doi)
+    for candidate in crossref_result.get("pdf_links", []):
+        normalized = normalize_http_url(candidate)
+        if normalized is None:
+            continue
+        publication_urls = merge_unique_strings(publication_urls, [normalized])
+
+    pmc_result = retrieve_pdf_link_from_pmc(publication_doi)
+    pmc_pdf_url = normalize_http_url(pmc_result.get("pdf_url"))
+    if pmc_pdf_url is not None:
+        publication_urls = merge_unique_strings(publication_urls, [pmc_pdf_url])
+
+    return publication_urls

@@ -15,6 +15,7 @@ from nmdc_metadata_suggestor_ai_tool.doi_ingestion.cyverse import try_cyverse
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.datacite import (
     DataciteAttributesCache,
     try_datacite,
+    try_datacite_related_publication_lookup,
 )
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import (
     classify_doi,
@@ -26,9 +27,6 @@ from nmdc_metadata_suggestor_ai_tool.doi_ingestion.edi import try_edi
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.emsl import try_emsl
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.ess_dive import try_ess_dive
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.figshare import try_figshare
-from nmdc_metadata_suggestor_ai_tool.doi_ingestion.general_publication_lookup import (
-    try_general_publication_lookup,
-)
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.jgi import try_jgi
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.kbase import try_kbase
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.massive import try_massive
@@ -297,7 +295,7 @@ def _fetch_resolver_context(
     if source in SHARED_PUBLICATION_LOOKUP_SOURCES and (
         context is None or not (context.urls or context.publication_dois)
     ):
-        publication_context = try_general_publication_lookup(
+        publication_context = try_datacite_related_publication_lookup(
             doi,
             errors=None,
             cache=datacite_attributes_cache,
@@ -469,7 +467,7 @@ def _fetch_massive(
     context = try_massive(doi, errors=errors, cache=datacite_attributes_cache)
     publication_context: ResolverContext | None = None
     if context is None or not (context.urls or context.publication_dois):
-        publication_context = try_general_publication_lookup(
+        publication_context = try_datacite_related_publication_lookup(
             doi,
             errors=None,
             cache=datacite_attributes_cache,
