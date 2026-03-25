@@ -50,6 +50,9 @@ from nmdc_metadata_suggestor_ai_tool.constants import (
 from nmdc_metadata_suggestor_ai_tool.constants import (
     DATACITE_API_URL as DATACITE_API,
 )
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.datacite import (
+    try_datacite_related_publication_lookup,
+)
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import (
     DEFAULT_RETRY_ATTEMPTS,
     text_mentions_doi,
@@ -68,6 +71,9 @@ REAL_WORLD_SOURCE_FIXTURE_PATH = (
 )
 PUBLICATION_METADATA_FIXTURE_PATH = (
     Path(__file__).parent / "fixtures" / "doi_publication_metadata_examples.json"
+)
+GENERAL_PUBLICATION_LOOKUP_FIXTURE_PATH = (
+    Path(__file__).parent / "fixtures" / "doi_general_publication_lookup_examples.json"
 )
 XML_PAYLOAD_FIXTURE_PATH = Path(__file__).parent / "fixtures" / "doi_xml_payloads.json"
 JSON_PAYLOAD_FIXTURE_PATH = Path(__file__).parent / "fixtures" / "doi_response_payloads.json"
@@ -164,6 +170,28 @@ def _load_live_publication_metadata_cases() -> list[dict[str, object]]:
     return normalized
 
 
+def _load_live_general_publication_lookup_cases() -> list[dict[str, object]]:
+    """Load curated live DOI cases expected to resolve via shared DataCite publication lookup."""
+    with open(GENERAL_PUBLICATION_LOOKUP_FIXTURE_PATH) as f:
+        cases = json.load(f)["cases"]
+
+    normalized: list[dict[str, object]] = []
+    for case in cases:
+        doi = case.get("doi")
+        expect_publication_urls = case.get("expect_publication_urls")
+        expect_publication_dois = case.get("expect_publication_dois")
+        if not isinstance(doi, str):
+            continue
+        normalized.append(
+            {
+                "doi": doi,
+                "expect_publication_urls": bool(expect_publication_urls),
+                "expect_publication_dois": bool(expect_publication_dois),
+            }
+        )
+    return normalized
+
+
 def _load_xml_payload_fixtures() -> dict[str, str]:
     """Load reusable XML payload fixtures used by resolver tests."""
     with open(XML_PAYLOAD_FIXTURE_PATH) as f:
@@ -230,6 +258,7 @@ LIVE_KNOWN_NO_CONTEXT_CASES = [
     case for case in REAL_WORLD_SOURCE_CASES if case["doi"] in KNOWN_LIVE_NO_CONTEXT_DOIS
 ]
 LIVE_PUBLICATION_METADATA_CASES = _load_live_publication_metadata_cases()
+LIVE_GENERAL_PUBLICATION_LOOKUP_CASES = _load_live_general_publication_lookup_cases()
 
 
 def _live_dois_for_source(source: str) -> list[str]:
@@ -2547,6 +2576,32 @@ def test_live_publication_metadata_examples_return_publication_metadata(
         assert result.publication_urls, f"Expected publication_urls for {doi}"
     if bool(case["expect_publication_dois"]):
         assert result.publication_dois, f"Expected publication_dois for {doi}"
+
+
+@integration
+@pytest.mark.parametrize(
+    "case",
+    LIVE_GENERAL_PUBLICATION_LOOKUP_CASES,
+    ids=[str(case["doi"]) for case in LIVE_GENERAL_PUBLICATION_LOOKUP_CASES],
+)
+def test_live_general_publication_lookup_returns_publication_metadata(
+    case: dict[str, object],
+) -> None:
+    """Curated live DOI examples should resolve publication metadata via shared DataCite lookup."""
+    doi = str(case["doi"])
+    errors: list[str] = []
+
+    context = try_datacite_related_publication_lookup(doi, errors=errors, cache={})
+
+    assert context is not None, f"Expected publication lookup context for {doi}; errors={errors!r}"
+    assert context.kind == "publication_lookup"
+    assert context.source == "datacite"
+    assert errors == []
+
+    if bool(case["expect_publication_urls"]):
+        assert context.urls, f"Expected publication URLs for {doi}"
+    if bool(case["expect_publication_dois"]):
+        assert context.publication_dois, f"Expected publication DOIs for {doi}"
 
 
 @integration

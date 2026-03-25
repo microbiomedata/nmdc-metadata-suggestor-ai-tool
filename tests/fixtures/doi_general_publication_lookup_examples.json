@@ -1,0 +1,19 @@
+{
+  "description": "Curated live DOI examples whose shared DataCite publication lookup currently resolves related publication metadata.",
+  "curated_date": "2026-03-25",
+  "provenance": "Verified against the live DataCite/Crossref/PMC-backed general publication lookup in the current DOI ingestion implementation.",
+  "cases": [
+    {
+      "doi": "10.6084/m9.figshare.26988151",
+      "expect_publication_urls": true,
+      "expect_publication_dois": true,
+      "origin": "DataCite relatedIdentifiers includes a publication DOI and the downstream Crossref/PMC lookup currently resolves PDF links."
+    },
+    {
+      "doi": "10.5281/zenodo.18746325",
+      "expect_publication_urls": false,
+      "expect_publication_dois": true,
+      "origin": "DataCite relatedIdentifiers currently includes related publication DOIs even when no PDF URL is resolved by the shared lookup."
+    }
+  ]
+}
