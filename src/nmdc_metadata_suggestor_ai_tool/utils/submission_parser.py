@@ -64,13 +64,13 @@ def get_submission_fields(submission_object: dict) -> dict:
     description = study_form.get("description", None)
     notes = study_form.get("notes", None)
     study_name = study_form.get("studyName", None)
-    data_dois = study_form.get("dataDois", [])
+    data_dois = study_form.get("dataDois", []) or []
     publication_dois = study_form.get("publicationDois", []) or []
     gold_study_id = study_form.get("GOLDStudyId", None)
 
     # multiomics form fields
     jgi_study_id = multiomics_form.get("JGIStudyId", None)
-    awarddois = multiomics_form.get("awardDois", [])
+    awarddois = multiomics_form.get("awardDois", []) or []
 
     # get all protocol DOIs, descriptions, names from the multiomics form
     # go from multiomics form-protocol->externalprotocol->doi, description, name
