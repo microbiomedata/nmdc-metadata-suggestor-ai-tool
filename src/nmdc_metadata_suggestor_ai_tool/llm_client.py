@@ -47,19 +47,23 @@ DEFAULT_MAX_TOKENS_BY_PROVIDER: dict[str, int] = {
 
 
 class LLMClient:
-    """LLM client supporting two access providers: PNNL AI Incubator and GCP Vertex AI.
+    """LLM config client supporting two access providers: PNNL AI Incubator and GCP Vertex AI.
 
     Usage::
 
         # Default path: PNNL AI Incubator (OpenAI-compatible Responses API)
         client = LLMClient(access_provider="pnnl")
-        client.add_message(text="Your prompt here")
-        response = client.generate(model="gpt-5-project")
+        # you can then pass this client to ConversationManager
+        conversation_manager = ConversationManager(llm_client=client)
+        conversation_manager.add_message(text="Hello, how are you?", pdf_files=["path/to/file.pdf"])
+        response = conversation_manager.generate()
 
         # GCP Vertex AI path: Gemini via google-genai
         client = LLMClient(access_provider="gcp", llm_provider="gemini")
-        client.add_message(text="Your prompt here")
-        response = client.generate(model="gemini-2.0-flash")
+        # you can then pass this client to ConversationManager
+        conversation_manager = ConversationManager(llm_client=client)
+        conversation_manager.add_message(text="Hello, how are you?", pdf_files=["path/to/file.pdf"])
+        response = conversation_manager.generate()
     """
 
     def __init__(
@@ -80,7 +84,6 @@ class LLMClient:
         self.project = project or GCP_PROJECT_ID
         self.region = region or GEMINI_REGION
         self.credentials_file = credentials_file or GCP_CREDENTIALS_FILE
-        self.messages: list[Any] = []  # List to store the conversation messages
         self.client: OpenAI | genai.Client
 
         if access_provider == "pnnl":
@@ -104,76 +107,6 @@ class LLMClient:
                 location=self.region,
                 credentials=credentials,
             )
-
-    def generate(
-        self,
-        *,
-        model: str | None = None,
-        max_tokens: int | None = None,
-        gemini_temperature: float = 0.4,
-    ) -> str:
-        """Generate a response from queued conversation messages.
-
-        Dispatches by ``access_provider``:
-        - ``pnnl``: uses OpenAI-compatible Responses API (model defaults to first
-            entry in ``PNNL_GPT_MODELS`` when omitted).
-        - ``gcp``: uses Vertex Gemini ``models.generate_content`` (model defaults
-            to ``DEFAULT_GEMINI_MODEL`` when omitted).
-        """
-        if model:
-            self.model = model
-
-        resolved_max_tokens = (
-            max_tokens
-            if max_tokens is not None
-            else DEFAULT_MAX_TOKENS_BY_PROVIDER[self.access_provider]
-        )
-
-        if self.access_provider == "gcp":
-            return self._generate_gcp(
-                max_tokens=resolved_max_tokens,
-                temperature=gemini_temperature,
-            )
-        elif self.access_provider == "pnnl":
-            return self._generate_pnnl(max_tokens=resolved_max_tokens)
-        return ""
-
-    def _generate_pnnl(
-        self,
-        max_tokens: int,
-    ) -> str:
-        client = cast(OpenAI, self.client)
-        response = client.responses.create(
-            model=self.model,
-            input=self.messages,
-            instructions=system_prompt,
-            max_output_tokens=max_tokens,
-        )
-        return response.output_text
-
-    def _generate_gcp(
-        self,
-        max_tokens: int,
-        temperature: float = 0.4,
-    ) -> str:
-
-        config = genai_types.GenerateContentConfig(
-            max_output_tokens=max_tokens,
-            temperature=temperature,
-            system_instruction=system_prompt,
-        )
-
-        client = cast(genai.Client, self.client)
-        response = client.models.generate_content(
-            model=self.model,
-            contents=self.messages,
-            config=config,
-        )
-        if response.text is None:
-            raise RuntimeError(
-                f"GCP model returned an empty text response. Response object: {response}"
-            )
-        return response.text
 
     def _get_gcp_credentials(self) -> Any:
         """Get OAuth credentials for Vertex AI (service account file or ADC)."""
@@ -204,6 +137,89 @@ class LLMClient:
             )
         return credentials
 
+
+class ConversationManager:
+    """
+    Manages a conversation with the LLM including system prompts, user messages, and schema context.
+    Handles generating responses based on the conversation history and system instructions.
+    """
+
+    def __init__(self, llm_client: LLMClient) -> None:
+        self.llm_client = llm_client
+        self.messages: list[Any] = []
+        # set the system prompt in the constructor so it can be parameterized in the future
+        self.system_prompt = system_prompt
+
+    def generate(
+        self,
+        *,
+        model: str | None = None,
+        max_tokens: int | None = None,
+        gemini_temperature: float = 0.4,
+    ) -> str:
+        """Generate a response from queued conversation messages.
+
+        Dispatches by ``access_provider``:
+        - ``pnnl``: uses OpenAI-compatible Responses API (model defaults to first
+            entry in ``PNNL_GPT_MODELS`` when omitted).
+        - ``gcp``: uses Vertex Gemini ``models.generate_content`` (model defaults
+            to ``DEFAULT_GEMINI_MODEL`` when omitted).
+        """
+        if model:
+            self.llm_client.model = model
+
+        resolved_max_tokens = (
+            max_tokens
+            if max_tokens is not None
+            else DEFAULT_MAX_TOKENS_BY_PROVIDER[self.llm_client.access_provider]
+        )
+
+        if self.llm_client.access_provider == "gcp":
+            return self._generate_gcp(
+                max_tokens=resolved_max_tokens,
+                temperature=gemini_temperature,
+            )
+        elif self.llm_client.access_provider == "pnnl":
+            return self._generate_pnnl(max_tokens=resolved_max_tokens)
+        return ""
+
+    def _generate_pnnl(
+        self,
+        max_tokens: int,
+    ) -> str:
+        client = cast(OpenAI, self.llm_client.client)
+        response = client.responses.create(
+            model=self.llm_client.model,
+            input=self.messages,
+            instructions=system_prompt,
+            max_output_tokens=max_tokens,
+        )
+        return response.output_text
+
+    def _generate_gcp(
+        self,
+        max_tokens: int,
+        temperature: float = 0.4,
+    ) -> str:
+
+        config = genai_types.GenerateContentConfig(
+            max_output_tokens=max_tokens,
+            temperature=temperature,
+            system_instruction=system_prompt,
+        )
+
+        client = cast(genai.Client, self.llm_client.client)
+        response = client.models.generate_content(
+            model=self.llm_client.model,
+            contents=self.messages,
+            config=config,
+        )
+        if response.text is None:
+            raise RuntimeError(
+                f"GCP model returned an empty text response. Response object: {response}"
+            )
+        return response.text
+
     def add_message(self, text: str, pdf_files: list[str] | None = None) -> None:
         """
         Adds a message to the conversation.
@@ -212,7 +228,7 @@ class LLMClient:
         text (str): The text content of the message.
         pdf_files (list[str]): A list of paths to PDF files to include in the message.
         """
-        if self.access_provider == "pnnl":
+        if self.llm_client.access_provider == "pnnl":
             # PNNL goes through OpenAI API which supports list[dict]
             # load the pdf bytes and encode to base64
             pnnl_content: list[dict[str, Any]] = []
@@ -241,7 +257,7 @@ class LLMClient:
                 pnnl_content.append({"role": "user", "content": text})
             self.messages.extend(pnnl_content)
 
-        if self.access_provider == "gcp":
+        if self.llm_client.access_provider == "gcp":
             # GCP is a list of the messages
             gcp_content: list[genai_types.Part | str] = []
             if pdf_files:
@@ -267,14 +283,4 @@ class LLMClient:
         self.add_message(
             text="Utilize the following schema context to "
             "inform your metadata field recommendations:\n" + schema,
-        )
-
-    def add_schema_and_slot_examples(self) -> None:
-        """
-        Add the curated examples of schema, description, and mappings.
-        """
-        raise NotImplementedError(
-            "This method is not yet implemented. "
-            "It will add example mappings from schema context to "
-            "YAML output to the conversation history to help guide the LLM's recommendations."
         )

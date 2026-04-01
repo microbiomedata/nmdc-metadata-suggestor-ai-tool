@@ -21,6 +21,14 @@ class _FakeLLMClient:
         self.response = response
         self.model = "gpt-5-project"
         self.access_provider = "pnnl"
+        # provide a `.client` with the shape expected by ConversationManager
+        # for the PNNL provider: `client.responses.create(...)` returning
+        # an object with `output_text`.
+        self.client = SimpleNamespace(
+            responses=SimpleNamespace(
+                create=lambda **kwargs: SimpleNamespace(output_text=self.response)
+            )
+        )
 
     def add_schema_context(self, schema: str) -> None:
         _ = schema
