@@ -14,8 +14,8 @@ class MixsExtensions(Enum):
     WaterInterface = "water"
     SedimentInterface = "sediment"
     BiofilmInterface = "microbial mat_biofilm"
-    HcrCoresInterface = "hydrocarbon resources - cores"
-    HcrFluidsSwabsInterface = "hydrocarbon resources - fluids swabs"
+    HcrCoresInterface = "hydrocarbon resources-cores"
+    HcrFluidsSwabsInterface = "hydrocarbon resources-fluids_swabs"
     MiscEnvsInterface = "miscellaneous natural or artifical environment"
     PlantAssociatedInterface = "plant-associated"
 
