@@ -21,8 +21,13 @@ GCP_CREDENTIALS_FILE = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
 GCP_PROJECT_ID = os.environ.get("VERTEX_PROJECT_ID")
 GCP_REGION = os.environ.get("CLOUD_ML_REGION", "us-east5")
 GEMINI_REGION = os.environ.get("GEMINI_REGION", GCP_REGION)
-AI_INCUBATOR_KEY = os.environ.get("AI_INCUBATOR_KEY")
-BASE_URL = os.environ.get("AI_INCUBATOR_BASE_URL")
+
+# For use with institutional access to LLMs
+AI_INCUBATOR_KEY = os.environ.get("AI_INCUBATOR_KEY", None)
+AI_INCUBATOR_BASE_URL = os.environ.get("AI_INCUBATOR_BASE_URL", None)
+CBORG_KEY = os.environ.get("CBORG_KEY", None)
+CBORG_BASE_URL = os.environ.get("CBORG_BASE_URL", None)
+
 
 GEMINI_MODELS = [
     "gemini-2.5-pro",
@@ -74,12 +79,8 @@ class LLMClient:
         region: str | None = None,
         credentials_file: str | None = None,
     ) -> None:
-        if access_provider not in ("pnnl", "gcp"):
-            raise ValueError(f"Unknown access_provider '{access_provider}'. Use 'pnnl' or 'gcp'.")
-
-        self.model = model or (
-            PNNL_GPT_MODELS[0] if access_provider == "pnnl" else DEFAULT_GEMINI_MODEL
-        )
+        if access_provider not in ("pnnl", "cborg", "gcp"):
+            raise ValueError(f"Unknown access_provider '{access_provider}'. Use 'pnnl', 'cborg', or 'gcp'.")
         self.access_provider = access_provider
         self.project = project or GCP_PROJECT_ID
         self.region = region or GEMINI_REGION
@@ -87,14 +88,25 @@ class LLMClient:
         self.client: OpenAI | genai.Client
 
         if access_provider == "pnnl":
+            self.model = model or PNNL_GPT_MODELS[0]
             # load ai incubator key from env
-            if not AI_INCUBATOR_KEY or not BASE_URL:
+            if not AI_INCUBATOR_KEY or not AI_INCUBATOR_BASE_URL:
                 raise RuntimeError(
                     "AI_INCUBATOR_KEY or AI_INCUBATOR_BASE_URL is not set in environment variables."
                 )
-            self.client = OpenAI(base_url=BASE_URL, api_key=AI_INCUBATOR_KEY)
+            self.client = OpenAI(base_url=AI_INCUBATOR_BASE_URL, api_key=AI_INCUBATOR_KEY)
+
+        if access_provider == "cborg":
+            self.model = model or DEFAULT_GEMINI_MODEL
+            # load cborg key from env
+            if not CBORG_KEY or not CBORG_BASE_URL:
+                raise RuntimeError(
+                    "CBORG_KEY or CBORG_BASE_URL is not set in environment variables."
+                )
+            self.client = OpenAI(base_url=CBORG_BASE_URL, api_key=CBORG_KEY)
 
         if access_provider == "gcp":
+            self.model = model or DEFAULT_GEMINI_MODEL
             credentials = self._get_gcp_credentials()
             if not self.project:
                 raise RuntimeError(
@@ -179,11 +191,11 @@ class ConversationManager:
                 max_tokens=resolved_max_tokens,
                 temperature=gemini_temperature,
             )
-        elif self.llm_client.access_provider == "pnnl":
-            return self._generate_pnnl(max_tokens=resolved_max_tokens)
+        elif self.llm_client.access_provider == "pnnl" or self.llm_client.access_provider == "cborg":
+            return self._generate_openai(max_tokens=resolved_max_tokens)
         return ""
 
-    def _generate_pnnl(
+    def _generate_openai(
         self,
         max_tokens: int,
     ) -> str:
