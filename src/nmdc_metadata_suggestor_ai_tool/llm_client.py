@@ -80,7 +80,9 @@ class LLMClient:
         credentials_file: str | None = None,
     ) -> None:
         if access_provider not in ("pnnl", "cborg", "gcp"):
-            raise ValueError(f"Unknown access_provider '{access_provider}'. Use 'pnnl', 'cborg', or 'gcp'.")
+            raise ValueError(
+                f"Unknown access_provider '{access_provider}'. Use 'pnnl', 'cborg', or 'gcp'."
+            )
         self.access_provider = access_provider
         self.project = project or GCP_PROJECT_ID
         self.region = region or GEMINI_REGION
@@ -191,7 +193,9 @@ class ConversationManager:
                 max_tokens=resolved_max_tokens,
                 temperature=gemini_temperature,
             )
-        elif self.llm_client.access_provider == "pnnl" or self.llm_client.access_provider == "cborg":
+        elif (
+            self.llm_client.access_provider == "pnnl" or self.llm_client.access_provider == "cborg"
+        ):
             return self._generate_openai(max_tokens=resolved_max_tokens)
         return ""
 

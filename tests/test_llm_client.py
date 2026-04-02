@@ -26,7 +26,7 @@ def test_generate_uses_pnnl_default_max_tokens_when_not_provided(monkeypatch: An
         assert max_tokens == DEFAULT_MAX_TOKENS_BY_PROVIDER["pnnl"]
         return "ok"
 
-    monkeypatch.setattr(conversation, "_generate_pnnl", _fake_generate_pnnl)
+    monkeypatch.setattr(conversation, "_generate_openai", _fake_generate_pnnl)
     assert conversation.generate() == "ok"
 
 
