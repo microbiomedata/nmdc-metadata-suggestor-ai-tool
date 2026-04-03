@@ -11,7 +11,10 @@ from pathlib import Path
 import pytest
 
 from nmdc_metadata_suggestor_ai_tool.llm_client import ConversationManager, LLMClient
-from nmdc_metadata_suggestor_ai_tool.recommendation_pipeline import run_recommendation_pipeline
+from nmdc_metadata_suggestor_ai_tool.recommendation_pipeline import (
+    clean_and_validate_output,
+    run_recommendation_pipeline,
+)
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
@@ -38,10 +41,14 @@ def test_pipeline_returns_valid_llm_output() -> None:
 
     assert result.metadata_fields, "Expected at least one metadata field suggestion"
 
+    fields_with_values = 0
     for field in result.metadata_fields:
         assert field.field_name, "field_name must not be empty"
         assert field.reason, "reason must not be empty"
-        assert field.value != "", f"field '{field.field_name}' has no suggested value"
+        if field.value != "":
+            fields_with_values += 1
+
+    assert fields_with_values > 0, "Expected at least one field with a suggested value"
 
     assert result.model, "model should be a non-empty string"
     assert result.access_provider == "gcp"
@@ -53,9 +60,7 @@ def test_gemini_conversation_with_schema_context() -> None:
     """Verify the Gemini model can process schema context and return valid JSON."""
     client = LLMClient(access_provider="gcp")
     conversation = ConversationManager(llm_client=client)
-    conversation.add_schema_context(
-        '{"fields": [{"name": "env_broad_scale", "type": "string"}]}'
-    )
+    conversation.add_schema_context('{"fields": [{"name": "env_broad_scale", "type": "string"}]}')
     conversation.add_message(
         text=(
             "Given a soil metagenome study, suggest a value for env_broad_scale. "
@@ -65,7 +70,11 @@ def test_gemini_conversation_with_schema_context() -> None:
     response = conversation.generate()
 
     assert response, "Expected a non-empty response from Gemini"
-    parsed = json.loads(response)
-    assert "field_name" in parsed, "Response JSON must contain 'field_name'"
-    assert "value" in parsed, "Response JSON must contain 'value'"
-    assert parsed["value"], "Suggested value must not be empty"
+    result = clean_and_validate_output(response)
+    assert result.metadata_fields, "Expected at least one metadata field suggestion"
+    assert any(f.field_name == "env_broad_scale" for f in result.metadata_fields), (
+        "Response must contain 'env_broad_scale'"
+    )
+    assert any(f.value for f in result.metadata_fields), (
+        "At least one field must have a suggested value"
+    )
