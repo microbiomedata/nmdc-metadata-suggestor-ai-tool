@@ -101,3 +101,93 @@ Each test case has:
 - **3 NMDC collections**: study_set, biosample_set, material_processing_set
 - **Edge cases**: old DOI format with parentheses, preprints, book chapters, video journals, protocol DOIs
 - **4 bogus DOIs**: nonexistent prefix, valid prefix with fake suffix, malformed string, empty string
+
+## tests/fixtures/nmdc_dois_with_biosamples.tsv
+
+Every DOI-to-biosample mapping in NMDC, generated from the BERDL data lakehouse.
+
+### Provenance
+
+1. **Source database**: `nmdc_flattened_biosamples` in the BERDL lakehouse (NMDC tenant)
+2. **Upstream pipeline**: Produced by a DuckDB pipeline in
+   [external-metadata-awareness](https://github.com/microbiomedata/external-metadata-awareness),
+   loaded into BERDL as Delta Lake tables on **2026-02-18**
+3. **Tables joined**:
+   - `flattened_study_associated_dois` (71 rows — one per study-DOI association)
+   - `flattened_biosample` (14,938 rows, 281 columns)
+4. **Generated**: 2026-03-06 via PySpark on BERDL JupyterHub
+
+### Query
+
+```sql
+SELECT
+    d.study_id,
+    d.doi_value,
+    d.doi_category,
+    b.id AS biosample_id
+FROM nmdc_flattened_biosamples.flattened_study_associated_dois d
+JOIN nmdc_flattened_biosamples.flattened_biosample b
+    ON b.associated_studies = d.study_id
+ORDER BY d.study_id, d.doi_value, b.id
+```
+
+### Counts
+
+| Metric | Count |
+|--------|-------|
+| Rows (biosample-DOI pairs) | 16,690 |
+| Unique DOIs | 71 |
+| Unique studies | 23 |
+| Unique biosamples | 4,775 |
+
+Not all 14,938 biosamples appear — only those whose study has at least one DOI.
+
+### Structure
+
+| Column | Description |
+|--------|-------------|
+| `study_id` | NMDC study identifier (e.g., `nmdc:sty-11-076c9980`) |
+| `doi_value` | DOI with `doi:` prefix (e.g., `doi:10.25585/1488160`) |
+| `doi_category` | NMDC category: `publication_doi`, `dataset_doi`, or `award_doi` |
+| `biosample_id` | NMDC biosample identifier (e.g., `nmdc:bsm-11-02x97z84`) |
+
+### How to regenerate
+
+**Option A: From BERDL lakehouse (authoritative)**
+
+1. Log into [BERDL JupyterHub](https://hub.berdl.kbase.us/) (ORCID auth)
+2. Open a terminal or notebook
+3. Run the SQL query above via PySpark:
+
+```python
+from berdl_notebook_utils import get_spark_session
+spark = get_spark_session()
+df = spark.sql("""
+    SELECT d.study_id, d.doi_value, d.doi_category, b.id AS biosample_id
+    FROM nmdc_flattened_biosamples.flattened_study_associated_dois d
+    JOIN nmdc_flattened_biosamples.flattened_biosample b
+        ON b.associated_studies = d.study_id
+    ORDER BY d.study_id, d.doi_value, b.id
+""")
+df.toPandas().to_csv("nmdc_dois_with_biosamples.tsv", sep="\t", index=False)
+```
+
+4. Download the TSV and replace `tests/fixtures/nmdc_dois_with_biosamples.tsv`
+
+**Option B: From local MongoDB + external-metadata-awareness**
+
+1. Restore an NMDC MongoDB dump locally (see doi_test_cases.json provenance above)
+2. Run `extract-nmdc-doi-inventory` from
+   [external-metadata-awareness](https://github.com/microbiomedata/external-metadata-awareness)
+   to produce a DOI inventory TSV
+3. That TSV has DOIs and study IDs but **not** biosample IDs — you'd need a
+   separate MongoDB query to join `study_set` → `biosample_set`
+
+### Usage with batch DOI retrieval
+
+```bash
+make get-abstracts-from-file FILE=tests/fixtures/nmdc_dois_with_biosamples.tsv OUT=results/
+```
+
+The `doi_value` column is auto-detected. Duplicate DOIs (same DOI appearing for
+multiple biosamples) are deduplicated — only 71 unique DOIs are fetched.
