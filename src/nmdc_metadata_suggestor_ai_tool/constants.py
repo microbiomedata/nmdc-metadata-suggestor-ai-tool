@@ -12,7 +12,15 @@ import re
 # ---------------------------------------------------------------------------
 # Supported sources for abstract and publication retrieval
 # ---------------------------------------------------------------------------
-ALL_SOURCES = ("openalex", "crossref", "pubmed", "content_negotiation", "osti")
+ALL_SOURCES = (
+    "openalex",
+    "crossref",
+    "elsevier",
+    "springer_nature",
+    "pubmed",
+    "content_negotiation",
+    "osti",
+)
 
 # ---------------------------------------------------------------------------
 # Contact / User-Agent
@@ -57,6 +65,18 @@ EUROPEPMC_API_URL = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
 PUBMED_ID_CONVERTER = "https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/"
 PUBMED_EFETCH = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
 PMC_PDF_URL_TEMPLATE = "https://www.ncbi.nlm.nih.gov/pmc/articles/{pmcid}/pdf/"
+
+# Elsevier ScienceDirect — requires API key from https://dev.elsevier.com/
+# The API key is read at call time via os.environ.get("ELSEVIER_API_KEY")
+# in doi_ingestion/elsevier.py (not captured here, to avoid import-time issues).
+ELSEVIER_API_URL = "https://api.elsevier.com/content/article/doi"
+
+# Springer Nature APIs — require keys from https://dev.springernature.com/
+#   "Meta API" key     → /meta/v2/   (SPRINGER_NATURE_API_KEY)
+#   "Open Access API"  → /openaccess/ (SPRINGER_NATURE_OA_API_KEY)
+# Keys are read at call time in doi_ingestion/springer_nature.py.
+SPRINGER_NATURE_META_API_URL = "https://api.springernature.com/meta/v2/json"
+SPRINGER_NATURE_OA_API_URL = "https://api.springernature.com/openaccess/json"
 
 # Content negotiation
 CITEPROC_JSON_ACCEPT = "application/vnd.citationstyles.csl+json"

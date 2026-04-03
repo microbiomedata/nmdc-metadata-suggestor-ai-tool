@@ -615,7 +615,15 @@ class TestSourceSelection:
 
     def test_all_sources_constant(self) -> None:
         """ALL_SOURCES constant lists the canonical publication abstract sources."""
-        assert set(ALL_SOURCES) == {"openalex", "crossref", "pubmed", "content_negotiation", "osti"}
+        assert set(ALL_SOURCES) == {
+            "openalex",
+            "crossref",
+            "elsevier",
+            "springer_nature",
+            "pubmed",
+            "content_negotiation",
+            "osti",
+        }
 
     @responses.activate
     def test_default_source_order(self) -> None:

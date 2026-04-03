@@ -20,6 +20,7 @@ from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import (
     normalize_doi,
 )
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.edi import try_edi
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.elsevier import try_elsevier
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.emsl import try_emsl
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.ess_dive import try_ess_dive
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.figshare import try_figshare
@@ -29,6 +30,7 @@ from nmdc_metadata_suggestor_ai_tool.doi_ingestion.massive import try_massive
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.openalex import try_openalex
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.osti import try_osti
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.pubmed import try_pubmed
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.springer_nature import try_springer_nature
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.zenodo import try_zenodo
 from nmdc_metadata_suggestor_ai_tool.models.doi import DoiClassification, SourceRetrievalResult
 from nmdc_metadata_suggestor_ai_tool.models.resolver_context import ResolverContext
@@ -442,6 +444,24 @@ def _fetch_pubmed(
     return _fetch_resolver_context(doi, provider, "pubmed", attempts, source_errors, try_pubmed)
 
 
+def _fetch_elsevier(
+    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
+) -> SourceRetrievalResult | None:
+    """Fetch and wrap context from Elsevier ScienceDirect API."""
+    return _fetch_resolver_context(
+        doi, provider, "elsevier", attempts, source_errors, try_elsevier
+    )
+
+
+def _fetch_springer_nature(
+    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
+) -> SourceRetrievalResult | None:
+    """Fetch and wrap context from Springer Nature APIs."""
+    return _fetch_resolver_context(
+        doi, provider, "springer_nature", attempts, source_errors, try_springer_nature
+    )
+
+
 def _fetch_osti(
     doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
 ) -> SourceRetrievalResult | None:
@@ -461,6 +481,8 @@ _SOURCE_FETCHERS: dict[str, Fetcher] = {
     "zenodo": _fetch_zenodo,
     "datacite": _fetch_datacite,
     "crossref": _fetch_crossref,
+    "elsevier": _fetch_elsevier,
+    "springer_nature": _fetch_springer_nature,
     "content_negotiation": _fetch_content_negotiation,
     "openalex": _fetch_openalex,
     "pubmed": _fetch_pubmed,
