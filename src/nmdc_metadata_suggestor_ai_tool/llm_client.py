@@ -1,4 +1,4 @@
-"""Unified LLM client for Vertex AI (Gemini and Claude)."""
+"""Unified LLM client for OpenAI-compatible providers and Vertex AI."""
 
 import base64
 import os
@@ -17,12 +17,8 @@ from nmdc_metadata_suggestor_ai_tool.system_prompt import system_prompt
 
 load_dotenv()
 
-GCP_CREDENTIALS_FILE = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
-GCP_PROJECT_ID = os.environ.get("VERTEX_PROJECT_ID")
-GCP_REGION = os.environ.get("CLOUD_ML_REGION", "us-east5")
-GEMINI_REGION = os.environ.get("GEMINI_REGION", GCP_REGION)
-AI_INCUBATOR_KEY = os.environ.get("AI_INCUBATOR_KEY")
-BASE_URL = os.environ.get("AI_INCUBATOR_BASE_URL")
+DEFAULT_GCP_REGION = "us-east5"
+
 
 GEMINI_MODELS = [
     "gemini-2.5-pro",
@@ -42,12 +38,13 @@ PNNL_GPT_MODELS = [
 DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
 DEFAULT_MAX_TOKENS_BY_PROVIDER: dict[str, int] = {
     "pnnl": 128000,
+    "cborg": 128000,
     "gcp": 65535,
 }
 
 
 class LLMClient:
-    """LLM config client supporting two access providers: PNNL AI Incubator and GCP Vertex AI.
+    """LLM config client supporting PNNL AI Incubator, CBORG, and GCP Vertex AI.
 
     Usage::
 
@@ -74,27 +71,43 @@ class LLMClient:
         region: str | None = None,
         credentials_file: str | None = None,
     ) -> None:
-        if access_provider not in ("pnnl", "gcp"):
-            raise ValueError(f"Unknown access_provider '{access_provider}'. Use 'pnnl' or 'gcp'.")
-
-        self.model = model or (
-            PNNL_GPT_MODELS[0] if access_provider == "pnnl" else DEFAULT_GEMINI_MODEL
-        )
+        if access_provider not in ("pnnl", "cborg", "gcp"):
+            raise ValueError(
+                f"Unknown access_provider '{access_provider}'. Use 'pnnl', 'cborg', or 'gcp'."
+            )
         self.access_provider = access_provider
-        self.project = project or GCP_PROJECT_ID
-        self.region = region or GEMINI_REGION
-        self.credentials_file = credentials_file or GCP_CREDENTIALS_FILE
+        self.project = project or os.environ.get("VERTEX_PROJECT_ID")
+        self.region = region or os.environ.get(
+            "GEMINI_REGION",
+            os.environ.get("CLOUD_ML_REGION", DEFAULT_GCP_REGION),
+        )
+        self.credentials_file = credentials_file or os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
         self.client: OpenAI | genai.Client
 
         if access_provider == "pnnl":
+            self.model = model or PNNL_GPT_MODELS[0]
             # load ai incubator key from env
-            if not AI_INCUBATOR_KEY or not BASE_URL:
+            api_key = os.environ.get("AI_INCUBATOR_KEY")
+            base_url = os.environ.get("AI_INCUBATOR_BASE_URL")
+            if not api_key or not base_url:
                 raise RuntimeError(
                     "AI_INCUBATOR_KEY or AI_INCUBATOR_BASE_URL is not set in environment variables."
                 )
-            self.client = OpenAI(base_url=BASE_URL, api_key=AI_INCUBATOR_KEY)
+            self.client = OpenAI(base_url=base_url, api_key=api_key)
+
+        if access_provider == "cborg":
+            self.model = model or DEFAULT_GEMINI_MODEL
+            # load cborg key from env
+            api_key = os.environ.get("CBORG_KEY")
+            base_url = os.environ.get("CBORG_BASE_URL")
+            if not api_key or not base_url:
+                raise RuntimeError(
+                    "CBORG_KEY or CBORG_BASE_URL is not set in environment variables."
+                )
+            self.client = OpenAI(base_url=base_url, api_key=api_key)
 
         if access_provider == "gcp":
+            self.model = model or DEFAULT_GEMINI_MODEL
             credentials = self._get_gcp_credentials()
             if not self.project:
                 raise RuntimeError(
@@ -162,6 +175,8 @@ class ConversationManager:
         Dispatches by ``access_provider``:
         - ``pnnl``: uses OpenAI-compatible Responses API (model defaults to first
             entry in ``PNNL_GPT_MODELS`` when omitted).
+        - ``cborg``: uses OpenAI-compatible API (model defaults to
+            ``DEFAULT_GEMINI_MODEL`` when omitted).
         - ``gcp``: uses Vertex Gemini ``models.generate_content`` (model defaults
             to ``DEFAULT_GEMINI_MODEL`` when omitted).
         """
@@ -179,11 +194,13 @@ class ConversationManager:
                 max_tokens=resolved_max_tokens,
                 temperature=gemini_temperature,
             )
-        elif self.llm_client.access_provider == "pnnl":
-            return self._generate_pnnl(max_tokens=resolved_max_tokens)
+        elif (
+            self.llm_client.access_provider == "pnnl" or self.llm_client.access_provider == "cborg"
+        ):
+            return self._generate_openai(max_tokens=resolved_max_tokens)
         return ""
 
-    def _generate_pnnl(
+    def _generate_openai(
         self,
         max_tokens: int,
     ) -> str:
@@ -228,7 +245,7 @@ class ConversationManager:
         text (str): The text content of the message.
         pdf_files (list[str]): A list of paths to PDF files to include in the message.
         """
-        if self.llm_client.access_provider == "pnnl":
+        if self.llm_client.access_provider in ("pnnl", "cborg"):
             # PNNL goes through OpenAI API which supports list[dict]
             # load the pdf bytes and encode to base64
             pnnl_content: list[dict[str, Any]] = []

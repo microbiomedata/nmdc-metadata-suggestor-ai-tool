@@ -26,7 +26,21 @@ def test_generate_uses_pnnl_default_max_tokens_when_not_provided(monkeypatch: An
         assert max_tokens == DEFAULT_MAX_TOKENS_BY_PROVIDER["pnnl"]
         return "ok"
 
-    monkeypatch.setattr(conversation, "_generate_pnnl", _fake_generate_pnnl)
+    monkeypatch.setattr(conversation, "_generate_openai", _fake_generate_pnnl)
+    assert conversation.generate() == "ok"
+
+
+def test_generate_uses_cborg_default_max_tokens_when_not_provided(monkeypatch: Any) -> None:
+    client = LLMClient.__new__(LLMClient)
+    client.access_provider = "cborg"
+    client.model = "gemini-2.5-flash"
+    conversation = ConversationManager(llm_client=client)
+
+    def _fake_generate_cborg(*, max_tokens: int) -> str:
+        assert max_tokens == DEFAULT_MAX_TOKENS_BY_PROVIDER["cborg"]
+        return "ok"
+
+    monkeypatch.setattr(conversation, "_generate_openai", _fake_generate_cborg)
     assert conversation.generate() == "ok"
 
 
@@ -63,6 +77,27 @@ def test_generate_uses_explicit_max_tokens_override(monkeypatch: Any) -> None:
 def test_default_provider_is_gemini(requires_credentials: None) -> None:
     client = LLMClient(access_provider="gcp")
     assert client.model == "gemini-2.5-flash"
+
+
+def test_cborg_client_reads_env_at_initialization_time(monkeypatch: Any) -> None:
+    monkeypatch.setenv("CBORG_KEY", "test-key")
+    monkeypatch.setenv("CBORG_BASE_URL", "https://api.cborg.lbl.gov")
+
+    client = LLMClient(access_provider="cborg")
+
+    assert client.model == "gemini-2.5-flash"
+    assert str(client.client.base_url).rstrip("/") == "https://api.cborg.lbl.gov"
+
+
+def test_cborg_add_message_uses_openai_payload_shape() -> None:
+    client = LLMClient.__new__(LLMClient)
+    client.access_provider = "cborg"
+    client.model = "gemini-2.5-flash"
+    conversation = ConversationManager(llm_client=client)
+
+    conversation.add_message(text="hello")
+
+    assert conversation.messages == [{"role": "user", "content": "hello"}]
 
 
 def test_gemini_generate(requires_credentials: None) -> None:
