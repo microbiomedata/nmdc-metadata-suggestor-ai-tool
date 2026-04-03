@@ -29,6 +29,11 @@ Environment variables used by `LLMClient` and `ConversationManager`:
 
 The `LLMClient` will read the appropriate variables depending on `access_provider` (set to `pnnl`, `cborg`, or `gcp`).
 
+Environment variables are loaded from a `.env` file in the project root via
+[python-dotenv](https://saurabh-kumar.com/python-dotenv/). Variables already
+set in your shell take precedence over `.env` values (`override=False` is the
+default).
+
 ### Option 1: Using uv (Local Development)
 
 1. **Install uv** (if not already installed):
@@ -153,7 +158,7 @@ nmdc-metadata-suggestor-ai-tool/
 uv run pytest
 
 # Run with coverage
-uv run pytest --cov=src/nmdc_metadata_suggestor
+uv run pytest --cov=src/nmdc_metadata_suggestor_ai_tool
 
 # Run specific test file
 uv run pytest tests/test_example.py
