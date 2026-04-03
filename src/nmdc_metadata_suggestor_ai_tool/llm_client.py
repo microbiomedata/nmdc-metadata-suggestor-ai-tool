@@ -246,9 +246,8 @@ class ConversationManager:
         pdf_files (list[str]): A list of paths to PDF files to include in the message.
         """
         if self.llm_client.access_provider in ("pnnl", "cborg"):
-            # PNNL goes through OpenAI API which supports list[dict]
-            # load the pdf bytes and encode to base64
-            pnnl_content: list[dict[str, Any]] = []
+            # OpenAI-compatible providers use list[dict] message format
+            openai_content: list[dict[str, Any]] = []
             pdf_file_data: list[str] = []
             if pdf_files:
                 for pdf_file in pdf_files:
@@ -257,7 +256,7 @@ class ConversationManager:
                         encoded = base64.standard_b64encode(pdf_bytes).decode("utf-8")
                         pdf_file_data.append(f"data:application/pdf;base64,{encoded}")
 
-                pnnl_content = [
+                openai_content = [
                     {
                         "role": "user",
                         "content": [
@@ -271,8 +270,8 @@ class ConversationManager:
                     }
                 ]
             if text:
-                pnnl_content.append({"role": "user", "content": text})
-            self.messages.extend(pnnl_content)
+                openai_content.append({"role": "user", "content": text})
+            self.messages.extend(openai_content)
 
         if self.llm_client.access_provider == "gcp":
             # GCP is a list of the messages
