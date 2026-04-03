@@ -175,6 +175,8 @@ class ConversationManager:
         Dispatches by ``access_provider``:
         - ``pnnl``: uses OpenAI-compatible Responses API (model defaults to first
             entry in ``PNNL_GPT_MODELS`` when omitted).
+        - ``cborg``: uses OpenAI-compatible API (model defaults to
+            ``DEFAULT_GEMINI_MODEL`` when omitted).
         - ``gcp``: uses Vertex Gemini ``models.generate_content`` (model defaults
             to ``DEFAULT_GEMINI_MODEL`` when omitted).
         """
