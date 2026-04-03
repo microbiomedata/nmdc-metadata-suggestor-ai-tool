@@ -11,21 +11,21 @@ A Python application for the NMDC Submission portal metadata suggestor tool, pow
 ## Quick Start
 
 ### LLM Configuration:
-You will need to set up a .env file:
+You will need to set up a `.env` file. Copy the example first:
 
-Run 
 ```bash
 cp .env-example .env
 ```
 
-For access via PNNL's AI Incubator set the following:
-- AI_INCUBATOR_KEY
-- AI_INCUBATOR_BASE_URL
+Environment variables used by `LLMClient` and `ConversationManager`:
 
-For access via GCP set the following (this is the path to the service-account.json file that Sierra Moxon can provide):
-- GOOGLE_APPLICATION_CREDENTIALS
+- `AI_INCUBATOR_KEY`: API key for PNNL AI Incubator (when using `access_provider=pnnl`).
+- `AI_INCUBATOR_BASE_URL`: Base URL for the PNNL AI Incubator API.
+- `GOOGLE_APPLICATION_CREDENTIALS`: Path to a GCP service account JSON file (for Vertex AI).
+- `VERTEX_PROJECT_ID`: (Optional) GCP project id for Vertex. If not provided, the SDK will attempt to infer it from credentials.
+- `GEMINI_REGION`: (Optional) GCP region for Gemini/Vertex (defaults to `us-east5` or `CLOUD_ML_REGION`).
 
-The LLMClient will read the appropriate variables for `access_provider=pnnl` or `access_provider=gcp`
+The `LLMClient` will read the appropriate variables depending on `access_provider` (set to `pnnl` or `gcp`).
 
 ### Option 1: Using uv (Local Development)
 
@@ -70,6 +70,21 @@ The LLMClient will read the appropriate variables for `access_provider=pnnl` or 
    result = run_recommendation_pipeline(submission_object, client)
    print(result.model_dump())
    ```
+
+Advanced: direct `ConversationManager` usage (optional)
+
+```python
+from nmdc_metadata_suggestor_ai_tool.llm_client import LLMClient, ConversationManager
+
+client = LLMClient(access_provider="gcp")
+conversation = ConversationManager(llm_client=client)
+# Add plain text context (pdf_files may be a list of local PDF paths)
+conversation.add_message(text="Please summarize the submission.", pdf_files=None)
+# Add any schema context to guide the model
+conversation.add_schema_context("<schema description here>")
+response = conversation.generate(model="gemini-2.5-flash", max_tokens=1024, gemini_temperature=0.2)
+print(response)
+```
 
 ### Option 2: Using Docker
 

@@ -5,7 +5,7 @@ import re
 from pydantic import ValidationError
 
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.main import get_doi_description_or_abstract
-from nmdc_metadata_suggestor_ai_tool.llm_client import LLMClient
+from nmdc_metadata_suggestor_ai_tool.llm_client import ConversationManager, LLMClient
 from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
 from nmdc_metadata_suggestor_ai_tool.publication_ingestion.download_pdf import (
     download_pdf_to_tempfile,
@@ -62,6 +62,9 @@ def run_recommendation_pipeline(
     Returns:
         The response from the LLM containing the recommended metadata fields.
     """
+    conversation_manager = ConversationManager(
+        llm_client=llm_client
+    )  # initialize the conversation manager with the LLM client
     parsed_submission_object = get_submission_fields(submission_object=submission_object)
     mixs_extensions = parsed_submission_object.get("mixs_extensions", [])
     doi = parsed_submission_object.get("dois", [])
@@ -83,7 +86,7 @@ def run_recommendation_pipeline(
         f"Protocol descriptions: {'; '.join(protocol_descs)}\n"
         f"Protocol names: {'; '.join(protocol_names)}"
     )
-    llm_client.add_message(text=submission_context)
+    conversation_manager.add_message(text=submission_context)
     publication_links: list[str] = []
     # loop through dois and retrieve abstracts/descriptions to add to the LLM context
     for doi, provider in parsed_submission_object.get("dois", []):
@@ -95,7 +98,7 @@ def run_recommendation_pipeline(
         if result.publication_urls:
             publication_links.extend(result.publication_urls)
         if abstract is not None:
-            llm_client.add_message(
+            conversation_manager.add_message(
                 text=f"Context retrieved for DOI {doi} from provider {provider}:\n{abstract}"
             )
 
@@ -114,15 +117,15 @@ def run_recommendation_pipeline(
 
     builder = SchemaContextBuilder()
     mixs_schema = builder.format_multi_interface_context(mixs_extensions)
-    llm_client.add_schema_context(mixs_schema)
-    llm_client.add_message(
+    conversation_manager.add_schema_context(mixs_schema)
+    conversation_manager.add_message(
         text="Utilize the provided information and PDF content to "
         "inform your metadata field recommendations.",
         pdf_files=pdf_files,
     )
 
     # get the LLM's response and validate it against the expected output schema
-    response = llm_client.generate(max_tokens=max_tokens)
+    response = conversation_manager.generate(max_tokens=max_tokens)
     validated_output = clean_and_validate_output(response)
 
     # delete the temporary PDF files after processing
