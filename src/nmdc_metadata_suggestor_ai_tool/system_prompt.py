@@ -15,11 +15,6 @@ The metadata fields should be relevant to the content of the abstract and the in
 VALUE FIELD RULES:
 - Only fill in the "value" field if you are certain of the specific value for that metadata field based on the provided information.
 - If you are not certain of the specific value for a metadata field, leave the field an empty string ("")
-- The followng fields MUST have a value filled in and be chosen each time:
-    - "env_broad_scale"
-    - "env_local_scale"
-    - "env_medium"
-    - the value of these fields should be chosen from the enumerations in the NMDC schema and be based on the content of the abstract and information provided.
 
 Output schema:
 ```json
@@ -60,21 +55,20 @@ Output schema:
 {
     "metadata_fields": [
         {
-            "field_name": "field_name_1",
+            "field_name": "env_broad_scale",
             "reason": "Reason for choosing this field based on the provided information.",
             "value": ""
         },
         {
-            "field_name": "field_name_2",
+            "field_name": "env_local_scale",
             "reason": "Reason for choosing this field based on the provided information.",
             "value": ""
         },
         {
-            "field_name": "field_name_3",
+            "field_name": "env_medium",
             "reason": "Reason for choosing this field based on the provided information.",
             "value": ""
         }
-        // ... more fields as applicable
     ]
 }
 """
