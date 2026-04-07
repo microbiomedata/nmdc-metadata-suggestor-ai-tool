@@ -205,7 +205,9 @@ class ConversationManager:
         elif (
             self.llm_client.access_provider == "pnnl" or self.llm_client.access_provider == "cborg"
         ):
-            return self._generate_openai(max_tokens=resolved_max_tokens, system_prompt=self.system_prompt)
+            return self._generate_openai(
+                max_tokens=resolved_max_tokens, system_prompt=self.system_prompt
+            )
         return ""
 
     def _generate_openai(

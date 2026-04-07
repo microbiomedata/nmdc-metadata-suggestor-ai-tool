@@ -8,9 +8,9 @@ from nmdc_metadata_suggestor_ai_tool.publication_ingestion.download_pdf import (
     remove_temp_file,
 )
 from nmdc_metadata_suggestor_ai_tool.schema_context import SchemaContextBuilder
+from nmdc_metadata_suggestor_ai_tool.system_prompt import system_prompt
 from nmdc_metadata_suggestor_ai_tool.utils.submission_parser import get_submission_fields
 from nmdc_metadata_suggestor_ai_tool.utils.utils import clean_and_validate_output
-from nmdc_metadata_suggestor_ai_tool.system_prompt import system_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +31,7 @@ def run_recommendation_pipeline(
         The response from the LLM containing the recommended metadata fields.
     """
     conversation_manager = ConversationManager(
-        llm_client=llm_client,
-        system_prompt=system_prompt
+        llm_client=llm_client, system_prompt=system_prompt
     )  # initialize the conversation manager with the LLM client
     parsed_submission_object = get_submission_fields(submission_object=submission_object)
     mixs_extensions = parsed_submission_object.get("mixs_extensions", [])
