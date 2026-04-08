@@ -17,7 +17,6 @@ from linkml_runtime.utils.schemaview import SchemaView  # type: ignore[import-un
 from nmdc_metadata_suggestor_ai_tool.constants import (
     EXCLUDED_INTERFACE_CLASSES,
     EXCLUDED_SLOTS,
-    INCLUDED_REQUIRED_SLOTS,
     INTERFACE_CLASS_SUFFIX,
 )
 from nmdc_metadata_suggestor_ai_tool.models.schema import (
@@ -192,8 +191,6 @@ class SchemaContextBuilder:
         """
         Return a new InterfaceSchemaClass with slots filtered out based on:
         - Excluded slot names (EXCLUDED_SLOTS)
-        - Deprecated slots (unless in INCLUDED_REQUIRED_SLOTS)
-        - Required slots (unless in INCLUDED_REQUIRED_SLOTS)
         This does NOT mutate the input schema, but returns a new instance
         with updated slot list and counts.
         """
@@ -205,7 +202,7 @@ class SchemaContextBuilder:
         for slot in schema.slots:
             if slot.name in EXCLUDED_SLOTS:
                 continue
-            if (slot.required or slot.deprecated) and slot.name not in INCLUDED_REQUIRED_SLOTS:
+            if (slot.required or slot.deprecated) and slot.name:
                 continue
             filtered_slots.append(slot)
             if slot.required:
