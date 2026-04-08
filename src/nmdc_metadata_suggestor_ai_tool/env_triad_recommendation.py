@@ -1,7 +1,7 @@
 from typing import Any
 
 from nmdc_metadata_suggestor_ai_tool.llm_client import ConversationManager, LLMClient
-from nmdc_metadata_suggestor_ai_tool.recommendation_pipeline import LLMOutput
+from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
 from nmdc_metadata_suggestor_ai_tool.schema_context import SchemaContextBuilder
 from nmdc_metadata_suggestor_ai_tool.system_prompt import env_triad_prompt
 from nmdc_metadata_suggestor_ai_tool.utils.utils import clean_and_validate_output
