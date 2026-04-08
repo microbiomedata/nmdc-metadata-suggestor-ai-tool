@@ -8,9 +8,10 @@ from nmdc_metadata_suggestor_ai_tool.publication_ingestion.download_pdf import (
     remove_temp_file,
 )
 from nmdc_metadata_suggestor_ai_tool.schema_context import SchemaContextBuilder
-from nmdc_metadata_suggestor_ai_tool.system_prompt import system_prompt
+from nmdc_metadata_suggestor_ai_tool.system_prompt import system_prompt, env_triad_prompt
 from nmdc_metadata_suggestor_ai_tool.utils.submission_parser import get_submission_fields
 from nmdc_metadata_suggestor_ai_tool.utils.utils import clean_and_validate_output
+from nmdc_metadata_suggestor_ai_tool.env_triad_recommendation import get_env_triad_recommendation
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +96,21 @@ def run_recommendation_pipeline(
     # get the LLM's response and validate it against the expected output schema
     response = conversation_manager.generate(max_tokens=max_tokens)
     validated_output = clean_and_validate_output(response)
+
+    # get env triad specific recommendations and merge with the general recommendations
+    env_triad_output = get_env_triad_recommendation(
+        context=[submission_context, description, notes],
+        pdf_files=pdf_files,
+        llm_client=llm_client,
+        interface_names=mixs_extensions,
+        max_tokens=max_tokens,
+    )
+    
+    # merge the env triad recommendations with the general recommendations, ensuring no duplicates
+    validated_output.metadata_fields.extend(
+        f for f in env_triad_output.metadata_fields
+        if f.field_name not in {mf.field_name for mf in validated_output.metadata_fields}
+    )
 
     # delete the temporary PDF files after processing
     if pdf_files:
