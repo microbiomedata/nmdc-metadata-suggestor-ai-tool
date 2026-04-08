@@ -36,6 +36,8 @@ def get_env_triad_recommendation(
     conversation_manager.add_schema_context(mixs_schema)
     # send in context to llm to generate
     for message in context:
+        if type(message) is not str:
+            message = str(message)
         conversation_manager.add_message(text=message)
     # parse back recommendaations to the expected output format
     raw_output = conversation_manager.generate(max_tokens=max_tokens)
