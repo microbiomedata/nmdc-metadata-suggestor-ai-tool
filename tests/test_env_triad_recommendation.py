@@ -32,7 +32,7 @@ def test_run_env_triad_pipeline(requires_credentials: None) -> None:
     assert env_triad_names & field_names, f"Expected env triad field in {field_names}"
 
 
-def test_run_env_triad_pipeline_with_biosample() -> None:
+def test_run_env_triad_pipeline_with_biosample(requires_credentials: None) -> None:
     llm_client = LLMClient(access_provider="gcp")
     recommended_metadata = env_triad_recommendation.get_env_triad_recommendation(
         context=[
