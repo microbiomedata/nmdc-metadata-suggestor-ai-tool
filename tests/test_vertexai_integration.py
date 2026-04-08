@@ -65,7 +65,8 @@ def test_gemini_conversation_with_schema_context() -> None:
         text=(
             "Given a soil metagenome study, suggest a value for env_broad_scale. "
             "Reply with JSON matching this schema: "
-            '{"metadata_fields": [{"field_name": "env_broad_scale", "reason": "<why>", "value": "<your suggestion>"}]}'
+            '{"metadata_fields": [{"field_name": "env_broad_scale",'
+            ' "reason": "<why>", "value": "<your suggestion>"}]}'
         )
     )
     response = conversation.generate()
