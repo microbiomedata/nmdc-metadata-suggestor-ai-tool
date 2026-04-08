@@ -16,14 +16,14 @@ def get_env_triad_recommendation(
 ) -> LLMOutput:
     """Get the recommended environment triad metadata fields for a submission and LLM client.
     Example:
-        >>> llm_client = LLMClient(access_provider="gcp")
-        >>> context = ["Sample environmental data for analysis",
-        ... "a description", {"nmdc-record": "value"}]
-        >>> result = get_env_triad_recommendation(
-        ...     context=context,
-        ...     llm_client=llm_client,
-        ... )
-        >>> print(result)
+        llm_client = LLMClient(access_provider="gcp")
+        context = ["Sample environmental data for analysis",
+            "a description", {"nmdc-record": "value"}]
+        result = get_env_triad_recommendation(
+            context=context,
+            llm_client=llm_client,
+        )
+        print(result)
     Parameters:
         context: Contextual information for the LLM to generate recommendations.
         pdf_files: Optional list of PDF file paths to include in the LLM context.
