@@ -11,7 +11,7 @@ def get_env_triad_recommendation(
     context: list[Any],
     llm_client: LLMClient,
     pdf_files: list[str] | None = None,
-    interface_names: list[str] = None,
+    interface_names: list[str] | None = None,
     max_tokens: int | None = None,
 ) -> LLMOutput:
     """Get the recommended environment triad metadata fields for a submission and LLM client.
@@ -32,7 +32,9 @@ def get_env_triad_recommendation(
     )
     # add schema context
     builder = SchemaContextBuilder()
-    mixs_schema = builder.format_env_triad_context(class_names=interface_names or builder.list_interfaces())
+    mixs_schema = builder.format_env_triad_context(
+        class_names=interface_names or builder.list_interfaces()
+    )
     conversation_manager.add_schema_context(mixs_schema)
     # send in context to llm to generate
     for message in context:

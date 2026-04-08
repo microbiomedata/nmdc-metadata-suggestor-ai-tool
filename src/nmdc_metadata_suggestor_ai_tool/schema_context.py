@@ -269,7 +269,7 @@ class SchemaContextBuilder:
         """Format multiple interfaces separated by dividers."""
         sections = [self.format_interface_context(name) for name in class_names]
         return "\n\n---\n\n".join(sections)
-    
+
     def format_specific_slots_context(self, class_name: str, slot_names: list[str]) -> str:
         """Format context for specific slots within an interface."""
         schema = self.get_interface_schema(class_name)
@@ -278,9 +278,11 @@ class SchemaContextBuilder:
         for slot in filtered_slots:
             lines.extend(format_slot(slot))
         return "\n".join(lines)
-    
+
     def format_env_triad_context(self, class_names: list[str]) -> str:
         """Convenience method to format context specifically for the env triad slots."""
         env_triad_slots = ["env_broad_scale", "env_local_scale", "env_medium"]
-        sections = [self.format_specific_slots_context(name, env_triad_slots) for name in class_names]
+        sections = [
+            self.format_specific_slots_context(name, env_triad_slots) for name in class_names
+        ]
         return "\n\n---\n\n".join(sections)
