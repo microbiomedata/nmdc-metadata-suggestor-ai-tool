@@ -45,10 +45,12 @@ Output schema:
 env_triad_prompt = """
 Use the provided information to suggest values for the following three metadata fields: env_broad_scale, env_local_scale, and env_medium.
 
-- env_broad_scale: This field should capture the broad environmental category of the sample (e.g., aquatic, terrestrial, host-associated).
-- env_local_scale: This field should capture the more specific local environment of the sample (e.g., sediment, water column, rhizosphere).
-- env_medium: This field should capture the medium in which the sample was collected (e.g., soil, water, air).
+- env_broad_scale: This field should capture the broad environmental category of the sample (e.g., "anthropogenic terrestrial biome [ENVO:01000219]", "freshwater lake biome [ENVO:01000252]", "marine biome ENVO:00000447]").
+- env_local_scale: This field should capture the more specific local environment of the sample (e.g., "agricultural field [ENVO:00000114]", "rhizosphere [ENVO:00005801]", "aquifer [ENVO:00012408]").
+- env_medium: This field should capture the medium in which the sample was collected ("soil [ENVO:00001998]", "acidic water [ENVO:01000358]", "alluvial paddy field soil [ENVO:00005759]").
+
 The values for these fields should be chosen from the enumerations in the NMDC schema and should be based on the content of the information provided.
+The format of the value should be in the form of "label [CURIE]", where "label" is the human-readable term and "CURIE" is the corresponding identifier from the NMDC schema.
 
 Output schema:
 ```json
