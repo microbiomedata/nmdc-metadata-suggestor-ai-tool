@@ -15,11 +15,6 @@ The metadata fields should be relevant to the content of the abstract and the in
 VALUE FIELD RULES:
 - Only fill in the "value" field if you are certain of the specific value for that metadata field based on the provided information.
 - If you are not certain of the specific value for a metadata field, leave the field an empty string ("")
-- The followng fields MUST have a value filled in and be chosen each time:
-    - "env_broad_scale"
-    - "env_local_scale"
-    - "env_medium"
-    - the value of these fields should be chosen from the enumerations in the NMDC schema and be based on the content of the abstract and information provided.
 
 Output schema:
 ```json
@@ -44,4 +39,38 @@ Output schema:
     ]
 }
 ```
+"""
+
+
+env_triad_prompt = """
+Use the provided information to suggest values for the following three metadata fields: env_broad_scale, env_local_scale, and env_medium.
+
+- env_broad_scale: This field should capture the broad environmental category of the sample (e.g., "anthropogenic terrestrial biome [ENVO:01000219]", "freshwater lake biome [ENVO:01000252]", "marine biome ENVO:00000447]").
+- env_local_scale: This field should capture the more specific local environment of the sample (e.g., "agricultural field [ENVO:00000114]", "rhizosphere [ENVO:00005801]", "aquifer [ENVO:00012408]").
+- env_medium: This field should capture the medium in which the sample was collected ("soil [ENVO:00001998]", "acidic water [ENVO:01000358]", "alluvial paddy field soil [ENVO:00005759]").
+
+The values for these fields should be chosen from the enumerations in the NMDC schema and should be based on the content of the information provided.
+The format of the value should be in the form of "label [CURIE]", where "label" is the human-readable term and "CURIE" is the corresponding identifier from the NMDC schema.
+
+Output schema:
+```json
+{
+    "metadata_fields": [
+        {
+            "field_name": "env_broad_scale",
+            "reason": "Reason for choosing this field based on the provided information.",
+            "value": ""
+        },
+        {
+            "field_name": "env_local_scale",
+            "reason": "Reason for choosing this field based on the provided information.",
+            "value": ""
+        },
+        {
+            "field_name": "env_medium",
+            "reason": "Reason for choosing this field based on the provided information.",
+            "value": ""
+        }
+    ]
+}
 """

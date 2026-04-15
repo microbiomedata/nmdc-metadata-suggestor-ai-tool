@@ -13,8 +13,6 @@ from google.genai import types as genai_types
 from google.oauth2 import service_account
 from openai import OpenAI
 
-from nmdc_metadata_suggestor_ai_tool.system_prompt import system_prompt
-
 load_dotenv()
 
 DEFAULT_GCP_REGION = "us-east5"
@@ -157,7 +155,7 @@ class ConversationManager:
     Handles generating responses based on the conversation history and system instructions.
     """
 
-    def __init__(self, llm_client: LLMClient) -> None:
+    def __init__(self, llm_client: LLMClient, system_prompt: str) -> None:
         self.llm_client = llm_client
         self.messages: list[Any] = []
         # set the system prompt in the constructor so it can be parameterized in the future
@@ -179,6 +177,15 @@ class ConversationManager:
             ``DEFAULT_GEMINI_MODEL`` when omitted).
         - ``gcp``: uses Vertex Gemini ``models.generate_content`` (model defaults
             to ``DEFAULT_GEMINI_MODEL`` when omitted).
+
+        Parameters
+        ----------
+        model: Optional model name to use for generation. If omitted, defaults will be used based
+            on the provider.
+        max_tokens: Optional maximum number of tokens for the generated response. If omitted,
+            defaults will be used based on the provider.
+        gemini_temperature: Optional temperature setting for Gemini models (only applicable when
+            ``access_provider`` is ``gcp``). Defaults to 0.4.
         """
         if model:
             self.llm_client.model = model
@@ -192,17 +199,21 @@ class ConversationManager:
         if self.llm_client.access_provider == "gcp":
             return self._generate_gcp(
                 max_tokens=resolved_max_tokens,
+                system_prompt=self.system_prompt,
                 temperature=gemini_temperature,
             )
         elif (
             self.llm_client.access_provider == "pnnl" or self.llm_client.access_provider == "cborg"
         ):
-            return self._generate_openai(max_tokens=resolved_max_tokens)
+            return self._generate_openai(
+                max_tokens=resolved_max_tokens, system_prompt=self.system_prompt
+            )
         return ""
 
     def _generate_openai(
         self,
         max_tokens: int,
+        system_prompt: str,
     ) -> str:
         client = cast(OpenAI, self.llm_client.client)
         response = client.responses.create(
@@ -216,6 +227,7 @@ class ConversationManager:
     def _generate_gcp(
         self,
         max_tokens: int,
+        system_prompt: str,
         temperature: float = 0.4,
     ) -> str:
 

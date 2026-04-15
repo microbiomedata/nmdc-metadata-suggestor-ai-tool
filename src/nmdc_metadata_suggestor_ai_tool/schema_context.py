@@ -17,7 +17,6 @@ from linkml_runtime.utils.schemaview import SchemaView  # type: ignore[import-un
 from nmdc_metadata_suggestor_ai_tool.constants import (
     EXCLUDED_INTERFACE_CLASSES,
     EXCLUDED_SLOTS,
-    INCLUDED_REQUIRED_SLOTS,
     INTERFACE_CLASS_SUFFIX,
 )
 from nmdc_metadata_suggestor_ai_tool.models.schema import (
@@ -192,8 +191,6 @@ class SchemaContextBuilder:
         """
         Return a new InterfaceSchemaClass with slots filtered out based on:
         - Excluded slot names (EXCLUDED_SLOTS)
-        - Deprecated slots (unless in INCLUDED_REQUIRED_SLOTS)
-        - Required slots (unless in INCLUDED_REQUIRED_SLOTS)
         This does NOT mutate the input schema, but returns a new instance
         with updated slot list and counts.
         """
@@ -205,7 +202,7 @@ class SchemaContextBuilder:
         for slot in schema.slots:
             if slot.name in EXCLUDED_SLOTS:
                 continue
-            if (slot.required or slot.deprecated) and slot.name not in INCLUDED_REQUIRED_SLOTS:
+            if slot.required or slot.deprecated:
                 continue
             filtered_slots.append(slot)
             if slot.required:
@@ -271,4 +268,21 @@ class SchemaContextBuilder:
     def format_multi_interface_context(self, class_names: list[str]) -> str:
         """Format multiple interfaces separated by dividers."""
         sections = [self.format_interface_context(name) for name in class_names]
+        return "\n\n---\n\n".join(sections)
+
+    def format_specific_slots_context(self, class_name: str, slot_names: list[str]) -> str:
+        """Format context for specific slots within an interface."""
+        schema = self.get_interface_schema(class_name)
+        filtered_slots = [slot for slot in schema.slots if slot.name in slot_names]
+        lines: list[str] = [f"# {schema.class_name} - Selected Fields"]
+        for slot in filtered_slots:
+            lines.extend(format_slot(slot))
+        return "\n".join(lines)
+
+    def format_env_triad_context(self, class_names: list[str]) -> str:
+        """Convenience method to format context specifically for the env triad slots."""
+        env_triad_slots = ["env_broad_scale", "env_local_scale", "env_medium"]
+        sections = [
+            self.format_specific_slots_context(name, env_triad_slots) for name in class_names
+        ]
         return "\n\n---\n\n".join(sections)

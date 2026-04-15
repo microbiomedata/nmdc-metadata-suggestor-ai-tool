@@ -204,3 +204,33 @@ def test_filter() -> None:
         # env triad slots are the only ones that should be required, and they are not filtered out,
         # so either 0 or 3 depending on whether this interface has them or not
         assert filtered_schema.required_slot_count == 0 or filtered_schema.required_slot_count == 3
+
+
+def test_format_env_triad_context_contains_three_slots() -> None:
+    """Ensure the convenience env-triad formatter returns the three triad slots."""
+    builder = SchemaContextBuilder()
+    # Use a known interface that contains env triad slots
+    ctx = builder.format_env_triad_context(["SoilInterface"])
+    assert "# SoilInterface - Selected Fields" in ctx
+    assert "env_broad_scale" in ctx
+    assert "env_local_scale" in ctx
+    assert "env_medium" in ctx
+
+
+def test_format_env_triad_context_all_interfaces() -> None:
+    """Call the env-triad formatter for every interface and verify output.
+
+    Ensures the formatter returns a section for each requested interface and
+    that the number of sections matches the number of interfaces passed in.
+    """
+    builder = SchemaContextBuilder()
+    interfaces = builder.list_interfaces()
+    # Format for all interfaces at once
+    ctx = builder.format_env_triad_context(interfaces)
+    assert isinstance(ctx, str)
+    # Each interface should produce a header section
+    for interface in interfaces:
+        assert f"# {interface} - Selected Fields" in ctx
+    # The number of sections separated by the divider should equal interfaces count
+    sections = ctx.split("\n\n---\n\n")
+    assert len(sections) == len(interfaces)
