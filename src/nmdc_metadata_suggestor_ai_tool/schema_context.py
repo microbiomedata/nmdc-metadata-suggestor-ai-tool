@@ -202,7 +202,7 @@ class SchemaContextBuilder:
         for slot in schema.slots:
             if slot.name in EXCLUDED_SLOTS:
                 continue
-            if (slot.required or slot.deprecated):
+            if slot.required or slot.deprecated:
                 continue
             filtered_slots.append(slot)
             if slot.required:

@@ -13,6 +13,15 @@ def load_sample_submission_object() -> dict:
         return json.load(f)
 
 
+def load_biosample_object() -> dict:
+    """Load a sample biosample object from the test fixtures."""
+    import json
+
+    sample_path = Path(__file__).parent / "fixtures" / "biosample.json"
+    with open(sample_path) as f:
+        return json.load(f)
+
+
 def test_run_env_triad_pipeline(requires_credentials: None) -> None:
     sample_submission_object = load_sample_submission_object()
     llm_client = LLMClient(access_provider="gcp")
@@ -34,57 +43,9 @@ def test_run_env_triad_pipeline(requires_credentials: None) -> None:
 
 def test_run_env_triad_pipeline_with_biosample(requires_credentials: None) -> None:
     llm_client = LLMClient(access_provider="gcp")
+    biosample_object = load_biosample_object()
     recommended_metadata = env_triad_recommendation.get_env_triad_recommendation(
-        context=[
-            {
-                "biosample_set": [
-                    {
-                        "associated_studies": ["nmdc:sty-11-547rwq94"],
-                        "collection_date": {
-                            "has_raw_value": "2013-08-02",
-                            "type": "nmdc:TimestampValue",
-                        },
-                        "description": "Arctic glacier soil microbial communities from "
-                        "Hook Island, Arctic Ocean",
-                        "ecosystem": "Environmental",
-                        "ecosystem_category": "Terrestrial",
-                        "ecosystem_subtype": "Glacier",
-                        "ecosystem_type": "Soil",
-                        "elev": 0,
-                        "geo_loc_name": {
-                            "has_raw_value": "Arctic Ocean: Hook Island",
-                            "type": "nmdc:TextValue",
-                        },
-                        "gold_biosample_identifiers": ["gold:Gb0239928"],
-                        "habitat": "Arctic glacier soil",
-                        "id": "nmdc:bsm-11-48fce216",
-                        "lat_lon": {
-                            "has_raw_value": "80.3333333333 52.7833333333",
-                            "latitude": 80.3333333333,
-                            "longitude": 52.7833333333,
-                            "type": "nmdc:GeolocationValue",
-                        },
-                        "location": "Arctic Ocean",
-                        "name": "Arctic glacier soil microbial communities from "
-                        "Hook Island, Arctic Ocean - Rohwer84.arctic.glacier.soil.FJLH2",
-                        "ncbi_taxonomy_name": "soil metagenome",
-                        "samp_name": "Rohwer84.arctic.glacier.soil.FJLH2",
-                        "samp_taxon_id": {
-                            "has_raw_value": "soil metagenome [NCBITaxon:410658]",
-                            "term": {
-                                "id": "NCBITaxon:410658",
-                                "name": "soil metagenome",
-                                "type": "nmdc:OntologyClass",
-                            },
-                            "type": "nmdc:ControlledIdentifiedTermValue",
-                        },
-                        "sample_collection_site": "Arctic glacier soil",
-                        "specific_ecosystem": "Unclassified",
-                        "type": "nmdc:Biosample",
-                    }
-                ]
-            }
-        ],
+        context=[biosample_object],
         llm_client=llm_client,
     )
 
