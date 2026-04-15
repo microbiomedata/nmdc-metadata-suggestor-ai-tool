@@ -16,7 +16,7 @@ REASONING FIELD RULES:
 - Omit weak suggestions: If there is no explicit text and no strong, well-justified inference, DO NOT include the field in the output. Do not add fields solely because they exist in the NMDC schema.
 
 VALUE FIELD RULES:
-- Only populate `value` when the input contains the specific value (exact text, identifier, or a resolvable phrase). Otherwise leave `value` as an empty string "".
+Only populate `value` when the input contains the specific value (exact text). Otherwise, leave `value` as an empty string "".
 - If you infer a value (not explicitly present), do NOT write it into `value`; instead include the inference in the `reason` as a concise paraphrase tied to the input and leave `value` empty.
 
 Output requirements:
