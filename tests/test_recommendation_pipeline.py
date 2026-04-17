@@ -97,7 +97,7 @@ def test_run_recommendation_pipeline_raises_for_invalid_output_schema(
         )
 
 
-def test_run_recommendation_pipeline() -> None:
+def test_run_recommendation_pipeline(requires_credentials:None) -> None:
     start = time.time_ns()
     sample_submission_object = load_sample_submission_object()
     llm_client = LLMClient(access_provider="gcp")
