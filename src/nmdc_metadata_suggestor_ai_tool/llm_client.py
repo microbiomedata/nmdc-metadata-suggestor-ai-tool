@@ -216,7 +216,7 @@ class ConversationManager:
         self,
         max_tokens: int,
         system_prompt: str,
-    ) -> LLMOutput | str| None:
+    ) -> LLMOutput | str | None:
         client = cast(OpenAI, self.llm_client.client)
         response = client.responses.parse(
             model=self.llm_client.model,
@@ -232,7 +232,7 @@ class ConversationManager:
         max_tokens: int,
         system_prompt: str,
         temperature: float = 0.4,
-    ) -> LLMOutput | str|  None:
+    ) -> LLMOutput | str | None:
 
         config = genai_types.GenerateContentConfig(
             max_output_tokens=max_tokens,

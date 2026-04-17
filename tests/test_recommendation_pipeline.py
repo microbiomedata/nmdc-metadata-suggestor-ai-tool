@@ -107,4 +107,3 @@ def test_run_recommendation_pipeline() -> None:
     print(recommended_metadata.model_dump())
     end = time.time_ns()
     print(f"Pipeline execution time: {(end - start) / 1e9:.2f} seconds")
-
