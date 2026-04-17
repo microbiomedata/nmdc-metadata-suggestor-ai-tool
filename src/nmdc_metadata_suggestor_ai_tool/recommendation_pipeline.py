@@ -11,7 +11,7 @@ from nmdc_metadata_suggestor_ai_tool.publication_ingestion.download_pdf import (
 from nmdc_metadata_suggestor_ai_tool.schema_context import SchemaContextBuilder
 from nmdc_metadata_suggestor_ai_tool.system_prompt import system_prompt
 from nmdc_metadata_suggestor_ai_tool.utils.submission_parser import get_submission_fields
-from nmdc_metadata_suggestor_ai_tool.utils.utils import clean_and_validate_output
+from nmdc_metadata_suggestor_ai_tool.utils.utils import validate_output
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +95,7 @@ def run_recommendation_pipeline(
 
     # get the LLM's response and validate it against the expected output schema
     response = conversation_manager.generate(max_tokens=max_tokens)
-    validated_output = clean_and_validate_output(response)
+    validated_output = validate_output(response)
 
     # get env triad specific recommendations and merge with the general recommendations
     env_triad_output = get_env_triad_recommendation(

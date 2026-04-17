@@ -8,10 +8,17 @@ class MetadataFieldSuggestion(BaseModel):
 
     field_name: str
     reason: str
-    value: str | list | dict | int | float = (
-        # Value can be any type depending on the field.
-        ""
-    )
+    # Value can be several concrete JSON types. Use concrete unions so the
+    # generated JSON Schema contains explicit `type` entries for arrays
+    # and object properties (avoids `items` without a `type`).
+    value: (
+        str
+        | int
+        | float
+        | bool
+        | list[str | int | float | bool]
+        | dict[str, str | int | float | bool | list[str | int | float | bool]]
+    ) = ""
 
 
 class LLMOutput(BaseModel):
