@@ -130,13 +130,14 @@ def test_gcp_anthropic_add_message_uses_anthropic_payload_shape() -> None:
     ]
 
 
+@pytest.mark.integration
 def test_claude_vertex_generate(requires_credentials: None) -> None:
     client = LLMClient(access_provider="gcp-anthropic", model="claude-haiku-4-5")
     conversation = ConversationManager(llm_client=client, system_prompt=system_prompt)
     conversation.add_message(text="Reply with exactly: hello")
     response = conversation.generate(max_tokens=50)
     assert isinstance(response, str)
-    assert len(response) > 0
+    assert "hello" in response.lower()
 
 
 def test_gemini_generate(requires_credentials: None) -> None:
