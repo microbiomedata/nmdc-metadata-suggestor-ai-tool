@@ -7,6 +7,7 @@ from typing import Any, cast
 
 import google.auth
 import google.auth.transport.requests
+from anthropic import AnthropicVertex
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types as genai_types
@@ -33,31 +34,51 @@ PNNL_GPT_MODELS = [
     "o4-mini-project",
 ]
 
+ANTHROPIC_VERTEX_MODELS = [
+    "claude-haiku-4-5",
+    "claude-sonnet-4-5",
+    "claude-opus-4-6",
+]
+
 DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
+DEFAULT_ANTHROPIC_VERTEX_MODEL = "claude-haiku-4-5"
 DEFAULT_MAX_TOKENS_BY_PROVIDER: dict[str, int] = {
     "pnnl": 128000,
     "cborg": 128000,
     "gcp": 65535,
+    "gcp-anthropic": 8192,
 }
+VALID_ACCESS_PROVIDERS = ("pnnl", "cborg", "gcp", "gcp-anthropic")
 
 
 class LLMClient:
     """LLM config client supporting PNNL AI Incubator, CBORG, and GCP Vertex AI.
+
+    Vertex AI exposes different publishers through different endpoints:
+    Gemini uses ``generateContent`` (via ``google-genai``), while Anthropic
+    Claude uses ``rawPredict`` / ``streamRawPredict`` (via ``AnthropicVertex``).
+    They share the same service-account credentials but need separate client
+    objects — hence the ``gcp`` / ``gcp-anthropic`` split.
 
     Usage::
 
         # Default path: PNNL AI Incubator (OpenAI-compatible Responses API)
         client = LLMClient(access_provider="pnnl")
         # you can then pass this client to ConversationManager
-        conversation_manager = ConversationManager(llm_client=client)
+        conversation_manager = ConversationManager(llm_client=client, system_prompt=...)
         conversation_manager.add_message(text="Hello, how are you?", pdf_files=["path/to/file.pdf"])
         response = conversation_manager.generate()
 
         # GCP Vertex AI path: Gemini via google-genai
-        client = LLMClient(access_provider="gcp", llm_provider="gemini")
-        # you can then pass this client to ConversationManager
-        conversation_manager = ConversationManager(llm_client=client)
+        client = LLMClient(access_provider="gcp")
+        conversation_manager = ConversationManager(llm_client=client, system_prompt=...)
         conversation_manager.add_message(text="Hello, how are you?", pdf_files=["path/to/file.pdf"])
+        response = conversation_manager.generate()
+
+        # GCP Vertex AI path: Claude via anthropic-vertex
+        client = LLMClient(access_provider="gcp-anthropic")
+        conversation_manager = ConversationManager(llm_client=client, system_prompt=...)
+        conversation_manager.add_message(text="Hello, how are you?")
         response = conversation_manager.generate()
     """
 
@@ -69,9 +90,10 @@ class LLMClient:
         region: str | None = None,
         credentials_file: str | None = None,
     ) -> None:
-        if access_provider not in ("pnnl", "cborg", "gcp"):
+        if access_provider not in VALID_ACCESS_PROVIDERS:
             raise ValueError(
-                f"Unknown access_provider '{access_provider}'. Use 'pnnl', 'cborg', or 'gcp'."
+                f"Unknown access_provider '{access_provider}'. "
+                f"Use one of: {', '.join(VALID_ACCESS_PROVIDERS)}."
             )
         self.access_provider = access_provider
         self.project = project or os.environ.get("VERTEX_PROJECT_ID")
@@ -80,7 +102,7 @@ class LLMClient:
             os.environ.get("CLOUD_ML_REGION", DEFAULT_GCP_REGION),
         )
         self.credentials_file = credentials_file or os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
-        self.client: OpenAI | genai.Client
+        self.client: OpenAI | genai.Client | AnthropicVertex
 
         if access_provider == "pnnl":
             self.model = model or PNNL_GPT_MODELS[0]
@@ -116,6 +138,20 @@ class LLMClient:
                 vertexai=True,
                 project=self.project,
                 location=self.region,
+                credentials=credentials,
+            )
+
+        if access_provider == "gcp-anthropic":
+            self.model = model or DEFAULT_ANTHROPIC_VERTEX_MODEL
+            credentials = self._get_gcp_credentials()
+            if not self.project:
+                raise RuntimeError(
+                    "VERTEX_PROJECT_ID is not set and could not be inferred from credentials. "
+                    "Set VERTEX_PROJECT_ID in your environment."
+                )
+            self.client = AnthropicVertex(
+                region=self.region,
+                project_id=self.project,
                 credentials=credentials,
             )
 
@@ -177,6 +213,9 @@ class ConversationManager:
             ``DEFAULT_GEMINI_MODEL`` when omitted).
         - ``gcp``: uses Vertex Gemini ``models.generate_content`` (model defaults
             to ``DEFAULT_GEMINI_MODEL`` when omitted).
+        - ``gcp-anthropic``: uses Vertex Claude via AnthropicVertex
+            ``messages.create`` (model defaults to
+            ``DEFAULT_ANTHROPIC_VERTEX_MODEL`` when omitted).
 
         Parameters
         ----------
@@ -201,6 +240,11 @@ class ConversationManager:
                 max_tokens=resolved_max_tokens,
                 system_prompt=self.system_prompt,
                 temperature=gemini_temperature,
+            )
+        elif self.llm_client.access_provider == "gcp-anthropic":
+            return self._generate_anthropic_vertex(
+                max_tokens=resolved_max_tokens,
+                system_prompt=self.system_prompt,
             )
         elif (
             self.llm_client.access_provider == "pnnl" or self.llm_client.access_provider == "cborg"
@@ -248,6 +292,25 @@ class ConversationManager:
                 f"GCP model returned an empty text response. Response object: {response}"
             )
         return response.text
+
+    def _generate_anthropic_vertex(
+        self,
+        max_tokens: int,
+        system_prompt: str,
+    ) -> str:
+        client = cast(AnthropicVertex, self.llm_client.client)
+        message = client.messages.create(
+            model=self.llm_client.model,
+            max_tokens=max_tokens,
+            system=system_prompt,
+            messages=self.messages,
+        )
+        text_parts = [block.text for block in message.content if hasattr(block, "text")]
+        if not text_parts:
+            raise RuntimeError(
+                f"Anthropic Vertex model returned no text content. Response: {message}"
+            )
+        return "".join(text_parts)
 
     def add_message(self, text: str, pdf_files: list[str] | None = None) -> None:
         """
@@ -300,6 +363,30 @@ class ConversationManager:
             if text:
                 gcp_content.append(text)
             self.messages.extend(gcp_content)
+
+        if self.llm_client.access_provider == "gcp-anthropic":
+            # Anthropic messages API: list of {role, content} where content
+            # is either a plain string (text-only) or a list of content
+            # blocks (text + document for PDFs).
+            content_blocks: list[dict[str, Any]] = []
+            if pdf_files:
+                for pdf_file in pdf_files:
+                    with open(pdf_file, "rb") as f:
+                        encoded = base64.standard_b64encode(f.read()).decode("utf-8")
+                    content_blocks.append(
+                        {
+                            "type": "document",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "application/pdf",
+                                "data": encoded,
+                            },
+                        }
+                    )
+            if text:
+                content_blocks.append({"type": "text", "text": text})
+            if content_blocks:
+                self.messages.append({"role": "user", "content": content_blocks})
 
     def add_schema_context(self, schema: str) -> None:
         """

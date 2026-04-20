@@ -27,7 +27,14 @@ Environment variables used by `LLMClient` and `ConversationManager`:
 - `CBORG_KEY`: API key for CBORG (when using `access_provider=cborg`).
 - `CBORG_BASE_URL`: Base URL for the CBORG API.
 
-The `LLMClient` will read the appropriate variables depending on `access_provider` (set to `pnnl`, `cborg`, or `gcp`).
+The `LLMClient` will read the appropriate variables depending on `access_provider`:
+
+- `pnnl` — PNNL AI Incubator (OpenAI-compatible Responses API)
+- `cborg` — CBORG LBNL proxy (OpenAI-compatible)
+- `gcp` — Vertex Gemini via `google-genai` (uses `generateContent`)
+- `gcp-anthropic` — Vertex Claude via `anthropic[vertex]` (uses `rawPredict` / `streamRawPredict`)
+
+Note: `gcp` and `gcp-anthropic` share the same service-account credentials but hit different Vertex endpoints. Gemini is not reachable through `gcp-anthropic`, and Claude is not reachable through `gcp` — each publisher requires its own dispatch path.
 
 Environment variables are loaded from a `.env` file in the project root via
 [python-dotenv](https://saurabh-kumar.com/python-dotenv/). Variables already

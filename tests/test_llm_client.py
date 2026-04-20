@@ -101,6 +101,44 @@ def test_cborg_add_message_uses_openai_payload_shape() -> None:
     assert conversation.messages == [{"role": "user", "content": "hello"}]
 
 
+def test_generate_uses_gcp_anthropic_default_max_tokens_when_not_provided(
+    monkeypatch: Any,
+) -> None:
+    client = LLMClient.__new__(LLMClient)
+    client.access_provider = "gcp-anthropic"
+    client.model = "claude-haiku-4-5"
+    conversation = ConversationManager(llm_client=client, system_prompt=system_prompt)
+
+    def _fake_generate_anthropic(*, max_tokens: int, system_prompt: str) -> str:
+        assert max_tokens == DEFAULT_MAX_TOKENS_BY_PROVIDER["gcp-anthropic"]
+        return "ok"
+
+    monkeypatch.setattr(conversation, "_generate_anthropic_vertex", _fake_generate_anthropic)
+    assert conversation.generate() == "ok"
+
+
+def test_gcp_anthropic_add_message_uses_anthropic_payload_shape() -> None:
+    client = LLMClient.__new__(LLMClient)
+    client.access_provider = "gcp-anthropic"
+    client.model = "claude-haiku-4-5"
+    conversation = ConversationManager(llm_client=client, system_prompt=system_prompt)
+
+    conversation.add_message(text="hello")
+
+    assert conversation.messages == [
+        {"role": "user", "content": [{"type": "text", "text": "hello"}]}
+    ]
+
+
+def test_claude_vertex_generate(requires_credentials: None) -> None:
+    client = LLMClient(access_provider="gcp-anthropic", model="claude-haiku-4-5")
+    conversation = ConversationManager(llm_client=client, system_prompt=system_prompt)
+    conversation.add_message(text="Reply with exactly: hello")
+    response = conversation.generate(max_tokens=50)
+    assert isinstance(response, str)
+    assert len(response) > 0
+
+
 def test_gemini_generate(requires_credentials: None) -> None:
     client = LLMClient(access_provider="gcp", model="gemini-2.5-flash")
     conversation = ConversationManager(llm_client=client, system_prompt=system_prompt)
