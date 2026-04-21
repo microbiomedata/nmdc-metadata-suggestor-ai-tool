@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/nmdc-geoloc-tools
+      url: https://pypi.org/project/nmdc-metadata-suggestor-ai-tool
     permissions:
       # this permission is mandatory for trusted publishing
       id-token: write
