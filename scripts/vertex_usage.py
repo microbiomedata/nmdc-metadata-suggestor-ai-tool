@@ -103,7 +103,7 @@ def compute_input_cost(model, token_type, count):
 
 def main():
     parser = argparse.ArgumentParser(description="Query Vertex AI token usage and estimate costs")
-    parser.add_argument("--days", type=int, default=7, help="Number of days to query (default: 7)")
+    parser.add_argument("--days", type=int, default=3653, help="Number of days to query (default: 3653, ~10 years)")
     parser.add_argument("--project", type=str, default="nmdc-llm", help="GCP project ID (default: nmdc-llm)")
     args = parser.parse_args()
 
