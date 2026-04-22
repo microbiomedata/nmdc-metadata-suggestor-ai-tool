@@ -36,6 +36,14 @@ def load_study_object() -> dict:
     sample_path = Path(__file__).parent / "fixtures" / "bioscales_study.json"
     with open(sample_path) as f:
         return json.load(f)
+    
+def load_full_submission() -> dict:
+    """Load full submission object from the test fixtures."""
+    import json
+
+    sample_path = Path(__file__).parent / "fixtures" / "full_submission.json"
+    with open(sample_path) as f:
+        return json.load(f)
 
 def test_run_env_triad_pipeline(requires_credentials: None) -> None:
     sample_submission_object = load_sample_submission_object()
@@ -98,3 +106,37 @@ def test_run_env_triad_pipeline_with_bioscales(requires_credentials: None) -> No
     env_triad_names = {"env_broad_scale", "env_local_scale", "env_medium"}
     field_names = {f.field_name for f in recommended_metadata.metadata_fields}
     assert env_triad_names & field_names, f"Expected env triad field in {field_names}"
+
+
+def test_run_env_triad_pipeline_with_submission_samples() -> None:
+    llm_client = LLMClient(access_provider="pnnl")
+    submission_object = load_full_submission()
+    samples = submission_object.get("metadata_submission").get("sampleData")["water_data"][:10]
+    # pop env_medium, env_broad_scale, and env_local_scale from the samples
+    for sample in samples:
+        sample.pop("env_medium", None)
+        sample.pop("env_broad_scale", None)
+        sample.pop("env_local_scale", None)
+
+    recommended_metadata = env_triad_recommendation.get_env_triad_recommendation(
+        submission_object=submission_object,
+        # Using a subset of the sample objects for testing
+        interface_names=["water"],
+        samples=samples,
+        llm_client=llm_client,
+    )
+
+    print(recommended_metadata.model_dump())
+    
+    # get a unique list of ids from the LLM output
+    ids = {f.id for f in recommended_metadata.metadata_fields}
+    # in this case we know there is 10 samples -> so the ids should be 0-9
+    truth_ids = [str(x) for x in sorted(range(10))]
+    # assert the ids are 0-9
+    assert sorted(set(ids)) == truth_ids
+    # Ensure at least one of the recommended fields is an env triad slot
+    env_triad_names = {"env_broad_scale", "env_local_scale", "env_medium"}
+    field_names = {f.field_name for f in recommended_metadata.metadata_fields}
+    assert env_triad_names & field_names, f"Expected env triad field in {field_names}"
+
+test_run_env_triad_pipeline_with_submission_samples()

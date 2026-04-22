@@ -5,13 +5,15 @@ from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
 from nmdc_metadata_suggestor_ai_tool.schema_context import SchemaContextBuilder
 from nmdc_metadata_suggestor_ai_tool.system_prompt import env_triad_prompt
 from nmdc_metadata_suggestor_ai_tool.utils.utils import clean_and_validate_output
+from nmdc_metadata_suggestor_ai_tool.utils.build_submission_context import build_submission_context
+from nmdc_metadata_suggestor_ai_tool.utils.submission_parser import get_submission_fields, MixsExtensions
 
 
 def get_env_triad_recommendation(
-    context: list[Any],
-    samples: list[dict],
     llm_client: LLMClient,
-    pdf_files: list[str] | None = None,
+    samples: list[dict],
+    study_context: list[Any] = [],
+    submission_object: dict = None,
     interface_names: list[str] | None = None,
     max_tokens: int | None = None,
 ) -> LLMOutput:
@@ -21,14 +23,13 @@ def get_env_triad_recommendation(
         context = ["Sample environmental data for analysis",
             "a description", {"nmdc-record": "value"}]
         result = get_env_triad_recommendation(
-            context=context,
+            study_context=context,
             samples=[{"nmdc-record": "value"}],
             llm_client=llm_client,
         )
         print(result)
     Parameters:
-        context: Contextual information for the LLM to generate recommendations.
-        pdf_files: Optional list of PDF file paths to include in the LLM context.
+        study_context: Contextual information for the LLM to generate recommendations.
         samples: A list of sample records to generate the env triad for.
         llm_client: LLMClient instance used for model interaction and configuration.
         interface_names: Optional list of specific interface names to focus on for schema context.
@@ -41,22 +42,28 @@ def get_env_triad_recommendation(
     conversation_manager = ConversationManager(
         llm_client=llm_client, system_prompt=env_triad_prompt
     )
+    # if this is a submission, collect submission info and add to the conversation using tools we already built
+    if submission_object is not None:
+        build_submission_context(conversation_manager=conversation_manager, parsed_submission_object=get_submission_fields(submission_object))
+    # add identifiers to samples if they don't already have one ie submission rows
+    for idx, sample in enumerate(samples):
+        if "id" not in sample:
+            sample["id"] = idx
+    if interface_names:
+        interface_names = MixsExtensions.map_to_interface_name(interface_names)
     # add schema context - env triad specific
     builder = SchemaContextBuilder()
     mixs_schema = builder.format_env_triad_context(
         class_names=interface_names or builder.list_interfaces()
     )
     conversation_manager.add_schema_context(mixs_schema)
-    # send in context to llm to generate
-    for message in context:
+    
+    # send in extra context to llm to generate if it exists
+    for message in study_context:
         if type(message) is not str:
             message = str(message)
         conversation_manager.add_message(text=message)
-    if pdf_files:
-        conversation_manager.add_message(
-            text="The following PDF files are also available for context:",
-            pdf_files=pdf_files,
-        )
+
     # for now lets assume 100 samples
     conversation_manager.add_message(
         text=f"The following sample records need env triad recommendations. Return each with their id if available:{str(samples)}",
