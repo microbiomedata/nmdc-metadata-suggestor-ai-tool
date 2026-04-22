@@ -99,3 +99,6 @@ def test_run_recommendation_pipeline(requires_credentials: None) -> None:
         submission_object=sample_submission_object, llm_client=llm_client
     )
     print(recommended_metadata.model_dump())
+    # assert there is data in the recommended_metadata obj
+    assert recommended_metadata.metadata_fields is not None
+    assert len(recommended_metadata.metadata_fields) > 0
