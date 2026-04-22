@@ -4,16 +4,19 @@ from nmdc_metadata_suggestor_ai_tool.llm_client import ConversationManager, LLMC
 from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
 from nmdc_metadata_suggestor_ai_tool.schema_context import SchemaContextBuilder
 from nmdc_metadata_suggestor_ai_tool.system_prompt import env_triad_prompt
-from nmdc_metadata_suggestor_ai_tool.utils.utils import clean_and_validate_output
 from nmdc_metadata_suggestor_ai_tool.utils.build_submission_context import build_submission_context
-from nmdc_metadata_suggestor_ai_tool.utils.submission_parser import get_submission_fields, MixsExtensions
+from nmdc_metadata_suggestor_ai_tool.utils.submission_parser import (
+    MixsExtensions,
+    get_submission_fields,
+)
+from nmdc_metadata_suggestor_ai_tool.utils.utils import clean_and_validate_output
 
 
 def get_env_triad_recommendation(
     llm_client: LLMClient,
     samples: list[dict],
     study_context: list[Any] = [],
-    submission_object: dict = None,
+    submission_object: dict | None = None,
     interface_names: list[str] | None = None,
     max_tokens: int | None = None,
 ) -> LLMOutput:
@@ -42,9 +45,13 @@ def get_env_triad_recommendation(
     conversation_manager = ConversationManager(
         llm_client=llm_client, system_prompt=env_triad_prompt
     )
-    # if this is a submission, collect submission info and add to the conversation using tools we already built
+    # if this is a submission, collect submission info
+    # and add to the conversation using tools we already built
     if submission_object is not None:
-        build_submission_context(conversation_manager=conversation_manager, parsed_submission_object=get_submission_fields(submission_object))
+        build_submission_context(
+            conversation_manager=conversation_manager,
+            parsed_submission_object=get_submission_fields(submission_object),
+        )
     # add identifiers to samples if they don't already have one ie submission rows
     for idx, sample in enumerate(samples):
         if "id" not in sample:
@@ -57,7 +64,7 @@ def get_env_triad_recommendation(
         class_names=interface_names or builder.list_interfaces()
     )
     conversation_manager.add_schema_context(mixs_schema)
-    
+
     # send in extra context to llm to generate if it exists
     for message in study_context:
         if type(message) is not str:
@@ -66,9 +73,11 @@ def get_env_triad_recommendation(
 
     # for now lets assume 100 samples
     conversation_manager.add_message(
-        text=f"The following sample records need env triad recommendations. Return each with their id if available:{str(samples)}",
+        text=f"The following sample records need env triad recommendations. \n"
+             f"Return each with their id if available:{str(samples)}",
     )
-    # parse back recommendaations to the expected output format, including the provided sample records
+    # parse back recommendaations to the expected output format,
+    # including the provided sample records
     raw_output = conversation_manager.generate(max_tokens=max_tokens)
     # clean and pydantically validate the output
     cleaned_output = clean_and_validate_output(raw_output)

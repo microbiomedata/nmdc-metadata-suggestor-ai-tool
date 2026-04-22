@@ -20,13 +20,8 @@ class MixsExtensions(Enum):
     PlantAssociatedInterface = "plant-associated"
 
     @staticmethod
-    def map_to_interface_name(mixs_extensions_strings):
+    def map_to_interface_name(mixs_extensions_strings: list[str]) -> list[str]:
         mixs_extensions = []
-        # tolerate None or a single string value
-        if mixs_extensions_strings is None:
-            return mixs_extensions
-        if isinstance(mixs_extensions_strings, str):
-            mixs_extensions_strings = [mixs_extensions_strings]
 
         # get the interface names
         for ext in mixs_extensions_strings:
@@ -35,6 +30,7 @@ class MixsExtensions(Enum):
             except ValueError:
                 logger.warning(f"Unrecognized MIxS extension '{ext}' in submission data.")
         return mixs_extensions
+
 
 def make_unique_doi_list(entries: list[dict]) -> list[dict]:
     """Return unique dict entries. Preserves original order."""

@@ -1,13 +1,12 @@
 import logging
-from nmdc_metadata_suggestor_ai_tool.utils.submission_parser import get_submission_fields
 
 from nmdc_metadata_suggestor_ai_tool.llm_client import ConversationManager, LLMClient
 from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
 from nmdc_metadata_suggestor_ai_tool.schema_context import SchemaContextBuilder
 from nmdc_metadata_suggestor_ai_tool.system_prompt import system_prompt
-
-from nmdc_metadata_suggestor_ai_tool.utils.utils import clean_and_validate_output
 from nmdc_metadata_suggestor_ai_tool.utils.build_submission_context import build_submission_context
+from nmdc_metadata_suggestor_ai_tool.utils.submission_parser import get_submission_fields
+from nmdc_metadata_suggestor_ai_tool.utils.utils import clean_and_validate_output
 
 logger = logging.getLogger(__name__)
 
@@ -32,13 +31,15 @@ def run_recommendation_pipeline(
     )  # initialize the conversation manager with the LLM client
     parsed_submission_object = get_submission_fields(submission_object=submission_object)
     # adds info to the conversation object
-    build_submission_context(conversation_manager=conversation_manager, parsed_submission_object=parsed_submission_object)
+    build_submission_context(
+        conversation_manager=conversation_manager, parsed_submission_object=parsed_submission_object
+    )
     mixs_extensions = parsed_submission_object.get("mixs_extensions", [])
 
     builder = SchemaContextBuilder()
     mixs_schema = builder.format_multi_interface_context(mixs_extensions)
     conversation_manager.add_schema_context(mixs_schema)
-    
+
     # get the LLM's response and validate it against the expected output schema
     response = conversation_manager.generate(max_tokens=max_tokens)
     validated_output = clean_and_validate_output(response)

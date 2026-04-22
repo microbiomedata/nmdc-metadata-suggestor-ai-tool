@@ -1,13 +1,18 @@
-import logging 
-from nmdc_metadata_suggestor_ai_tool.llm_client import ConversationManager
+import logging
+
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.main import get_doi_description_or_abstract
+from nmdc_metadata_suggestor_ai_tool.llm_client import ConversationManager
 from nmdc_metadata_suggestor_ai_tool.publication_ingestion.download_pdf import (
     download_pdf_to_tempfile,
     remove_temp_file,
 )
 
 logger = logging.getLogger(__name__)
-def build_submission_context(conversation_manager: ConversationManager, parsed_submission_object:dict):
+
+
+def build_submission_context(
+    conversation_manager: ConversationManager, parsed_submission_object: dict
+) -> None:
     """
     Build the submission context for the LLM conversation.
 
