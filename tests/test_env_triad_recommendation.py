@@ -114,7 +114,7 @@ def test_run_env_triad_pipeline_with_bioscales(requires_credentials: None) -> No
     assert env_triad_names & field_names, f"Expected env triad field in {field_names}"
 
 
-def test_run_env_triad_pipeline_with_submission_samples() -> None:
+def test_run_env_triad_pipeline_with_submission_samples(requires_credentials: None) -> None:
     llm_client = LLMClient(access_provider="pnnl")
     submission_object = load_full_submission()
     samples = submission_object.get("metadata_submission").get("sampleData")["water_data"][:10]
