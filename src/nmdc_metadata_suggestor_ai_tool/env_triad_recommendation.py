@@ -74,7 +74,7 @@ def get_env_triad_recommendation(
     # for now lets assume 100 samples
     conversation_manager.add_message(
         text=f"The following sample records need env triad recommendations. \n"
-             f"Return each with their id if available:{str(samples)}",
+        f"Return each with their id if available:{str(samples)}",
     )
     # parse back recommendaations to the expected output format,
     # including the provided sample records
