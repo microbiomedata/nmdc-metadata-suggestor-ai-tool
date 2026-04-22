@@ -1,0 +1,233 @@
+{
+  "id": "nmdc:sty-11-r2h77870",
+  "name": "Roots, rhizosphere and bulk soil microbial communities from poplar common garden sites in Oregon, USA",
+  "description": "The goal of this Bio-Scales Pilot Project study is to understand how plant traits modify the microbiome and in particular how the coupled plant-soil-microbial system influences nitrogen transformation patterns and fluxes.",
+  "gold_study_identifiers": [
+    "gold:Gs0154044"
+  ],
+  "principal_investigator": {
+    "has_raw_value": "Mitchel J. Doktycz",
+    "email": "doktyczmj@ornl.gov",
+    "name": "Mitchel J. Doktycz",
+    "profile_image_url": "https://portal.nersc.gov/project/m3408/profile_images/doktycz_mitchel.jpg",
+    "orcid": "orcid:0000-0003-4856-8343",
+    "type": "nmdc:PersonValue"
+  },
+  "title": "Bio-Scales: Defining plant gene function and its connection to ecosystem nitrogen and carbon cycle",
+  "websites": [
+    "https://www.ornl.gov/section/bioimaging-and-analytics",
+    "https://pmiweb.ornl.gov/",
+    "https://www.ornl.gov/project/bio-scales"
+  ],
+  "type": "nmdc:Study",
+  "has_credit_associations": [
+    {
+      "applies_to_person": {
+        "orcid": "orcid:0000-0003-4856-8343",
+        "email": "doktyczmj@ornl.gov",
+        "name": "Mitchel J. Doktycz",
+        "type": "nmdc:PersonValue"
+      },
+      "applied_roles": [
+        "Principal Investigator",
+        "Conceptualization"
+      ],
+      "type": "prov:Association"
+    },
+    {
+      "applies_to_person": {
+        "orcid": "orcid:0000-0002-2510-977X",
+        "email": "ellisjc@ornl.gov",
+        "name": "Joseph C. Ellis",
+        "type": "nmdc:PersonValue"
+      },
+      "applied_roles": [
+        "Formal Analysis"
+      ],
+      "type": "prov:Association"
+    },
+    {
+      "applies_to_person": {
+        "orcid": "orcid:0000-0002-9822-8251",
+        "email": "jacobsonda@ornl.gov",
+        "name": "Daniel Jacobson",
+        "type": "nmdc:PersonValue"
+      },
+      "applied_roles": [
+        "Conceptualization",
+        "Formal Analysis",
+        "Funding acquisition",
+        "Investigation",
+        "Methodology",
+        "Supervision",
+        "Writing original draft",
+        "Writing review and editing"
+      ],
+      "type": "prov:Association"
+    },
+    {
+      "applies_to_person": {
+        "orcid": "orcid:0000-0001-9246-8193",
+        "email": "martins@ornl.gov",
+        "name": "Stanton Martin",
+        "type": "nmdc:PersonValue"
+      },
+      "applied_roles": [
+        "Conceptualization",
+        "Data curation",
+        "Software",
+        "Visualization",
+        "Writing original draft",
+        "Writing review and editing"
+      ],
+      "type": "prov:Association"
+    },
+    {
+      "applies_to_person": {
+        "orcid": "orcid:0000-0001-6368-9210",
+        "email": "mayesma@ornl.gov",
+        "name": "Melanie Mayes",
+        "type": "nmdc:PersonValue"
+      },
+      "applied_roles": [
+        "Conceptualization",
+        "Data curation",
+        "Formal Analysis",
+        "Funding acquisition",
+        "Investigation",
+        "Methodology",
+        "Supervision",
+        "Validation",
+        "Visualization",
+        "Writing original draft",
+        "Writing review and editing"
+      ],
+      "type": "prov:Association"
+    },
+    {
+      "applies_to_person": {
+        "orcid": "orcid:0000-0002-5031-7343",
+        "email": "mitchelljc@ornl.gov",
+        "name": "Julie Mitchell",
+        "type": "nmdc:PersonValue"
+      },
+      "applied_roles": [
+        "Conceptualization",
+        "Data curation",
+        "Formal Analysis",
+        "Funding acquisition",
+        "Investigation",
+        "Methodology",
+        "Supervision",
+        "Validation",
+        "Visualization",
+        "Writing original draft",
+        "Writing review and editing"
+      ],
+      "type": "prov:Association"
+    },
+    {
+      "applies_to_person": {
+        "orcid": "orcid:0000-0002-0200-9856",
+        "email": "mucherow@ornl.gov",
+        "name": "Wellington Muchero",
+        "type": "nmdc:PersonValue"
+      },
+      "applied_roles": [
+        "Conceptualization",
+        "Data curation",
+        "Formal Analysis",
+        "Funding acquisition",
+        "Investigation",
+        "Methodology",
+        "Supervision",
+        "Validation",
+        "Visualization",
+        "Writing original draft",
+        "Writing review and editing"
+      ],
+      "type": "prov:Association"
+    },
+    {
+      "applies_to_person": {
+        "orcid": "orcid:0000-0001-8759-2448",
+        "email": "schadtcw@ornl.gov",
+        "name": "Christopher Schadt",
+        "type": "nmdc:PersonValue"
+      },
+      "applied_roles": [
+        "Conceptualization",
+        "Data curation",
+        "Formal Analysis",
+        "Funding acquisition",
+        "Investigation",
+        "Methodology",
+        "Supervision",
+        "Validation",
+        "Visualization",
+        "Writing original draft",
+        "Writing review and editing"
+      ],
+      "type": "prov:Association"
+    },
+    {
+      "applies_to_person": {
+        "orcid": "orcid:0000-0002-4794-9913",
+        "email": "westondj@ornl.gov",
+        "name": "David Weston",
+        "type": "nmdc:PersonValue"
+      },
+      "applied_roles": [
+        "Conceptualization",
+        "Data curation",
+        "Formal Analysis",
+        "Funding acquisition",
+        "Investigation",
+        "Methodology",
+        "Supervision",
+        "Validation",
+        "Visualization",
+        "Writing original draft",
+        "Writing review and editing"
+      ],
+      "type": "prov:Association"
+    }
+  ],
+  "funding_sources": [
+    "U.S. Department of Energy, Office of Science, Office of Biological and Environmental Research (BER) under contract DE-AC05-00OR22725; Project Number (FWP): ERKPA12"
+  ],
+  "specific_ecosystem": "Unclassified",
+  "ecosystem": "Environmental",
+  "ecosystem_category": "Terrestrial",
+  "ecosystem_subtype": "Unclassified",
+  "ecosystem_type": "Soil",
+  "gnps_task_identifiers": [
+    "gnps.task:4b848c342a4f4abc871bdf8a09a60807",
+    "gnps.task:f8efbde4cc154db6a4cf269072d42d40",
+    "gnps.task:51cc733a80ed41139ecdd1bedf3c01af",
+    "gnps.task:8062948726c543dba53ec58c0f1ebb25"
+  ],
+  "jgi_portal_study_identifiers": [
+    "jgi.proposal:507130"
+  ],
+  "study_category": "research_study",
+  "associated_dois": [
+    {
+      "doi_value": "doi:10.46936/10.25585/60000017",
+      "doi_category": "award_doi",
+      "doi_provider": "jgi",
+      "type": "nmdc:Doi"
+    },
+    {
+      "doi_value": "doi:10.25345/C58K7520G",
+      "doi_category": "dataset_doi",
+      "doi_provider": "massive",
+      "type": "nmdc:Doi"
+    },
+    {
+      "doi_value": "doi:10.1038/s41597-024-03069-7",
+      "doi_category": "publication_doi",
+      "type": "nmdc:Doi"
+    }
+  ]
+}

@@ -9,6 +9,7 @@ from nmdc_metadata_suggestor_ai_tool.utils.utils import clean_and_validate_outpu
 
 def get_env_triad_recommendation(
     context: list[Any],
+    samples: list[dict],
     llm_client: LLMClient,
     pdf_files: list[str] | None = None,
     interface_names: list[str] | None = None,
@@ -21,12 +22,14 @@ def get_env_triad_recommendation(
             "a description", {"nmdc-record": "value"}]
         result = get_env_triad_recommendation(
             context=context,
+            samples=[{"nmdc-record": "value"}],
             llm_client=llm_client,
         )
         print(result)
     Parameters:
         context: Contextual information for the LLM to generate recommendations.
         pdf_files: Optional list of PDF file paths to include in the LLM context.
+        samples: A list of sample records to generate the env triad for.
         llm_client: LLMClient instance used for model interaction and configuration.
         interface_names: Optional list of specific interface names to focus on for schema context.
             If None, defaults to all interfaces.
@@ -38,7 +41,7 @@ def get_env_triad_recommendation(
     conversation_manager = ConversationManager(
         llm_client=llm_client, system_prompt=env_triad_prompt
     )
-    # add schema context
+    # add schema context - env triad specific
     builder = SchemaContextBuilder()
     mixs_schema = builder.format_env_triad_context(
         class_names=interface_names or builder.list_interfaces()
@@ -54,7 +57,11 @@ def get_env_triad_recommendation(
             text="The following PDF files are also available for context:",
             pdf_files=pdf_files,
         )
-    # parse back recommendaations to the expected output format
+    # for now lets assume 100 samples
+    conversation_manager.add_message(
+        text=f"The following sample records need env triad recommendations. Return each with their id if available:{str(samples)}",
+    )
+    # parse back recommendaations to the expected output format, including the provided sample records
     raw_output = conversation_manager.generate(max_tokens=max_tokens)
     # clean and pydantically validate the output
     cleaned_output = clean_and_validate_output(raw_output)
