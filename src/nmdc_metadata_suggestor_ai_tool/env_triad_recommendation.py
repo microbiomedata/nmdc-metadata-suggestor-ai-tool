@@ -21,19 +21,42 @@ def get_env_triad_recommendation(
     max_tokens: int | None = None,
 ) -> LLMOutput:
     """Get the recommended environment triad metadata fields for a submission and LLM client.
-    Example:
+
+    Example for ETL:
         llm_client = LLMClient(access_provider="gcp")
-        context = ["Sample environmental data for analysis",
-            "a description", {"nmdc-record": "value"}]
+        # the study dict, maybe other useful context as well
+        study_context = [{"nmdc-study-record": "value"}]
+        # the biosamples
+        samples = [{"nmdc-biosample-record": "value"}, {"nmdc-biosample-record": "value"}]
+        # get the results
         result = get_env_triad_recommendation(
-            study_context=context,
-            samples=[{"nmdc-record": "value"}],
+            study_context=study_context,
+            samples=samples,
             llm_client=llm_client,
         )
         print(result)
+
+    Example for submission server:
+        llm_client = LLMClient(access_provider="gcp")
+        # full object
+        submission_object = {"fields":"yay"}
+        # break out which page the user is on and send those samples
+        samples = submission_object.get("metadata_submission").get("sampleData")["water_data"]
+        # send the interface tab name as well
+        interface_names = ["water"]
+        result = get_env_triad_recommendation(
+            submission_object=submission_object,
+            samples=samples,
+            llm_client=llm_client,
+            interface_names=interface_names,
+        )
+        print(result)
+
+
     Parameters:
-        study_context: Contextual information for the LLM to generate recommendations.
+        study_context: Optional contextual information for the LLM to generate recommendations.
         samples: A list of sample records to generate the env triad for.
+        submission_object: Optional submission object containing metadata fields.
         llm_client: LLMClient instance used for model interaction and configuration.
         interface_names: Optional list of specific interface names to focus on for schema context.
             If None, defaults to all interfaces.
