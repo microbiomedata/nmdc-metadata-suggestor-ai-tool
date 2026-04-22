@@ -53,11 +53,9 @@ def test_run_env_triad_pipeline(requires_credentials: None) -> None:
     sample_submission_object = load_sample_submission_object()
     llm_client = LLMClient(access_provider="gcp")
     recommended_metadata = env_triad_recommendation.get_env_triad_recommendation(
-        study_context=[
-            sample_submission_object.get("description", ""),
-            sample_submission_object.get("abstract", ""),
-        ],
-        interface_names=["SoilInterface"],
+        submission_object=sample_submission_object,
+        samples=sample_submission_object.get("metadata_submission").get("sampleData")["soil_data"],
+        interface_names=["soil"],
         llm_client=llm_client,
     )
 
@@ -72,7 +70,7 @@ def test_run_env_triad_pipeline_with_biosample(requires_credentials: None) -> No
     llm_client = LLMClient(access_provider="gcp")
     biosample_object = load_biosample_object()
     recommended_metadata = env_triad_recommendation.get_env_triad_recommendation(
-        study_context=[biosample_object],
+        samples=biosample_object["biosample_set"],
         llm_client=llm_client,
     )
 
@@ -84,7 +82,7 @@ def test_run_env_triad_pipeline_with_biosample(requires_credentials: None) -> No
 
 
 def test_run_env_triad_pipeline_with_bioscales(requires_credentials: None) -> None:
-    llm_client = LLMClient(access_provider="pnnl")
+    llm_client = LLMClient(access_provider="gcp")
     biosample_objects = load_bioscales_object().get("resources")
     study_object = load_study_object()
     recommended_metadata = env_triad_recommendation.get_env_triad_recommendation(
@@ -115,7 +113,7 @@ def test_run_env_triad_pipeline_with_bioscales(requires_credentials: None) -> No
 
 
 def test_run_env_triad_pipeline_with_submission_samples(requires_credentials: None) -> None:
-    llm_client = LLMClient(access_provider="pnnl")
+    llm_client = LLMClient(access_provider="gcp")
     submission_object = load_full_submission()
     samples = submission_object.get("metadata_submission").get("sampleData")["water_data"][:10]
     # pop env_medium, env_broad_scale, and env_local_scale from the samples

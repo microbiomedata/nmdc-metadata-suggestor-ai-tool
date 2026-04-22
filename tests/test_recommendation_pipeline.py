@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 from nmdc_metadata_suggestor_ai_tool import recommendation_pipeline
+from nmdc_metadata_suggestor_ai_tool.utils import build_submission_context
 from nmdc_metadata_suggestor_ai_tool.llm_client import LLMClient
 
 
@@ -43,7 +44,7 @@ class _FakeLLMClient:
 
 def _stub_common_inputs(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        recommendation_pipeline,
+        build_submission_context,
         "get_doi_description_or_abstract",
         lambda **_: SimpleNamespace(context="Test abstract", publication_urls=[]),
     )
