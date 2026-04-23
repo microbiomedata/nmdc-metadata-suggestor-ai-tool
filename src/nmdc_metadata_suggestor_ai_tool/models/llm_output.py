@@ -28,5 +28,5 @@ class LLMOutput(BaseModel):
     metadata_fields: list[MetadataFieldSuggestion] = Field(
         default_factory=list, description="List of metadata field suggestions"
     )
-    model: str | None = Field(None, description="Name of the LLM model used")
-    access_provider: str | None = Field(None, description="Access provider for the LLM")
+    model: str | None = Field(default=None, description="Name of the LLM model used")
+    access_provider: str | None = Field(default=None, description="Access provider for the LLM")
