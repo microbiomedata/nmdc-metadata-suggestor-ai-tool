@@ -1,6 +1,4 @@
-import json
 import logging
-import re
 
 from pydantic import ValidationError
 
@@ -9,31 +7,21 @@ from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
 logger = logging.getLogger(__name__)
 
 
-def clean_and_validate_output(raw_output: str) -> LLMOutput:
-    """Clean the raw output from the LLM and validate it against the expected schema"""
-    logger.debug(f"Raw LLM output: {raw_output}")
-    cleaned_response = re.sub(
-        r"^```(?:json)?\s*\n?|\n?```$",
-        "",
-        raw_output.strip(),
-        flags=re.MULTILINE,
-    ).strip()
-    logger.debug(f"Cleaned LLM response: {cleaned_response}")
-    try:
-        parsed_response = json.loads(cleaned_response)
-    except json.JSONDecodeError as exc:
-        raise ValueError(
-            f"LLM response was not valid JSON: {exc}\n"
-            f"Raw output from LLM: {raw_output}\n"
-            f"Cleaned response: {cleaned_response}"
-        ) from exc
-
-    if not isinstance(parsed_response, dict):
-        raise ValueError("LLM response JSON must be an object with top-level keys.")
+def validate_output(structured_output: LLMOutput | str | None) -> LLMOutput:
+    """Clean the raw output from the LLM and validate it against the expected schema
+    Note
+    ----
+    GCP and OPENAI providers return the output in different shapes, so this function handles
+    both cases and validates the output against the expected schema. Hence the if statement.
+    """
+    logger.debug(f"Structured LLM output: {structured_output}")
 
     try:
-        validated_output = LLMOutput.model_validate(parsed_response)
+        if isinstance(structured_output, LLMOutput):
+            return structured_output
+        elif isinstance(structured_output, str):
+            validated_output = LLMOutput.model_validate_json(structured_output)
+            return validated_output
     except ValidationError as exc:
         raise ValueError(f"LLM response JSON did not match expected output schema: {exc}") from exc
-
-    return validated_output
+    return structured_output or LLMOutput()  # return empty output if None or unrecognized format

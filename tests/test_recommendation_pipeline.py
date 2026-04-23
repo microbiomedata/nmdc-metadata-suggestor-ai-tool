@@ -1,3 +1,4 @@
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -22,11 +23,11 @@ class _FakeLLMClient:
         self.model = "gpt-5-project"
         self.access_provider = "pnnl"
         # provide a `.client` with the shape expected by ConversationManager
-        # for the PNNL provider: `client.responses.create(...)` returning
-        # an object with `output_text`.
+        # for the PNNL provider: `responses.parse(...).output_parsed` returning
+        # an object with `output_parsed`
         self.client = SimpleNamespace(
             responses=SimpleNamespace(
-                create=lambda **kwargs: SimpleNamespace(output_text=self.response)
+                parse=lambda **kwargs: SimpleNamespace(output_parsed=self.response),
             )
         )
 
@@ -93,9 +94,12 @@ def test_run_recommendation_pipeline_raises_for_invalid_output_schema(
 
 
 def test_run_recommendation_pipeline(requires_credentials: None) -> None:
+    start = time.time_ns()
     sample_submission_object = load_sample_submission_object()
     llm_client = LLMClient(access_provider="gcp")
     recommended_metadata = recommendation_pipeline.run_recommendation_pipeline(
         submission_object=sample_submission_object, llm_client=llm_client
     )
     print(recommended_metadata.model_dump())
+    end = time.time_ns()
+    print(f"Pipeline execution time: {(end - start) / 1e9:.2f} seconds")

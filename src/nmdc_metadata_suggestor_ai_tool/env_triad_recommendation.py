@@ -4,7 +4,7 @@ from nmdc_metadata_suggestor_ai_tool.llm_client import ConversationManager, LLMC
 from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
 from nmdc_metadata_suggestor_ai_tool.schema_context import SchemaContextBuilder
 from nmdc_metadata_suggestor_ai_tool.system_prompt import env_triad_prompt
-from nmdc_metadata_suggestor_ai_tool.utils.utils import clean_and_validate_output
+from nmdc_metadata_suggestor_ai_tool.utils.utils import validate_output
 
 
 def get_env_triad_recommendation(
@@ -57,6 +57,6 @@ def get_env_triad_recommendation(
     # parse back recommendaations to the expected output format
     raw_output = conversation_manager.generate(max_tokens=max_tokens)
     # clean and pydantically validate the output
-    cleaned_output = clean_and_validate_output(raw_output)
+    cleaned_output = validate_output(raw_output)
 
     return cleaned_output
