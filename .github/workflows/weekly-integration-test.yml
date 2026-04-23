@@ -1,0 +1,36 @@
+name: Weekly VertexAI Integration Test
+
+on:
+  schedule:
+    - cron: "0 17 * * 1"  # Monday 5pm UTC = 9am PT
+  workflow_dispatch:       # Manual trigger for testing
+
+jobs:
+  integration-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run VertexAI integration tests
+        run: uv run pytest tests/test_vertexai_integration.py -m integration -v
