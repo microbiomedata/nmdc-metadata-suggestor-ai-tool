@@ -23,14 +23,10 @@ class _FakeLLMClient:
         self.model = "gpt-5-project"
         self.access_provider = "pnnl"
         # provide a `.client` with the shape expected by ConversationManager
-        # for the PNNL provider: `client.responses.create(...)` returning
-        # an object with `output_text`.
-        # Support both `responses.create(...).output_text` and
-        # `responses.parse(...).output_parsed` shapes so tests work with the
-        # real ConversationManager implementation which may call `parse`.
+        # for the PNNL provider: `responses.parse(...).output_parsed` returning
+        # an object with `output_parsed`
         self.client = SimpleNamespace(
             responses=SimpleNamespace(
-                create=lambda **kwargs: SimpleNamespace(output_text=self.response),
                 parse=lambda **kwargs: SimpleNamespace(output_parsed=self.response),
             )
         )
