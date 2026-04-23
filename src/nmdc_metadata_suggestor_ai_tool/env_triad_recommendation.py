@@ -9,7 +9,7 @@ from nmdc_metadata_suggestor_ai_tool.utils.submission_parser import (
     MixsExtensions,
     get_submission_fields,
 )
-from nmdc_metadata_suggestor_ai_tool.utils.utils import clean_and_validate_output
+from nmdc_metadata_suggestor_ai_tool.utils.utils import validate_output
 
 
 def get_env_triad_recommendation(
@@ -103,6 +103,6 @@ def get_env_triad_recommendation(
     # including the provided sample records
     raw_output = conversation_manager.generate(max_tokens=max_tokens)
     # clean and pydantically validate the output
-    cleaned_output = clean_and_validate_output(raw_output)
+    cleaned_output = validate_output(raw_output)
 
     return cleaned_output

@@ -13,6 +13,8 @@ from google.genai import types as genai_types
 from google.oauth2 import service_account
 from openai import OpenAI
 
+from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
+
 load_dotenv()
 
 DEFAULT_GCP_REGION = "us-east5"
@@ -167,7 +169,7 @@ class ConversationManager:
         model: str | None = None,
         max_tokens: int | None = None,
         gemini_temperature: float = 0.4,
-    ) -> str:
+    ) -> LLMOutput | str | None:
         """Generate a response from queued conversation messages.
 
         Dispatches by ``access_provider``:
@@ -214,27 +216,30 @@ class ConversationManager:
         self,
         max_tokens: int,
         system_prompt: str,
-    ) -> str:
+    ) -> LLMOutput | str | None:
         client = cast(OpenAI, self.llm_client.client)
-        response = client.responses.create(
+        response = client.responses.parse(
             model=self.llm_client.model,
             input=self.messages,
             instructions=system_prompt,
             max_output_tokens=max_tokens,
+            text_format=LLMOutput,
         )
-        return response.output_text
+        return response.output_parsed
 
     def _generate_gcp(
         self,
         max_tokens: int,
         system_prompt: str,
         temperature: float = 0.4,
-    ) -> str:
+    ) -> LLMOutput | str | None:
 
         config = genai_types.GenerateContentConfig(
             max_output_tokens=max_tokens,
             temperature=temperature,
             system_instruction=system_prompt,
+            response_mime_type="application/json",
+            response_json_schema=LLMOutput.model_json_schema(),
         )
 
         client = cast(genai.Client, self.llm_client.client)

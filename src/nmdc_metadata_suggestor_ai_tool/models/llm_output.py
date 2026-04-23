@@ -12,7 +12,12 @@ class MetadataFieldSuggestion(BaseModel):
     )
     field_name: str = Field(description="Name of the metadata field")
     reason: str = Field(description="Explanation of why this value is recommended")
-    value: str | list | dict | int | float = Field(
+    value: (str
+        | int
+        | float
+        | bool
+        | list[str | int | float | bool]
+        | dict[str, str | int | float | bool | list[str | int | float | bool]]) = Field(
         default="", description="The recommended value for the metadata field"
     )
 
