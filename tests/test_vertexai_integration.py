@@ -11,10 +11,8 @@ from pathlib import Path
 import pytest
 
 from nmdc_metadata_suggestor_ai_tool.llm_client import ConversationManager, LLMClient
-from nmdc_metadata_suggestor_ai_tool.recommendation_pipeline import (
-    clean_and_validate_output,
-    run_recommendation_pipeline,
-)
+from nmdc_metadata_suggestor_ai_tool.recommendation_pipeline import run_recommendation_pipeline
+from nmdc_metadata_suggestor_ai_tool.utils.utils import validate_output
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
@@ -72,7 +70,7 @@ def test_gemini_conversation_with_schema_context() -> None:
     response = conversation.generate()
 
     assert response, "Expected a non-empty response from Gemini"
-    result = clean_and_validate_output(response)
+    result = validate_output(response)
     assert result.metadata_fields, "Expected at least one metadata field suggestion"
     assert any(f.field_name == "env_broad_scale" for f in result.metadata_fields), (
         "Response must contain 'env_broad_scale'"
