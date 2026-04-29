@@ -88,13 +88,13 @@ def test_run_env_triad_pipeline_with_bioscales(requires_credentials: None) -> No
     recommended_metadata = env_triad_recommendation.get_env_triad_recommendation(
         study_context=[study_object],
         # Using a subset of the biosample objects for testing
-        samples=biosample_objects[:10],
+        samples=biosample_objects,
         llm_client=llm_client,
     )
 
     print(recommended_metadata.model_dump())
     # Ensure each sample id appears somewhere in the recommendations
-    sample_ids = [s.get("id") for s in biosample_objects[:10]]
+    sample_ids = [s.get("id") for s in biosample_objects]
 
     for sid in sample_ids:
         assert sid in {f.id for f in recommended_metadata.metadata_fields}, (

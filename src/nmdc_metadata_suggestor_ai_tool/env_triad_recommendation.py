@@ -9,7 +9,7 @@ from nmdc_metadata_suggestor_ai_tool.utils.submission_parser import (
     MixsExtensions,
     get_submission_fields,
 )
-from nmdc_metadata_suggestor_ai_tool.utils.utils import validate_output
+from nmdc_metadata_suggestor_ai_tool.utils.utils import chunk_samples, validate_output
 
 
 def get_env_triad_recommendation(
@@ -19,6 +19,7 @@ def get_env_triad_recommendation(
     submission_object: dict | None = None,
     interface_names: list[str] | None = None,
     max_tokens: int | None = None,
+    chunk_size: int = 50,
 ) -> LLMOutput:
     """Get the recommended environment triad metadata fields for a submission and LLM client.
 
@@ -64,48 +65,62 @@ def get_env_triad_recommendation(
     Returns:
         The response from the LLM containing the recommended environment triad metadata fields.
     """
-    # set system proimpt in conversation manager to env triad filling
-    conversation_manager = ConversationManager(
-        llm_client=llm_client, system_prompt=env_triad_prompt
-    )
-    # if this is a submission, collect submission info
-    # and add to the conversation using tools we already built
-    if submission_object is not None:
-        build_submission_context(
-            conversation_manager=conversation_manager,
-            parsed_submission_object=get_submission_fields(submission_object),
-        )
-    # build a shallow-copied list of samples to avoid mutating caller-provided dicts
+    # normalize and shallow-copy samples to avoid mutating caller-supplied objects
     samples = [dict(s) for s in (samples or [])]
+    for idx, s in enumerate(samples):
+        s.setdefault("id", str(idx))
 
-    # add identifiers to the copied samples if they don't already have one
-    for idx, sample in enumerate(samples):
-        if "id" not in sample:
-            sample["id"] = idx
+    # prepare schema/context once
     if interface_names:
         interface_names = MixsExtensions.map_to_interface_name(interface_names)
-    # add schema context - env triad specific
     builder = SchemaContextBuilder()
     mixs_schema = builder.format_env_triad_context(
         class_names=interface_names or builder.list_interfaces()
     )
-    conversation_manager.add_schema_context(mixs_schema)
 
-    # send in extra context to llm to generate if it exists
-    for message in study_context or []:
-        if not isinstance(message, str):
-            message = str(message)
-        conversation_manager.add_message(text=message)
+    parsed_submission = get_submission_fields(submission_object) if submission_object else None
+    study_texts = [m if isinstance(m, str) else str(m) for m in (study_context or [])]
 
-    # for now lets assume 100 samples
-    conversation_manager.add_message(
-        text=f"The following sample records need env triad recommendations. \n"
-        f"Return each with their id if available:{str(samples)}",
-    )
-    # parse back recommendaations to the expected output format,
-    # including the provided sample records
-    raw_output = conversation_manager.generate(max_tokens=max_tokens)
-    # clean and pydantically validate the output
-    cleaned_output = validate_output(raw_output)
+    # process samples in chunks to avoid very large prompts
+    aggregated = LLMOutput()
+    errors: list[dict] = []
 
-    return cleaned_output
+    for chunk_idx, chunk in enumerate(chunk_samples(samples, chunk_size)):
+        cm = ConversationManager(llm_client=llm_client, system_prompt=env_triad_prompt)
+        if parsed_submission:
+            build_submission_context(
+                conversation_manager=cm, parsed_submission_object=parsed_submission
+            )
+        cm.add_schema_context(mixs_schema)
+        for text in study_texts:
+            cm.add_message(text=text)
+
+        cm.add_message(
+            text=(
+                "The following sample records need env triad recommendations.\n"
+                f"Return each with their id: {chunk}"
+            )
+        )
+
+        try:
+            raw = cm.generate(max_tokens=max_tokens)
+            validated = validate_output(raw)
+            # merge metadata fields
+            aggregated.metadata_fields.extend(validated.metadata_fields)
+            # preserve model/access_provider from last successful call if present
+            if validated.model:
+                aggregated.model = validated.model
+            if validated.access_provider:
+                aggregated.access_provider = validated.access_provider
+        except Exception as exc:  # pragma: no cover - defensive
+            errors.append({"chunk_index": chunk_idx, "size": len(chunk), "error": str(exc)})
+
+    if errors:
+        # attach a simple error summary to the access_provider field for visibility
+        aggregated.access_provider = (
+            f"errors_in_chunks:{len(errors)}"
+            if not aggregated.access_provider
+            else aggregated.access_provider
+        )
+
+    return aggregated
