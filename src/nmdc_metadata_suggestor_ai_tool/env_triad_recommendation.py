@@ -15,7 +15,7 @@ from nmdc_metadata_suggestor_ai_tool.utils.utils import validate_output
 def get_env_triad_recommendation(
     llm_client: LLMClient,
     samples: list[dict],
-    study_context: list[Any] = [],
+    study_context: list[Any] | None = None,
     submission_object: dict | None = None,
     interface_names: list[str] | None = None,
     max_tokens: int | None = None,
@@ -75,7 +75,10 @@ def get_env_triad_recommendation(
             conversation_manager=conversation_manager,
             parsed_submission_object=get_submission_fields(submission_object),
         )
-    # add identifiers to samples if they don't already have one ie submission rows
+    # build a shallow-copied list of samples to avoid mutating caller-provided dicts
+    samples = [dict(s) for s in (samples or [])]
+
+    # add identifiers to the copied samples if they don't already have one
     for idx, sample in enumerate(samples):
         if "id" not in sample:
             sample["id"] = idx
@@ -89,8 +92,8 @@ def get_env_triad_recommendation(
     conversation_manager.add_schema_context(mixs_schema)
 
     # send in extra context to llm to generate if it exists
-    for message in study_context:
-        if type(message) is not str:
+    for message in study_context or []:
+        if not isinstance(message, str):
             message = str(message)
         conversation_manager.add_message(text=message)
 

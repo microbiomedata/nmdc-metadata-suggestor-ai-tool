@@ -33,9 +33,9 @@
     ],
     "studyForm": {
       "studyName": "Continental-scale metagenomics: leveraging the NSF National Ecological Observatory Network to advance understanding of terrestrial and aquatic microbial communities in response to land use and climate change (AY23_plt04)",
-      "piName": "Hugh Cross",
-      "piEmail": "crossh@battelleecology.org",
-      "piOrcid": "0000-0002-6745-9479",
+      "piName": "Test Principal Investigator",
+      "piEmail": "test.pi@example.org",
+      "piOrcid": "0000-0000-0000-0000",
       "fundingSources": null,
       "dataDois": null,
       "publicationDois": null,

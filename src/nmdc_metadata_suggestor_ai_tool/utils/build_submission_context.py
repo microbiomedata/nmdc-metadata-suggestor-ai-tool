@@ -23,7 +23,7 @@ def build_submission_context(
     Returns:
         None
     """
-    doi = parsed_submission_object.get("dois", [])
+    dois = parsed_submission_object.get("dois", [])
     description = parsed_submission_object.get("description", "")
     notes = parsed_submission_object.get("notes", "")
     study_name = parsed_submission_object.get("study_name", "")
@@ -45,17 +45,28 @@ def build_submission_context(
     conversation_manager.add_message(text=submission_context)
     publication_links: list[str] = []
     # loop through dois and retrieve abstracts/descriptions to add to the LLM context
-    for doi, provider in parsed_submission_object.get("dois", []):
-        # based on the DOI, retrieve the abstract and PDF if available, and add to the LLM context
+    for doi_entry in dois:
+        # each entry should be a dict like {"value": "10.x...", "provider": "osti"}
+        if not isinstance(doi_entry, dict):
+            continue
+        doi_value = doi_entry.get("value") or doi_entry.get("doi")
+        provider = doi_entry.get("provider")
+        if not doi_value:
+            continue
+
+        # ensure sources is a list when provided
+        sources = [provider] if provider else None
+
+        # based on the DOI string, retrieve the abstract/PDF if available, add to the LLM context
         result = get_doi_description_or_abstract(
-            doi=doi, skip_classification=True, sources=provider
+            doi=doi_value, skip_classification=True, sources=sources
         )
         abstract = result.context if result.context else None
         if result.publication_urls:
             publication_links.extend(result.publication_urls)
         if abstract is not None:
             conversation_manager.add_message(
-                text=f"Context retrieved for DOI {doi} from provider {provider}:\n{abstract}"
+                text=f"Context retrieved for DOI {doi_value} from provider {provider}:\n{abstract}"
             )
 
     # collect pdf files if available, and add the abstract and PDF content to the LLM context

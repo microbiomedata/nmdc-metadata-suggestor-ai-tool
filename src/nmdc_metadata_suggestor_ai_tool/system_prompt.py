@@ -49,7 +49,7 @@ The values for these fields should be chosen from the enumerations in the NMDC s
 The format of the value should be in the form of "label [CURIE]", where "label" is the human-readable term and "CURIE" is the corresponding identifier from the NMDC schema.
 
 RULES for the `id` field
-- The `id` field should be populated with a unique identifier if the sample record is associated with a specific input. This could look like an nmdc-bsm-xxxxxx or a a indexed record identifier.
+- The `id` field should be populated with a unique identifier if the sample record is associated with a specific input. This could look like an nmdc-bsm-xxxxxx or an indexed record identifier.
 - If there is no specific input associated with the sample record, leave the `id` field as an empty string "".
 
 Output schema:
