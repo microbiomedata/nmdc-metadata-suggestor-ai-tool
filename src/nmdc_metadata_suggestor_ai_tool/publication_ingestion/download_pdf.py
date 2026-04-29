@@ -89,16 +89,7 @@ def remove_temp_file(path: str) -> None:
         logger.exception(f"Error deleting temporary file {path}")
 
 
-if __name__ == "__main__":
-    # pdf_url = "https://link.springer.com/content/pdf/10.1186/s12859-024-05977-2.pdf"
-    pdf_url = "https://pubs.acs.org/doi/pdf/10.1021/acs.jpcb.5c06231"
-
-    try:
-        temp_file_path = download_pdf_to_tempfile(pdf_url)
-        print(f"PDF successfully downloaded to: {temp_file_path}")
-        print(f"File size: {os.path.getsize(temp_file_path):,} bytes")
-
-        # for now, delete the temporary file
-        remove_temp_file(temp_file_path)
-    except RuntimeError as e:
-        print(e)
+def remove_temp_files(paths: list[str]) -> None:
+    """Remove the temporary files at *paths*."""
+    for path in paths:
+        remove_temp_file(path)

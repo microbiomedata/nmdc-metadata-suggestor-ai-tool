@@ -1,18 +1,14 @@
 import logging
 
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.main import get_doi_description_or_abstract
-from nmdc_metadata_suggestor_ai_tool.llm_client import ConversationManager
 from nmdc_metadata_suggestor_ai_tool.publication_ingestion.download_pdf import (
     download_pdf_to_tempfile,
-    remove_temp_file,
 )
 
 logger = logging.getLogger(__name__)
 
 
-def build_submission_context(
-    conversation_manager: ConversationManager, parsed_submission_object: dict
-) -> None:
+def build_submission_context(parsed_submission_object: dict) -> tuple[list[str], list[str] | None]:
     """
     Build the submission context for the LLM conversation.
 
@@ -21,7 +17,7 @@ def build_submission_context(
         parsed_submission_object: The parsed submission object containing metadata fields.
 
     Returns:
-        None
+        A list of messages and a list of PDF file paths (if any).
     """
     dois = parsed_submission_object.get("dois", [])
     description = parsed_submission_object.get("description", "")
@@ -42,7 +38,8 @@ def build_submission_context(
         f"Protocol descriptions: {'; '.join(protocol_descs)}\n"
         f"Protocol names: {'; '.join(protocol_names)}"
     )
-    conversation_manager.add_message(text=submission_context)
+    messages: list[str] = []
+    messages.append(submission_context)
     publication_links: list[str] = []
     # loop through dois and retrieve abstracts/descriptions to add to the LLM context
     for doi_entry in dois:
@@ -65,8 +62,8 @@ def build_submission_context(
         if result.publication_urls:
             publication_links.extend(result.publication_urls)
         if abstract is not None:
-            conversation_manager.add_message(
-                text=f"Context retrieved for DOI {doi_value} from provider {provider}:\n{abstract}"
+            messages.append(
+                f"Context retrieved for DOI {doi_value} from provider {provider}:\n{abstract}"
             )
 
     # collect pdf files if available, and add the abstract and PDF content to the LLM context
@@ -81,11 +78,5 @@ def build_submission_context(
                 logger.exception(f"Error downloading PDF from {url}")
     else:
         pdf_files = None
-    conversation_manager.add_message(
-        text="Utilize the provided information and PDF content to "
-        "inform your metadata field recommendations.",
-        pdf_files=pdf_files,
-    )
-    if pdf_files:
-        for pdf in pdf_files:
-            remove_temp_file(pdf)
+
+    return messages, pdf_files

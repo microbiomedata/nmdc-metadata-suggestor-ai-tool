@@ -1,7 +1,9 @@
+import logging
 from typing import Any
 
 from nmdc_metadata_suggestor_ai_tool.llm_client import ConversationManager, LLMClient
 from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
+from nmdc_metadata_suggestor_ai_tool.publication_ingestion.download_pdf import remove_temp_files
 from nmdc_metadata_suggestor_ai_tool.schema_context import SchemaContextBuilder
 from nmdc_metadata_suggestor_ai_tool.system_prompt import env_triad_prompt
 from nmdc_metadata_suggestor_ai_tool.utils.build_submission_context import build_submission_context
@@ -10,6 +12,8 @@ from nmdc_metadata_suggestor_ai_tool.utils.submission_parser import (
     get_submission_fields,
 )
 from nmdc_metadata_suggestor_ai_tool.utils.utils import chunk_samples, validate_output
+
+logger = logging.getLogger(__name__)
 
 
 def get_env_triad_recommendation(
@@ -65,6 +69,8 @@ def get_env_triad_recommendation(
     Returns:
         The response from the LLM containing the recommended environment triad metadata fields.
     """
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be greater than 0")
     # normalize and shallow-copy samples to avoid mutating caller-supplied objects
     samples = [dict(s) for s in (samples or [])]
     for idx, s in enumerate(samples):
@@ -79,6 +85,14 @@ def get_env_triad_recommendation(
     )
 
     parsed_submission = get_submission_fields(submission_object) if submission_object else None
+    # build submission context once to avoid repeated DOI lookups / PDF downloads per chunk
+    submission_messages: list[Any] = []
+    if parsed_submission:
+        submission_messages, pdf_files = build_submission_context(
+            parsed_submission_object=parsed_submission
+        )
+
+    # if there is study context make sure it is a string
     study_texts = [m if isinstance(m, str) else str(m) for m in (study_context or [])]
 
     # process samples in chunks to avoid very large prompts
@@ -87,10 +101,13 @@ def get_env_triad_recommendation(
 
     for chunk_idx, chunk in enumerate(chunk_samples(samples, chunk_size)):
         cm = ConversationManager(llm_client=llm_client, system_prompt=env_triad_prompt)
-        if parsed_submission:
-            build_submission_context(
-                conversation_manager=cm, parsed_submission_object=parsed_submission
-            )
+        # reuse pre-built submission context messages
+        if submission_messages:
+            for message in submission_messages:
+                cm.add_message(text=message)
+            if pdf_files:
+                cm.add_message(text="Use the PDFs to inform your suggestions", pdf_files=pdf_files)
+
         cm.add_schema_context(mixs_schema)
         for text in study_texts:
             cm.add_message(text=text)
@@ -112,15 +129,13 @@ def get_env_triad_recommendation(
                 aggregated.model = validated.model
             if validated.access_provider:
                 aggregated.access_provider = validated.access_provider
-        except Exception as exc:  # pragma: no cover - defensive
+        except Exception as exc:
             errors.append({"chunk_index": chunk_idx, "size": len(chunk), "error": str(exc)})
 
+    if parsed_submission and pdf_files:
+        remove_temp_files(pdf_files)
+
     if errors:
-        # attach a simple error summary to the access_provider field for visibility
-        aggregated.access_provider = (
-            f"errors_in_chunks:{len(errors)}"
-            if not aggregated.access_provider
-            else aggregated.access_provider
-        )
+        logger.error(f"Errors occurred in chunks: {errors}")
 
     return aggregated

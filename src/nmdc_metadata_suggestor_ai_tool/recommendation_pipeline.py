@@ -2,6 +2,7 @@ import logging
 
 from nmdc_metadata_suggestor_ai_tool.llm_client import ConversationManager, LLMClient
 from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
+from nmdc_metadata_suggestor_ai_tool.publication_ingestion.download_pdf import remove_temp_files
 from nmdc_metadata_suggestor_ai_tool.schema_context import SchemaContextBuilder
 from nmdc_metadata_suggestor_ai_tool.system_prompt import system_prompt
 from nmdc_metadata_suggestor_ai_tool.utils.build_submission_context import build_submission_context
@@ -31,9 +32,17 @@ def run_recommendation_pipeline(
     )  # initialize the conversation manager with the LLM client
     parsed_submission_object = get_submission_fields(submission_object=submission_object)
     # adds info to the conversation object
-    build_submission_context(
-        conversation_manager=conversation_manager, parsed_submission_object=parsed_submission_object
+    messages, pdf_files = build_submission_context(
+        parsed_submission_object=parsed_submission_object
     )
+
+    for message in messages:
+        conversation_manager.add_message(text=message)
+    if pdf_files:
+        conversation_manager.add_message(
+            text="Use the PDFs to inform your suggestions", pdf_files=pdf_files
+        )
+
     mixs_extensions = parsed_submission_object.get("mixs_extensions", [])
 
     builder = SchemaContextBuilder()
@@ -47,4 +56,7 @@ def run_recommendation_pipeline(
     # add model metadata to the output for tracking purposes
     validated_output.model = llm_client.model
     validated_output.access_provider = llm_client.access_provider
+
+    if pdf_files:
+        remove_temp_files(pdf_files)
     return validated_output
