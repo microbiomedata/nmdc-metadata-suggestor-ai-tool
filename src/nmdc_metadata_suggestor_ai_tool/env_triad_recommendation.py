@@ -122,13 +122,10 @@ def get_env_triad_recommendation(
         try:
             raw = cm.generate(max_tokens=max_tokens)
             validated = validate_output(raw)
+            validated.access_provider = llm_client.access_provider
+            validated.model = llm_client.model
             # merge metadata fields
             aggregated.metadata_fields.extend(validated.metadata_fields)
-            # preserve model/access_provider from last successful call if present
-            if validated.model:
-                aggregated.model = validated.model
-            if validated.access_provider:
-                aggregated.access_provider = validated.access_provider
         except Exception as exc:
             errors.append({"chunk_index": chunk_idx, "size": len(chunk), "error": str(exc)})
 
