@@ -48,21 +48,29 @@ Use the provided information to suggest values for the following three metadata 
 The values for these fields should be chosen from the enumerations in the NMDC schema and should be based on the content of the information provided.
 The format of the value should be in the form of "label [CURIE]", where "label" is the human-readable term and "CURIE" is the corresponding identifier from the NMDC schema.
 
+RULES for the `id` field
+- If the input sample record includes an `id` (or a provided record index used as the identifier), copy that identifier exactly into the output `id` field for each corresponding metadata field entry.
+- Never fabricate, invent, rewrite, normalize, or generate a new `id`. The output `id` must exactly match the input sample record `id` (or provided index) verbatim.
+- If there is no specific input-associated `id` or provided index for the sample record, leave the `id` field as an empty string "".
+
 Output schema:
 ```json
 {
     "metadata_fields": [
         {
+            "id": "",
             "field_name": "env_broad_scale",
             "reason": "Reason for choosing this field based on the provided information.",
             "value": ""
         },
         {
+            "id": "",
             "field_name": "env_local_scale",
             "reason": "Reason for choosing this field based on the provided information.",
             "value": ""
         },
         {
+            "id": "",
             "field_name": "env_medium",
             "reason": "Reason for choosing this field based on the provided information.",
             "value": ""

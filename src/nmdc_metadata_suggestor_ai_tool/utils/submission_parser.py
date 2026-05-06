@@ -19,6 +19,18 @@ class MixsExtensions(Enum):
     MiscEnvsInterface = "miscellaneous natural or artifical environment"
     PlantAssociatedInterface = "plant-associated"
 
+    @staticmethod
+    def map_to_interface_name(mixs_extensions_strings: list[str]) -> list[str]:
+        mixs_extensions = []
+
+        # get the interface names
+        for ext in mixs_extensions_strings:
+            try:
+                mixs_extensions.append(MixsExtensions(ext).name)
+            except ValueError:
+                logger.warning(f"Unrecognized MIxS extension '{ext}' in submission data.")
+        return mixs_extensions
+
 
 def make_unique_doi_list(entries: list[dict]) -> list[dict]:
     """Return unique dict entries. Preserves original order."""
@@ -100,13 +112,7 @@ def get_submission_fields(submission_object: dict) -> dict:
 
     # sample environment form fields
     mixs_extensions_strings = metadata_submission.get("packageName", [])
-    mixs_extensions = []
-    # get the interface names
-    for ext in mixs_extensions_strings:
-        try:
-            mixs_extensions.append(MixsExtensions(ext).name)
-        except ValueError:
-            logger.warning(f"Unrecognized MIxS extension '{ext}' in submission data.")
+    mixs_extensions = MixsExtensions.map_to_interface_name(mixs_extensions_strings)
 
     # combine and dedupe DOI list[dict]
     combined_dois = make_unique_doi_list(data_dois + publication_dois + awarddois + protocol_dois)

@@ -6,6 +6,7 @@ import pytest
 
 from nmdc_metadata_suggestor_ai_tool import recommendation_pipeline
 from nmdc_metadata_suggestor_ai_tool.llm_client import LLMClient
+from nmdc_metadata_suggestor_ai_tool.utils import build_submission_context
 
 
 def load_sample_submission_object() -> dict:
@@ -44,7 +45,7 @@ class _FakeLLMClient:
 
 def _stub_common_inputs(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        recommendation_pipeline,
+        build_submission_context,
         "get_doi_description_or_abstract",
         lambda **_: SimpleNamespace(context="Test abstract", publication_urls=[]),
     )
@@ -101,5 +102,8 @@ def test_run_recommendation_pipeline(requires_credentials: None) -> None:
         submission_object=sample_submission_object, llm_client=llm_client
     )
     print(recommended_metadata.model_dump())
+    # assert there is data in the recommended_metadata obj
+    assert recommended_metadata.metadata_fields is not None
+    assert len(recommended_metadata.metadata_fields) > 0
     end = time.time_ns()
     print(f"Pipeline execution time: {(end - start) / 1e9:.2f} seconds")
