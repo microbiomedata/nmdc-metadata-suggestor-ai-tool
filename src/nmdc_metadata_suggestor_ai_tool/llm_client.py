@@ -12,8 +12,11 @@ from google import genai
 from google.genai import types as genai_types
 from google.oauth2 import service_account
 from openai import OpenAI
+from claude_agent_sdk import query, ClaudeAgentOptions, SystemMessage, ResultMessage
+import asyncio
 
 from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
+
 
 load_dotenv()
 
@@ -36,6 +39,7 @@ PNNL_GPT_MODELS = [
 ]
 
 DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
+DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-5@20250929"
 DEFAULT_MAX_TOKENS_BY_PROVIDER: dict[str, int] = {
     "pnnl": 128000,
     "cborg": 128000,
@@ -317,3 +321,56 @@ class ConversationManager:
             text="Utilize the following schema context to "
             "inform your metadata field recommendations:\n" + schema,
         )
+
+    async def agentic(self, session_id: str | None = None) -> None:
+        """
+        Agentic interaction, session handling, and skill/tool usage via Claude Agent SDK
+        IMPORTANT NOTE: This only works with GCP auth right now.
+
+        Parameters        ----------
+        session_id: Optional session ID to resume a previous conversation. If None, starts a new session.
+
+        """
+        # set env variable to enable Claude Agent SDK to pick up GCP credentials
+        # Claude Agent SDK requires a Claude model, not a Gemini model, even on Vertex AI
+        options = ClaudeAgentOptions(skills="all", 
+                                     model=DEFAULT_CLAUDE_MODEL, 
+                                     system_prompt=self.system_prompt,
+                                     output_format={"type": "json_schema", "schema": LLMOutput.model_json_schema()},
+                                     env={
+                                        "CLAUDE_CODE_USE_VERTEX": "1",
+                                        "GOOGLE_APPLICATION_CREDENTIALS": os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+                                    }
+                                )
+
+        if session_id is None:
+            # start a new session and capture its ID
+            async for message in query(
+                prompt="Read the authentication module",
+                options=options,
+            ):
+                if isinstance(message, SystemMessage) and message.subtype == "init":
+                    session_id = message.data["session_id"]
+                elif isinstance(message, ResultMessage):
+                    result = message.result
+                else:
+                    return message
+
+        elif session_id is not None:
+            options.resume = session_id
+            async for message in query(
+                prompt="Now find all places that call it",
+                options=options,
+            ):
+                if isinstance(message, SystemMessage) and message.subtype == "init":
+                    session_id = message.data["session_id"]  # Update session_id on resume
+                elif isinstance(message, ResultMessage):
+                    result = message.result
+                    return result, session_id
+    
+
+
+llm_client = LLMClient(access_provider="gcp")
+conversation_manager = ConversationManager(llm_client=llm_client, system_prompt="You are a helpful assistant for recommending metadata fields based on NMDC submission context and schema. Provide your response strictly in JSON format adhering to the LLMOutput schema.")
+
+print(agentic_result := asyncio.run(conversation_manager.agentic()))
