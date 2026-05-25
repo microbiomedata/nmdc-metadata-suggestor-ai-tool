@@ -337,24 +337,18 @@ class ConversationManager:
                                      model=DEFAULT_CLAUDE_MODEL, 
                                      system_prompt=self.system_prompt,
                                      output_format={"type": "json_schema", "schema": LLMOutput.model_json_schema()},
-                                     env={
-                                        "CLAUDE_CODE_USE_VERTEX": "1",
-                                        "GOOGLE_APPLICATION_CREDENTIALS": os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
-                                    }
                                 )
 
         if session_id is None:
             # start a new session and capture its ID
             async for message in query(
-                prompt="Read the authentication module",
+                prompt="Recommend a metadata field for a sample with the following context: This project aims to provide new insights into molecular mechanisms underlying biochar\u2019s rhizosphere reprogramming effects, particularly the assembly and functionality of biochar-induced rhizosphere microbiome, with implications for in situ rhizosphere microbiome engineering towards sustainable crop production. Samples were collected from the ectorhizosphere of wheat plants cultivated in laboratory EcoFAB devices.",
                 options=options,
             ):
                 if isinstance(message, SystemMessage) and message.subtype == "init":
                     session_id = message.data["session_id"]
                 elif isinstance(message, ResultMessage):
                     result = message.result
-                else:
-                    return message
 
         elif session_id is not None:
             options.resume = session_id
@@ -367,6 +361,7 @@ class ConversationManager:
                 elif isinstance(message, ResultMessage):
                     result = message.result
                     return result, session_id
+        return message.structured_output, session_id
     
 
 
