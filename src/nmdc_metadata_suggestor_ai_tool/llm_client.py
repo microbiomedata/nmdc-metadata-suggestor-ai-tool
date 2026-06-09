@@ -322,7 +322,7 @@ class ConversationManager:
             "inform your metadata field recommendations:\n" + schema,
         )
 
-    async def agentic(self, session_id: str | None = None) -> None:
+    async def agentic(self, session_id: str | None = None, message: str | None = None) -> None:
         """
         Agentic interaction, session handling, and skill/tool usage via Claude Agent SDK
         IMPORTANT NOTE: This only works with GCP auth right now.
@@ -342,7 +342,7 @@ class ConversationManager:
         if session_id is None:
             # start a new session and capture its ID
             async for message in query(
-                prompt="Recommend a metadata field for a sample with the following context: This project aims to provide new insights into molecular mechanisms underlying biochar\u2019s rhizosphere reprogramming effects, particularly the assembly and functionality of biochar-induced rhizosphere microbiome, with implications for in situ rhizosphere microbiome engineering towards sustainable crop production. Samples were collected from the ectorhizosphere of wheat plants cultivated in laboratory EcoFAB devices.",
+                prompt=f"Recommend a metadata field for a sample with the following context: {message}",
                 options=options,
             ):
                 if isinstance(message, SystemMessage) and message.subtype == "init":
@@ -362,10 +362,3 @@ class ConversationManager:
                     result = message.result
                     return result, session_id
         return message.structured_output, session_id
-    
-
-
-llm_client = LLMClient(access_provider="gcp")
-conversation_manager = ConversationManager(llm_client=llm_client, system_prompt="You are a helpful assistant for recommending metadata fields based on NMDC submission context and schema. Provide your response strictly in JSON format adhering to the LLMOutput schema.")
-
-print(agentic_result := asyncio.run(conversation_manager.agentic()))
