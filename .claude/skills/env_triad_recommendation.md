@@ -6,7 +6,7 @@ Use this skill to suggest values for `env_broad_scale`, `env_local_scale`, and `
 
 ## Goal
 
-For each input sample, produce three metadata field suggestions:
+For each input sample, you must produce three metadata field suggestions:
 - `env_broad_scale` — broad ecological biome (e.g. `"temperate grassland biome [ENVO:01000196]"`)
 - `env_local_scale` — local environmental feature (e.g. `"agricultural field [ENVO:00000114]"`)
 - `env_medium` — environmental material (e.g. `"soil [ENVO:00001998]"`)
@@ -16,8 +16,7 @@ Values must use the format `"label [CURIE]"` from the NMDC schema enumerations.
 ---
 
 ## Step 1 — Assign sample IDs
-
-If any sample is missing an `id` field, assign a string index (`"0"`, `"1"`, ...). Never fabricate or normalize existing IDs — copy them verbatim.
+For sample level suggestions, the suggestion must be tied to an ID. Copy the ID verbatiem if it exists in the input data. If samples are missing an `id` field, assign a string index (`"0"`, `"1"`, ...). Never fabricate or normalize existing IDs — copy them verbatim.
 
 ---
 
@@ -70,7 +69,7 @@ Process samples in chunks of 50 if there are many. For each sample, use all gath
 - Always populate `value` when you can identify an appropriate ENVO term — from sample record fields, geographic info, habitat descriptions, or study context
 - If the exact term is already present in the sample record (e.g. an existing `env_broad_scale` field), copy it verbatim into `value`
 - If you quote a value in `reason`, that value is explicit — put it in `value` too
-- Only leave `value` empty when there is genuinely insufficient information to identify any ENVO term
+- Do not leave `value` empty, instead suggest the most generic term relevant if there is not sufficient information for a moer specific term. 
 
 **Reason rules:**
 - Every `reason` must cite specific input text (exact short quote up to 12 words, or paraphrase with source label such as "abstract", "study description", "sample field")
