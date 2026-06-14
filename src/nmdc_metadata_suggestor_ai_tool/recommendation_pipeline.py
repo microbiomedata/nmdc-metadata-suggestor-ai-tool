@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 def run_recommendation_pipeline(
     submission_object: dict,
     llm_client: LLMClient,
+    interface_tab: str | None = None, 
     max_tokens: int | None = None,
 ) -> LLMOutput:
     """Run the metadata recommendation pipeline for a submission and LLM client.
@@ -23,6 +24,7 @@ def run_recommendation_pipeline(
         submission_object: Raw submission object containing NMDC metadata fields.
         llm_client: LLMClient instance used for model interaction.
         max_tokens: Optional maximum number of output response tokens.
+        interface_tab  : Optional, specific interface tab to work from
 
     Returns:
         The response from the LLM containing the recommended metadata fields.
@@ -42,8 +44,8 @@ def run_recommendation_pipeline(
         conversation_manager.add_message(
             text="Use the PDFs to inform your suggestions", pdf_files=pdf_files
         )
-
-    mixs_extensions = parsed_submission_object.get("mixs_extensions", [])
+    # fall back to submisison object if interface tab is not specified
+    mixs_extensions = interface_tab if interface_tab else parsed_submission_object.get("mixs_extensions", [])
 
     builder = SchemaContextBuilder()
     mixs_schema = builder.format_multi_interface_context(mixs_extensions)
