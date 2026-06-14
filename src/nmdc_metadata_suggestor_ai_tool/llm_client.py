@@ -12,7 +12,7 @@ from google import genai
 from google.genai import types as genai_types
 from google.oauth2 import service_account
 from openai import OpenAI
-from claude_agent_sdk import query, ClaudeAgentOptions, SystemMessage, ResultMessage
+from claude_agent_sdk import query, ClaudeAgentOptions, SystemMessage, ResultMessage, AssistantMessage
 import asyncio
 
 from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
@@ -345,8 +345,11 @@ class ConversationManager:
                 prompt=f"Recommend a metadata field for a sample with the following context: {message}",
                 options=options,
             ):
+                
                 if isinstance(message, SystemMessage) and message.subtype == "init":
                     session_id = message.data["session_id"]
+                elif isinstance(message, AssistantMessage):
+                    print(f"Assistant: {message.content}")
                 elif isinstance(message, ResultMessage):
                     result = message.result
 
