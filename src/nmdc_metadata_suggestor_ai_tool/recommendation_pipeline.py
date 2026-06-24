@@ -6,7 +6,10 @@ from nmdc_metadata_suggestor_ai_tool.publication_ingestion.download_pdf import r
 from nmdc_metadata_suggestor_ai_tool.schema_context import SchemaContextBuilder
 from nmdc_metadata_suggestor_ai_tool.system_prompt import system_prompt
 from nmdc_metadata_suggestor_ai_tool.utils.build_submission_context import build_submission_context
-from nmdc_metadata_suggestor_ai_tool.utils.submission_parser import get_submission_fields
+from nmdc_metadata_suggestor_ai_tool.utils.submission_parser import (
+    MixsExtensions,
+    get_submission_fields,
+)
 from nmdc_metadata_suggestor_ai_tool.utils.utils import validate_output
 
 logger = logging.getLogger(__name__)
@@ -23,8 +26,10 @@ def run_recommendation_pipeline(
     Parameters:
         submission_object: Raw submission object containing NMDC metadata fields.
         llm_client: LLMClient instance used for model interaction.
+        interface_name: Optional specific interface to work from. Accepts either a
+            MIxS package value ("soil") or an interface class name ("SoilInterface").
+            When given, it overrides the interfaces parsed from the submission object.
         max_tokens: Optional maximum number of output response tokens.
-        interface_tab  : Optional, specific interface tab to work from
 
     Returns:
         The response from the LLM containing the recommended metadata fields.
@@ -44,9 +49,14 @@ def run_recommendation_pipeline(
         conversation_manager.add_message(
             text="Use the PDFs to inform your suggestions", pdf_files=pdf_files
         )
-    # fall back to submisison object if interface tab is not specified
+    # Resolve a supplied interface_name to MIxS interface class names via
+    # map_to_interface_name, which accepts a value ("soil") or a class name
+    # ("SoilInterface"). It takes a list, so wrap the single value. Do not pass
+    # the bare string to list(): that iterates it into characters
+    # ("soil" -> ["s", "o", "i", "l"]) and the interface lookup then fails.
+    # When no interface_name is given, fall back to the submission object.
     mixs_extensions = (
-        list(interface_name)
+        MixsExtensions.map_to_interface_name([interface_name])
         if interface_name
         else parsed_submission_object.get("mixs_extensions", [])
     )
