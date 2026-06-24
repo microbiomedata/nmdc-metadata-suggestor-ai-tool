@@ -194,6 +194,48 @@ def test_interface_name_does_not_crash_schema_context_builder(
     assert result.metadata_fields[0].field_name == "env_broad_scale"
 
 
+def test_interface_name_overrides_submission_package(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A supplied ``interface_name`` takes precedence over the submission's own
+    package. The sample submission is a soil package; passing ``"water"`` should
+    drive the schema context to ``["WaterInterface"]``, not the submission's soil.
+
+    Reveals the bug: ``list("water")`` yields ``["w", "a", "t", "e", "r"]``.
+    """
+    captured = _spy_on_schema_context(monkeypatch)
+    client = _FakeLLMClient(response=_VALID_RESPONSE)
+
+    recommendation_pipeline.run_recommendation_pipeline(
+        submission_object=load_sample_submission_object(),
+        llm_client=client,
+        interface_name="water",
+    )
+
+    assert captured["class_names"] == ["WaterInterface"]
+
+
+@pytest.mark.parametrize("interface_name", [None, ""])
+def test_absent_interface_name_falls_back_to_submission_package(
+    monkeypatch: pytest.MonkeyPatch, interface_name: str | None
+) -> None:
+    """When ``interface_name`` is absent or empty, the pipeline falls back to the
+    interfaces parsed from the submission object (soil for the sample fixture).
+
+    Passes today; a regression guard so the fix preserves the fallback path.
+    """
+    captured = _spy_on_schema_context(monkeypatch)
+    client = _FakeLLMClient(response=_VALID_RESPONSE)
+
+    recommendation_pipeline.run_recommendation_pipeline(
+        submission_object=load_sample_submission_object(),
+        llm_client=client,
+        interface_name=interface_name,
+    )
+
+    assert captured["class_names"] == ["SoilInterface"]
+
+
 def test_run_recommendation_pipeline(requires_credentials: None) -> None:
     start = time.time_ns()
     sample_submission_object = load_sample_submission_object()
