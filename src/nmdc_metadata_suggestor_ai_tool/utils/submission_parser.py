@@ -21,14 +21,27 @@ class MixsExtensions(Enum):
 
     @staticmethod
     def map_to_interface_name(mixs_extensions_strings: list[str]) -> list[str]:
-        mixs_extensions = []
-
-        # get the interface names
+        """
+        Accept either enum values (e.g., "soil") or enum names (e.g., "SoilInterface"),
+        and return enum names (e.g., "SoilInterface").
+        """
+        mixs_extensions: list[str] = []
         for ext in mixs_extensions_strings:
+            if not ext:
+                continue
             try:
+                # If ext is a value like "soil"
                 mixs_extensions.append(MixsExtensions(ext).name)
+                continue
             except ValueError:
+                pass
+
+            try:
+                # If ext is a name like "SoilInterface"
+                mixs_extensions.append(MixsExtensions[ext].name)
+            except KeyError:
                 logger.warning(f"Unrecognized MIxS extension '{ext}' in submission data.")
+
         return mixs_extensions
 
 
