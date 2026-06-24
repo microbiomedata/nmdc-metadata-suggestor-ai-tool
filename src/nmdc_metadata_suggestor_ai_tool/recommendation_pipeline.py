@@ -45,8 +45,11 @@ def run_recommendation_pipeline(
             text="Use the PDFs to inform your suggestions", pdf_files=pdf_files
         )
     # fall back to submisison object if interface tab is not specified
-    mixs_extensions = (list(interface_name) if interface_name
-                       else parsed_submission_object.get("mixs_extensions", []))
+    mixs_extensions = (
+        list(interface_name)
+        if interface_name
+        else parsed_submission_object.get("mixs_extensions", [])
+    )
 
     builder = SchemaContextBuilder()
     mixs_schema = builder.format_multi_interface_context(mixs_extensions)
