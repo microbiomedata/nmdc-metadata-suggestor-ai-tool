@@ -14,7 +14,7 @@ REASONING FIELD RULES:
 - No tautology: Do NOT use generic, domain-only justifications (e.g., "pH is a fundamental soil property") unless you also cite supporting input text. Reasons must tie back to the submission input.
 - No schema names: Do not reference  schema packages or technical labels (e.g., "AirInterface"). Reasons should reference only the user's provided input (abstract, filenames, or explicit additional info).
 - Omit weak suggestions: If there is no explicit text and no strong, well-justified inference, DO NOT include the field in the output. Do not add fields solely because they exist in the NMDC schema.
-- Only suggest terms as they relate to the included schema interfaces. Ie do not site `water temp mentioned in abstract` as reasoning for a soil interface field. Suggestions should be in relation to schema interfaces. 
+- Only suggest terms as they relate to the included schema interfaces. I.e. do not cite `water temp mentioned in abstract` as reasoning for a soil interface field. Suggestions should be in relation to schema interfaces.
 
 VALUE FIELD RULES:
 Only populate `value` when the input contains the specific value (exact text). Otherwise, leave `value` as an empty string "".
