@@ -29,7 +29,6 @@ class MixsExtensions(Enum):
         for ext in mixs_extensions_strings:
             if not ext:
                 continue
-            
             try:
                 # If ext is a value like "soil"
                 mixs_extensions.append(MixsExtensions(ext).name)
