@@ -49,7 +49,12 @@ def run_recommendation_pipeline(
         conversation_manager.add_message(
             text="Use the PDFs to inform your suggestions", pdf_files=pdf_files
         )
-    # fall back to the submission object if an interface is not specified
+    # Resolve a supplied interface_name to MIxS interface class names via
+    # map_to_interface_name, which accepts a value ("soil") or a class name
+    # ("SoilInterface"). It takes a list, so wrap the single value. Do not pass
+    # the bare string to list(): that iterates it into characters
+    # ("soil" -> ["s", "o", "i", "l"]) and the interface lookup then fails.
+    # When no interface_name is given, fall back to the submission object.
     mixs_extensions = (
         MixsExtensions.map_to_interface_name([interface_name])
         if interface_name
