@@ -38,6 +38,11 @@ Output schema:
 """
 
 
+orchestrator_prompt = """
+Use the nmdc-metadata-suggestor skill to process the input and return a merged LLMOutput JSON.
+"""
+
+
 env_triad_prompt = """
 Use the provided information to suggest values for the following three metadata fields: env_broad_scale, env_local_scale, and env_medium.
 

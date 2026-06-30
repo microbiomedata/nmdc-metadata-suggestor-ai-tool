@@ -16,6 +16,7 @@ from claude_agent_sdk import query, ClaudeAgentOptions, SystemMessage, ResultMes
 import asyncio
 
 from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
+from nmdc_metadata_suggestor_ai_tool.system_prompt import orchestrator_prompt
 
 
 load_dotenv()
@@ -333,9 +334,9 @@ class ConversationManager:
         """
         # set env variable to enable Claude Agent SDK to pick up GCP credentials
         # Claude Agent SDK requires a Claude model, not a Gemini model, even on Vertex AI
-        options = ClaudeAgentOptions(skills="all", 
-                                     model=DEFAULT_CLAUDE_MODEL, 
-                                     system_prompt=self.system_prompt,
+        options = ClaudeAgentOptions(skills="all",
+                                     model=DEFAULT_CLAUDE_MODEL,
+                                     system_prompt=orchestrator_prompt,
                                      output_format={"type": "json_schema", "schema": LLMOutput.model_json_schema()},
                                 )
 
