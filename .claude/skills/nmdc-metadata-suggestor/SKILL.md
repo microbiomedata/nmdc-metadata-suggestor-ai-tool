@@ -30,19 +30,7 @@ Receives data, determines what to run, returns `LLMOutput` JSON. No user interac
 
 ---
 
-## Step 3 — Apply progressive context loading
-
-Load skills only as the input warrants:
-
-1. **Submission object present** → run **submission-parser** to extract structured fields
-2. **DOIs found** → run **doi-ingestion** for each DOI (`skip_classification=True`, pass `provider` when known)
-3. **`publication_urls` returned** → use built-in `web-fetch` to read PDF content inline (see **pdf-ingestion** skill)
-4. **Interface type identifiable** → narrow schema to those interfaces; otherwise load all
-5. **Schema always needed** → run **schema-context** (`format_env_triad_context` or `format_multi_interface_context`)
-
----
-
-## Step 4 — Execute and return
+## Step 3 — Execute and return
 
 Run the routed skill(s) and return a single `LLMOutput` JSON object.
 
