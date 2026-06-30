@@ -342,7 +342,7 @@ class ConversationManager:
         if session_id is None:
             # start a new session and capture its ID
             async for message in query(
-                prompt=f"Recommend a metadata field for a sample with the following context: {message}",
+                prompt=message,
                 options=options,
             ):
                 
@@ -356,7 +356,7 @@ class ConversationManager:
         elif session_id is not None:
             options.resume = session_id
             async for message in query(
-                prompt="Now find all places that call it",
+                prompt=message,
                 options=options,
             ):
                 if isinstance(message, SystemMessage) and message.subtype == "init":
