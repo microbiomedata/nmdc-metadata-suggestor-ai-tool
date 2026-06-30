@@ -327,7 +327,9 @@ class ConversationManager:
             "inform your metadata field recommendations:\n" + schema,
         )
 
-    async def agentic(self, session_id: str | None = None, message: str | None = None) -> None:
+    async def agentic(
+        self, session_id: str | None = None, message: str | None = None
+    ) -> tuple[Any, str | None]:
         """
         Agentic interaction, session handling, and skill/tool usage via Claude Agent SDK
         IMPORTANT NOTE: This only works with GCP auth right now.
@@ -347,28 +349,32 @@ class ConversationManager:
             output_format={"type": "json_schema", "schema": LLMOutput.model_json_schema()},
         )
 
+        if message is None:
+            raise ValueError("message is required")
+
+        result: Any = None
         if session_id is None:
             # start a new session and capture its ID
-            async for message in query(
+            async for event in query(
                 prompt=message,
                 options=options,
             ):
-                if isinstance(message, SystemMessage) and message.subtype == "init":
-                    session_id = message.data["session_id"]
-                elif isinstance(message, AssistantMessage):
-                    print(f"Assistant: {message.content}")
-                elif isinstance(message, ResultMessage):
-                    result = message.result
+                if isinstance(event, SystemMessage) and event.subtype == "init":
+                    session_id = event.data["session_id"]
+                elif isinstance(event, AssistantMessage):
+                    print(f"Assistant: {event.content}")
+                elif isinstance(event, ResultMessage):
+                    result = event.result
 
-        elif session_id is not None:
+        else:
             options.resume = session_id
-            async for message in query(
+            async for event in query(
                 prompt=message,
                 options=options,
             ):
-                if isinstance(message, SystemMessage) and message.subtype == "init":
-                    session_id = message.data["session_id"]  # Update session_id on resume
-                elif isinstance(message, ResultMessage):
-                    result = message.result
+                if isinstance(event, SystemMessage) and event.subtype == "init":
+                    session_id = event.data["session_id"]
+                elif isinstance(event, ResultMessage):
+                    result = event.result
                     return result, session_id
-        return message.structured_output, session_id
+        return result, session_id
