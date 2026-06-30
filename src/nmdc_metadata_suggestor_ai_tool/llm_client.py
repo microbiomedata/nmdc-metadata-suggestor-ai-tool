@@ -7,17 +7,21 @@ from typing import Any, cast
 
 import google.auth
 import google.auth.transport.requests
+from claude_agent_sdk import (
+    AssistantMessage,
+    ClaudeAgentOptions,
+    ResultMessage,
+    SystemMessage,
+    query,
+)
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types as genai_types
 from google.oauth2 import service_account
 from openai import OpenAI
-from claude_agent_sdk import query, ClaudeAgentOptions, SystemMessage, ResultMessage, AssistantMessage
-import asyncio
 
 from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
 from nmdc_metadata_suggestor_ai_tool.system_prompt import orchestrator_prompt
-
 
 load_dotenv()
 
@@ -328,17 +332,20 @@ class ConversationManager:
         Agentic interaction, session handling, and skill/tool usage via Claude Agent SDK
         IMPORTANT NOTE: This only works with GCP auth right now.
 
-        Parameters        ----------
-        session_id: Optional session ID to resume a previous conversation. If None, starts a new session.
+        Parameters
+        ----------
+        session_id: Optional session ID to resume a previous conversation.
+        If None, starts a new session.
 
         """
         # set env variable to enable Claude Agent SDK to pick up GCP credentials
         # Claude Agent SDK requires a Claude model, not a Gemini model, even on Vertex AI
-        options = ClaudeAgentOptions(skills="all",
-                                     model=DEFAULT_CLAUDE_MODEL,
-                                     system_prompt=orchestrator_prompt,
-                                     output_format={"type": "json_schema", "schema": LLMOutput.model_json_schema()},
-                                )
+        options = ClaudeAgentOptions(
+            skills="all",
+            model=DEFAULT_CLAUDE_MODEL,
+            system_prompt=orchestrator_prompt,
+            output_format={"type": "json_schema", "schema": LLMOutput.model_json_schema()},
+        )
 
         if session_id is None:
             # start a new session and capture its ID
@@ -346,7 +353,6 @@ class ConversationManager:
                 prompt=message,
                 options=options,
             ):
-                
                 if isinstance(message, SystemMessage) and message.subtype == "init":
                     session_id = message.data["session_id"]
                 elif isinstance(message, AssistantMessage):

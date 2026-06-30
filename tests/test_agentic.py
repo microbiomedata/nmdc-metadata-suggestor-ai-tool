@@ -33,7 +33,11 @@ def _assert_valid_output(result: object) -> LLMOutput:
     structured, session_id = result
     structured = structured.get("parameters") if structured.get("parameters") else structured
     assert session_id is not None, "Expected a session_id to be returned"
-    output = LLMOutput.model_validate_json(structured) if isinstance(structured, str) else LLMOutput.model_validate(structured)
+    output = (
+        LLMOutput.model_validate_json(structured)
+        if isinstance(structured, str)
+        else LLMOutput.model_validate(structured)
+    )
     assert isinstance(output, LLMOutput), f"Expected LLMOutput, got {type(output)}"
     assert output.metadata_fields, "Expected at least one metadata field suggestion"
     for field in output.metadata_fields:
@@ -45,6 +49,7 @@ def _assert_valid_output(result: object) -> LLMOutput:
 # ---------------------------------------------------------------------------
 # Metadata suggestion pipeline (full submission object)
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.integration
 @pytest.mark.timeout(INTEGRATION_TIMEOUT)
@@ -74,6 +79,7 @@ def test_agentic_metadata_pipeline_with_test_submission(requires_credentials: No
 # ---------------------------------------------------------------------------
 # Env triad (ETL-shaped biosample + study context)
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.integration
 @pytest.mark.timeout(INTEGRATION_TIMEOUT)
@@ -126,6 +132,7 @@ def test_agentic_env_triad_with_study_context(requires_credentials: None) -> Non
 # Session resumption
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.integration
 @pytest.mark.timeout(INTEGRATION_TIMEOUT * 2)
 def test_agentic_session_resumption(requires_credentials: None) -> None:
@@ -140,9 +147,11 @@ def test_agentic_session_resumption(requires_credentials: None) -> None:
     assert session_id, "Expected a session_id after first turn"
 
     # second turn — resume session
-    result2 = asyncio.run(cm.agentic(
-        session_id=session_id,
-        message="Focus only on fields related to the study's geographic location.",
-    ))
+    result2 = asyncio.run(
+        cm.agentic(
+            session_id=session_id,
+            message="Focus only on fields related to the study's geographic location.",
+        )
+    )
     output = _assert_valid_output(result2)
     assert output.metadata_fields, "Expected suggestions in resumed session"
