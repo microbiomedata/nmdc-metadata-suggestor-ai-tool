@@ -1,5 +1,5 @@
 ---
-name: schema_context
+name: schema-context
 description: Use this skill to retrieve and format NMDC submission schema context (MIxS interface slots and env triad values) for use in LLM recommendation prompts.
 ---
 

@@ -1,5 +1,5 @@
 ---
-name: env_triad
+name: env-triad
 description: Use this skill to suggest env_broad_scale, env_local_scale, and env_medium values for NMDC biosample records using study context, DOI abstracts, and schema enumerations.
 ---
 
@@ -28,11 +28,11 @@ For sample level suggestions, the suggestion must be tied to an ID. Copy the ID 
 ## Step 2 — Gather study context
 
 **If a `submission_object` is provided:**
-1. Use the **submission_parser** skill to extract structured fields
-2. Use the **build_study_context** skill to fetch DOI abstracts and PDFs
+1. Use the **submission-parser** skill to extract structured fields
+2. Use the **build-study-context** skill to fetch DOI abstracts and PDFs
 
 **If `study_context` is provided (ETL path):**
-1. Use the **build_study_context** skill with `study_context` directly — no parsing needed
+1. Use the **build-study-context** skill with `study_context` directly — no parsing needed
 
 **If neither is provided:** use only the sample data itself as evidence.
 

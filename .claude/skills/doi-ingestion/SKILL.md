@@ -1,5 +1,5 @@
 ---
-name: doi_ingestion
+name: doi-ingestion
 description: Use this skill to fetch abstract or description text for a DOI using a source waterfall (datacite, crossref, openalex, pubmed, and repository-specific sources like osti, ess-dive, jgi).
 ---
 

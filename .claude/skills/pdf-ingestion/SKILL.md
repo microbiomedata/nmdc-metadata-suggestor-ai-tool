@@ -1,5 +1,5 @@
 ---
-name: pdf_ingestion
+name: pdf-ingestion
 description: Use this skill to retrieve PDF content for publications — via web_fetch in the agentic path, or download_pdf_to_tempfile in the programmatic path.
 ---
 

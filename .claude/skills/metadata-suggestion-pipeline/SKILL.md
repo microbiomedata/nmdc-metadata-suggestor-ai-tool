@@ -1,5 +1,5 @@
 ---
-name: metadata_suggestion_pipeline
+name: metadata-suggestion-pipeline
 description: Use this skill to suggest metadata field values for a full NMDC submission object by parsing submission data, fetching DOI/PDF context, loading schema, and returning cited LLMOutput JSON.
 ---
 
@@ -17,13 +17,13 @@ Analyze the submission context and suggest values for any NMDC metadata fields t
 
 ## Step 1 — Parse the submission object
 
-Use the **submission_parser** skill to extract structured fields (DOIs, description, study name, protocol info, MIxS extensions).
+Use the **submission-parser** skill to extract structured fields (DOIs, description, study name, protocol info, MIxS extensions).
 
 ---
 
 ## Step 2 — Build study context
 
-Use the **build_study_context** skill with the parsed submission to:
+Use the **build-study-context** skill with the parsed submission to:
 - Assemble base text (description, notes, study name, protocol info)
 - Fetch DOI abstracts
 - Download PDFs
@@ -34,7 +34,7 @@ This yields `context_texts` (list of strings) and `pdf_paths` (list of temp file
 
 ## Step 3 — Load schema context
 
-Use the **schema_skill** with the `mixs_extensions` from the parsed submission:
+Use the **schema-context** skill with the `mixs_extensions` from the parsed submission:
 
 ```python
 builder = SchemaContextBuilder()
