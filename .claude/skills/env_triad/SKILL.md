@@ -1,3 +1,8 @@
+---
+name: env_triad
+description: Use this skill to suggest env_broad_scale, env_local_scale, and env_medium values for NMDC biosample records using study context, DOI abstracts, and schema enumerations.
+---
+
 # Env Triad Recommendation Skill
 
 Use this skill to suggest values for `env_broad_scale`, `env_local_scale`, and `env_medium` for one or more NMDC biosample records. You are the recommender — execute all steps yourself.

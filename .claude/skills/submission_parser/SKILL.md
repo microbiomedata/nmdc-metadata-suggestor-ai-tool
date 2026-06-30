@@ -1,3 +1,8 @@
+---
+name: submission_parser
+description: Use this skill to extract structured fields (DOIs, study name, description, protocol info, MIxS extensions) from a raw NMDC submission portal object. Called at the start of metadata_suggestion_pipeline and env_triad when a submission_object is present.
+---
+
 # Submission Parser Skill
 
 Use this skill to extract structured fields from a raw NMDC submission portal object. Called at the start of both `metadata_suggestion_pipeline` and `env_triad_recommendation` when a `submission_object` is present.

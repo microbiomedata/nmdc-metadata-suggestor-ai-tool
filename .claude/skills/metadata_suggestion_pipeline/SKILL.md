@@ -1,3 +1,8 @@
+---
+name: metadata_suggestion_pipeline
+description: Use this skill to suggest metadata field values for a full NMDC submission object by parsing submission data, fetching DOI/PDF context, loading schema, and returning cited LLMOutput JSON.
+---
+
 # Metadata Suggestion Pipeline Skill
 
 Use this skill to suggest metadata field values for a full NMDC submission object. You are the recommender — execute all steps yourself.

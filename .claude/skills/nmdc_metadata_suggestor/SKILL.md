@@ -1,3 +1,8 @@
+---
+name: nmdc_metadata_suggestor
+description: Use this skill to orchestrate NMDC metadata suggestions — detects input shape, routes to env_triad and/or metadata_suggestion_pipeline, and returns a merged LLMOutput JSON. Entry point for all metadata suggestion requests.
+---
+
 # NMDC Metadata Suggestor Orchestration Skill
 
 Receives data, determines what to run, returns `LLMOutput` JSON. No user interaction.

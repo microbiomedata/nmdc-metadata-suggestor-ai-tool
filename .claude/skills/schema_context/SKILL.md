@@ -1,3 +1,8 @@
+---
+name: schema_context
+description: Use this skill to retrieve and format NMDC submission schema context (MIxS interface slots and env triad values) for use in LLM recommendation prompts.
+---
+
 # Schema Context Skill
 
 Use this skill when you need to retrieve or format NMDC submission schema context for LLM prompts, as done in the recommendation pipeline.
