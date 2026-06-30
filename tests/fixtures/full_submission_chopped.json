@@ -1,0 +1,2169 @@
+{
+  "metadata_submission": {
+    "packageName": [
+      "water"
+    ],
+    "addressForm": {
+      "shipper": {
+        "name": "",
+        "email": "",
+        "phone": "",
+        "line1": "",
+        "line2": "",
+        "city": "",
+        "state": "",
+        "postalCode": "",
+        "country": "USA"
+      },
+      "expectedShippingDate": null,
+      "shippingConditions": "",
+      "sample": "",
+      "description": "",
+      "experimentalGoals": "",
+      "randomization": "",
+      "usdaRegulated": null,
+      "permitNumber": "",
+      "biosafetyLevel": "",
+      "irbOrHipaa": null,
+      "comments": ""
+    },
+    "templates": [
+      "water",
+      "jgi_mg"
+    ],
+    "studyForm": {
+      "studyName": "Continental-scale metagenomics: leveraging the NSF National Ecological Observatory Network to advance understanding of terrestrial and aquatic microbial communities in response to land use and climate change (AY23_plt04)",
+      "piName": "Test Principal Investigator",
+      "piEmail": "test.pi@example.org",
+      "piOrcid": "0000-0000-0000-0000",
+      "fundingSources": null,
+      "dataDois": null,
+      "publicationDois": null,
+      "linkOutWebpage": [
+        "https://www.neonscience.org/"
+      ],
+      "studyDate": null,
+      "description": "Microbial communities in the soil and water provide the machinery that runs terrestrial and aquatic nutrient cycles and are key to maintaining the flow of energy and materials through the ecosystem. Our project aims to produce freely available metagenomics data of unprecedented scope to enable novel analyses and insights into microbial communities. By linking these genomic data with the wealth of measurements from NEON's long-term ecological monitoring project, this project will provide unmatched opportunities for researchers to explore the fundamental drivers of ecological change from local to continental scales.",
+      "notes": "",
+      "contributors": [],
+      "alternativeNames": [],
+      "GOLDStudyId": "",
+      "NCBIBioProjectId": ""
+    },
+    "multiOmicsForm": {
+      "award": "CSP",
+      "awardDois": [
+        {
+          "value": "",
+          "provider": ""
+        }
+      ],
+      "dataGenerated": false,
+      "doe": true,
+      "facilities": [
+        "JGI"
+      ],
+      "facilityGenerated": null,
+      "JGIStudyId": "509938",
+      "mgCompatible": null,
+      "mgInterleaved": null,
+      "mtCompatible": null,
+      "mtInterleaved": null,
+      "omicsProcessingTypes": [
+        "mg-jgi"
+      ],
+      "otherAward": "",
+      "ship": null,
+      "studyNumber": "",
+      "unknownDoi": true,
+      "mpProtocols": null,
+      "mbProtocols": null,
+      "mbGcProtocols": null,
+      "lipProtocols": null,
+      "nomProtocols": null,
+      "nomLcProtocols": null,
+      "GOLDStudyId": "",
+      "NCBIBioProjectId": "",
+      "alternativeNames": []
+    },
+    "sampleData": {
+      "water_data": [
+        {
+          "elev": 3021.6,
+          "depth": "0 - 0.5",
+          "lat_lon": "40.034962 -105.544164",
+          "ecosystem": "Environmental",
+          "samp_name": "COMO.20230808.EPILITHON.5",
+          
+          "geo_loc_name": "USA: CO, Boulder County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-08-08",
+          "collection_time": "15:02:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 2908,
+          "depth": "0 - 0.5",
+          "lat_lon": "39.891366 -105.915395",
+          "ecosystem": "Environmental",
+          "samp_name": "WLOU.20230815.EPILITHON.1",
+          
+          "geo_loc_name": "USA: CO, Grand County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-08-15",
+          "collection_time": "15:22:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 2908,
+          "depth": "0 - 0.5",
+          "lat_lon": "39.891366 -105.915395",
+          "ecosystem": "Environmental",
+          "samp_name": "WLOU.20230815.EPILITHON.2",
+          
+          "geo_loc_name": "USA: CO, Grand County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-08-15",
+          "collection_time": "15:22:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 2908,
+          "depth": "0 - 0.5",
+          "lat_lon": "39.891366 -105.915395",
+          "ecosystem": "Environmental",
+          "samp_name": "WLOU.20230815.EPILITHON.3",
+          
+          "geo_loc_name": "USA: CO, Grand County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-08-15",
+          "collection_time": "15:22:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 2908,
+          "depth": "0 - 0.5",
+          "lat_lon": "39.891366 -105.915395",
+          "ecosystem": "Environmental",
+          "samp_name": "WLOU.20230815.EPILITHON.4",
+          
+          "geo_loc_name": "USA: CO, Grand County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-08-15",
+          "collection_time": "15:22:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 2908,
+          "depth": "0 - 0.5",
+          "lat_lon": "39.891366 -105.915395",
+          "ecosystem": "Environmental",
+          "samp_name": "WLOU.20230815.EPILITHON.5",
+          
+          "geo_loc_name": "USA: CO, Grand County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-08-15",
+          "collection_time": "15:22:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 2901.2,
+          "temp": 6,
+          "depth": "0 - 0.5",
+          "lat_lon": "39.890674 -105.911293",
+          "ecosystem": "Environmental",
+          "samp_name": "WLOU.SS.20230718",
+          
+          "geo_loc_name": "USA: CO, Grand County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-18",
+          "collection_time": "14:32:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "water [MIXS:0016014]"
+        },
+        {
+          "elev": 1197,
+          "depth": "0 - 0.5",
+          "lat_lon": "37.059719 -119.257549",
+          "ecosystem": "Environmental",
+          "samp_name": "BIGC.20230712.EPILITHON.1",
+          
+          "geo_loc_name": "USA: CA, Fresno County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-12",
+          "collection_time": "17:49:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 1197,
+          "depth": "0 - 0.5",
+          "lat_lon": "37.059719 -119.257549",
+          "ecosystem": "Environmental",
+          "samp_name": "BIGC.20230712.EPILITHON.2",
+          
+          "geo_loc_name": "USA: CA, Fresno County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-12",
+          "collection_time": "17:49:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 1197,
+          "depth": "0 - 0.5",
+          "lat_lon": "37.059719 -119.257549",
+          "ecosystem": "Environmental",
+          "samp_name": "BIGC.20230712.EPILITHON.3",
+          
+          "geo_loc_name": "USA: CA, Fresno County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-12",
+          "collection_time": "17:49:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 1129.9,
+          "temp": 14,
+          "depth": "0 - 0.5",
+          "lat_lon": "37.057672 -119.255375",
+          "ecosystem": "Environmental",
+          "samp_name": "BIGC.SS.20230710",
+          
+          "geo_loc_name": "USA: CA, Fresno County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-10",
+          "collection_time": "17:32:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "water [MIXS:0016014]"
+        },
+        {
+          "elev": 2011,
+          "depth": "0 - 0.5",
+          "lat_lon": "36.955931 -119.027363",
+          "ecosystem": "Environmental",
+          "samp_name": "TECR.20230821.EPILITHON.1",
+          
+          "geo_loc_name": "USA: CA, Fresno County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-08-21",
+          "collection_time": "18:13:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 2011,
+          "depth": "0 - 0.5",
+          "lat_lon": "36.955931 -119.027363",
+          "ecosystem": "Environmental",
+          "samp_name": "TECR.20230821.EPILITHON.2",
+          
+          "geo_loc_name": "USA: CA, Fresno County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-08-21",
+          "collection_time": "18:13:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 2011,
+          "depth": "0 - 0.5",
+          "lat_lon": "36.955931 -119.027363",
+          "ecosystem": "Environmental",
+          "samp_name": "TECR.20230821.EPILITHON.3",
+          
+          "geo_loc_name": "USA: CA, Fresno County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-08-21",
+          "collection_time": "18:13:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 2011,
+          "depth": "0 - 0.5",
+          "lat_lon": "36.955931 -119.027363",
+          "ecosystem": "Environmental",
+          "samp_name": "TECR.20230821.EPILITHON.4",
+          
+          "geo_loc_name": "USA: CA, Fresno County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-08-21",
+          "collection_time": "18:13:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 2011,
+          "depth": "0 - 0.5",
+          "lat_lon": "36.955931 -119.027363",
+          "ecosystem": "Environmental",
+          "samp_name": "TECR.20230821.EPILITHON.5",
+          
+          "geo_loc_name": "USA: CA, Fresno County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-08-21",
+          "collection_time": "18:13:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 2011,
+          "depth": "0 - 0.5",
+          "lat_lon": "36.955931 -119.027363",
+          "ecosystem": "Environmental",
+          "samp_name": "TECR.20230821.EPILITHON.6",
+          
+          "geo_loc_name": "USA: CA, Fresno County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-08-21",
+          "collection_time": "18:13:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 645,
+          "depth": "0 - 0.5",
+          "lat_lon": "33.750993 -111.508091",
+          "ecosystem": "Environmental",
+          "samp_name": "SYCA.20230606.EPIPSAMMON.1",
+          
+          "geo_loc_name": "USA: AZ, Maricopa County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-06-06",
+          "collection_time": "15:31:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Sediment",
+          "experimental_factor": "sediment [MIXS:0016011]"
+        },
+        {
+          "elev": 645,
+          "depth": "0 - 0.5",
+          "lat_lon": "33.750993 -111.508091",
+          "ecosystem": "Environmental",
+          "samp_name": "SYCA.20230606.EPIPSAMMON.2",
+          
+          "geo_loc_name": "USA: AZ, Maricopa County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-06-06",
+          "collection_time": "15:31:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Sediment",
+          "experimental_factor": "sediment [MIXS:0016011]"
+        },
+        {
+          "elev": 645,
+          "depth": "0 - 0.5",
+          "lat_lon": "33.750993 -111.508091",
+          "ecosystem": "Environmental",
+          "samp_name": "SYCA.20230606.EPIPSAMMON.3",
+          
+          "geo_loc_name": "USA: AZ, Maricopa County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-06-06",
+          "collection_time": "15:31:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Sediment",
+          "experimental_factor": "sediment [MIXS:0016011]"
+        },
+        {
+          "elev": 645,
+          "depth": "0 - 0.5",
+          "lat_lon": "33.750993 -111.508091",
+          "ecosystem": "Environmental",
+          "samp_name": "SYCA.20230606.EPIPSAMMON.4",
+          
+          "geo_loc_name": "USA: AZ, Maricopa County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-06-06",
+          "collection_time": "15:31:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Sediment",
+          "experimental_factor": "sediment [MIXS:0016011]"
+        },
+        {
+          "elev": 645,
+          "depth": "0 - 0.5",
+          "lat_lon": "33.750993 -111.508091",
+          "ecosystem": "Environmental",
+          "samp_name": "SYCA.20230606.EPIPSAMMON.5",
+          
+          "geo_loc_name": "USA: AZ, Maricopa County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-06-06",
+          "collection_time": "15:31:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Sediment",
+          "experimental_factor": "sediment [MIXS:0016011]"
+        },
+        {
+          "elev": 1179.5,
+          "depth": "0 - 0.5",
+          "lat_lon": "39.758206 -102.447148",
+          "ecosystem": "Environmental",
+          "samp_name": "ARIK.20230711.EPIPHYTON.1",
+          
+          "geo_loc_name": "USA: CO, Yuma County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-11",
+          "collection_time": "14:02:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "plant associated [MIXS:0016010]"
+        },
+        {
+          "elev": 1179.5,
+          "depth": "0 - 0.5",
+          "lat_lon": "39.758206 -102.447148",
+          "ecosystem": "Environmental",
+          "samp_name": "ARIK.20230711.EPIPHYTON.2",
+          
+          "geo_loc_name": "USA: CO, Yuma County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-11",
+          "collection_time": "14:02:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "plant associated [MIXS:0016010]"
+        },
+        {
+          "elev": 1179.5,
+          "depth": "0 - 0.5",
+          "lat_lon": "39.758206 -102.447148",
+          "ecosystem": "Environmental",
+          "samp_name": "ARIK.20230711.EPIPHYTON.3",
+          
+          "geo_loc_name": "USA: CO, Yuma County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-11",
+          "collection_time": "14:02:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "plant associated [MIXS:0016010]"
+        },
+        {
+          "elev": 1179.5,
+          "depth": "0 - 0.5",
+          "lat_lon": "39.758206 -102.447148",
+          "ecosystem": "Environmental",
+          "samp_name": "ARIK.20230711.EPIPHYTON.4",
+          
+          "geo_loc_name": "USA: CO, Yuma County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-11",
+          "collection_time": "14:02:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "plant associated [MIXS:0016010]"
+        },
+        {
+          "elev": 1179.5,
+          "depth": "0 - 0.5",
+          "lat_lon": "39.758206 -102.447148",
+          "ecosystem": "Environmental",
+          "samp_name": "ARIK.20230711.EPIPHYTON.5",
+          
+          "geo_loc_name": "USA: CO, Yuma County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-11",
+          "collection_time": "14:02:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "plant associated [MIXS:0016010]"
+        },
+        {
+          "elev": 1179.5,
+          "depth": "0 - 0.5",
+          "lat_lon": "39.758206 -102.447148",
+          "ecosystem": "Environmental",
+          "samp_name": "ARIK.20230711.EPIPSAMMON.1",
+          
+          "geo_loc_name": "USA: CO, Yuma County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-11",
+          "collection_time": "14:02:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Sediment",
+          "experimental_factor": "sediment [MIXS:0016011]"
+        },
+        {
+          "elev": 1179.5,
+          "depth": "0 - 0.5",
+          "lat_lon": "39.758206 -102.447148",
+          "ecosystem": "Environmental",
+          "samp_name": "ARIK.20230711.EPIPSAMMON.2",
+          
+          "geo_loc_name": "USA: CO, Yuma County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-11",
+          "collection_time": "14:02:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Sediment",
+          "experimental_factor": "sediment [MIXS:0016011]"
+        },
+        {
+          "elev": 1179.5,
+          "depth": "0 - 0.5",
+          "lat_lon": "39.758206 -102.447148",
+          "ecosystem": "Environmental",
+          "samp_name": "ARIK.20230711.EPIPSAMMON.3",
+          
+          "geo_loc_name": "USA: CO, Yuma County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-11",
+          "collection_time": "14:02:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Sediment",
+          "experimental_factor": "sediment [MIXS:0016011]"
+        },
+        {
+          "elev": 1694.2,
+          "depth": "0 - 0.5",
+          "lat_lon": "40.783934 -111.797887",
+          "ecosystem": "Environmental",
+          "samp_name": "REDB.20230712.EPIPSAMMON.1",
+          
+          "geo_loc_name": "USA: UT, Salt Lake County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-12",
+          "collection_time": "15:01:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Sediment",
+          "experimental_factor": "sediment [MIXS:0016011]"
+        },
+        {
+          "elev": 1694.2,
+          "depth": "0 - 0.5",
+          "lat_lon": "40.783934 -111.797887",
+          "ecosystem": "Environmental",
+          "samp_name": "REDB.20230712.EPIPSAMMON.2",
+          
+          "geo_loc_name": "USA: UT, Salt Lake County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-12",
+          "collection_time": "15:01:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Sediment",
+          "experimental_factor": "sediment [MIXS:0016011]"
+        },
+        {
+          "elev": 1694.2,
+          "depth": "0 - 0.5",
+          "lat_lon": "40.783934 -111.797887",
+          "ecosystem": "Environmental",
+          "samp_name": "REDB.20230712.EPIPSAMMON.3",
+          
+          "geo_loc_name": "USA: UT, Salt Lake County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-12",
+          "collection_time": "15:01:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Sediment",
+          "experimental_factor": "sediment [MIXS:0016011]"
+        },
+        {
+          "elev": 1694.2,
+          "depth": "0 - 0.5",
+          "lat_lon": "40.783934 -111.797887",
+          "ecosystem": "Environmental",
+          "samp_name": "REDB.20230712.EPIPSAMMON.4",
+          
+          "geo_loc_name": "USA: UT, Salt Lake County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-12",
+          "collection_time": "15:01:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Sediment",
+          "experimental_factor": "sediment [MIXS:0016011]"
+        },
+        {
+          "elev": 1694.2,
+          "depth": "0 - 0.5",
+          "lat_lon": "40.783934 -111.797887",
+          "ecosystem": "Environmental",
+          "samp_name": "REDB.20230712.EPIPSAMMON.5",
+          
+          "geo_loc_name": "USA: UT, Salt Lake County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-12",
+          "collection_time": "15:01:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Sediment",
+          "experimental_factor": "sediment [MIXS:0016011]"
+        },
+        {
+          "elev": 253.2,
+          "depth": "0 - 0.5",
+          "lat_lon": "33.378517 -97.782312",
+          "ecosystem": "Environmental",
+          "samp_name": "PRIN.20230712.EPIPSAMMON.1",
+          
+          "geo_loc_name": "USA: TX, Wise County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-12",
+          "collection_time": "13:55:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Sediment",
+          "experimental_factor": "sediment [MIXS:0016011]"
+        },
+        {
+          "elev": 253.2,
+          "depth": "0 - 0.5",
+          "lat_lon": "33.378517 -97.782312",
+          "ecosystem": "Environmental",
+          "samp_name": "PRIN.20230712.EPIPSAMMON.2",
+          
+          "geo_loc_name": "USA: TX, Wise County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-12",
+          "collection_time": "13:55:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Sediment",
+          "experimental_factor": "sediment [MIXS:0016011]"
+        },
+        {
+          "elev": 253.2,
+          "depth": "0 - 0.5",
+          "lat_lon": "33.378517 -97.782312",
+          "ecosystem": "Environmental",
+          "samp_name": "PRIN.20230712.EPIPSAMMON.3",
+          
+          "geo_loc_name": "USA: TX, Wise County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-12",
+          "collection_time": "13:55:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Sediment",
+          "experimental_factor": "sediment [MIXS:0016011]"
+        },
+        {
+          "elev": 253.2,
+          "depth": "0 - 0.5",
+          "lat_lon": "33.378517 -97.782312",
+          "ecosystem": "Environmental",
+          "samp_name": "PRIN.20230712.EPIPSAMMON.4",
+          
+          "geo_loc_name": "USA: TX, Wise County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-12",
+          "collection_time": "13:55:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Sediment",
+          "experimental_factor": "sediment [MIXS:0016011]"
+        },
+        {
+          "elev": 253.2,
+          "depth": "0 - 0.5",
+          "lat_lon": "33.378517 -97.782312",
+          "ecosystem": "Environmental",
+          "samp_name": "PRIN.20230712.EPIPSAMMON.5",
+          
+          "geo_loc_name": "USA: TX, Wise County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-12",
+          "collection_time": "13:55:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Sediment",
+          "experimental_factor": "sediment [MIXS:0016011]"
+        },
+        {
+          "elev": 76.7,
+          "depth": "0 - 0.5",
+          "lat_lon": "32.960365 -87.407688",
+          "ecosystem": "Environmental",
+          "samp_name": "MAYF.20230717.EPIPSAMMON.1",
+          
+          "geo_loc_name": "USA: AL, Bibb County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-17",
+          "collection_time": "15:02:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Sediment",
+          "experimental_factor": "sediment [MIXS:0016011]"
+        },
+        {
+          "elev": 76.7,
+          "depth": "0 - 0.5",
+          "lat_lon": "32.960365 -87.407688",
+          "ecosystem": "Environmental",
+          "samp_name": "MAYF.20230717.EPIPSAMMON.2",
+          
+          "geo_loc_name": "USA: AL, Bibb County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-17",
+          "collection_time": "15:02:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Sediment",
+          "experimental_factor": "sediment [MIXS:0016011]"
+        },
+        {
+          "elev": 76.7,
+          "depth": "0 - 0.5",
+          "lat_lon": "32.960365 -87.407688",
+          "ecosystem": "Environmental",
+          "samp_name": "MAYF.20230717.EPIPSAMMON.3",
+          
+          "geo_loc_name": "USA: AL, Bibb County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-17",
+          "collection_time": "15:02:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Sediment",
+          "experimental_factor": "sediment [MIXS:0016011]"
+        },
+        {
+          "elev": 152,
+          "depth": "0 - 0.5",
+          "lat_lon": "39.095637 -77.983216",
+          "ecosystem": "Environmental",
+          "samp_name": "LEWI.20230726.EPIPELON.1",
+          
+          "geo_loc_name": "USA: VA, Clarke County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-26",
+          "collection_time": "15:42:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Sediment",
+          "experimental_factor": "sediment [MIXS:0016011]"
+        },
+        {
+          "elev": 152,
+          "depth": "0 - 0.5",
+          "lat_lon": "39.095637 -77.983216",
+          "ecosystem": "Environmental",
+          "samp_name": "LEWI.20230726.EPIPELON.2",
+          
+          "geo_loc_name": "USA: VA, Clarke County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-26",
+          "collection_time": "15:42:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Sediment",
+          "experimental_factor": "sediment [MIXS:0016011]"
+        },
+        {
+          "elev": 152,
+          "depth": "0 - 0.5",
+          "lat_lon": "39.095637 -77.983216",
+          "ecosystem": "Environmental",
+          "samp_name": "LEWI.20230726.EPIPELON.3",
+          
+          "geo_loc_name": "USA: VA, Clarke County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-26",
+          "collection_time": "15:42:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Sediment",
+          "experimental_factor": "sediment [MIXS:0016011]"
+        },
+        {
+          "elev": 152,
+          "depth": "0 - 0.5",
+          "lat_lon": "39.095637 -77.983216",
+          "ecosystem": "Environmental",
+          "samp_name": "LEWI.20230726.EPIPELON.4",
+          
+          "geo_loc_name": "USA: VA, Clarke County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-26",
+          "collection_time": "15:42:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Sediment",
+          "experimental_factor": "sediment [MIXS:0016011]"
+        },
+        {
+          "elev": 152,
+          "depth": "0 - 0.5",
+          "lat_lon": "39.095637 -77.983216",
+          "ecosystem": "Environmental",
+          "samp_name": "LEWI.20230726.EPIPELON.5",
+          
+          "geo_loc_name": "USA: VA, Clarke County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-26",
+          "collection_time": "15:42:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Sediment",
+          "experimental_factor": "sediment [MIXS:0016011]"
+        },
+        {
+          "elev": 275.8,
+          "depth": "0 - 0.5",
+          "lat_lon": "38.89431 -78.147258",
+          "ecosystem": "Environmental",
+          "samp_name": "POSE.20230719.EPIPELON.1",
+          
+          "geo_loc_name": "USA: VA, Warren County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-19",
+          "collection_time": "12:36:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Sediment",
+          "experimental_factor": "sediment [MIXS:0016011]"
+        },
+        {
+          "elev": 275.8,
+          "depth": "0 - 0.5",
+          "lat_lon": "38.89431 -78.147258",
+          "ecosystem": "Environmental",
+          "samp_name": "POSE.20230719.EPIPELON.2",
+          
+          "geo_loc_name": "USA: VA, Warren County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-19",
+          "collection_time": "12:36:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Sediment",
+          "experimental_factor": "sediment [MIXS:0016011]"
+        },
+        {
+          "elev": 275.8,
+          "depth": "0 - 0.5",
+          "lat_lon": "38.89431 -78.147258",
+          "ecosystem": "Environmental",
+          "samp_name": "POSE.20230719.EPIPELON.3",
+          
+          "geo_loc_name": "USA: VA, Warren County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-19",
+          "collection_time": "12:36:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Sediment",
+          "experimental_factor": "sediment [MIXS:0016011]"
+        },
+        {
+          "elev": 3021.6,
+          "depth": "0 - 0.5",
+          "lat_lon": "40.034962 -105.544164",
+          "ecosystem": "Environmental",
+          "samp_name": "COMO.20230808.EPIPSAMMON.1",
+          
+          "geo_loc_name": "USA: CO, Boulder County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-08-08",
+          "collection_time": "15:02:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Sediment",
+          "experimental_factor": "sediment [MIXS:0016011]"
+        },
+        {
+          "elev": 3021.6,
+          "depth": "0 - 0.5",
+          "lat_lon": "40.034962 -105.544164",
+          "ecosystem": "Environmental",
+          "samp_name": "COMO.20230808.EPIPSAMMON.2",
+          
+          "geo_loc_name": "USA: CO, Boulder County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-08-08",
+          "collection_time": "15:02:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Sediment",
+          "experimental_factor": "sediment [MIXS:0016011]"
+        },
+        {
+          "elev": 3021.6,
+          "depth": "0 - 0.5",
+          "lat_lon": "40.034962 -105.544164",
+          "ecosystem": "Environmental",
+          "samp_name": "COMO.20230808.EPIPSAMMON.3",
+          
+          "geo_loc_name": "USA: CO, Boulder County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-08-08",
+          "collection_time": "15:02:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Sediment",
+          "experimental_factor": "sediment [MIXS:0016011]"
+        },
+        {
+          "elev": 2011,
+          "depth": "0 - 0.5",
+          "lat_lon": "36.955931 -119.027363",
+          "ecosystem": "Environmental",
+          "samp_name": "TECR.20230821.EPILITHON.7",
+          
+          "geo_loc_name": "USA: CA, Fresno County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-08-21",
+          "collection_time": "18:13:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 2011,
+          "depth": "0 - 0.5",
+          "lat_lon": "36.955931 -119.027363",
+          "ecosystem": "Environmental",
+          "samp_name": "TECR.20230821.EPILITHON.8",
+          
+          "geo_loc_name": "USA: CA, Fresno County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-08-21",
+          "collection_time": "18:13:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 509,
+          "temp": 23,
+          "depth": "0 - 0.5",
+          "lat_lon": "46.210592 -89.476861",
+          "ecosystem": "Environmental",
+          "samp_name": "CRAM.C1.20230801",
+          
+          "geo_loc_name": "USA: WI, Vilas County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-08-01",
+          "collection_time": "15:00:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Lake",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Epilimnion/Euphotic zone",
+          "experimental_factor": "water [MIXS:0016014]"
+        },
+        {
+          "elev": 509,
+          "temp": 5,
+          "depth": "10.2 - 15.5",
+          "lat_lon": "46.210592 -89.476861",
+          "ecosystem": "Environmental",
+          "samp_name": "CRAM.C2.20230801",
+          
+          "geo_loc_name": "USA: WI, Vilas County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-08-01",
+          "collection_time": "15:00:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Lake",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Hypolimnion/Profundal zone",
+          "experimental_factor": "water [MIXS:0016014]"
+        },
+        {
+          "elev": 502,
+          "temp": 25,
+          "depth": "0 - 0.5",
+          "lat_lon": "45.998322 -89.704766",
+          "ecosystem": "Environmental",
+          "samp_name": "LIRO.C1.20230807",
+          
+          "geo_loc_name": "USA: WI, Vilas County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-08-07",
+          "collection_time": "16:38:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Lake",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Epilimnion/Euphotic zone",
+          "experimental_factor": "water [MIXS:0016014]"
+        },
+        {
+          "elev": 224.9,
+          "depth": "0 - 0.5",
+          "lat_lon": "65.153224 -147.503973",
+          "ecosystem": "Environmental",
+          "samp_name": "CARI.20230713.EPILITHON.1",
+          
+          "geo_loc_name": "USA: AK, Fairbanks North Star County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-13",
+          "collection_time": "18:57:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 224.9,
+          "depth": "0 - 0.5",
+          "lat_lon": "65.153224 -147.503973",
+          "ecosystem": "Environmental",
+          "samp_name": "CARI.20230713.EPILITHON.2",
+          
+          "geo_loc_name": "USA: AK, Fairbanks North Star County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-13",
+          "collection_time": "18:57:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 224.9,
+          "depth": "0 - 0.5",
+          "lat_lon": "65.153224 -147.503973",
+          "ecosystem": "Environmental",
+          "samp_name": "CARI.20230713.EPILITHON.3",
+          
+          "geo_loc_name": "USA: AK, Fairbanks North Star County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-13",
+          "collection_time": "18:57:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 224.9,
+          "depth": "0 - 0.5",
+          "lat_lon": "65.153224 -147.503973",
+          "ecosystem": "Environmental",
+          "samp_name": "CARI.20230713.EPILITHON.4",
+          
+          "geo_loc_name": "USA: AK, Fairbanks North Star County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-13",
+          "collection_time": "18:57:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 224.9,
+          "depth": "0 - 0.5",
+          "lat_lon": "65.153224 -147.503973",
+          "ecosystem": "Environmental",
+          "samp_name": "CARI.20230713.EPILITHON.5",
+          
+          "geo_loc_name": "USA: AK, Fairbanks North Star County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-13",
+          "collection_time": "18:57:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 224.9,
+          "depth": "0 - 0.5",
+          "lat_lon": "65.153224 -147.503973",
+          "ecosystem": "Environmental",
+          "samp_name": "CARI.20230713.EPILITHON.6",
+          
+          "geo_loc_name": "USA: AK, Fairbanks North Star County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-13",
+          "collection_time": "18:57:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 224.9,
+          "depth": "0 - 0.5",
+          "lat_lon": "65.153224 -147.503973",
+          "ecosystem": "Environmental",
+          "samp_name": "CARI.20230713.EPILITHON.7",
+          
+          "geo_loc_name": "USA: AK, Fairbanks North Star County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-13",
+          "collection_time": "18:57:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 224.9,
+          "depth": "0 - 0.5",
+          "lat_lon": "65.153224 -147.503973",
+          "ecosystem": "Environmental",
+          "samp_name": "CARI.20230713.EPILITHON.8",
+          
+          "geo_loc_name": "USA: AK, Fairbanks North Star County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-13",
+          "collection_time": "18:57:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 225.7,
+          "temp": 6,
+          "depth": "0 - 0.5",
+          "lat_lon": "65.15308 -147.501997",
+          "ecosystem": "Environmental",
+          "samp_name": "CARI.SS.20230731",
+          
+          "geo_loc_name": "USA: AK, Fairbanks North Star County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-31",
+          "collection_time": "20:36:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "water [MIXS:0016014]"
+        },
+        {
+          "elev": 766,
+          "depth": "0 - 0.5",
+          "lat_lon": "68.669753 -149.143018",
+          "ecosystem": "Environmental",
+          "samp_name": "OKSR.20230707.EPILITHON.1",
+          
+          "geo_loc_name": "USA: AK, North Slope County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-07",
+          "collection_time": "19:16:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 766,
+          "depth": "0 - 0.5",
+          "lat_lon": "68.669753 -149.143018",
+          "ecosystem": "Environmental",
+          "samp_name": "OKSR.20230707.EPILITHON.2",
+          
+          "geo_loc_name": "USA: AK, North Slope County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-07",
+          "collection_time": "19:16:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 766,
+          "depth": "0 - 0.5",
+          "lat_lon": "68.669753 -149.143018",
+          "ecosystem": "Environmental",
+          "samp_name": "OKSR.20230707.EPILITHON.4",
+          
+          "geo_loc_name": "USA: AK, North Slope County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-07",
+          "collection_time": "19:16:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 766,
+          "depth": "0 - 0.5",
+          "lat_lon": "68.669753 -149.143018",
+          "ecosystem": "Environmental",
+          "samp_name": "OKSR.20230707.EPILITHON.5",
+          
+          "geo_loc_name": "USA: AK, North Slope County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-07",
+          "collection_time": "19:16:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 766,
+          "depth": "0 - 0.5",
+          "lat_lon": "68.669753 -149.143018",
+          "ecosystem": "Environmental",
+          "samp_name": "OKSR.20230707.EPILITHON.6",
+          
+          "geo_loc_name": "USA: AK, North Slope County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-07",
+          "collection_time": "19:16:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 766,
+          "depth": "0 - 0.5",
+          "lat_lon": "68.669753 -149.143018",
+          "ecosystem": "Environmental",
+          "samp_name": "OKSR.20230707.EPILITHON.7",
+          
+          "geo_loc_name": "USA: AK, North Slope County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-07",
+          "collection_time": "19:16:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 766,
+          "depth": "0 - 0.5",
+          "lat_lon": "68.669753 -149.143018",
+          "ecosystem": "Environmental",
+          "samp_name": "OKSR.20230707.EPILITHON.8",
+          
+          "geo_loc_name": "USA: AK, North Slope County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-07",
+          "collection_time": "19:16:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 213.6,
+          "temp": 18,
+          "depth": "0 - 0.5",
+          "lat_lon": "42.471741 -72.330664",
+          "ecosystem": "Environmental",
+          "samp_name": "HOPB.SS.20230719",
+          
+          "geo_loc_name": "USA: MA, Franklin County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-19",
+          "collection_time": "13:25:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "water [MIXS:0016014]"
+        },
+        {
+          "elev": 27,
+          "temp": 31,
+          "depth": "0 - 0.5",
+          "lat_lon": "29.675982 -82.008414",
+          "ecosystem": "Environmental",
+          "samp_name": "BARC.C0.20230801",
+          
+          "geo_loc_name": "USA: FL, Putnam County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-08-01",
+          "collection_time": "14:04:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Lake",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Epilimnion/Euphotic zone",
+          "experimental_factor": "water [MIXS:0016014]"
+        },
+        {
+          "elev": 30,
+          "temp": 30,
+          "depth": "0 - 0.5",
+          "lat_lon": "31.184609 -84.438438",
+          "ecosystem": "Environmental",
+          "samp_name": "FLNT.C0.20230815",
+          
+          "geo_loc_name": "USA: GA, Baker County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-08-15",
+          "collection_time": "12:45:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "River",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "water [MIXS:0016014]"
+        },
+        {
+          "elev": 30,
+          "temp": 30,
+          "depth": "0 - 0.5",
+          "lat_lon": "29.688149 -82.017318",
+          "ecosystem": "Environmental",
+          "samp_name": "SUGG.C0.20230801",
+          
+          "geo_loc_name": "USA: FL, Putnam County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-08-01",
+          "collection_time": "14:52:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Lake",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Epilimnion/Euphotic zone",
+          "experimental_factor": "water [MIXS:0016014]"
+        },
+        {
+          "elev": 561,
+          "temp": 23,
+          "depth": "0 - 0.5",
+          "lat_lon": "47.159718 -99.118723",
+          "ecosystem": "Environmental",
+          "samp_name": "PRLA.C0.20230808",
+          
+          "geo_loc_name": "USA: ND, Stutsman County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-08-08",
+          "collection_time": "15:47:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Lake",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Epilimnion/Euphotic zone",
+          "experimental_factor": "water [MIXS:0016014]"
+        },
+        {
+          "elev": 324.4,
+          "depth": "0 - 0.5",
+          "lat_lon": "39.105061 -96.603829",
+          "ecosystem": "Environmental",
+          "samp_name": "KING.20230724.EPILITHON.2",
+          
+          "geo_loc_name": "USA: KS, Riley County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-24",
+          "collection_time": "14:54:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 324.4,
+          "depth": "0 - 0.5",
+          "lat_lon": "39.105061 -96.603829",
+          "ecosystem": "Environmental",
+          "samp_name": "KING.20230724.EPILITHON.3",
+          
+          "geo_loc_name": "USA: KS, Riley County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-24",
+          "collection_time": "14:54:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 324.4,
+          "depth": "0 - 0.5",
+          "lat_lon": "39.105061 -96.603829",
+          "ecosystem": "Environmental",
+          "samp_name": "KING.20230724.EPILITHON.4",
+          
+          "geo_loc_name": "USA: KS, Riley County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-24",
+          "collection_time": "14:54:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 324.4,
+          "depth": "0 - 0.5",
+          "lat_lon": "39.105061 -96.603829",
+          "ecosystem": "Environmental",
+          "samp_name": "KING.20230724.EPILITHON.5",
+          
+          "geo_loc_name": "USA: KS, Riley County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-24",
+          "collection_time": "14:54:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 396,
+          "depth": "0 - 0.5",
+          "lat_lon": "38.945861 -96.443022",
+          "ecosystem": "Environmental",
+          "samp_name": "MCDI.20230726.EPILITHON.3",
+          
+          "geo_loc_name": "USA: KS, Wabaunsee County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-26",
+          "collection_time": "14:28:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 396,
+          "depth": "0 - 0.5",
+          "lat_lon": "38.945861 -96.443022",
+          "ecosystem": "Environmental",
+          "samp_name": "MCDI.20230726.EPILITHON.4",
+          
+          "geo_loc_name": "USA: KS, Wabaunsee County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-26",
+          "collection_time": "14:28:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 396,
+          "depth": "0 - 0.5",
+          "lat_lon": "38.945861 -96.443022",
+          "ecosystem": "Environmental",
+          "samp_name": "MCDI.20230726.EPILITHON.5",
+          
+          "geo_loc_name": "USA: KS, Wabaunsee County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-26",
+          "collection_time": "14:28:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 396,
+          "depth": "0 - 0.5",
+          "lat_lon": "38.945861 -96.443022",
+          "ecosystem": "Environmental",
+          "samp_name": "MCDI.20230726.EPILITHON.6",
+          
+          "geo_loc_name": "USA: KS, Wabaunsee County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-26",
+          "collection_time": "14:28:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "microbial mat/biofilm [MIXS:0016008]"
+        },
+        {
+          "elev": 324.9,
+          "temp": 18,
+          "depth": "0 - 0.5",
+          "lat_lon": "39.105069 -96.603387",
+          "ecosystem": "Environmental",
+          "samp_name": "KING.SS.20230712",
+          
+          "geo_loc_name": "USA: KS, Riley County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-12",
+          "collection_time": "13:33:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "water [MIXS:0016014]"
+        },
+        {
+          "elev": 371.2,
+          "temp": 20,
+          "depth": "0 - 0.5",
+          "lat_lon": "38.946553 -96.442948",
+          "ecosystem": "Environmental",
+          "samp_name": "MCDI.SS.20230711",
+          
+          "geo_loc_name": "USA: KS, Wabaunsee County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-07-11",
+          "collection_time": "14:13:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Unclassified",
+          "experimental_factor": "water [MIXS:0016014]"
+        },
+        {
+          "elev": 2908,
+          "depth": "0 - 0.5",
+          "lat_lon": "39.891366 -105.915395",
+          "ecosystem": "Environmental",
+          "samp_name": "WLOU.20230815.EPIPSAMMON.1",
+          
+          "geo_loc_name": "USA: CO, Grand County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-08-15",
+          "collection_time": "15:22:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Sediment",
+          "experimental_factor": "sediment [MIXS:0016011]"
+        },
+        {
+          "elev": 2908,
+          "depth": "0 - 0.5",
+          "lat_lon": "39.891366 -105.915395",
+          "ecosystem": "Environmental",
+          "samp_name": "WLOU.20230815.EPIPSAMMON.2",
+          
+          "geo_loc_name": "USA: CO, Grand County",
+          "analysis_type": [
+            "metagenomics"
+          ],
+          "ecosystem_type": "Freshwater",
+          "collection_date": "2023-08-15",
+          "collection_time": "15:22:00",
+          
+          
+          "samp_store_temp": -80,
+          "ecosystem_subtype": "Creek",
+          "ecosystem_category": "Aquatic",
+          "specific_ecosystem": "Sediment",
+          "experimental_factor": "sediment [MIXS:0016011]"
+        }
+      ]
+    },
+    "validationState": {
+      "studyForm": null,
+      "multiOmicsForm": null,
+      "sampleEnvironmentForm": null,
+      "senderShippingInfoForm": null,
+      "sampleMetadata": null
+    }
+  },
+  "status": "ApprovedHeld",
+  "source_client": "submission_portal",
+  "is_test_submission": false,
+  "id": "81041da9-3b7a-40c9-a66b-5166ccb3367e",
+  "author": {
+    "id": "827aeb22-045a-4b0b-b84b-e12f5c83c5f3",
+    "orcid": "0000-0002-6745-9479",
+    "name": "Hugh Cross",
+    "email": "crossh@battelleecology.org",
+    "is_admin": false
+  },
+  "study_name": "Continental-scale metagenomics: leveraging the NSF National Ecological Observatory Network to advance understanding of terrestrial and aquatic microbial communities in response to land use and climate change (AY23_plt04)",
+  "templates": [
+    "water",
+    "jgi_mg"
+  ],
+  "date_last_modified": "2026-01-08T00:15:11.715369",
+  "created": "2024-03-28T17:58:19.798369",
+  "sample_count": 92,
+  "reviewers": [],
+  "contributors": [
+    "0000-0002-6745-9479"
+  ],
+  "author_orcid": "0000-0002-6745-9479",
+  "field_notes_metadata": null,
+  "lock_updated": "2026-01-05T22:55:12.685906",
+  "locked_by": null,
+  "permission_level": null,
+  "pi_image_url": null,
+  "primary_study_image_url": null,
+  "study_image_urls": []
+}
