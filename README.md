@@ -14,7 +14,7 @@ A Python application for the NMDC Submission portal metadata suggestor tool, pow
 You will need to set up a `.env` file. Copy the example first:
 
 ```bash
-cp .env-example .env
+cp .env.example .env
 ```
 
 Environment variables used by `LLMClient` and `ConversationManager`:
@@ -23,7 +23,8 @@ Environment variables used by `LLMClient` and `ConversationManager`:
 - `AI_INCUBATOR_BASE_URL`: Base URL for the PNNL AI Incubator API.
 - `GOOGLE_APPLICATION_CREDENTIALS`: Path to a GCP service account JSON file (for Vertex AI).
 - `VERTEX_PROJECT_ID`: (Optional) GCP project id for Vertex. If not provided, the SDK will attempt to infer it from credentials.
-- `GEMINI_REGION`: (Optional) GCP region for Gemini/Vertex (defaults to `us-east5` or `CLOUD_ML_REGION`).
+- `GEMINI_REGION`: (Optional) Vertex region override for Gemini calls (falls back to `CLOUD_ML_REGION`, then `us-east5`).
+- `CLOUD_ML_REGION`: (Optional) Default Vertex region for non-Gemini model calls (defaults to `us-east5`).
 - `CBORG_KEY`: API key for CBORG (when using `access_provider=cborg`).
 - `CBORG_BASE_URL`: Base URL for the CBORG API.
 
@@ -161,7 +162,7 @@ uv run pytest
 uv run pytest --cov=src/nmdc_metadata_suggestor_ai_tool
 
 # Run specific test file
-uv run pytest tests/test_example.py
+uv run pytest tests/test_recommendation_pipeline.py
 ```
 
 ### Code Quality
@@ -192,11 +193,19 @@ uv sync
 
 ## Configuration
 
-Configuration is managed through environment variables or a `.env` file. See `.env.example` for available options:
+Configuration is managed through environment variables or a `.env` file. See `.env.example` for all options. Beyond the LLM access variables above:
 
-- `DEFAULT_MODEL`: Default LLM model to use
-- `MAX_TOKENS`: Maximum tokens for LLM responses
-- `TEMPERATURE`: Temperature for LLM responses (0.0-1.0)
+- `CONTACT_EMAIL`: Contact email sent in User-Agent headers for the Crossref polite pool and OpenAlex (defaults to `support@microbiomedata.org`).
+
+Advanced ingestion tuning (all optional; defaults shown):
+
+- `NMDC_EDI_MAX_XML_CHARS`: Max characters read from an untrusted EDI metadata XML payload (default `2000000`).
+- `NMDC_DATAONE_SOLR_MAX_XML_CHARS`: Max characters read from an untrusted DataONE Solr XML payload (default `2000000`).
+- `NMDC_HTTP_RETRY_ATTEMPTS`: Retry attempts for publication/DOI HTTP requests (default `3`).
+- `NMDC_HTTP_RETRY_BACKOFF_SECONDS`: Base backoff in seconds between retries (default `0`).
+- `NMDC_HTTP_MAX_RETRY_DELAY_SECONDS`: Cap in seconds on retry delay (default `30`).
+- `NMDC_HTTP_POOL_CONNECTIONS`: HTTP connection pool size (default `20`).
+- `NMDC_HTTP_POOL_MAXSIZE`: HTTP connection pool max size (default `100`).
 
 ## Docker Development Workflow
 
