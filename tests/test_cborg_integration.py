@@ -11,9 +11,9 @@ Run them with:
 Credentials (``CBORG_KEY``, ``CBORG_BASE_URL``) are read from the environment,
 which ``llm_client`` populates from ``.env`` via ``load_dotenv()`` at import.
 
-The model is set explicitly. The built-in default model is Gemini-specific
-(``gemini-2.5-flash``), which CBORG does not recognize, so provider tests must
-name a model CBORG serves. Override with the ``CBORG_TEST_MODEL`` env var.
+The model is set explicitly so the test pins a specific CBORG-served model
+instead of depending on the pipeline default, keeping the assertion
+deterministic. Override with the ``CBORG_TEST_MODEL`` env var.
 """
 
 import json
