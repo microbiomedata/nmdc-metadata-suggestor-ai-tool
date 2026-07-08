@@ -5,7 +5,7 @@ description: Use this skill to assemble an evidence bundle (context texts) from 
 
 # Build Study Context Skill
 
-Use this skill to assemble an evidence bundle from a parsed submission or ETL study context. Called by both `metadata_suggestion_pipeline` and `env_triad_recommendation` before making suggestions. Requires the **doi_ingestion** and **pdf_ingestion** skills.
+Use this skill to assemble an evidence bundle from a parsed submission or ETL study context. Called by both `metadata-suggestion-pipeline` and `env-triad` before making suggestions. Requires the **doi-ingestion** and **pdf-ingestion** skills.
 
 ---
 
