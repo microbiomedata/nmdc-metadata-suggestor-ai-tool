@@ -40,6 +40,18 @@ red every build until they are cleared. The CI step is therefore marked
 updates drive the actual fixes. Once the backlog is clear, remove
 `continue-on-error` from the audit step in `security.yml` to make it blocking.
 
+## Enabling the GitHub-native pieces
+
+Two features need a repo setting toggled on (Settings > Code security),
+which only an admin can do:
+
+- **Dependency graph.** Required by the Dependency Review job. Until it is on,
+  that job is `continue-on-error` and reports "Dependency review is not
+  supported on this repository". Turn it on, then remove `continue-on-error`
+  from the dependency-review step in `security.yml`.
+- **Dependabot alerts and security updates.** Let Dependabot open the CVE-fix
+  PRs that `.github/dependabot.yml` schedules.
+
 ## Alternatives considered
 
 - **Dependabot alone (no custom workflow).** Zero maintenance, but Dependabot
