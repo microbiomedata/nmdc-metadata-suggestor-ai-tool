@@ -36,7 +36,7 @@ If only `study_context` is provided, use those strings/dicts directly as the bas
 
 ### 2 — Fetch DOI abstracts
 
-For each entry in `parsed_submission.dois`, use the **doi_ingestion** skill:
+For each entry in `parsed_submission.dois`, use the **doi-ingestion** skill:
 
 ```python
 result = get_doi_description_or_abstract(
