@@ -60,9 +60,33 @@ If uncertain, use all interfaces.
 
 ---
 
+## Step 3b — Map environment names to interface class names
+
+Call `MixsExtensions.map_to_interface_name(mixs_extensions_strings)` with the list of environment name strings identified in Step 3 to get the corresponding interface class names required by Step 4.
+
+The full mapping is:
+
+| Environment name (Step 3 value) | Interface class name |
+|---|---|
+| `soil` | `SoilInterface` |
+| `water` | `WaterInterface` |
+| `air` | `AirInterface` |
+| `sediment` | `SedimentInterface` |
+| `built environment` | `BuiltEnvInterface` |
+| `host-associated` | `HostAssociatedInterface` |
+| `microbial mat_biofilm` | `BiofilmInterface` |
+| `plant-associated` | `PlantAssociatedInterface` |
+| `hydrocarbon resources-cores` | `HcrCoresInterface` |
+| `hydrocarbon resources-fluids_swabs` | `HcrFluidsSwabsInterface` |
+| `miscellaneous natural or artifical environment` | `MiscEnvsInterface` |
+
+Any unrecognized environment name should be skipped with a warning.
+
+---
+
 ## Step 4 — Load schema context
 
-Use the **schema-context** skill: call `SchemaContextBuilder().format_env_triad_context(class_names)` with the interface class names (e.g. `["SoilInterface"]`) to get the allowed values and definitions for the three env triad slots.
+Use the **schema-context** skill: call `SchemaContextBuilder().format_env_triad_context(class_names)` with the interface class names produced in Step 3b (e.g. `["SoilInterface"]`) to get the allowed values and definitions for the three env triad slots.
 
 ---
 
