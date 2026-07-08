@@ -53,7 +53,7 @@ result = get_doi_description_or_abstract(
 
 If any `publication_urls` were collected, use the built-in `web_fetch` tool to read each URL directly — no download or temp file needed. Add the content to your evidence texts.
 
-Only fall back to `download_pdf_to_tempfile` (from **pdf_ingestion** skill) if `web_fetch` is unavailable (non-agentic path).
+Only fall back to `download_pdf_to_tempfile` (from **pdf-ingestion** skill) if `web_fetch` is unavailable (non-agentic path).
 
 ---
 
