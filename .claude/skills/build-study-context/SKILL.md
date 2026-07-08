@@ -13,7 +13,7 @@ Use this skill to assemble an evidence bundle from a parsed submission or ETL st
 
 Provide one of:
 
-- **`parsed_submission`** — output of the **submission_parser** skill (has `description`, `notes`, `study_name`, `dois`, `protocol_descs`, `protocol_names`)
+- **`parsed_submission`** — output of the **submission-parser** skill (has `description`, `notes`, `study_name`, `dois`, `protocol_descs`, `protocol_names`)
 - **`study_context`** — list of strings or dicts (ETL path — use when no `submission_object` is available)
 
 ---
