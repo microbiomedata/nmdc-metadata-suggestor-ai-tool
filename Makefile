@@ -30,7 +30,8 @@ format: ## This is a two part command that both checks, then auto-fixes formatti
 	uv run ruff check --fix
 
 security: ## Audit dependencies for known CVEs (pip-audit)
-	uv export --frozen --no-emit-project --no-hashes | uvx pip-audit --requirement /dev/stdin --progress-spinner off
+	uv export --frozen --no-emit-project --no-hashes --output-file .audit-requirements.txt
+	uvx pip-audit --requirement .audit-requirements.txt --progress-spinner off; status=$$?; rm -f .audit-requirements.txt; exit $$status
 
 check-deps: ## Check dependency hygiene: unused/missing/misplaced dependencies (deptry)
 	uv run --with deptry deptry src
