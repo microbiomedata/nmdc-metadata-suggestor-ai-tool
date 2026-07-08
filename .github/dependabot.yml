@@ -1,0 +1,25 @@
+version: 2
+updates:
+  # Python dependencies (pyproject.toml + uv.lock). Native uv support, GA 2025-03.
+  # Handles both routine version bumps and security updates for known CVEs.
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      # One grouped PR for routine bumps keeps review load low; security
+      # updates still open individually so they are not buried.
+      python-dependencies:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  # Pinned action SHAs in .github/workflows (checkout, setup-uv, dependency-review, ...)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      github-actions:
+        patterns:
+          - "*"

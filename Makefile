@@ -1,4 +1,4 @@
-.PHONY: help dev-install test test-integration lint lint-fix format clean docker-build docker-run docker-dev validate-doi classify-doi classify-fixture get-abstract get-abstracts
+.PHONY: help dev-install test test-integration lint lint-fix format security check-deps clean docker-build docker-run docker-dev validate-doi classify-doi classify-fixture get-abstract get-abstracts
 
 help: ## Show this help message
 	@echo "Usage: make [target]"
@@ -28,6 +28,12 @@ lint: ## Run linters
 format: ## This is a two part command that both checks, then auto-fixes formatting issues where it can.
 	uv run ruff format
 	uv run ruff check --fix
+
+security: ## Audit dependencies for known CVEs (pip-audit)
+	uv export --frozen --no-emit-project --no-hashes | uvx pip-audit --requirement /dev/stdin --progress-spinner off
+
+check-deps: ## Check dependency hygiene: unused/missing/misplaced dependencies (deptry)
+	uv run --with deptry deptry src
 
 clean: ## Clean up generated files
 	rm -rf .pytest_cache
