@@ -69,4 +69,4 @@ A structured dict:
 }
 ```
 
-Pass this structured dict to the **build_study_context** skill.
+Pass this structured dict to the **build-study-context** skill.
