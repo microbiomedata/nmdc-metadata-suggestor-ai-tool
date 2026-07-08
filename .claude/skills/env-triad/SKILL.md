@@ -62,7 +62,7 @@ If uncertain, use all interfaces.
 
 ## Step 4 — Load schema context
 
-Use the **schema_skill**: call `SchemaContextBuilder().format_env_triad_context(class_names)` with the interface class names (e.g. `["SoilInterface"]`) to get the allowed values and definitions for the three env triad slots.
+Use the **schema-context** skill: call `SchemaContextBuilder().format_env_triad_context(class_names)` with the interface class names (e.g. `["SoilInterface"]`) to get the allowed values and definitions for the three env triad slots.
 
 ---
 
