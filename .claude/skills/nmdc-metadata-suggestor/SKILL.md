@@ -23,7 +23,7 @@ Receives data, determines what to run, returns `LLMOutput` JSON. No user interac
 
 | Condition | Route to |
 |---|---|
-| Input explicitly names `env_triad`, `env_broad_scale`, `env_local_scale`, or `env_medium` | `env-triad-recommendation` only |
+| Input explicitly names `env_triad`, `env_broad_scale`, `env_local_scale`, or `env_medium` | `env-triad` only |
 | Input is samples only (no submission object) | `env-triad` only |
 | Input is a submission object with no sample list | `metadata-suggestion-pipeline` only |
 | Input is a submission object that includes samples | Both — run `metadata-suggestion-pipeline` first, then `env-triad` |
