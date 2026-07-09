@@ -29,12 +29,12 @@ format: ## This is a two part command that both checks, then auto-fixes formatti
 	uv run ruff format
 	uv run ruff check --fix
 
-# --no-deps audits the already-resolved uv export as-is. Without it, pip-audit
-# builds a temp venv to re-resolve the requirements, which crashes (ensurepip
-# SIGABRT) on uv's managed standalone Python (python-build-standalone).
+# Audit the synced project environment directly. Auditing a requirements file
+# instead makes pip-audit build a temp venv, which crashes (ensurepip SIGABRT)
+# on uv's managed standalone Python (python-build-standalone). Environment mode
+# never creates a venv, so it works across platforms and Python distributions.
 security: ## Audit dependencies for known CVEs (pip-audit)
-	uv export --frozen --no-emit-project --no-hashes --output-file .audit-requirements.txt
-	uvx pip-audit --requirement .audit-requirements.txt --no-deps --progress-spinner off; status=$$?; rm -f .audit-requirements.txt; exit $$status
+	uv run --with pip-audit pip-audit --progress-spinner off
 
 check-deps: ## Check dependency hygiene: unused/missing/misplaced dependencies (deptry)
 	uv run --with deptry deptry src

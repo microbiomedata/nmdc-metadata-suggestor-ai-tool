@@ -20,12 +20,16 @@ checks in `ci.yml`, not under the Security workflow.
 ## Running locally
 
 ```bash
-make security      # pip-audit against the full locked dependency tree
+make security      # pip-audit against the synced project environment
 make check-deps    # deptry hygiene check on src/
 ```
 
-Both use ephemeral tool installs (`uvx` / `uv run --with`), so neither adds a
-locked dev dependency.
+Both use ephemeral tool installs (`uv run --with`), so neither adds a locked dev
+dependency. `make security` audits the synced environment rather than a
+requirements file on purpose: auditing a requirements file makes pip-audit build
+a temporary venv, which crashes (`ensurepip` SIGABRT) on uv's managed standalone
+Python. Environment mode never creates a venv, so it works across platforms and
+Python distributions.
 
 `deptry` ignores one package by design: `nmdc-submission-schema` is loaded at
 runtime via `importlib.resources.files("nmdc_submission_schema.schema")` in
