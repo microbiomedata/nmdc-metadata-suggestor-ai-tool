@@ -12,7 +12,7 @@ Use this skill to suggest values for `env_broad_scale`, `env_local_scale`, and `
 ## Goal
 
 For each input sample, you must produce three metadata field suggestions:
-- `env_broad_scale` — broad ecological biome (e.g. `"temperate grassland biome [ENVO:01000196]"`)
+- `env_broad_scale` — broad ecological biome (e.g. `"temperate grassland biome [ENVO:01000193]"`)
 - `env_local_scale` — local environmental feature (e.g. `"agricultural field [ENVO:00000114]"`)
 - `env_medium` — environmental material (e.g. `"soil [ENVO:00001998]"`)
 
@@ -129,7 +129,7 @@ Return a JSON object matching `LLMOutput`. Emit **three entries per sample** (on
     {
       "id": "nmdc:bsm-11-abc123",
       "field_name": "env_medium",
-      "value": "peat [ENVO:00005774]",
+      "value": "peat soil [ENVO:00005774]",
       "reason": "'peat warming' and 'surface peat' repeatedly cited in abstract."
     },
     {
@@ -141,13 +141,13 @@ Return a JSON object matching `LLMOutput`. Emit **three entries per sample** (on
     {
       "id": "nmdc:bsm-11-def456",
       "field_name": "env_local_scale",
-      "value": "bog [ENVO:00000044]",
+      "value": "peatland [ENVO:00000044]",
       "reason": "'Sphagnum bog' explicitly named in sample description field."
     },
     {
       "id": "nmdc:bsm-11-def456",
       "field_name": "env_medium",
-      "value": "peat [ENVO:00005774]",
+      "value": "peat soil [ENVO:00005774]",
       "reason": "'peat core' in sample collection notes."
     }
   ]
