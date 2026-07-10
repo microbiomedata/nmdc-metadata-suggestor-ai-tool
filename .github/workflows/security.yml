@@ -59,13 +59,8 @@ jobs:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         fetch-depth: 0
-
-    # Non-blocking until the Dependency graph is enabled for the repo
-    # (Settings > Code security > Dependency graph). Without it the action
-    # errors with "Dependency review is not supported on this repository".
-    # Once the graph is on, remove continue-on-error to make this a real gate.
+        
     - name: Dependency review
-      continue-on-error: true
       uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
       with:
         fail-on-severity: high
