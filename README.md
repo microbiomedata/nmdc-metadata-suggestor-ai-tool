@@ -96,37 +96,6 @@ print(response)
 
 ## Development
 
-### Project Structure
-
-```
-nmdc-metadata-suggestor-ai-tool/
-├── src/
-│   └── nmdc_metadata_suggestor_ai_tool/
-│       ├── __init__.py
-│       ├── recommendation_pipeline.py       # Pipeline orchestration
-│       ├── llm_client.py                    # LLM client for AI interactions
-│       ├── cli/
-│       │   ├── __init__.py
-│       │   └── doi_cli.py                   # DOI operations CLI
-│       ├── models/
-│       │   ├── __init__.py
-│       │   ├── doi.py                       # DOI data models
-│       │   └── llm_output.py                # LLM output model
-│       └── publication_ingestion/
-│           ├── __init__.py
-│           ├── download_pdf.py              # PDF retrieval logic
-│           └── retreive_pdf_link.py         # PDF link discovery
-├── tests/                                    # Test files
-├── scripts/                                  # Vertex AI test scripts
-├── docs/                                     # Documentation
-├── pyproject.toml                            # Project dependencies and metadata
-├── Dockerfile                                # Production Docker image
-├── Dockerfile.dev                            # Development Docker image
-├── docker-compose.yml                        # Docker Compose configuration
-├── .env.example                              # Example environment variables
-└── README.md                                 # This file
-```
-
 ### Running Tests
 
 ```bash
