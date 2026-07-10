@@ -35,7 +35,7 @@ Environment variables are loaded from a `.env` file in the project root via
 set in your shell take precedence over `.env` values (`override=False` is the
 default).
 
-### Option 1: Using uv (Local Development)
+### Using uv (Local Development)
 
 1. **Install uv** (if not already installed):
    ```bash
@@ -93,31 +93,6 @@ conversation.add_schema_context("<schema description here>")
 response = conversation.generate(model="gemini-2.5-flash", max_tokens=1024, gemini_temperature=0.2)
 print(response)
 ```
-
-### Option 2: Using Docker
-
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/microbiomedata/nmdc-metadata-suggestor-ai-tool.git
-   cd nmdc-metadata-suggestor-ai-tool
-   ```
-
-2. **Configure environment**:
-   ```bash
-   cp .env.example .env
-   # Edit .env and add your API keys
-   ```
-
-3. **Run with Docker Compose** (development):
-   ```bash
-   docker-compose up
-   ```
-
-4. **Or build and run production image**:
-   ```bash
-   docker build -t nmdc-suggestor .
-   docker run --env-file .env nmdc-suggestor
-   ```
 
 ## Development
 
@@ -206,37 +181,6 @@ Advanced ingestion tuning (all optional; defaults shown):
 - `NMDC_HTTP_MAX_RETRY_DELAY_SECONDS`: Cap in seconds on retry delay (default `30`).
 - `NMDC_HTTP_POOL_CONNECTIONS`: HTTP connection pool size (default `20`).
 - `NMDC_HTTP_POOL_MAXSIZE`: HTTP connection pool max size (default `100`).
-
-## Docker Development Workflow
-
-### Interactive Development
-
-For interactive development with hot-reload:
-
-```bash
-# Start container in background
-docker-compose up -d
-
-# Execute commands in the container
-docker-compose exec app uv run pytest
-docker-compose exec app uv run ruff format
-
-# Access shell
-docker-compose exec app bash
-
-# Stop container
-docker-compose down
-```
-
-### Production Build
-
-```bash
-# Build production image
-docker build -t nmdc-suggestor:latest .
-
-# Run production container
-docker run --env-file .env nmdc-suggestor:latest
-```
 
 ## Contributing
 
