@@ -53,7 +53,7 @@ def _assert_valid_output(result: object) -> LLMOutput:
 
 @pytest.mark.integration
 @pytest.mark.timeout(INTEGRATION_TIMEOUT)
-def test_agentic_metadata_pipeline_with_full_submission() -> None:
+def test_agentic_metadata_pipeline_with_full_submission(requires_credentials: None) -> None:
     """Full submission object → metadata field suggestions via agentic()."""
     submission = _load("full_submission_chopped.json")
     cm = _make_conversation_manager(system_prompt)
