@@ -7,6 +7,13 @@ from typing import Any, cast
 
 import google.auth
 import google.auth.transport.requests
+from claude_agent_sdk import (
+    AssistantMessage,
+    ClaudeAgentOptions,
+    ResultMessage,
+    SystemMessage,
+    query,
+)
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types as genai_types
@@ -14,6 +21,7 @@ from google.oauth2 import service_account
 from openai import OpenAI
 
 from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
+from nmdc_metadata_suggestor_ai_tool.system_prompt import orchestrator_prompt
 
 load_dotenv()
 
@@ -36,6 +44,7 @@ PNNL_GPT_MODELS = [
 ]
 
 DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
+DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-5@20250929"
 DEFAULT_MAX_TOKENS_BY_PROVIDER: dict[str, int] = {
     "pnnl": 128000,
     "cborg": 128000,
@@ -317,3 +326,55 @@ class ConversationManager:
             text="Utilize the following schema context to "
             "inform your metadata field recommendations:\n" + schema,
         )
+
+    async def agentic(
+        self, session_id: str | None = None, message: str | None = None
+    ) -> tuple[Any, str | None]:
+        """
+        Agentic interaction, session handling, and skill/tool usage via Claude Agent SDK
+        IMPORTANT NOTE: This only works with GCP auth right now.
+
+        Parameters
+        ----------
+        session_id: Optional session ID to resume a previous conversation.
+        If None, starts a new session.
+
+        """
+        # set env variable to enable Claude Agent SDK to pick up GCP credentials
+        # Claude Agent SDK requires a Claude model, not a Gemini model, even on Vertex AI
+        options = ClaudeAgentOptions(
+            skills="all",
+            model=DEFAULT_CLAUDE_MODEL,
+            system_prompt=orchestrator_prompt,
+            output_format={"type": "json_schema", "schema": LLMOutput.model_json_schema()},
+        )
+
+        if message is None:
+            raise ValueError("message is required")
+
+        result: Any = None
+        if session_id is None:
+            # start a new session and capture its ID
+            async for event in query(
+                prompt=message,
+                options=options,
+            ):
+                if isinstance(event, SystemMessage) and event.subtype == "init":
+                    session_id = event.data["session_id"]
+                elif isinstance(event, AssistantMessage):
+                    print(f"Assistant: {event.content}")
+                elif isinstance(event, ResultMessage):
+                    result = event.result
+
+        else:
+            options.resume = session_id
+            async for event in query(
+                prompt=message,
+                options=options,
+            ):
+                if isinstance(event, SystemMessage) and event.subtype == "init":
+                    session_id = event.data["session_id"]
+                elif isinstance(event, ResultMessage):
+                    result = event.result
+                    return result, session_id
+        return result, session_id

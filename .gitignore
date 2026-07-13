@@ -45,3 +45,6 @@ service-account.json
 credentials*.json
 *.key
 *.pem
+
+# local claude code credentials 
+settings.local.json
