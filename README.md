@@ -14,7 +14,7 @@ A Python application for the NMDC Submission portal metadata suggestor tool, pow
 You will need to set up a `.env` file. Copy the example first:
 
 ```bash
-cp .env-example .env
+cp .env.example .env
 ```
 
 Environment variables used by `LLMClient` and `ConversationManager`:
@@ -23,7 +23,7 @@ Environment variables used by `LLMClient` and `ConversationManager`:
 - `AI_INCUBATOR_BASE_URL`: Base URL for the PNNL AI Incubator API.
 - `GOOGLE_APPLICATION_CREDENTIALS`: Path to a GCP service account JSON file (for Vertex AI).
 - `VERTEX_PROJECT_ID`: (Optional) GCP project id for Vertex. If not provided, the SDK will attempt to infer it from credentials.
-- `GEMINI_REGION`: (Optional) GCP region for Gemini/Vertex (defaults to `us-east5` or `CLOUD_ML_REGION`).
+- `GCP_REGION`: (Optional) Vertex region override for Gemini calls (falls back to `GCP_REGION`, then `us-east5`).
 - `CBORG_KEY`: API key for CBORG (when using `access_provider=cborg`).
 - `CBORG_BASE_URL`: Base URL for the CBORG API.
 
@@ -34,7 +34,7 @@ Environment variables are loaded from a `.env` file in the project root via
 set in your shell take precedence over `.env` values (`override=False` is the
 default).
 
-### Option 1: Using uv (Local Development)
+### Using uv (Local Development)
 
 1. **Install uv** (if not already installed):
    ```bash
@@ -93,63 +93,7 @@ response = conversation.generate(model="gemini-2.5-flash", max_tokens=1024, gemi
 print(response)
 ```
 
-### Option 2: Using Docker
-
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/microbiomedata/nmdc-metadata-suggestor-ai-tool.git
-   cd nmdc-metadata-suggestor-ai-tool
-   ```
-
-2. **Configure environment**:
-   ```bash
-   cp .env.example .env
-   # Edit .env and add your API keys
-   ```
-
-3. **Run with Docker Compose** (development):
-   ```bash
-   docker-compose up
-   ```
-
-4. **Or build and run production image**:
-   ```bash
-   docker build -t nmdc-suggestor .
-   docker run --env-file .env nmdc-suggestor
-   ```
-
 ## Development
-
-### Project Structure
-
-```
-nmdc-metadata-suggestor-ai-tool/
-├── src/
-│   └── nmdc_metadata_suggestor_ai_tool/
-│       ├── __init__.py
-│       ├── recommendation_pipeline.py       # Pipeline orchestration
-│       ├── llm_client.py                    # LLM client for AI interactions
-│       ├── cli/
-│       │   ├── __init__.py
-│       │   └── doi_cli.py                   # DOI operations CLI
-│       ├── models/
-│       │   ├── __init__.py
-│       │   ├── doi.py                       # DOI data models
-│       │   └── llm_output.py                # LLM output model
-│       └── publication_ingestion/
-│           ├── __init__.py
-│           ├── download_pdf.py              # PDF retrieval logic
-│           └── retreive_pdf_link.py         # PDF link discovery
-├── tests/                                    # Test files
-├── scripts/                                  # Vertex AI test scripts
-├── docs/                                     # Documentation
-├── pyproject.toml                            # Project dependencies and metadata
-├── Dockerfile                                # Production Docker image
-├── Dockerfile.dev                            # Development Docker image
-├── docker-compose.yml                        # Docker Compose configuration
-├── .env.example                              # Example environment variables
-└── README.md                                 # This file
-```
 
 ### Running Tests
 
@@ -161,7 +105,7 @@ uv run pytest
 uv run pytest --cov=src/nmdc_metadata_suggestor_ai_tool
 
 # Run specific test file
-uv run pytest tests/test_example.py
+uv run pytest tests/test_recommendation_pipeline.py
 ```
 
 ### Code Quality
@@ -192,42 +136,19 @@ uv sync
 
 ## Configuration
 
-Configuration is managed through environment variables or a `.env` file. See `.env.example` for available options:
+Configuration is managed through environment variables or a `.env` file. See `.env.example` for all options. Beyond the LLM access variables above:
 
-- `DEFAULT_MODEL`: Default LLM model to use
-- `MAX_TOKENS`: Maximum tokens for LLM responses
-- `TEMPERATURE`: Temperature for LLM responses (0.0-1.0)
+- `CONTACT_EMAIL`: Contact email sent in User-Agent headers for the Crossref polite pool and OpenAlex (defaults to `support@microbiomedata.org`).
 
-## Docker Development Workflow
+Advanced ingestion tuning (all optional; defaults shown):
 
-### Interactive Development
-
-For interactive development with hot-reload:
-
-```bash
-# Start container in background
-docker-compose up -d
-
-# Execute commands in the container
-docker-compose exec app uv run pytest
-docker-compose exec app uv run ruff format
-
-# Access shell
-docker-compose exec app bash
-
-# Stop container
-docker-compose down
-```
-
-### Production Build
-
-```bash
-# Build production image
-docker build -t nmdc-suggestor:latest .
-
-# Run production container
-docker run --env-file .env nmdc-suggestor:latest
-```
+- `NMDC_EDI_MAX_XML_CHARS`: Max characters read from an untrusted EDI metadata XML payload (default `2000000`).
+- `NMDC_DATAONE_SOLR_MAX_XML_CHARS`: Max characters read from an untrusted DataONE Solr XML payload (default `2000000`).
+- `NMDC_HTTP_RETRY_ATTEMPTS`: Retry attempts for publication/DOI HTTP requests (default `3`).
+- `NMDC_HTTP_RETRY_BACKOFF_SECONDS`: Base backoff in seconds between retries (default `0`).
+- `NMDC_HTTP_MAX_RETRY_DELAY_SECONDS`: Cap in seconds on retry delay (default `30`).
+- `NMDC_HTTP_POOL_CONNECTIONS`: HTTP connection pool size (default `20`).
+- `NMDC_HTTP_POOL_MAXSIZE`: HTTP connection pool max size (default `100`).
 
 ## Contributing
 

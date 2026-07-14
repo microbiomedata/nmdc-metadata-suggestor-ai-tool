@@ -94,6 +94,148 @@ def test_run_recommendation_pipeline_raises_for_invalid_output_schema(
         )
 
 
+_VALID_RESPONSE = (
+    '{"metadata_fields":[{"field_name":"env_broad_scale",'
+    '"reason":"Required for submission.","value":"soil"}]}'
+)
+
+
+def _spy_on_schema_context(monkeypatch: pytest.MonkeyPatch) -> dict:
+    """Stub the network abstract lookup and capture the class names that the
+    pipeline hands to ``format_multi_interface_context``.
+
+    Note: the other pipeline tests stub ``format_multi_interface_context`` via
+    ``_stub_common_inputs`` and discard its argument, so they never observe what
+    ``interface_name`` resolves to. This spy records that argument instead.
+    """
+    monkeypatch.setattr(
+        build_submission_context,
+        "get_doi_description_or_abstract",
+        lambda **_: SimpleNamespace(context="Test abstract", publication_urls=[]),
+    )
+    captured: dict = {}
+
+    def _record(self: object, class_names: list[str]) -> str:
+        captured["class_names"] = class_names
+        return "schema context"
+
+    monkeypatch.setattr(
+        recommendation_pipeline.SchemaContextBuilder,
+        "format_multi_interface_context",
+        _record,
+    )
+    return captured
+
+
+def test_interface_name_resolves_to_interface_class_names(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A supplied ``interface_name`` must resolve to the same interface-class
+    vocabulary as the submission-object path (``"soil"`` -> ``["SoilInterface"]``).
+
+    Reveals the bug: the pipeline does ``list(interface_name)``, which splits the
+    string into characters (``["s", "o", "i", "l"]``) instead of normalizing it.
+    """
+    captured = _spy_on_schema_context(monkeypatch)
+    client = _FakeLLMClient(response=_VALID_RESPONSE)
+
+    recommendation_pipeline.run_recommendation_pipeline(
+        submission_object=load_sample_submission_object(),
+        llm_client=client,
+        interface_name="soil",
+    )
+
+    assert captured["class_names"] == ["SoilInterface"]
+
+
+def test_interface_name_accepts_interface_class_name_form(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The parser was extended to accept enum names too, so passing the class
+    name directly should also resolve to ``["SoilInterface"]``.
+
+    Reveals the bug: ``list("SoilInterface")`` yields a list of 13 characters.
+    """
+    captured = _spy_on_schema_context(monkeypatch)
+    client = _FakeLLMClient(response=_VALID_RESPONSE)
+
+    recommendation_pipeline.run_recommendation_pipeline(
+        submission_object=load_sample_submission_object(),
+        llm_client=client,
+        interface_name="SoilInterface",
+    )
+
+    assert captured["class_names"] == ["SoilInterface"]
+
+
+def test_interface_name_does_not_crash_schema_context_builder(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """End-to-end guard: supplying ``interface_name`` must not raise.
+
+    ``format_multi_interface_context`` is deliberately NOT stubbed here, so the
+    real ``SchemaContextBuilder`` runs. Reveals the bug: the character-split feeds
+    invalid class names into the builder, which raises
+    ``ValueError: Unknown class: s``.
+    """
+    monkeypatch.setattr(
+        build_submission_context,
+        "get_doi_description_or_abstract",
+        lambda **_: SimpleNamespace(context="Test abstract", publication_urls=[]),
+    )
+    client = _FakeLLMClient(response=_VALID_RESPONSE)
+
+    result = recommendation_pipeline.run_recommendation_pipeline(
+        submission_object=load_sample_submission_object(),
+        llm_client=client,
+        interface_name="soil",
+    )
+
+    assert result.metadata_fields[0].field_name == "env_broad_scale"
+
+
+def test_interface_name_overrides_submission_package(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A supplied ``interface_name`` takes precedence over the submission's own
+    package. The sample submission is a soil package; passing ``"water"`` should
+    drive the schema context to ``["WaterInterface"]``, not the submission's soil.
+
+    Reveals the bug: ``list("water")`` yields ``["w", "a", "t", "e", "r"]``.
+    """
+    captured = _spy_on_schema_context(monkeypatch)
+    client = _FakeLLMClient(response=_VALID_RESPONSE)
+
+    recommendation_pipeline.run_recommendation_pipeline(
+        submission_object=load_sample_submission_object(),
+        llm_client=client,
+        interface_name="water",
+    )
+
+    assert captured["class_names"] == ["WaterInterface"]
+
+
+@pytest.mark.parametrize("interface_name", [None, ""])
+def test_absent_interface_name_falls_back_to_submission_package(
+    monkeypatch: pytest.MonkeyPatch, interface_name: str | None
+) -> None:
+    """When ``interface_name`` is absent or empty, the pipeline falls back to the
+    interfaces parsed from the submission object (soil for the sample fixture).
+
+    Passes today; a regression guard so the fix preserves the fallback path.
+    """
+    captured = _spy_on_schema_context(monkeypatch)
+    client = _FakeLLMClient(response=_VALID_RESPONSE)
+
+    recommendation_pipeline.run_recommendation_pipeline(
+        submission_object=load_sample_submission_object(),
+        llm_client=client,
+        interface_name=interface_name,
+    )
+
+    assert captured["class_names"] == ["SoilInterface"]
+
+
 def test_run_recommendation_pipeline(requires_credentials: None) -> None:
     start = time.time_ns()
     sample_submission_object = load_sample_submission_object()
