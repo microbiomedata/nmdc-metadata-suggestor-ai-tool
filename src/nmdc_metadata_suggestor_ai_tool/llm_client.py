@@ -364,7 +364,7 @@ class ConversationManager:
                 elif isinstance(event, AssistantMessage):
                     print(f"Assistant: {event.content}")
                 elif isinstance(event, ResultMessage):
-                    result = event.result
+                    result = event.structured_output
 
         else:
             options.resume = session_id
@@ -375,6 +375,6 @@ class ConversationManager:
                 if isinstance(event, SystemMessage) and event.subtype == "init":
                     session_id = event.data["session_id"]
                 elif isinstance(event, ResultMessage):
-                    result = event.result
+                    result = event.structured_output
                     return result, session_id
         return result, session_id
