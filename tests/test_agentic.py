@@ -32,7 +32,9 @@ def _assert_valid_output(result: object) -> LLMOutput:
     assert result is not None, "agentic() returned None"
     structured, session_id = result
     assert session_id is not None, "Expected a session_id to be returned"
-    output = structured if isinstance(structured, LLMOutput) else LLMOutput.model_validate(structured)
+    output = (
+        structured if isinstance(structured, LLMOutput) else LLMOutput.model_validate(structured)
+    )
     assert isinstance(output, LLMOutput), f"Expected LLMOutput, got {type(output)}"
     assert output.metadata_fields, "Expected at least one metadata field suggestion"
     for field in output.metadata_fields:
