@@ -30,7 +30,7 @@ load_dotenv()
 # Configuration — reads from .env or environment
 CREDENTIALS_FILE = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
 PROJECT_ID = os.environ.get("ANTHROPIC_VERTEX_PROJECT_ID", "638610442344")
-REGION = os.environ.get("CLOUD_ML_REGION", "us-east5")
+REGION = os.environ.get("GCP_REGION", "us-east5")
 MODEL_ID = "claude-opus-4-6"
 
 # Pricing (per 1M tokens)

@@ -77,10 +77,7 @@ class LLMClient:
             )
         self.access_provider = access_provider
         self.project = project or os.environ.get("VERTEX_PROJECT_ID")
-        self.region = region or os.environ.get(
-            "GEMINI_REGION",
-            os.environ.get("CLOUD_ML_REGION", DEFAULT_GCP_REGION),
-        )
+        self.region = region or os.environ.get("GCP_REGION")
         self.credentials_file = credentials_file or os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
         self.client: OpenAI | genai.Client
 
