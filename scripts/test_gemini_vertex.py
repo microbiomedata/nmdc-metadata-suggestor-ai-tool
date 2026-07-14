@@ -80,7 +80,7 @@ load_dotenv()
 
 CREDENTIALS_FILE = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
 PROJECT_ID = os.environ.get("ANTHROPIC_VERTEX_PROJECT_ID")
-REGION = os.environ.get("GEMINI_REGION", os.environ.get("CLOUD_ML_REGION"))
+REGION = os.environ.get("GCP_REGION")
 DEFAULT_MODEL = os.environ.get("GEMINI_MODEL")
 
 VALID_MODELS = [
