@@ -117,25 +117,25 @@ Return a JSON object matching `LLMOutput`. Emit **three entries per sample** (on
     {
       "id": "nmdc:bsm-11-abc123",
       "field_name": "env_broad_scale",
-      "value": "boreal mire biome [ENVO:01001838]",
+      "value": "subpolar coniferous forest biome [ENVO:01000250]",
       "reason": "'peatland' and 'warming treatment' in study description indicate a boreal peatland biome."
     },
     {
       "id": "nmdc:bsm-11-abc123",
       "field_name": "env_local_scale",
-      "value": "",
-      "reason": "'whole-ecosystem treatment' (abstract) suggests a peatland, but no specific local feature is explicitly named."
+      "value": "peatland [ENVO:00000044]",
+      "reason": "(study-level 'peatland')"
     },
     {
       "id": "nmdc:bsm-11-abc123",
       "field_name": "env_medium",
-      "value": "peat soil [ENVO:00005774]",
+      "value": "histosol [ENVO:00002243]",
       "reason": "'peat warming' and 'surface peat' repeatedly cited in abstract."
     },
     {
       "id": "nmdc:bsm-11-def456",
       "field_name": "env_broad_scale",
-      "value": "boreal mire biome [ENVO:01001838]",
+      "value": "subpolar coniferous forest biome [ENVO:01000250]",
       "reason": "Same study context as above — boreal peatland site."
     },
     {
@@ -147,7 +147,7 @@ Return a JSON object matching `LLMOutput`. Emit **three entries per sample** (on
     {
       "id": "nmdc:bsm-11-def456",
       "field_name": "env_medium",
-      "value": "peat soil [ENVO:00005774]",
+      "value": "histosol [ENVO:00002243]",
       "reason": "'peat core' in sample collection notes."
     }
   ]
