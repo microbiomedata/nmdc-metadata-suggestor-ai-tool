@@ -78,6 +78,12 @@ warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
 
+[tool.deptry.per_rule_ignores]
+# nmdc-submission-schema ships schema YAML loaded at runtime via
+# importlib.resources.files("nmdc_submission_schema.schema") in schema_context.py,
+# so deptry's static import scan cannot see the usage (DEP002 false positive).
+DEP002 = ["nmdc-submission-schema"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
