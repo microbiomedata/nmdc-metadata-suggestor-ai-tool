@@ -24,7 +24,9 @@ dependencies = [
     "linkml-runtime>=1.7.0",
     "nmdc-submission-schema>=11.0.0",
     "openai>=2.21.0",
-    "claude-agent-sdk>=0.2.87"
+    "claude-agent-sdk>=0.2.87",
+    "langfuse>=4.14.0",
+    "openinference-instrumentation-claude-agent-sdk>=0.1.7",
 ]
 
 [project.urls]
