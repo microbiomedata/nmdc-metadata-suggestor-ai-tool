@@ -118,37 +118,37 @@ Return a JSON object matching `LLMOutput`. Emit **three entries per sample** (on
       "id": "nmdc:bsm-11-abc123",
       "field_name": "env_broad_scale",
       "value": "subpolar coniferous forest biome [ENVO:01000250]",
-      "reason": "'peatland' and 'warming treatment' in study description indicate a boreal peatland biome."
+      "reason": "Study describes a boreal peatland under a warming treatment; the picklist biome for boreal/taiga peatlands is subpolar coniferous forest biome."
     },
     {
       "id": "nmdc:bsm-11-abc123",
       "field_name": "env_local_scale",
       "value": "peatland [ENVO:00000044]",
-      "reason": "(study-level 'peatland')"
+      "reason": "Study description says 'peatland' but this sample names no more specific local feature, so the general picklist term peatland is used."
     },
     {
       "id": "nmdc:bsm-11-abc123",
       "field_name": "env_medium",
-      "value": "histosol [ENVO:00002243]",
-      "reason": "'peat warming' and 'surface peat' repeatedly cited in abstract."
+      "value": "peat soil [ENVO:00005774]",
+      "reason": "Abstract cites 'surface peat' and 'peat warming'; peat soil is the specific material, more precise than the picklist term histosol."
     },
     {
       "id": "nmdc:bsm-11-def456",
       "field_name": "env_broad_scale",
       "value": "subpolar coniferous forest biome [ENVO:01000250]",
-      "reason": "Same study context as above — boreal peatland site."
+      "reason": "Same study and site as the sample above, so the same boreal biome applies."
     },
     {
       "id": "nmdc:bsm-11-def456",
       "field_name": "env_local_scale",
-      "value": "peatland [ENVO:00000044]",
-      "reason": "'Sphagnum bog' explicitly named in sample description field."
+      "value": "sphagnum bog [ENVO:00002268]",
+      "reason": "Sample description names a 'Sphagnum bog', which is a more specific ENVO term than the picklist term peatland, so the exact term is used."
     },
     {
       "id": "nmdc:bsm-11-def456",
       "field_name": "env_medium",
-      "value": "histosol [ENVO:00002243]",
-      "reason": "'peat core' in sample collection notes."
+      "value": "peat soil [ENVO:00005774]",
+      "reason": "Sample collection notes cite a 'peat core'; peat soil is the specific material, more precise than the picklist term histosol."
     }
   ]
 }
