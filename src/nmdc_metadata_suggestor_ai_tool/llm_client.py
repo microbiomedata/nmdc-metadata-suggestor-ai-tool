@@ -327,9 +327,25 @@ class ConversationManager:
             "inform your metadata field recommendations:\n" + schema,
         )
 
+    @staticmethod
+    def unwrap_structured_output(raw: Any) -> LLMOutput:
+        """Extract LLMOutput from whatever wrapper shape Claude produced."""
+        if not isinstance(raw, dict):
+            raise ValueError(f"structured_output is not a dict: {type(raw)}")
+        try:
+            return LLMOutput.model_validate(raw)
+        except Exception:
+            for v in raw.values():
+                if isinstance(v, dict):
+                    try:
+                        return LLMOutput.model_validate(v)
+                    except Exception:
+                        continue
+        raise ValueError(f"Could not extract LLMOutput from structured_output: {raw}")
+
     async def agentic(
         self, session_id: str | None = None, message: str | None = None
-    ) -> tuple[Any, str | None]:
+    ) -> tuple[LLMOutput, str | None]:
         """
         Agentic interaction, session handling, and skill/tool usage via Claude Agent SDK
         IMPORTANT NOTE: This only works with GCP auth right now.
@@ -364,7 +380,7 @@ class ConversationManager:
                 elif isinstance(event, AssistantMessage):
                     print(f"Assistant: {event.content}")
                 elif isinstance(event, ResultMessage):
-                    result = event.structured_output
+                    result = self.unwrap_structured_output(event.structured_output)
 
         else:
             options.resume = session_id
@@ -375,6 +391,6 @@ class ConversationManager:
                 if isinstance(event, SystemMessage) and event.subtype == "init":
                     session_id = event.data["session_id"]
                 elif isinstance(event, ResultMessage):
-                    result = event.structured_output
+                    result = self.unwrap_structured_output(event.structured_output)
                     return result, session_id
         return result, session_id
