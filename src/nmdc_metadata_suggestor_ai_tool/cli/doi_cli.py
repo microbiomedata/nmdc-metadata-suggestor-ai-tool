@@ -159,9 +159,14 @@ def _read_dois_from_file(file_path: Path) -> list[str]:
             print(f"Error: no 'doi' or 'doi_value' column in {file_path}", file=sys.stderr)
             sys.exit(1)
         actual_col = (reader.fieldnames or [])[fieldnames.index(col)]
+        # csv.DictReader fills missing trailing fields with None (not ""), for
+        # rows shorter than the header — coerce before .strip() so a short or
+        # malformed row doesn't crash the whole batch with an AttributeError.
         return list(
             dict.fromkeys(
-                row[actual_col].strip() for row in reader if row.get(actual_col, "").strip()
+                (row.get(actual_col) or "").strip()
+                for row in reader
+                if (row.get(actual_col) or "").strip()
             )
         )
 
@@ -281,7 +286,7 @@ def main() -> None:
     if len(sys.argv) < 2:
         print(
             f"Usage: {sys.argv[0]} <validate|classify|classify-fixture"
-            "|get-abstract|get-abstracts|get-abstracts-from-file> [DOI] [OUT]",
+            "|get-abstract|get-abstracts|get-abstracts-from-file> [DOI|FILE] [OUT] [sources=...]",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -332,7 +337,7 @@ def main() -> None:
         print(f"Unknown command: {command}", file=sys.stderr)
         print(
             f"Usage: {sys.argv[0]} <validate|classify|classify-fixture"
-            "|get-abstract|get-abstracts|get-abstracts-from-file> [DOI] [OUT]",
+            "|get-abstract|get-abstracts|get-abstracts-from-file> [DOI|FILE] [OUT] [sources=...]",
             file=sys.stderr,
         )
         sys.exit(1)
