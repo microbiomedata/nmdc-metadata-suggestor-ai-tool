@@ -144,7 +144,11 @@ def _read_dois_from_file(file_path: Path) -> list[str]:
     first_line = text.split("\n", 1)[0]
 
     sep = "\t" if "\t" in first_line else ","
-    if "doi" in first_line.lower():
+    # Require an exact "doi"/"doi_value" column, not just a substring match —
+    # otherwise a plain-text list of "doi:10.x/..." lines (a common DOI
+    # display convention) would be misdetected as a CSV/TSV header.
+    header_fields = [f.strip().lower() for f in first_line.split(sep)]
+    if "doi" in header_fields or "doi_value" in header_fields:
         reader = csv.DictReader(text.splitlines(), delimiter=sep)
         fieldnames = [f.lower().strip() for f in (reader.fieldnames or [])]
         if "doi_value" in fieldnames:
@@ -316,11 +320,13 @@ def main() -> None:
             print("Error: FILE argument required", file=sys.stderr)
             sys.exit(1)
         file_arg = sys.argv[2]
-        out_dir = sys.argv[3] if len(sys.argv) > 3 else "results"
+        out_dir = "results"
         sources = None
-        for arg in sys.argv[4:]:
+        for arg in sys.argv[3:]:
             if arg.startswith("sources="):
                 sources = arg[len("sources=") :].split(",")
+            else:
+                out_dir = arg
         cmd_get_abstracts_from_file(file_arg, out_dir, sources=sources)
     else:
         print(f"Unknown command: {command}", file=sys.stderr)
