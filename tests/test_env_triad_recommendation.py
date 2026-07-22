@@ -1,7 +1,11 @@
 from pathlib import Path
 
+import pytest
+
 from nmdc_metadata_suggestor_ai_tool import env_triad_recommendation
 from nmdc_metadata_suggestor_ai_tool.llm_client import LLMClient
+
+pytestmark = pytest.mark.integration
 
 
 def load_sample_submission_object() -> dict:
