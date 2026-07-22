@@ -10,11 +10,11 @@ from pathlib import Path
 
 import pytest
 
-pytestmark = pytest.mark.integration
-
 from nmdc_metadata_suggestor_ai_tool.llm_client import ConversationManager, LLMClient
 from nmdc_metadata_suggestor_ai_tool.recommendation_pipeline import run_recommendation_pipeline
 from nmdc_metadata_suggestor_ai_tool.utils.utils import validate_output
+
+pytestmark = pytest.mark.integration
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 

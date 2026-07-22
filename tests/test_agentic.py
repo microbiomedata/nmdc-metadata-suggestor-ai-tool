@@ -10,11 +10,11 @@ from pathlib import Path
 
 import pytest
 
-pytestmark = pytest.mark.integration
-
 from nmdc_metadata_suggestor_ai_tool.llm_client import ConversationManager, LLMClient
 from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
 from nmdc_metadata_suggestor_ai_tool.system_prompt import env_triad_prompt, system_prompt
+
+pytestmark = pytest.mark.integration
 
 FIXTURES = Path(__file__).parent / "fixtures"
 INTEGRATION_TIMEOUT = 180  # seconds
