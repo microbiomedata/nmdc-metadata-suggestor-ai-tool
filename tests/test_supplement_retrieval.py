@@ -587,3 +587,57 @@ def test_orchestrator_aggregates_hosted_and_related() -> None:
     sources = {f.source for f in result.files}
     assert sources == {"europepmc", "zenodo"}
     assert result.source == "europepmc+zenodo"
+
+
+# ---------------------------------------------------------------------------
+# Merge cleanup (no orphaned temp files)
+# ---------------------------------------------------------------------------
+
+
+def test_merge_results_deletes_trimmed_temp_files(tmp_path) -> None:
+    from nmdc_metadata_suggestor_ai_tool.models.supplement import (
+        SupplementFile,
+        SupplementRetrievalResult,
+    )
+    from nmdc_metadata_suggestor_ai_tool.publication_ingestion.retrieve_supplements import (
+        _merge_results,
+    )
+
+    kept_path = tmp_path / "kept.pdf"
+    kept_path.write_bytes(b"%PDF-1.4 kept")
+    dropped_path = tmp_path / "dropped.pdf"
+    dropped_path.write_bytes(b"%PDF-1.4 dropped")
+
+    r1 = SupplementRetrievalResult(
+        doi="x",
+        source="europepmc",
+        files=[
+            SupplementFile(
+                filename="kept.pdf",
+                kind=SupplementKind.DOCUMENT,
+                source="europepmc",
+                size_bytes=13,
+                saved_path=str(kept_path),
+            )
+        ],
+    )
+    r2 = SupplementRetrievalResult(
+        doi="x",
+        source="zenodo",
+        files=[
+            SupplementFile(
+                filename="dropped.pdf",
+                kind=SupplementKind.DOCUMENT,
+                source="zenodo",
+                size_bytes=16,
+                saved_path=str(dropped_path),
+            )
+        ],
+    )
+
+    # max_files=1 forces the second file to be trimmed from the union.
+    merged = _merge_results("x", [r1, r2], [], max_files=1, max_total_bytes=1_000_000)
+
+    assert [f.filename for f in merged.files] == ["kept.pdf"]
+    assert kept_path.exists()  # kept file's temp path untouched
+    assert not dropped_path.exists()  # trimmed file's temp path deleted (no leak)

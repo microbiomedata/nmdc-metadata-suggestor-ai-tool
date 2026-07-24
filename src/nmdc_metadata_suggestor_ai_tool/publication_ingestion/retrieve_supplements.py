@@ -74,6 +74,7 @@ from nmdc_metadata_suggestor_ai_tool.models.supplement import (
     SupplementKind,
     SupplementRetrievalResult,
 )
+from nmdc_metadata_suggestor_ai_tool.publication_ingestion.download_pdf import remove_temp_file
 
 logger = logging.getLogger(__name__)
 
@@ -1216,15 +1217,20 @@ def _merge_results(
     for res in results:
         for file in res.files:
             key = (file.source, os.path.basename(file.filename))
-            if key in seen:
-                continue
-            if len(kept) >= max_files:
-                break
-            if total_bytes + (file.size_bytes or 0) > max_total_bytes:
-                continue
-            seen.add(key)
-            total_bytes += file.size_bytes or 0
-            kept.append(file)
+            keep = (
+                key not in seen
+                and len(kept) < max_files
+                and total_bytes + (file.size_bytes or 0) <= max_total_bytes
+            )
+            if keep:
+                seen.add(key)
+                total_bytes += file.size_bytes or 0
+                kept.append(file)
+            elif file.saved_path:
+                # This file was already materialized to a temp file by its source
+                # but is being dropped from the merged result (cap/dedup). Delete
+                # it so it doesn't leak -- the caller can only clean files it sees.
+                remove_temp_file(file.saved_path)
 
     merged = SupplementRetrievalResult(
         doi=doi,
