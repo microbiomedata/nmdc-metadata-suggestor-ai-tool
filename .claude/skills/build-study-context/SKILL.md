@@ -65,10 +65,13 @@ from nmdc_metadata_suggestor_ai_tool.publication_ingestion.retrieve_supplements 
     retrieve_supplements,
 )
 
-supp = retrieve_supplements(doi=entry["value"])
+# Pass the DOI's abstract text (from step 2) so linked-dataset DOIs mentioned in
+# the prose can also be resolved. The skill routes by DOI type and merges hosted
+# supplements with any linked Dryad/Zenodo/Figshare datasets.
+supp = retrieve_supplements(doi=entry["value"], text=result.context)
 for f in supp.files:
     if f.text:
-        context_texts.append(f"Supplement {f.filename} (for {entry['value']}):\n{f.text}")
+        context_texts.append(f"Supplement {f.filename} [{f.source}] (for {entry['value']}):\n{f.text}")
     # non-text files are at f.saved_path for downstream readers
 ```
 

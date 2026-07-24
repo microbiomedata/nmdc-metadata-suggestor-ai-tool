@@ -41,6 +41,11 @@ class SupplementFile(BaseModel):
 
     filename: str
     kind: SupplementKind
+    source: str | None = Field(
+        default=None,
+        description="Which source/repository the file came from "
+        "(e.g. 'europepmc', 'pmc_oa', 'dryad', 'zenodo', 'figshare').",
+    )
     size_bytes: int | None = None
     caption: str | None = Field(
         default=None,
@@ -76,6 +81,11 @@ class SupplementRetrievalResult(BaseModel):
         description="Supplements that were found but intentionally not kept.",
     )
     attempts: list[str] = Field(default_factory=list)
+    detected_accessions: list[str] = Field(
+        default_factory=list,
+        description="Repository/sequence accessions found while mining publication "
+        "text (e.g. PRJNA…, SRR…, GSE…). Surfaced for awareness; not retrieved.",
+    )
     error: str | None = None
 
     @property

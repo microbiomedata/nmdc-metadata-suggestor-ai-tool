@@ -39,12 +39,16 @@ from typing import Any, NamedTuple
 from urllib.parse import quote, urljoin, urlsplit
 
 from nmdc_metadata_suggestor_ai_tool.constants import (
+    CROSSREF_API_URL,
+    DATACITE_API_URL,
     DEFAULT_TIMEOUT,
     DRYAD_API_URL,
     DRYAD_DOI_PREFIX,
     EUROPEPMC_API_URL,
     EUROPEPMC_FULLTEXT_XML_URL_TEMPLATE,
     EUROPEPMC_SUPPL_URL_TEMPLATE,
+    FIGSHARE_API,
+    FIGSHARE_COLLECTIONS_API,
     PMC_OA_SERVICE_URL,
     SUPPLEMENT_MAX_ARCHIVE_BYTES,
     SUPPLEMENT_MAX_FILE_BYTES,
@@ -52,8 +56,10 @@ from nmdc_metadata_suggestor_ai_tool.constants import (
     SUPPLEMENT_MAX_TEXT_CHARS,
     SUPPLEMENT_MAX_TOTAL_BYTES,
     USER_AGENT,
+    ZENODO_API,
 )
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import (
+    DOI_REFERENCE_PATTERN,
     normalize_doi,
     request_with_retry,
 )
@@ -374,6 +380,7 @@ def _select_members(
     max_text_chars: int,
     save_dir: str | None,
     captions: dict[str, str] | None,
+    source: str | None = None,
 ) -> tuple[list[SupplementFile], list[SupplementFile]]:
     """Filter candidate members to the high-value ones within caps.
 
@@ -389,6 +396,7 @@ def _select_members(
             SupplementFile(
                 filename=name,
                 kind=kind,
+                source=source,
                 size_bytes=size,
                 caption=_match_caption(name, captions),
                 skipped_reason=reason,
@@ -428,6 +436,7 @@ def _select_members(
             SupplementFile(
                 filename=name,
                 kind=kind,
+                source=source,
                 size_bytes=size or len(data),
                 caption=_match_caption(name, captions),
                 text=text,
@@ -494,6 +503,7 @@ def _apply_selection(
         max_text_chars=caps.max_text_chars,
         save_dir=caps.save_dir,
         captions=captions,
+        source=result.source,
     )
     result.files = kept
     result.skipped = skipped
@@ -810,21 +820,13 @@ def _dryad_get(path: str) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Orchestrator: try sources in order, stop at the first that yields files
+# Source 4: Zenodo
 # ---------------------------------------------------------------------------
 
 
-def _default_supplement_sources(doi: str) -> list[str]:
-    """Pick the source order for *doi* (Dryad DOIs vs. article DOIs)."""
-    if is_dryad_doi(doi):
-        return ["dryad"]
-    return ["europepmc", "pmc_oa"]
-
-
-def retrieve_supplements(
+def retrieve_supplements_from_zenodo(
     doi: str,
     *,
-    sources: list[str] | None = None,
     useful_kinds: Iterable[SupplementKind] = DEFAULT_USEFUL_KINDS,
     max_files: int = SUPPLEMENT_MAX_FILES,
     max_file_bytes: int = SUPPLEMENT_MAX_FILE_BYTES,
@@ -833,19 +835,365 @@ def retrieve_supplements(
     max_text_chars: int = SUPPLEMENT_MAX_TEXT_CHARS,
     save_dir: str | None = None,
 ) -> SupplementRetrievalResult:
-    """Retrieve high-value supplements for *doi*, trying sources in order.
+    """Retrieve high-value files from a Zenodo record (by DOI or concept DOI)."""
+    caps = _resolve_caps(
+        useful_kinds,
+        max_files,
+        max_file_bytes,
+        max_total_bytes,
+        max_archive_bytes,
+        max_text_chars,
+        save_dir,
+    )
+    doi = normalize_doi(doi)
+    result = SupplementRetrievalResult(doi=doi, source="zenodo", attempts=["zenodo"])
 
-    The default order is Europe PMC then the NCBI PMC OA package (fallback), or
-    just Dryad for Dryad dataset DOIs. Retrieval stops at the first source that
-    returns any kept file. Pass ``sources`` to override (``"europepmc"``,
-    ``"pmc_oa"``, ``"dryad"``).
+    try:
+        response = request_with_retry(
+            "GET",
+            ZENODO_API,
+            params={"q": f'doi:"{doi}" OR conceptdoi:"{doi}"'},
+            timeout=DEFAULT_TIMEOUT,
+            headers={"User-Agent": USER_AGENT},
+        )
+        response.raise_for_status()
+        hits = response.json().get("hits", {}).get("hits", [])
+    except Exception as exc:
+        result.error = f"Zenodo lookup failed: {exc}"
+        return result
+
+    hit = _first_matching(hits, doi, ("doi", "conceptdoi"))
+    if hit is None:
+        result.error = "No Zenodo record found for DOI"
+        return result
+
+    members: list[_Member] = []
+    for file_entry in hit.get("files", []):
+        name = file_entry.get("key") or file_entry.get("filename")
+        links = file_entry.get("links", {})
+        url = links.get("self") or links.get("download")
+        if not name or not url:
+            continue
+        members.append(
+            _Member(
+                name=name,
+                size=int(file_entry.get("size") or 0),
+                read=_url_reader(url, caps.max_file_bytes),
+            )
+        )
+
+    _apply_selection(result, members, caps, None, "Zenodo record contained no high-value files")
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Source 5: Figshare
+# ---------------------------------------------------------------------------
+
+
+def retrieve_supplements_from_figshare(
+    doi: str,
+    *,
+    useful_kinds: Iterable[SupplementKind] = DEFAULT_USEFUL_KINDS,
+    max_files: int = SUPPLEMENT_MAX_FILES,
+    max_file_bytes: int = SUPPLEMENT_MAX_FILE_BYTES,
+    max_total_bytes: int = SUPPLEMENT_MAX_TOTAL_BYTES,
+    max_archive_bytes: int = SUPPLEMENT_MAX_ARCHIVE_BYTES,
+    max_text_chars: int = SUPPLEMENT_MAX_TEXT_CHARS,
+    save_dir: str | None = None,
+) -> SupplementRetrievalResult:
+    """Retrieve high-value files from a Figshare article/collection DOI."""
+    caps = _resolve_caps(
+        useful_kinds,
+        max_files,
+        max_file_bytes,
+        max_total_bytes,
+        max_archive_bytes,
+        max_text_chars,
+        save_dir,
+    )
+    doi = normalize_doi(doi)
+    result = SupplementRetrievalResult(doi=doi, source="figshare", attempts=["figshare"])
+
+    detail = _figshare_detail_for_doi(doi)
+    if detail is None:
+        result.error = "No Figshare record found for DOI"
+        return result
+
+    members: list[_Member] = []
+    for file_entry in detail.get("files", []):
+        name = file_entry.get("name")
+        url = file_entry.get("download_url")
+        if not name or not url:
+            continue
+        members.append(
+            _Member(
+                name=name,
+                size=int(file_entry.get("size") or 0),
+                read=_url_reader(url, caps.max_file_bytes),
+            )
+        )
+
+    _apply_selection(result, members, caps, None, "Figshare record contained no high-value files")
+    return result
+
+
+def _figshare_detail_for_doi(doi: str) -> dict[str, Any] | None:
+    """Resolve a Figshare DOI to a detailed record (with a ``files`` list)."""
+    for endpoint in (FIGSHARE_API, FIGSHARE_COLLECTIONS_API):
+        try:
+            response = request_with_retry(
+                "GET",
+                endpoint,
+                params={"doi": doi},
+                timeout=DEFAULT_TIMEOUT,
+                headers={"User-Agent": USER_AGENT},
+            )
+            response.raise_for_status()
+            matches = response.json()
+        except Exception:
+            continue
+        if not isinstance(matches, list) or not matches:
+            continue
+        first = matches[0]
+        detail_url = first.get("url_public_api") or f"{endpoint}/{first.get('id')}"
+        try:
+            detail_response = request_with_retry(
+                "GET", detail_url, timeout=DEFAULT_TIMEOUT, headers={"User-Agent": USER_AGENT}
+            )
+            detail_response.raise_for_status()
+            detail = detail_response.json()
+        except Exception:
+            continue
+        if isinstance(detail, dict) and detail.get("files"):
+            return detail
+    return None
+
+
+def _first_matching(
+    hits: list[dict[str, Any]], doi: str, keys: tuple[str, ...]
+) -> dict[str, Any] | None:
+    """Return the first hit whose DOI in *keys* matches, else the first hit."""
+    if not isinstance(hits, list) or not hits:
+        return None
+    target = doi.lower()
+    for hit in hits:
+        if not isinstance(hit, dict):
+            continue
+        for key in keys:
+            value = hit.get(key)
+            if isinstance(value, str) and normalize_doi(value).lower() == target:
+                return hit
+    return hits[0] if isinstance(hits[0], dict) else None
+
+
+# ---------------------------------------------------------------------------
+# Related-dataset discovery from a publication's metadata
+# ---------------------------------------------------------------------------
+
+# DOI prefix -> the supplement source that can fetch that repository's files.
+_REPO_BY_PREFIX: dict[str, str] = {
+    DRYAD_DOI_PREFIX: "dryad",
+    "10.5281": "zenodo",
+    "10.6084": "figshare",
+}
+
+# Crossref relation types / DataCite relationTypes that point at *data* related
+# to the article (as opposed to citations). Compared after lowercasing and
+# stripping non-letters, so "IsSupplementedBy" and "is-supplemented-by" match.
+_DATA_RELATION_TYPES: frozenset[str] = frozenset(
+    {
+        "issupplementedby",
+        "haspart",
+        "issourceof",
+        "isderivedfrom",
+        "isdocumentedby",
+    }
+)
+
+
+def _normalize_relation(relation_type: str) -> str:
+    return re.sub(r"[^a-z]", "", relation_type.lower())
+
+
+def _repo_for_doi(doi: str) -> str | None:
+    """Return the supplement source able to fetch *doi*, or None."""
+    prefix = normalize_doi(doi).split("/", 1)[0]
+    return _REPO_BY_PREFIX.get(prefix)
+
+
+def find_related_data_dois(doi: str) -> list[str]:
+    """Find data-repository DOIs linked from a publication's relation metadata.
+
+    Reads Crossref ``relation`` and DataCite ``relatedIdentifiers``, keeps entries
+    whose relation indicates associated data (see ``_DATA_RELATION_TYPES``) and
+    whose target is a DOI we can fetch (Dryad/Zenodo/Figshare).
 
     Returns:
-        The first :class:`SupplementRetrievalResult` with kept files, or the last
-        attempted result (with its error) when no source yields supplements.
+        Deduplicated, normalized data-repository DOIs (empty on any failure).
     """
     doi = normalize_doi(doi)
-    order = sources or _default_supplement_sources(doi)
+    found: list[str] = []
+    found.extend(_crossref_related_dois(doi))
+    found.extend(_datacite_related_dois(doi))
+
+    unique: list[str] = []
+    for candidate in found:
+        normalized = normalize_doi(candidate)
+        if _repo_for_doi(normalized) and normalized not in unique and normalized != doi:
+            unique.append(normalized)
+    return unique
+
+
+def _crossref_related_dois(doi: str) -> list[str]:
+    """Extract related DOIs from a Crossref work's ``relation`` block."""
+    try:
+        response = request_with_retry(
+            "GET",
+            f"{CROSSREF_API_URL}/{doi}",
+            timeout=DEFAULT_TIMEOUT,
+            headers={"User-Agent": USER_AGENT},
+        )
+        response.raise_for_status()
+        relation = response.json().get("message", {}).get("relation", {})
+    except Exception:
+        return []
+
+    dois: list[str] = []
+    if isinstance(relation, dict):
+        for relation_type, entries in relation.items():
+            if _normalize_relation(str(relation_type)) not in _DATA_RELATION_TYPES:
+                continue
+            for entry in entries if isinstance(entries, list) else []:
+                if isinstance(entry, dict) and entry.get("id-type") == "doi":
+                    identifier = entry.get("id")
+                    if isinstance(identifier, str):
+                        dois.append(identifier)
+    return dois
+
+
+def _datacite_related_dois(doi: str) -> list[str]:
+    """Extract related DOIs from a DataCite record's ``relatedIdentifiers``."""
+    try:
+        response = request_with_retry(
+            "GET",
+            f"{DATACITE_API_URL}/{doi}",
+            timeout=DEFAULT_TIMEOUT,
+            headers={"User-Agent": USER_AGENT},
+        )
+        response.raise_for_status()
+        attributes = response.json().get("data", {}).get("attributes", {})
+        related = attributes.get("relatedIdentifiers", [])
+    except Exception:
+        return []
+
+    dois: list[str] = []
+    for entry in related if isinstance(related, list) else []:
+        if not isinstance(entry, dict):
+            continue
+        if str(entry.get("relatedIdentifierType", "")).lower() != "doi":
+            continue
+        if _normalize_relation(str(entry.get("relationType", ""))) not in _DATA_RELATION_TYPES:
+            continue
+        identifier = entry.get("relatedIdentifier")
+        if isinstance(identifier, str):
+            dois.append(identifier)
+    return dois
+
+
+# ---------------------------------------------------------------------------
+# Text / accession mining (fallback when relation metadata is absent)
+# ---------------------------------------------------------------------------
+
+# Common sequence/proteomics repository accession patterns. Detected and surfaced
+# for awareness, but NOT retrieved (they point at raw omics data, out of scope).
+_ACCESSION_PATTERN = re.compile(
+    r"\b("
+    r"PRJ[EDN][A-Z]\d+"  # BioProject
+    r"|SAM[EDN][A-Z]?\d+"  # BioSample
+    r"|[SED]R[RXPS]\d+"  # SRA/ENA runs, experiments, projects, samples
+    r"|GSE\d+|GSM\d+"  # GEO
+    r"|PXD\d+|MSV\d{9}"  # ProteomeXchange / MassIVE
+    r")\b"
+)
+
+
+def extract_dataset_dois_from_text(text: str) -> list[str]:
+    """Return data-repository DOIs (Dryad/Zenodo/Figshare) mentioned in *text*."""
+    found: list[str] = []
+    for match in DOI_REFERENCE_PATTERN.finditer(text):
+        candidate = normalize_doi(match.group(0).rstrip(".,;:)]}>\"'"))
+        if _repo_for_doi(candidate) and candidate not in found:
+            found.append(candidate)
+    return found
+
+
+def extract_accessions_from_text(text: str) -> list[str]:
+    """Return sequence/proteomics accessions mentioned in *text* (deduplicated)."""
+    seen: list[str] = []
+    for match in _ACCESSION_PATTERN.finditer(text):
+        accession = match.group(1)
+        if accession not in seen:
+            seen.append(accession)
+    return seen
+
+
+# ---------------------------------------------------------------------------
+# Orchestrator: route by DOI type; aggregate hosted + linked datasets
+# ---------------------------------------------------------------------------
+
+# Data-repository sources and their standalone retrievers.
+_DATA_REPO_RETRIEVERS: dict[str, Callable[..., SupplementRetrievalResult]] = {
+    "dryad": retrieve_supplements_from_dryad,
+    "zenodo": retrieve_supplements_from_zenodo,
+    "figshare": retrieve_supplements_from_figshare,
+}
+
+
+def _default_supplement_sources(doi: str) -> list[str]:
+    """Pick the source order for *doi* (data-repo DOIs vs. article DOIs)."""
+    repo = _repo_for_doi(doi)
+    if repo:
+        return [repo]
+    return ["europepmc", "pmc_oa"]
+
+
+def retrieve_supplements(
+    doi: str,
+    *,
+    sources: list[str] | None = None,
+    text: str | None = None,
+    follow_related: bool = True,
+    useful_kinds: Iterable[SupplementKind] = DEFAULT_USEFUL_KINDS,
+    max_files: int = SUPPLEMENT_MAX_FILES,
+    max_file_bytes: int = SUPPLEMENT_MAX_FILE_BYTES,
+    max_total_bytes: int = SUPPLEMENT_MAX_TOTAL_BYTES,
+    max_archive_bytes: int = SUPPLEMENT_MAX_ARCHIVE_BYTES,
+    max_text_chars: int = SUPPLEMENT_MAX_TEXT_CHARS,
+    save_dir: str | None = None,
+) -> SupplementRetrievalResult:
+    """Retrieve high-value supplements for *doi*, resolving in layers.
+
+    Routing:
+
+    * **Data-repository DOI** (Dryad/Zenodo/Figshare) -> fetch that repo's files.
+    * **Publication DOI** -> hosted supplements (Europe PMC, then NCBI PMC OA as a
+      fallback), plus, when ``follow_related``, any data-repository datasets linked
+      from the article's Crossref/DataCite relation metadata, plus, when ``text``
+      is given, data-repository DOIs mined from that text. Sequence/proteomics
+      accessions found in ``text`` are surfaced in ``detected_accessions`` but not
+      retrieved.
+
+    Files from every contributing source are merged and trimmed to ``max_files`` /
+    ``max_total_bytes``; each ``SupplementFile.source`` records its origin. Pass
+    ``sources`` to run an explicit source list instead of the default routing.
+
+    Returns:
+        A merged :class:`SupplementRetrievalResult`. When nothing is kept, the
+        result of the first source that at least found candidates is returned so
+        its ``skipped``/``error`` detail is preserved.
+    """
+    doi = normalize_doi(doi)
     kwargs = {
         "useful_kinds": useful_kinds,
         "max_files": max_files,
@@ -856,41 +1204,122 @@ def retrieve_supplements(
         "save_dir": save_dir,
     }
 
-    attempts: list[str] = []
-    pmcid: str | None = None
-    # When no source yields kept files, prefer the first source that at least
-    # found candidates (non-empty ``skipped``) so its detail isn't lost.
-    informative: SupplementRetrievalResult | None = None
-    last: SupplementRetrievalResult | None = None
-
-    for source in order:
-        if source == "europepmc":
-            res = retrieve_supplements_from_europepmc(doi, **kwargs)  # type: ignore[arg-type]
-            pmcid = res.pmcid or pmcid
-        elif source == "pmc_oa":
-            if not pmcid:
-                pmcid = str(find_supplement_source_europepmc(doi).get("pmcid") or "") or None
-            if not pmcid:
-                attempts.append("pmc_oa")
-                continue
-            res = retrieve_supplements_from_pmc_oa(pmcid, doi=doi, **kwargs)  # type: ignore[arg-type]
-        elif source == "dryad":
-            res = retrieve_supplements_from_dryad(doi, **kwargs)  # type: ignore[arg-type]
-        else:
-            continue
-
-        attempts.extend(res.attempts)
-        last = res
-        if res.has_supplements:
-            res.attempts = list(dict.fromkeys(attempts))
-            return res
-        if informative is None and res.skipped:
-            informative = res
-
-    chosen = informative or last
-    if chosen is None:
-        return SupplementRetrievalResult(
-            doi=doi, attempts=attempts, error="No supplement sources available for DOI"
+    if sources is not None:
+        explicit = [_run_source(s, doi, kwargs, None) for s in sources]
+        return _merge_results(
+            doi, [r for r in explicit if r is not None], [], max_files, max_total_bytes
         )
-    chosen.attempts = list(dict.fromkeys(attempts))
-    return chosen
+
+    # Direct data-repository DOI: just that repo.
+    repo = _repo_for_doi(doi)
+    if repo:
+        return _DATA_REPO_RETRIEVERS[repo](doi, **kwargs)  # type: ignore[arg-type]
+
+    # Publication DOI: hosted supplements (stop at first with files), then any
+    # linked/mined data-repository datasets.
+    results: list[SupplementRetrievalResult] = []
+    pmcid: str | None = None
+    hosted = retrieve_supplements_from_europepmc(doi, **kwargs)  # type: ignore[arg-type]
+    pmcid = hosted.pmcid
+    results.append(hosted)
+    if not hosted.has_supplements:
+        if not pmcid:
+            pmcid = str(find_supplement_source_europepmc(doi).get("pmcid") or "") or None
+        if pmcid:
+            results.append(retrieve_supplements_from_pmc_oa(pmcid, doi=doi, **kwargs))  # type: ignore[arg-type]
+
+    data_dois: list[str] = []
+    if follow_related:
+        data_dois.extend(find_related_data_dois(doi))
+    accessions: list[str] = []
+    if text:
+        for mined in extract_dataset_dois_from_text(text):
+            if mined not in data_dois:
+                data_dois.append(mined)
+        accessions = extract_accessions_from_text(text)
+
+    for data_doi in data_dois:
+        repo = _repo_for_doi(data_doi)
+        if repo:
+            results.append(_DATA_REPO_RETRIEVERS[repo](data_doi, **kwargs))  # type: ignore[arg-type]
+
+    merged = _merge_results(doi, results, accessions, max_files, max_total_bytes)
+    merged.pmcid = pmcid or merged.pmcid
+    return merged
+
+
+def _run_source(
+    source: str,
+    doi: str,
+    kwargs: dict[str, Any],
+    pmcid: str | None,
+) -> SupplementRetrievalResult | None:
+    """Run a single named source (used for explicit ``sources`` overrides)."""
+    if source == "europepmc":
+        return retrieve_supplements_from_europepmc(doi, **kwargs)
+    if source == "pmc_oa":
+        resolved = pmcid or (str(find_supplement_source_europepmc(doi).get("pmcid") or "") or None)
+        if not resolved:
+            return None
+        return retrieve_supplements_from_pmc_oa(resolved, doi=doi, **kwargs)
+    retriever = _DATA_REPO_RETRIEVERS.get(source)
+    if retriever:
+        return retriever(doi, **kwargs)
+    return None
+
+
+def _merge_results(
+    doi: str,
+    results: list[SupplementRetrievalResult],
+    accessions: list[str],
+    max_files: int,
+    max_total_bytes: int,
+) -> SupplementRetrievalResult:
+    """Merge per-source results into one, trimming the union to global caps."""
+    attempts: list[str] = []
+    for res in results:
+        attempts.extend(res.attempts)
+
+    kept: list[SupplementFile] = []
+    seen: set[tuple[str | None, str]] = set()
+    total_bytes = 0
+    for res in results:
+        for file in res.files:
+            key = (file.source, os.path.basename(file.filename))
+            if key in seen:
+                continue
+            if len(kept) >= max_files:
+                break
+            if total_bytes + (file.size_bytes or 0) > max_total_bytes:
+                continue
+            seen.add(key)
+            total_bytes += file.size_bytes or 0
+            kept.append(file)
+
+    merged = SupplementRetrievalResult(
+        doi=doi,
+        attempts=list(dict.fromkeys(attempts)),
+        detected_accessions=accessions,
+    )
+    for res in results:
+        if res.pmcid:
+            merged.pmcid = res.pmcid
+            break
+
+    if kept:
+        merged.files = kept
+        merged.skipped = [s for res in results for s in res.skipped]
+        merged.source = "+".join(dict.fromkeys(f.source for f in kept if f.source)) or None
+        return merged
+
+    # Nothing kept: surface the first source that at least found candidates.
+    informative = next((res for res in results if res.skipped), None) or (
+        results[0] if results else None
+    )
+    if informative is None:
+        merged.error = "No supplement sources available for DOI"
+        return merged
+    merged.source = informative.source
+    merged.skipped = informative.skipped
+    merged.error = informative.error or "No high-value supplements found"
+    return merged

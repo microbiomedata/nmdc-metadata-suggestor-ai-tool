@@ -4,10 +4,15 @@
 
 ```python
 from nmdc_metadata_suggestor_ai_tool.publication_ingestion.retrieve_supplements import (
-    retrieve_supplements,                 # orchestrator: europepmc -> pmc_oa (or dryad)
+    retrieve_supplements,                 # orchestrator: routes + merges by DOI type
     retrieve_supplements_from_europepmc,  # Europe PMC supplementaryFiles ZIP
     retrieve_supplements_from_pmc_oa,     # NCBI PMC OA .tar.gz package (by PMCID)
     retrieve_supplements_from_dryad,      # Dryad dataset DOI files
+    retrieve_supplements_from_zenodo,     # Zenodo record files (by DOI/concept DOI)
+    retrieve_supplements_from_figshare,   # Figshare article/collection DOI files
+    find_related_data_dois,               # publication DOI -> linked data-repo DOIs
+    extract_dataset_dois_from_text,       # text -> Dryad/Zenodo/Figshare DOIs
+    extract_accessions_from_text,         # text -> PRJNA…/SRR…/GSE… accessions
     find_supplement_source_europepmc,     # availability check, no download
     find_supplement_source_pmc_oa,        # resolve PMCID -> OA package URL
     parse_supplement_captions,            # JATS XML -> {filename_key: caption}
@@ -23,7 +28,9 @@ from nmdc_metadata_suggestor_ai_tool.publication_ingestion.retrieve_supplements 
 retrieve_supplements(
     doi: str,
     *,
-    sources: list[str] | None = None,  # subset/reorder of ["europepmc","pmc_oa","dryad"]
+    sources: list[str] | None = None,  # explicit list of europepmc/pmc_oa/dryad/zenodo/figshare
+    text: str | None = None,           # abstract/PDF text to mine for dataset DOIs + accessions
+    follow_related: bool = True,       # follow Crossref/DataCite relation metadata
     useful_kinds: Iterable[SupplementKind] = DEFAULT_USEFUL_KINDS,
     max_files: int = SUPPLEMENT_MAX_FILES,            # default 10
     max_file_bytes: int = SUPPLEMENT_MAX_FILE_BYTES,  # default 10 MB
@@ -34,11 +41,15 @@ retrieve_supplements(
 ) -> SupplementRetrievalResult
 ```
 
-**Source order.** For a Dryad DOI (`10.5061/…`) only Dryad is tried. Otherwise
-Europe PMC is tried first, then the NCBI PMC OA package as a fallback (reusing the
-PMCID Europe PMC found). Retrieval stops at the first source with a kept file; if
-none succeed, the result of the first source that *found* candidates is returned
-so its `skipped`/`error` detail is preserved.
+**Routing & merge.** A data-repository DOI (`10.5061` Dryad, `10.5281` Zenodo,
+`10.6084` Figshare) fetches that repo's files only. A publication DOI fetches
+hosted supplements (Europe PMC, then NCBI PMC OA as a fallback) **plus** any
+data-repository datasets found via relation metadata (`follow_related`) or mined
+from `text`. Files from all contributing sources are merged and trimmed to
+`max_files` / `max_total_bytes`; `SupplementFile.source` records each file's
+origin and `result.source` joins the contributors with `+`. When nothing is kept,
+the first source that *found* candidates is returned so its `skipped`/`error`
+detail is preserved. Pass an explicit `sources=[...]` to bypass routing.
 
 Each source also has a standalone function with the same caps (see imports above).
 `retrieve_supplements_from_pmc_oa` takes a `pmcid` (plus optional `doi=`).
@@ -46,7 +57,9 @@ Each source also has a standalone function with the same caps (see imports above
 All caps are also configurable via `NMDC_SUPPLEMENT_*` environment variables
 (see `constants.py`). Downloads are streamed and size-bounded; oversized files are
 skipped by reported size *before* being read, and no archive is buffered beyond
-`max_archive_bytes`.
+`max_archive_bytes`. Note the per-source `max_files` cap means a merge across N
+sources may download up to N×`max_files` before trimming — bounded, but not one
+global budget.
 
 ## Return: `SupplementRetrievalResult`
 
@@ -55,11 +68,12 @@ skipped by reported size *before* being read, and no archive is buffered beyond
 | Field | Type | Description |
 |---|---|---|
 | `doi` | `str` | Normalized DOI. |
-| `source` | `str \| None` | Winning source: `"europepmc"`, `"pmc_oa"`, or `"dryad"`. |
+| `source` | `str \| None` | Contributing source(s), joined by `+` (e.g. `"europepmc+zenodo"`). |
 | `pmcid` | `str \| None` | PMC id when available. |
-| `files` | `list[SupplementFile]` | Kept high-value supplements. |
+| `files` | `list[SupplementFile]` | Kept high-value supplements, merged across sources. |
 | `skipped` | `list[SupplementFile]` | Found but dropped (with `skipped_reason`). |
 | `attempts` | `list[str]` | Sources tried, in order. |
+| `detected_accessions` | `list[str]` | Sequence/proteomics accessions mined from `text` (not retrieved). |
 | `error` | `str \| None` | Why nothing was kept (e.g. no OA supplements). |
 | `has_supplements` | `bool` (property) | True when `files` is non-empty. |
 
@@ -69,11 +83,27 @@ skipped by reported size *before* being read, and no archive is buffered beyond
 |---|---|---|
 | `filename` | `str` | Name within the archive / repository. |
 | `kind` | `SupplementKind` | `tabular`, `document`, `image`, `media`, `sequence`, `archive`, `other`. |
+| `source` | `str \| None` | Origin source: `europepmc`/`pmc_oa`/`dryad`/`zenodo`/`figshare`. |
 | `size_bytes` | `int \| None` | Uncompressed size. |
 | `caption` | `str \| None` | JATS/repository caption or description, when available. |
 | `text` | `str \| None` | Inlined content for text-like files (csv/tsv/txt), truncated. |
 | `saved_path` | `str \| None` | Temp-file path for non-text kept files (xlsx/pdf/docx). |
 | `skipped_reason` | `str \| None` | Set only on entries in `result.skipped`. |
+
+## Related datasets & text mining
+
+```python
+related = find_related_data_dois(publication_doi)   # -> ["10.5281/zenodo.X", ...]
+dataset_dois = extract_dataset_dois_from_text(text)  # data-repo DOIs in prose
+accessions = extract_accessions_from_text(text)      # PRJNA…/SRR…/GSE… (not fetched)
+```
+
+`find_related_data_dois` reads Crossref `relation` and DataCite
+`relatedIdentifiers`, keeping only DOIs whose relation indicates associated data
+(`is-supplemented-by`, `has-part`, `is-source-of`, `is-derived-from`,
+`is-documented-by`) and that resolve to a fetchable repo (Dryad/Zenodo/Figshare).
+`retrieve_supplements` calls both automatically for publication DOIs; use them
+directly if you want to inspect or filter the links first.
 
 ## Temp-file cleanup
 

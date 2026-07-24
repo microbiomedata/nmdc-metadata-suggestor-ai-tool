@@ -9,16 +9,23 @@ from urllib.parse import quote
 import responses
 
 from nmdc_metadata_suggestor_ai_tool.constants import (
+    CROSSREF_API_URL,
+    DATACITE_API_URL,
     DRYAD_API_URL,
     EUROPEPMC_API_URL,
     EUROPEPMC_FULLTEXT_XML_URL_TEMPLATE,
     EUROPEPMC_SUPPL_URL_TEMPLATE,
+    FIGSHARE_API,
     PMC_OA_SERVICE_URL,
+    ZENODO_API,
 )
 from nmdc_metadata_suggestor_ai_tool.models.supplement import SupplementKind
 from nmdc_metadata_suggestor_ai_tool.publication_ingestion.download_pdf import remove_temp_files
 from nmdc_metadata_suggestor_ai_tool.publication_ingestion.retrieve_supplements import (
     classify_supplement,
+    extract_accessions_from_text,
+    extract_dataset_dois_from_text,
+    find_related_data_dois,
     find_supplement_source_europepmc,
     find_supplement_source_pmc_oa,
     is_dryad_doi,
@@ -26,11 +33,15 @@ from nmdc_metadata_suggestor_ai_tool.publication_ingestion.retrieve_supplements 
     retrieve_supplements,
     retrieve_supplements_from_dryad,
     retrieve_supplements_from_europepmc,
+    retrieve_supplements_from_figshare,
     retrieve_supplements_from_pmc_oa,
+    retrieve_supplements_from_zenodo,
 )
 
 DOI = "10.1038/s41564-020-00861-0"
 DRYAD_DOI = "10.5061/dryad.abc123"
+ZENODO_DOI = "10.5281/zenodo.123456"
+FIGSHARE_DOI = "10.6084/m9.figshare.123456"
 SUPPL_URL = EUROPEPMC_SUPPL_URL_TEMPLATE.format(source="PMC", article_id="PMC123456")
 FULLTEXT_URL = EUROPEPMC_FULLTEXT_XML_URL_TEMPLATE.format(source="PMC", article_id="PMC123456")
 OA_TGZ_URL = "https://ftp.ncbi.nlm.nih.gov/pub/pmc/oa_package/aa/bb/PMC123456.tar.gz"
@@ -332,9 +343,10 @@ def test_orchestrator_falls_back_to_pmc_oa() -> None:
     targz = _make_targz({"PMC123456/data.csv": b"a,b\n1,2\n"})
     responses.add(responses.GET, OA_TGZ_URL, body=targz, status=200)
 
-    result = retrieve_supplements(DOI)
+    result = retrieve_supplements(DOI, follow_related=False)
     assert result.source == "pmc_oa"
     assert [os.path.basename(f.filename) for f in result.files] == ["data.csv"]
+    assert result.files[0].source == "pmc_oa"
     assert "europepmc" in result.attempts and "pmc_oa" in result.attempts
 
 
@@ -358,3 +370,220 @@ def test_orchestrator_routes_dryad_doi() -> None:
     result = retrieve_supplements(DRYAD_DOI)
     assert result.source == "dryad"
     assert [f.filename for f in result.files] == ["meta.tsv"]
+
+
+# ---------------------------------------------------------------------------
+# Zenodo
+# ---------------------------------------------------------------------------
+
+
+@responses.activate
+def test_zenodo_retrieves_files() -> None:
+    responses.add(
+        responses.GET,
+        ZENODO_API,
+        json={
+            "hits": {
+                "hits": [
+                    {
+                        "doi": ZENODO_DOI,
+                        "files": [
+                            {
+                                "key": "samples.csv",
+                                "size": 20,
+                                "links": {
+                                    "self": "https://zenodo.org/api/records/1/files/samples.csv/content"
+                                },
+                            },
+                            {
+                                "key": "movie.mp4",
+                                "size": 5,
+                                "links": {
+                                    "self": "https://zenodo.org/api/records/1/files/movie.mp4/content"
+                                },
+                            },
+                        ],
+                    }
+                ]
+            }
+        },
+        status=200,
+    )
+    responses.add(
+        responses.GET,
+        "https://zenodo.org/api/records/1/files/samples.csv/content",
+        body=b"id,site\n1,north\n",
+        status=200,
+    )
+    result = retrieve_supplements_from_zenodo(ZENODO_DOI)
+    assert [f.filename for f in result.files] == ["samples.csv"]
+    assert result.files[0].source == "zenodo"
+    assert "site" in (result.files[0].text or "")
+    assert {f.filename for f in result.skipped} == {"movie.mp4"}
+
+
+# ---------------------------------------------------------------------------
+# Figshare
+# ---------------------------------------------------------------------------
+
+
+@responses.activate
+def test_figshare_retrieves_files() -> None:
+    responses.add(
+        responses.GET,
+        FIGSHARE_API,
+        json=[{"id": 42, "url_public_api": "https://api.figshare.com/v2/articles/42"}],
+        status=200,
+    )
+    responses.add(
+        responses.GET,
+        "https://api.figshare.com/v2/articles/42",
+        json={
+            "files": [
+                {
+                    "name": "table.csv",
+                    "size": 18,
+                    "download_url": "https://ndownloader.figshare.com/files/1",
+                },
+                {
+                    "name": "fig.png",
+                    "size": 9,
+                    "download_url": "https://ndownloader.figshare.com/files/2",
+                },
+            ]
+        },
+        status=200,
+    )
+    responses.add(
+        responses.GET,
+        "https://ndownloader.figshare.com/files/1",
+        body=b"a,b\n1,2\n",
+        status=200,
+    )
+    result = retrieve_supplements_from_figshare(FIGSHARE_DOI)
+    assert [f.filename for f in result.files] == ["table.csv"]
+    assert result.files[0].source == "figshare"
+    assert {f.filename for f in result.skipped} == {"fig.png"}
+
+
+# ---------------------------------------------------------------------------
+# Related-identifier following + text/accession mining
+# ---------------------------------------------------------------------------
+
+
+@responses.activate
+def test_find_related_data_dois_from_crossref_and_datacite() -> None:
+    responses.add(
+        responses.GET,
+        f"{CROSSREF_API_URL}/{DOI}",
+        json={
+            "message": {
+                "relation": {
+                    "is-supplemented-by": [{"id": ZENODO_DOI, "id-type": "doi"}],
+                    "references": [{"id": "10.1000/other", "id-type": "doi"}],
+                }
+            }
+        },
+        status=200,
+    )
+    responses.add(
+        responses.GET,
+        f"{DATACITE_API_URL}/{DOI}",
+        json={
+            "data": {
+                "attributes": {
+                    "relatedIdentifiers": [
+                        {
+                            "relatedIdentifier": FIGSHARE_DOI,
+                            "relatedIdentifierType": "DOI",
+                            "relationType": "HasPart",
+                        }
+                    ]
+                }
+            }
+        },
+        status=200,
+    )
+    related = find_related_data_dois(DOI)
+    # Zenodo (is-supplemented-by) and Figshare (HasPart) kept; plain citation dropped.
+    assert ZENODO_DOI in related
+    assert FIGSHARE_DOI in related
+    assert "10.1000/other" not in related
+
+
+def test_extract_dataset_dois_from_text() -> None:
+    text = (
+        "Data are available at Zenodo (https://doi.org/10.5281/zenodo.987654) and "
+        "Dryad doi:10.5061/dryad.zzz. See also the paper 10.1038/nature12373."
+    )
+    dois = extract_dataset_dois_from_text(text)
+    assert "10.5281/zenodo.987654" in dois
+    assert "10.5061/dryad.zzz" in dois
+    assert "10.1038/nature12373" not in dois  # not a data repo
+
+
+def test_extract_accessions_from_text() -> None:
+    text = (
+        "Reads deposited under BioProject PRJNA123456 (runs SRR1234567, SRR1234568) and GSE99999."
+    )
+    accessions = extract_accessions_from_text(text)
+    assert "PRJNA123456" in accessions
+    assert "SRR1234567" in accessions
+    assert "GSE99999" in accessions
+
+
+@responses.activate
+def test_orchestrator_aggregates_hosted_and_related() -> None:
+    # Europe PMC yields an SI table; a related Zenodo dataset adds another.
+    _register_search()
+    responses.add(
+        responses.GET, SUPPL_URL, body=_make_zip({"Table_S1.csv": b"a,b\n1,2\n"}), status=200
+    )
+    responses.add(responses.GET, FULLTEXT_URL, body=b"<article/>", status=200)
+    responses.add(
+        responses.GET,
+        f"{CROSSREF_API_URL}/{DOI}",
+        json={
+            "message": {"relation": {"is-supplemented-by": [{"id": ZENODO_DOI, "id-type": "doi"}]}}
+        },
+        status=200,
+    )
+    responses.add(
+        responses.GET, f"{DATACITE_API_URL}/{DOI}", json={"data": {"attributes": {}}}, status=200
+    )
+    responses.add(
+        responses.GET,
+        ZENODO_API,
+        json={
+            "hits": {
+                "hits": [
+                    {
+                        "doi": ZENODO_DOI,
+                        "files": [
+                            {
+                                "key": "zenodo_data.csv",
+                                "size": 12,
+                                "links": {
+                                    "self": "https://zenodo.org/api/records/9/files/zenodo_data.csv/content"
+                                },
+                            }
+                        ],
+                    }
+                ]
+            }
+        },
+        status=200,
+    )
+    responses.add(
+        responses.GET,
+        "https://zenodo.org/api/records/9/files/zenodo_data.csv/content",
+        body=b"x,y\n1,2\n",
+        status=200,
+    )
+
+    result = retrieve_supplements(DOI)
+    names = {f.filename for f in result.files}
+    assert names == {"Table_S1.csv", "zenodo_data.csv"}
+    sources = {f.source for f in result.files}
+    assert sources == {"europepmc", "zenodo"}
+    assert result.source == "europepmc+zenodo"
