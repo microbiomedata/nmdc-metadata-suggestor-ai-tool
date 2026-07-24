@@ -1127,9 +1127,11 @@ def retrieve_supplements(
       accessions found in ``text`` are surfaced in ``detected_accessions`` but not
       retrieved.
 
-    Files from every contributing source are merged and trimmed to ``max_files`` /
-    ``max_total_bytes``; each ``SupplementFile.source`` records its origin. Pass
-    ``sources`` to run an explicit source list instead of the default routing.
+    Files from every contributing source are merged under a *shared* budget:
+    hosted supplements take priority, and each linked dataset only fetches what
+    remains of ``max_files`` / ``max_total_bytes``, so the total downloaded never
+    exceeds the global caps. Each ``SupplementFile.source`` records its origin.
+    Pass ``sources`` to run an explicit source list instead of the default routing.
 
     Returns:
         A merged :class:`SupplementRetrievalResult`. When nothing is kept, the
@@ -1181,10 +1183,27 @@ def retrieve_supplements(
                 data_dois.append(mined)
         accessions = extract_accessions_from_text(text)
 
+    # Fetch linked datasets against a *shared* budget so the union across all
+    # sources never downloads more than the global caps. Hosted supplements take
+    # priority; each dataset gets only what remains.
     for data_doi in data_dois:
         repo = _repo_for_doi(data_doi)
-        if repo:
-            results.append(_DATA_REPO_RETRIEVERS[repo](data_doi, **kwargs))  # type: ignore[arg-type]
+        if repo is None:
+            continue
+        used_files = sum(len(r.files) for r in results)
+        used_bytes = sum(f.size_bytes or 0 for r in results for f in r.files)
+        if used_files >= max_files or used_bytes >= max_total_bytes:
+            break  # global budget exhausted; stop fetching further datasets
+        results.append(
+            _DATA_REPO_RETRIEVERS[repo](
+                data_doi,
+                **{
+                    **kwargs,
+                    "max_files": max_files - used_files,
+                    "max_total_bytes": max_total_bytes - used_bytes,
+                },
+            )  # type: ignore[arg-type]
+        )
 
     merged = _merge_results(doi, results, accessions, max_files, max_total_bytes)
     merged.pmcid = pmcid or merged.pmcid

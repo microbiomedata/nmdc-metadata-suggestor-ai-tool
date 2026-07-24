@@ -599,6 +599,65 @@ def test_orchestrator_aggregates_hosted_and_related() -> None:
     assert result.source == "europepmc+zenodo"
 
 
+@responses.activate
+def test_orchestrator_shares_budget_across_sources() -> None:
+    # Hosted SI uses 1 of a max_files=2 budget; the linked Zenodo dataset must be
+    # bounded to the remaining 1 file, so its second file is skipped *by cap* and
+    # never downloaded (its download URL is intentionally left unregistered).
+    _register_search()
+    responses.add(
+        responses.GET, SUPPL_URL, body=_make_zip({"Table_S1.csv": b"a,b\n1,2\n"}), status=200
+    )
+    responses.add(responses.GET, FULLTEXT_URL, body=b"<article/>", status=200)
+    responses.add(
+        responses.GET,
+        f"{CROSSREF_API_URL}/{DOI}",
+        json={
+            "message": {"relation": {"is-supplemented-by": [{"id": ZENODO_DOI, "id-type": "doi"}]}}
+        },
+        status=200,
+    )
+    responses.add(
+        responses.GET, f"{DATACITE_API_URL}/{DOI}", json={"data": {"attributes": {}}}, status=200
+    )
+    responses.add(
+        responses.GET,
+        ZENODO_API,
+        json={
+            "hits": {
+                "hits": [
+                    {
+                        "doi": ZENODO_DOI,
+                        "files": [
+                            {
+                                "key": "z1.csv",
+                                "size": 8,
+                                "links": {"self": "https://zenodo.org/z1"},
+                            },
+                            {
+                                "key": "z2.csv",
+                                "size": 8,
+                                "links": {"self": "https://zenodo.org/z2"},
+                            },
+                        ],
+                    }
+                ]
+            }
+        },
+        status=200,
+    )
+    responses.add(responses.GET, "https://zenodo.org/z1", body=b"x\n1\n", status=200)
+    # NOTE: https://zenodo.org/z2 is deliberately NOT registered.
+
+    result = retrieve_supplements(DOI, max_files=2)
+
+    assert len(result.files) == 2
+    assert {f.filename for f in result.files} == {"Table_S1.csv", "z1.csv"}
+    # z2 was dropped by the shared budget (max_files), not attempted/read.
+    z2_skips = [f for f in result.skipped if f.filename == "z2.csv"]
+    assert z2_skips and "max_files" in (z2_skips[0].skipped_reason or "")
+
+
 # ---------------------------------------------------------------------------
 # Merge cleanup (no orphaned temp files)
 # ---------------------------------------------------------------------------

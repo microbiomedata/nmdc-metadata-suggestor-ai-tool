@@ -57,9 +57,10 @@ Each source also has a standalone function with the same caps (see imports above
 All caps are also configurable via `NMDC_SUPPLEMENT_*` environment variables
 (see `constants.py`). Downloads are streamed and size-bounded; oversized files are
 skipped by reported size *before* being read, and no archive is buffered beyond
-`max_archive_bytes`. Note the per-source `max_files` cap means a merge across N
-sources may download up to N×`max_files` before trimming — bounded, but not one
-global budget.
+`max_archive_bytes`. Across a publication's sources the caps act as one **shared
+budget**: hosted supplements are fetched first and each linked dataset only pulls
+what remains of `max_files` / `max_total_bytes`, so the total downloaded never
+exceeds the global caps.
 
 ## Return: `SupplementRetrievalResult`
 
