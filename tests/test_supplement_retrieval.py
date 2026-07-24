@@ -303,38 +303,66 @@ def _register_dryad(files: list[dict]) -> None:
 
 
 @responses.activate
-def test_dryad_retrieves_tabular_files() -> None:
-    _register_dryad(
-        [
-            {
-                "path": "samples.csv",
-                "size": 24,
-                "description": "Per-sample metadata table",
-                "_links": {"stash:download": {"href": "/api/v2/files/1/download"}},
-            },
-            {
-                "path": "photo.jpg",
-                "size": 10,
-                "_links": {"stash:download": {"href": "/api/v2/files/2/download"}},
-            },
-        ]
-    )
+def test_dryad_via_zenodo_mirror() -> None:
+    # Dryad's own download is auth-gated, so content comes from the Zenodo mirror.
     responses.add(
         responses.GET,
-        f"{DRYAD_API_URL}/files/1/download",
+        ZENODO_API,
+        json={
+            "hits": {
+                "hits": [
+                    {
+                        "doi": DRYAD_DOI,
+                        "files": [
+                            {
+                                "key": "samples.csv",
+                                "size": 20,
+                                "links": {"self": "https://zenodo.org/m/samples.csv"},
+                            },
+                            {
+                                "key": "photo.jpg",
+                                "size": 10,
+                                "links": {"self": "https://zenodo.org/m/photo.jpg"},
+                            },
+                        ],
+                    }
+                ]
+            }
+        },
+        status=200,
+    )
+    # photo.jpg is a low-value kind: skipped before download, so its URL is unused.
+    responses.add(
+        responses.GET,
+        "https://zenodo.org/m/samples.csv",
         body=b"sample_id,site\nA,north\n",
         status=200,
     )
 
     result = retrieve_supplements_from_dryad(DRYAD_DOI)
+    assert result.source == "dryad"
     assert [f.filename for f in result.files] == ["samples.csv"]
-    assert result.files[0].caption == "Per-sample metadata table"
+    assert result.files[0].source == "dryad"
     assert "site" in (result.files[0].text or "")
+    assert "zenodo-mirror" in result.attempts
     assert {f.filename for f in result.skipped} == {"photo.jpg"}
 
 
 @responses.activate
+def test_dryad_list_only_when_no_mirror() -> None:
+    # No Zenodo mirror -> list the Dryad files marked download-gated, don't fetch.
+    responses.add(responses.GET, ZENODO_API, json={"hits": {"hits": []}}, status=200)
+    _register_dryad([{"path": "samples.csv", "size": 24}, {"path": "photo.jpg", "size": 10}])
+    result = retrieve_supplements_from_dryad(DRYAD_DOI)
+    assert result.files == []
+    assert result.error
+    gated = [f for f in result.skipped if f.filename == "samples.csv"]
+    assert gated and "gated" in (gated[0].skipped_reason or "")
+
+
+@responses.activate
 def test_dryad_no_files() -> None:
+    responses.add(responses.GET, ZENODO_API, json={"hits": {"hits": []}}, status=200)
     _register_dryad([])
     result = retrieve_supplements_from_dryad(DRYAD_DOI)
     assert result.files == []
@@ -363,20 +391,30 @@ def test_orchestrator_falls_back_to_pmc_oa() -> None:
 
 @responses.activate
 def test_orchestrator_routes_dryad_doi() -> None:
-    _register_dryad(
-        [
-            {
-                "path": "meta.tsv",
-                "size": 12,
-                "_links": {"stash:download": {"href": "/api/v2/files/9/download"}},
-            }
-        ]
-    )
+    # A Dryad DOI routes to the Dryad retriever, which fetches via the Zenodo mirror.
     responses.add(
         responses.GET,
-        f"{DRYAD_API_URL}/files/9/download",
-        body=b"id\tval\n1\t2\n",
+        ZENODO_API,
+        json={
+            "hits": {
+                "hits": [
+                    {
+                        "doi": DRYAD_DOI,
+                        "files": [
+                            {
+                                "key": "meta.tsv",
+                                "size": 12,
+                                "links": {"self": "https://zenodo.org/m/meta.tsv"},
+                            }
+                        ],
+                    }
+                ]
+            }
+        },
         status=200,
+    )
+    responses.add(
+        responses.GET, "https://zenodo.org/m/meta.tsv", body=b"id\tval\n1\t2\n", status=200
     )
     result = retrieve_supplements(DRYAD_DOI)
     assert result.source == "dryad"
@@ -837,6 +875,7 @@ integration = pytest.mark.integration
 # Known-good public records with downloadable tabular/document files.
 LIVE_ZENODO_DOI = "10.5281/zenodo.8436315"  # .docx + two .csv files
 LIVE_FIGSHARE_DOI = "10.6084/m9.figshare.33084674.v1"  # a .pdf file
+LIVE_DRYAD_DOI = "10.5061/dryad.51c59zwfj"  # Zenodo-mirrored dataset with .csv files
 
 
 def _assert_live_result(result, source: str) -> None:
@@ -865,10 +904,8 @@ def test_figshare_live() -> None:
 
 @integration
 def test_dryad_live() -> None:
-    # NOTE: Dryad's own file-download API requires an OAuth bearer token (401) and
-    # its file_stream route is Cloudflare-gated, so direct Dryad content retrieval
-    # does not work unauthenticated. Left env-only pending the mirror-based fix.
-    doi = os.environ.get("NMDC_TEST_DRYAD_DOI")
-    if not doi:
-        pytest.skip("set NMDC_TEST_DRYAD_DOI to run (Dryad direct download is gated)")
+    # Dryad's own download API is auth-gated, so content is fetched from the Zenodo
+    # mirror. The default DOI is a mirrored dataset; a non-mirrored DOI yields no
+    # files (Dryad content is not retrievable unauthenticated).
+    doi = os.environ.get("NMDC_TEST_DRYAD_DOI", LIVE_DRYAD_DOI)
     _assert_live_result(retrieve_supplements_from_dryad(doi), "dryad")

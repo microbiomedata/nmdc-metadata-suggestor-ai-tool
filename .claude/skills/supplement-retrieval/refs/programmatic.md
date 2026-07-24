@@ -7,7 +7,7 @@ from nmdc_metadata_suggestor_ai_tool.publication_ingestion.retrieve_supplements 
     retrieve_supplements,                 # orchestrator: routes + merges by DOI type
     retrieve_supplements_from_europepmc,  # Europe PMC supplementaryFiles ZIP
     retrieve_supplements_from_pmc_oa,     # NCBI PMC OA .tar.gz package (by PMCID)
-    retrieve_supplements_from_dryad,      # Dryad dataset DOI files
+    retrieve_supplements_from_dryad,      # Dryad dataset DOI files (via Zenodo mirror)
     retrieve_supplements_from_zenodo,     # Zenodo record files (by DOI/concept DOI)
     retrieve_supplements_from_figshare,   # Figshare article/collection DOI files
     find_related_data_dois,               # publication DOI -> linked data-repo DOIs
@@ -50,6 +50,13 @@ from `text`. Files from all contributing sources are merged and trimmed to
 origin and `result.source` joins the contributors with `+`. When nothing is kept,
 the first source that *found* candidates is returned so its `skipped`/`error`
 detail is preserved. Pass an explicit `sources=[...]` to bypass routing.
+
+**Dryad note.** Dryad's own file-download API requires an OAuth bearer token
+(HTTP 401) and its `file_stream` route is Cloudflare-gated, so Dryad content is
+fetched from the **Zenodo mirror** of the dataset. When a Dryad DOI is not
+mirrored on Zenodo, the retriever lists the files as `skipped` (marked
+download-gated) rather than returning content — mostly affects the newest
+datasets, since Dryad's Zenodo mirroring wound down around 2020–2022.
 
 Each source also has a standalone function with the same caps (see imports above).
 `retrieve_supplements_from_pmc_oa` takes a `pmcid` (plus optional `doi=`).

@@ -689,11 +689,13 @@ def retrieve_supplements_from_dryad(
     max_text_chars: int = SUPPLEMENT_MAX_TEXT_CHARS,
     save_dir: str | None = None,
 ) -> SupplementRetrievalResult:
-    """Retrieve high-value files from a Dryad dataset DOI.
+    """Retrieve high-value files for a Dryad dataset DOI, via the Zenodo mirror.
 
-    Dryad files are individual downloads (not an archive), so each kept file is
-    fetched on demand with a bounded per-file download. File descriptions, when
-    present, are attached as captions.
+    Dryad's own file-download API requires an OAuth bearer token (HTTP 401) and
+    its ``file_stream`` route is Cloudflare-gated, so file *content* is not
+    retrievable unauthenticated. Dryad datasets are mirrored on Zenodo, so we
+    fetch content from there. When no mirror exists, the Dryad file listing is
+    returned as ``skipped`` (marked download-gated) rather than failing to fetch.
     """
     caps = _resolve_caps(
         useful_kinds,
@@ -707,6 +709,20 @@ def retrieve_supplements_from_dryad(
     doi = normalize_doi(doi)
     result = SupplementRetrievalResult(doi=doi, source="dryad", attempts=["dryad"])
 
+    # Primary path: fetch content from the Zenodo mirror of the Dryad dataset.
+    members, _mirror_error = _zenodo_file_members(doi, caps.max_file_bytes)
+    if members:
+        result.attempts.append("zenodo-mirror")
+        _apply_selection(result, members, caps, None, "Dryad mirror contained no high-value files")
+        return result
+
+    # No mirror: list the Dryad files but flag them as download-gated instead of
+    # attempting the auth-gated downloads (which would 401 for every file).
+    return _dryad_list_only(doi, result)
+
+
+def _dryad_list_only(doi: str, result: SupplementRetrievalResult) -> SupplementRetrievalResult:
+    """Populate *result.skipped* with Dryad's file listing, marked download-gated."""
     try:
         dataset = _dryad_get(f"/api/v2/datasets/{quote(f'doi:{doi}', safe='')}")
         version_href = dataset["_links"]["stash:version"]["href"]
@@ -720,25 +736,20 @@ def retrieve_supplements_from_dryad(
         result.error = "Dryad dataset reported no files"
         return result
 
-    captions: dict[str, str] = {}
-    members: list[_Member] = []
     for item in items:
         path = item.get("path")
-        download_href = item.get("_links", {}).get("stash:download", {}).get("href")
-        if not path or not download_href:
+        if not path:
             continue
-        description = item.get("description")
-        if description:
-            captions[_caption_key(path)] = str(description)[:1000]
-        members.append(
-            _Member(
-                name=path,
-                size=int(item.get("size") or 0),
-                read=_url_reader(_dryad_url(download_href), caps.max_file_bytes),
+        result.skipped.append(
+            SupplementFile(
+                filename=path,
+                kind=classify_supplement(path),
+                source="dryad",
+                size_bytes=int(item.get("size") or 0),
+                skipped_reason="download gated (Dryad requires auth; no open Zenodo mirror)",
             )
         )
-
-    _apply_selection(result, members, caps, captions, "Dryad dataset contained no high-value files")
+    result.error = "Dryad content not retrievable (auth-gated) and no open mirror found"
     return result
 
 
@@ -790,6 +801,22 @@ def retrieve_supplements_from_zenodo(
     doi = normalize_doi(doi)
     result = SupplementRetrievalResult(doi=doi, source="zenodo", attempts=["zenodo"])
 
+    members, error = _zenodo_file_members(doi, caps.max_file_bytes)
+    if not members:
+        result.error = error or "Zenodo record contained no files"
+        return result
+
+    _apply_selection(result, members, caps, None, "Zenodo record contained no high-value files")
+    return result
+
+
+def _zenodo_file_members(doi: str, max_file_bytes: int) -> tuple[list[_Member], str | None]:
+    """Return download members for the Zenodo record matching *doi*.
+
+    Shared by the Zenodo retriever and the Dryad retriever (Dryad datasets are
+    mirrored on Zenodo, and Dryad's own download API is auth-gated). Returns
+    ``(members, error)`` where ``error`` is set when no record/files were found.
+    """
     try:
         response = request_with_retry(
             "GET",
@@ -801,13 +828,11 @@ def retrieve_supplements_from_zenodo(
         response.raise_for_status()
         hits = response.json().get("hits", {}).get("hits", [])
     except Exception as exc:
-        result.error = f"Zenodo lookup failed: {exc}"
-        return result
+        return [], f"Zenodo lookup failed: {exc}"
 
     hit = _first_matching(hits, doi, ("doi", "conceptdoi"))
     if hit is None:
-        result.error = "No Zenodo record found for DOI"
-        return result
+        return [], "No Zenodo record found for DOI"
 
     members: list[_Member] = []
     for file_entry in hit.get("files", []):
@@ -822,12 +847,10 @@ def retrieve_supplements_from_zenodo(
             _Member(
                 name=name,
                 size=int(file_entry.get("size") or 0),
-                read=_url_reader(url, caps.max_file_bytes),
+                read=_url_reader(url, max_file_bytes),
             )
         )
-
-    _apply_selection(result, members, caps, None, "Zenodo record contained no high-value files")
-    return result
+    return members, None
 
 
 # ---------------------------------------------------------------------------

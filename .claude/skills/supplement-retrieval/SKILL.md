@@ -51,7 +51,8 @@ Call `retrieve_supplements(doi)`. For a publication DOI it resolves in layers an
 2. **NCBI PMC OA Web Service** (`.tar.gz`) — fallback when Europe PMC has none;
    captions from the bundled `.nxml`.
 3. **Related datasets** — Dryad/Zenodo/Figshare DOIs linked via the article's
-   relation metadata (`find_related_data_dois`).
+   relation metadata (`find_related_data_dois`). Dryad content is fetched from
+   its Zenodo mirror (Dryad's own download API is auth-gated).
 4. **Text-mined datasets** — when `text=` is given, data-repository DOIs found in
    it are also fetched; sequence/proteomics accessions (PRJNA…, SRR…, GSE…) are
    surfaced in `result.detected_accessions` but **not** retrieved.
