@@ -42,6 +42,11 @@ class SupplementFile(BaseModel):
     filename: str
     kind: SupplementKind
     size_bytes: int | None = None
+    caption: str | None = Field(
+        default=None,
+        description="Caption/label from the article's JATS XML or repository "
+        "metadata, when available. Helps judge relevance beyond the extension.",
+    )
     text: str | None = Field(
         default=None,
         description="Decoded text for text-like supplements, truncated to a cap.",

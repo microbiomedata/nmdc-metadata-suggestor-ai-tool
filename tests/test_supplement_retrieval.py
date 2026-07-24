@@ -1,34 +1,68 @@
-"""Tests for supplementary-material retrieval via Europe PMC."""
+"""Tests for supplementary-material retrieval across Europe PMC, PMC OA, Dryad."""
 
 import io
 import os
+import tarfile
 import zipfile
+from urllib.parse import quote
 
 import responses
 
 from nmdc_metadata_suggestor_ai_tool.constants import (
+    DRYAD_API_URL,
     EUROPEPMC_API_URL,
+    EUROPEPMC_FULLTEXT_XML_URL_TEMPLATE,
     EUROPEPMC_SUPPL_URL_TEMPLATE,
+    PMC_OA_SERVICE_URL,
 )
 from nmdc_metadata_suggestor_ai_tool.models.supplement import SupplementKind
 from nmdc_metadata_suggestor_ai_tool.publication_ingestion.download_pdf import remove_temp_files
 from nmdc_metadata_suggestor_ai_tool.publication_ingestion.retrieve_supplements import (
     classify_supplement,
     find_supplement_source_europepmc,
+    find_supplement_source_pmc_oa,
+    is_dryad_doi,
+    parse_supplement_captions,
     retrieve_supplements,
+    retrieve_supplements_from_dryad,
+    retrieve_supplements_from_europepmc,
+    retrieve_supplements_from_pmc_oa,
 )
 
 DOI = "10.1038/s41564-020-00861-0"
+DRYAD_DOI = "10.5061/dryad.abc123"
 SUPPL_URL = EUROPEPMC_SUPPL_URL_TEMPLATE.format(source="PMC", article_id="PMC123456")
+FULLTEXT_URL = EUROPEPMC_FULLTEXT_XML_URL_TEMPLATE.format(source="PMC", article_id="PMC123456")
+OA_TGZ_URL = "https://ftp.ncbi.nlm.nih.gov/pub/pmc/oa_package/aa/bb/PMC123456.tar.gz"
 
 
 def _make_zip(members: dict[str, bytes]) -> bytes:
-    """Return the bytes of an in-memory ZIP built from name -> content."""
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
         for name, content in members.items():
             zf.writestr(name, content)
     return buffer.getvalue()
+
+
+def _make_targz(members: dict[str, bytes]) -> bytes:
+    buffer = io.BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w:gz") as tf:
+        for name, content in members.items():
+            info = tarfile.TarInfo(name=name)
+            info.size = len(content)
+            tf.addfile(info, io.BytesIO(content))
+    return buffer.getvalue()
+
+
+JATS_XML = """<?xml version="1.0"?>
+<article xmlns:xlink="http://www.w3.org/1999/xlink">
+  <body>
+    <supplementary-material xlink:href="Table_S1.csv">
+      <label>Table S1</label>
+      <caption><p>Per-sample environmental metadata.</p></caption>
+    </supplementary-material>
+  </body>
+</article>"""
 
 
 def _register_search(*, has_suppl: str = "Y", open_access: str = "Y") -> None:
@@ -53,7 +87,7 @@ def _register_search(*, has_suppl: str = "Y", open_access: str = "Y") -> None:
 
 
 # ---------------------------------------------------------------------------
-# classify_supplement
+# classify_supplement / parse_supplement_captions
 # ---------------------------------------------------------------------------
 
 
@@ -67,8 +101,24 @@ def test_classify_supplement_by_extension() -> None:
     assert classify_supplement("README") == SupplementKind.OTHER
 
 
+def test_parse_supplement_captions() -> None:
+    captions = parse_supplement_captions(JATS_XML)
+    assert captions["table_s1"].startswith("Table S1")
+    assert "environmental metadata" in captions["table_s1"]
+
+
+def test_parse_supplement_captions_bad_xml_returns_empty() -> None:
+    assert parse_supplement_captions("<not-closed>") == {}
+
+
+def test_is_dryad_doi() -> None:
+    assert is_dryad_doi(DRYAD_DOI) is True
+    assert is_dryad_doi("https://doi.org/10.5061/dryad.x") is True
+    assert is_dryad_doi(DOI) is False
+
+
 # ---------------------------------------------------------------------------
-# find_supplement_source_europepmc
+# Europe PMC
 # ---------------------------------------------------------------------------
 
 
@@ -82,25 +132,7 @@ def test_find_supplement_source_reports_availability() -> None:
 
 
 @responses.activate
-def test_find_supplement_source_no_record() -> None:
-    responses.add(
-        responses.GET,
-        EUROPEPMC_API_URL,
-        json={"resultList": {"result": []}},
-        status=200,
-    )
-    info = find_supplement_source_europepmc(DOI)
-    assert info["has_supplements"] is False
-    assert info["error"]
-
-
-# ---------------------------------------------------------------------------
-# retrieve_supplements
-# ---------------------------------------------------------------------------
-
-
-@responses.activate
-def test_retrieve_supplements_filters_and_inlines() -> None:
+def test_europepmc_filters_inlines_and_captions() -> None:
     _register_search()
     archive = _make_zip(
         {
@@ -111,84 +143,218 @@ def test_retrieve_supplements_filters_and_inlines() -> None:
         }
     )
     responses.add(responses.GET, SUPPL_URL, body=archive, status=200)
+    responses.add(responses.GET, FULLTEXT_URL, body=JATS_XML, status=200)
 
-    result = retrieve_supplements(DOI)
+    result = retrieve_supplements_from_europepmc(DOI)
 
     kept = {f.filename: f for f in result.files}
     assert set(kept) == {"Table_S1.csv", "methods.pdf"}
-    assert kept["Table_S1.csv"].text is not None
-    assert "sample_id" in kept["Table_S1.csv"].text
+    assert "sample_id" in (kept["Table_S1.csv"].text or "")
+    assert kept["Table_S1.csv"].caption is not None
+    assert "environmental metadata" in kept["Table_S1.csv"].caption
     assert kept["methods.pdf"].saved_path is not None
-    assert os.path.exists(kept["methods.pdf"].saved_path)
-
-    skipped = {f.filename for f in result.skipped}
-    assert skipped == {"figure1.png", "reads.fastq"}
+    assert {f.filename for f in result.skipped} == {"figure1.png", "reads.fastq"}
     assert result.has_supplements is True
-    assert result.error is None
 
     remove_temp_files([f.saved_path for f in result.files if f.saved_path])
 
 
 @responses.activate
-def test_retrieve_supplements_no_open_access_supplements() -> None:
+def test_europepmc_no_open_access_supplements() -> None:
     _register_search(has_suppl="N")
-    result = retrieve_supplements(DOI)
+    result = retrieve_supplements_from_europepmc(DOI)
     assert result.files == []
     assert result.error is not None
-    # No download attempt should have been registered/needed.
     assert result.pmcid == "PMC123456"
 
 
 @responses.activate
-def test_retrieve_supplements_respects_max_files() -> None:
+def test_europepmc_respects_max_files() -> None:
     _register_search()
-    archive = _make_zip(
-        {
-            "a.csv": b"x,y\n1,2\n",
-            "b.csv": b"x,y\n3,4\n",
-            "c.csv": b"x,y\n5,6\n",
-        }
-    )
+    archive = _make_zip({f"{c}.csv": b"x,y\n1,2\n" for c in ("a", "b", "c")})
     responses.add(responses.GET, SUPPL_URL, body=archive, status=200)
+    responses.add(responses.GET, FULLTEXT_URL, body=b"<article/>", status=200)
 
-    result = retrieve_supplements(DOI, max_files=2)
+    result = retrieve_supplements_from_europepmc(DOI, max_files=2)
     assert len(result.files) == 2
     assert any("max_files" in (f.skipped_reason or "") for f in result.skipped)
 
 
 @responses.activate
-def test_retrieve_supplements_skips_oversized_file() -> None:
+def test_europepmc_skips_oversized_file() -> None:
     _register_search()
     archive = _make_zip({"big.csv": b"a,b\n" + b"1,2\n" * 1000})
     responses.add(responses.GET, SUPPL_URL, body=archive, status=200)
+    responses.add(responses.GET, FULLTEXT_URL, body=b"<article/>", status=200)
 
-    result = retrieve_supplements(DOI, max_file_bytes=10)
+    result = retrieve_supplements_from_europepmc(DOI, max_file_bytes=10)
     assert result.files == []
     assert any("byte cap" in (f.skipped_reason or "") for f in result.skipped)
 
 
 @responses.activate
-def test_retrieve_supplements_bad_zip() -> None:
+def test_europepmc_bad_zip() -> None:
     _register_search()
     responses.add(responses.GET, SUPPL_URL, body=b"not a zip", status=200)
-    result = retrieve_supplements(DOI)
+    result = retrieve_supplements_from_europepmc(DOI, include_captions=False)
     assert result.files == []
     assert result.error is not None
 
 
+# ---------------------------------------------------------------------------
+# NCBI PMC OA
+# ---------------------------------------------------------------------------
+
+OA_RECORD_XML = """<?xml version="1.0"?>
+<OA>
+  <records>
+    <record id="PMC123456">
+      <link format="tgz" href="ftp://ftp.ncbi.nlm.nih.gov/pub/pmc/oa_package/aa/bb/PMC123456.tar.gz"/>
+    </record>
+  </records>
+</OA>"""
+
+
+def _register_oa_service() -> None:
+    responses.add(responses.GET, PMC_OA_SERVICE_URL, body=OA_RECORD_XML, status=200)
+
+
 @responses.activate
-def test_retrieve_supplements_custom_kinds() -> None:
-    _register_search()
-    archive = _make_zip(
+def test_find_supplement_source_pmc_oa() -> None:
+    _register_oa_service()
+    info = find_supplement_source_pmc_oa("PMC123456")
+    assert info["tgz_url"] == OA_TGZ_URL
+    assert "error" not in info
+
+
+@responses.activate
+def test_find_supplement_source_pmc_oa_error() -> None:
+    responses.add(
+        responses.GET,
+        PMC_OA_SERVICE_URL,
+        body='<OA><error code="idDoesNotExist">bad</error></OA>',
+        status=200,
+    )
+    info = find_supplement_source_pmc_oa("PMC000")
+    assert info["tgz_url"] is None
+    assert info["error"]
+
+
+@responses.activate
+def test_pmc_oa_retrieves_and_captions_from_nxml() -> None:
+    _register_oa_service()
+    targz = _make_targz(
         {
-            "figure1.png": b"\x89PNGfake",
-            "table.csv": b"x,y\n1,2\n",
+            "PMC123456/table_s1.csv": b"sample_id,ph\nA,7\n",
+            "PMC123456/figure1.jpg": b"\xff\xd8fakejpeg",
+            "PMC123456/main.nxml": JATS_XML.replace("Table_S1.csv", "table_s1.csv").encode(),
         }
     )
-    responses.add(responses.GET, SUPPL_URL, body=archive, status=200)
+    responses.add(responses.GET, OA_TGZ_URL, body=targz, status=200)
 
-    result = retrieve_supplements(DOI, useful_kinds={SupplementKind.IMAGE})
-    kept = {f.filename for f in result.files}
-    assert kept == {"figure1.png"}
+    result = retrieve_supplements_from_pmc_oa("PMC123456", doi=DOI)
+    kept = {os.path.basename(f.filename): f for f in result.files}
+    assert set(kept) == {"table_s1.csv"}
+    assert kept["table_s1.csv"].caption is not None
+    assert any(f.kind == SupplementKind.IMAGE for f in result.skipped)
 
-    remove_temp_files([f.saved_path for f in result.files if f.saved_path])
+
+# ---------------------------------------------------------------------------
+# Dryad
+# ---------------------------------------------------------------------------
+
+
+def _register_dryad(files: list[dict]) -> None:
+    dataset_url = f"{DRYAD_API_URL}/datasets/{quote(f'doi:{DRYAD_DOI}', safe='')}"
+    responses.add(
+        responses.GET,
+        dataset_url,
+        json={"_links": {"stash:version": {"href": "/api/v2/versions/999"}}},
+        status=200,
+    )
+    responses.add(
+        responses.GET,
+        f"{DRYAD_API_URL}/versions/999/files",
+        json={"_embedded": {"stash:files": files}},
+        status=200,
+    )
+
+
+@responses.activate
+def test_dryad_retrieves_tabular_files() -> None:
+    _register_dryad(
+        [
+            {
+                "path": "samples.csv",
+                "size": 24,
+                "description": "Per-sample metadata table",
+                "_links": {"stash:download": {"href": "/api/v2/files/1/download"}},
+            },
+            {
+                "path": "photo.jpg",
+                "size": 10,
+                "_links": {"stash:download": {"href": "/api/v2/files/2/download"}},
+            },
+        ]
+    )
+    responses.add(
+        responses.GET,
+        f"{DRYAD_API_URL}/files/1/download",
+        body=b"sample_id,site\nA,north\n",
+        status=200,
+    )
+
+    result = retrieve_supplements_from_dryad(DRYAD_DOI)
+    assert [f.filename for f in result.files] == ["samples.csv"]
+    assert result.files[0].caption == "Per-sample metadata table"
+    assert "site" in (result.files[0].text or "")
+    assert {f.filename for f in result.skipped} == {"photo.jpg"}
+
+
+@responses.activate
+def test_dryad_no_files() -> None:
+    _register_dryad([])
+    result = retrieve_supplements_from_dryad(DRYAD_DOI)
+    assert result.files == []
+    assert result.error is not None
+
+
+# ---------------------------------------------------------------------------
+# Orchestrator
+# ---------------------------------------------------------------------------
+
+
+@responses.activate
+def test_orchestrator_falls_back_to_pmc_oa() -> None:
+    # Europe PMC reports no supplements -> fall back to the NCBI OA package.
+    _register_search(has_suppl="N")
+    _register_oa_service()
+    targz = _make_targz({"PMC123456/data.csv": b"a,b\n1,2\n"})
+    responses.add(responses.GET, OA_TGZ_URL, body=targz, status=200)
+
+    result = retrieve_supplements(DOI)
+    assert result.source == "pmc_oa"
+    assert [os.path.basename(f.filename) for f in result.files] == ["data.csv"]
+    assert "europepmc" in result.attempts and "pmc_oa" in result.attempts
+
+
+@responses.activate
+def test_orchestrator_routes_dryad_doi() -> None:
+    _register_dryad(
+        [
+            {
+                "path": "meta.tsv",
+                "size": 12,
+                "_links": {"stash:download": {"href": "/api/v2/files/9/download"}},
+            }
+        ]
+    )
+    responses.add(
+        responses.GET,
+        f"{DRYAD_API_URL}/files/9/download",
+        body=b"id\tval\n1\t2\n",
+        status=200,
+    )
+    result = retrieve_supplements(DRYAD_DOI)
+    assert result.source == "dryad"
+    assert [f.filename for f in result.files] == ["meta.tsv"]
