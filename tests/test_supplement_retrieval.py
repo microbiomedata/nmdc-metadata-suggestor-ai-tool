@@ -826,11 +826,17 @@ def test_figshare_picks_doi_matching_record() -> None:
 
 # ---------------------------------------------------------------------------
 # Live smoke tests (opt-in): verify the retrievers against real repository APIs.
-# Deselected by default; run with `-m integration` and the env vars set, e.g.
-#   NMDC_TEST_ZENODO_DOI=10.5281/zenodo.XXXX uv run pytest -m integration
+# Deselected by default; run with `-m integration`. Each uses a known-good public
+# DOI by default (verified to expose downloadable tabular/document files),
+# overridable via the matching NMDC_TEST_*_DOI env var:
+#   uv run pytest tests/test_supplement_retrieval.py -m integration
 # ---------------------------------------------------------------------------
 
 integration = pytest.mark.integration
+
+# Known-good public records with downloadable tabular/document files.
+LIVE_ZENODO_DOI = "10.5281/zenodo.8436315"  # .docx + two .csv files
+LIVE_FIGSHARE_DOI = "10.6084/m9.figshare.33084674.v1"  # a .pdf file
 
 
 def _assert_live_result(result, source: str) -> None:
@@ -838,6 +844,7 @@ def _assert_live_result(result, source: str) -> None:
 
     assert isinstance(result, SupplementRetrievalResult)
     assert result.source == source
+    assert result.files, f"expected files, got error: {result.error}"
     for f in result.files:
         assert f.source == source
         assert f.text is not None or f.saved_path is not None
@@ -846,23 +853,22 @@ def _assert_live_result(result, source: str) -> None:
 
 @integration
 def test_zenodo_live() -> None:
-    doi = os.environ.get("NMDC_TEST_ZENODO_DOI")
-    if not doi:
-        pytest.skip("set NMDC_TEST_ZENODO_DOI to run")
+    doi = os.environ.get("NMDC_TEST_ZENODO_DOI", LIVE_ZENODO_DOI)
     _assert_live_result(retrieve_supplements_from_zenodo(doi), "zenodo")
 
 
 @integration
 def test_figshare_live() -> None:
-    doi = os.environ.get("NMDC_TEST_FIGSHARE_DOI")
-    if not doi:
-        pytest.skip("set NMDC_TEST_FIGSHARE_DOI to run")
+    doi = os.environ.get("NMDC_TEST_FIGSHARE_DOI", LIVE_FIGSHARE_DOI)
     _assert_live_result(retrieve_supplements_from_figshare(doi), "figshare")
 
 
 @integration
 def test_dryad_live() -> None:
+    # NOTE: Dryad's own file-download API requires an OAuth bearer token (401) and
+    # its file_stream route is Cloudflare-gated, so direct Dryad content retrieval
+    # does not work unauthenticated. Left env-only pending the mirror-based fix.
     doi = os.environ.get("NMDC_TEST_DRYAD_DOI")
     if not doi:
-        pytest.skip("set NMDC_TEST_DRYAD_DOI to run")
+        pytest.skip("set NMDC_TEST_DRYAD_DOI to run (Dryad direct download is gated)")
     _assert_live_result(retrieve_supplements_from_dryad(doi), "dryad")
