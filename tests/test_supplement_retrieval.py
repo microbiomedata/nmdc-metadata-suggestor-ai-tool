@@ -6,6 +6,7 @@ import tarfile
 import zipfile
 from urllib.parse import quote
 
+import pytest
 import responses
 
 from nmdc_metadata_suggestor_ai_tool.constants import (
@@ -710,3 +711,146 @@ def test_merge_results_deletes_trimmed_temp_files(tmp_path) -> None:
     assert [f.filename for f in merged.files] == ["kept.pdf"]
     assert kept_path.exists()  # kept file's temp path untouched
     assert not dropped_path.exists()  # trimmed file's temp path deleted (no leak)
+
+
+# ---------------------------------------------------------------------------
+# Record / link-selection hardening (#4)
+# ---------------------------------------------------------------------------
+
+
+@responses.activate
+def test_zenodo_prefers_content_link() -> None:
+    # InvenioRDM exposes downloads under links.content; prefer it over self.
+    responses.add(
+        responses.GET,
+        ZENODO_API,
+        json={
+            "hits": {
+                "hits": [
+                    {
+                        "doi": ZENODO_DOI,
+                        "files": [
+                            {
+                                "key": "d.csv",
+                                "size": 8,
+                                "links": {
+                                    "content": "https://zenodo.org/content/d.csv",
+                                    "self": "https://zenodo.org/self/d.csv",
+                                },
+                            }
+                        ],
+                    }
+                ]
+            }
+        },
+        status=200,
+    )
+    # Only the content URL is registered; using self would fail.
+    responses.add(responses.GET, "https://zenodo.org/content/d.csv", body=b"a,b\n1,2\n", status=200)
+
+    result = retrieve_supplements_from_zenodo(ZENODO_DOI)
+    assert [f.filename for f in result.files] == ["d.csv"]
+
+
+@responses.activate
+def test_zenodo_does_not_guess_among_unrelated_hits() -> None:
+    responses.add(
+        responses.GET,
+        ZENODO_API,
+        json={
+            "hits": {
+                "hits": [
+                    {"doi": "10.5281/zenodo.111", "files": [{"key": "a.csv", "size": 4}]},
+                    {"doi": "10.5281/zenodo.222", "files": [{"key": "b.csv", "size": 4}]},
+                ]
+            }
+        },
+        status=200,
+    )
+    result = retrieve_supplements_from_zenodo(ZENODO_DOI)  # matches neither
+    assert result.files == []
+    assert result.error
+
+
+@responses.activate
+def test_figshare_picks_doi_matching_record() -> None:
+    responses.add(
+        responses.GET,
+        FIGSHARE_API,
+        json=[
+            {
+                "id": 1,
+                "doi": "10.6084/m9.figshare.999",
+                "url_public_api": "https://api.figshare.com/v2/articles/1",
+            },
+            {
+                "id": 42,
+                "doi": FIGSHARE_DOI,
+                "url_public_api": "https://api.figshare.com/v2/articles/42",
+            },
+        ],
+        status=200,
+    )
+    responses.add(
+        responses.GET,
+        "https://api.figshare.com/v2/articles/42",
+        json={
+            "files": [
+                {
+                    "name": "t.csv",
+                    "size": 8,
+                    "download_url": "https://ndownloader.figshare.com/files/9",
+                }
+            ]
+        },
+        status=200,
+    )
+    responses.add(
+        responses.GET, "https://ndownloader.figshare.com/files/9", body=b"a\n1\n", status=200
+    )
+    result = retrieve_supplements_from_figshare(FIGSHARE_DOI)
+    assert [f.filename for f in result.files] == ["t.csv"]
+
+
+# ---------------------------------------------------------------------------
+# Live smoke tests (opt-in): verify the retrievers against real repository APIs.
+# Deselected by default; run with `-m integration` and the env vars set, e.g.
+#   NMDC_TEST_ZENODO_DOI=10.5281/zenodo.XXXX uv run pytest -m integration
+# ---------------------------------------------------------------------------
+
+integration = pytest.mark.integration
+
+
+def _assert_live_result(result, source: str) -> None:
+    from nmdc_metadata_suggestor_ai_tool.models.supplement import SupplementRetrievalResult
+
+    assert isinstance(result, SupplementRetrievalResult)
+    assert result.source == source
+    for f in result.files:
+        assert f.source == source
+        assert f.text is not None or f.saved_path is not None
+    remove_temp_files([f.saved_path for f in result.files if f.saved_path])
+
+
+@integration
+def test_zenodo_live() -> None:
+    doi = os.environ.get("NMDC_TEST_ZENODO_DOI")
+    if not doi:
+        pytest.skip("set NMDC_TEST_ZENODO_DOI to run")
+    _assert_live_result(retrieve_supplements_from_zenodo(doi), "zenodo")
+
+
+@integration
+def test_figshare_live() -> None:
+    doi = os.environ.get("NMDC_TEST_FIGSHARE_DOI")
+    if not doi:
+        pytest.skip("set NMDC_TEST_FIGSHARE_DOI to run")
+    _assert_live_result(retrieve_supplements_from_figshare(doi), "figshare")
+
+
+@integration
+def test_dryad_live() -> None:
+    doi = os.environ.get("NMDC_TEST_DRYAD_DOI")
+    if not doi:
+        pytest.skip("set NMDC_TEST_DRYAD_DOI to run")
+    _assert_live_result(retrieve_supplements_from_dryad(doi), "dryad")

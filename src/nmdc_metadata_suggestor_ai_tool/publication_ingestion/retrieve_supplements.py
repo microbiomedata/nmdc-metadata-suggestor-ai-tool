@@ -814,7 +814,9 @@ def retrieve_supplements_from_zenodo(
     for file_entry in hit.get("files", []):
         name = file_entry.get("key") or file_entry.get("filename")
         links = file_entry.get("links", {})
-        url = links.get("self") or links.get("download")
+        # Link key varies by Zenodo API generation: InvenioRDM exposes the file
+        # content under "content", legacy Zenodo under "self", older under "download".
+        url = links.get("content") or links.get("self") or links.get("download")
         if not name or not url:
             continue
         members.append(
@@ -898,8 +900,12 @@ def _figshare_detail_for_doi(doi: str) -> dict[str, Any] | None:
             continue
         if not isinstance(matches, list) or not matches:
             continue
-        first = matches[0]
-        detail_url = first.get("url_public_api") or f"{endpoint}/{first.get('id')}"
+        # The search is filtered by DOI, but if the endpoint returns several
+        # entries pick the one whose DOI matches rather than guessing the first.
+        candidate = _first_matching(matches, doi, ("doi",))
+        if candidate is None:
+            continue
+        detail_url = candidate.get("url_public_api") or f"{endpoint}/{candidate.get('id')}"
         try:
             detail_response = request_with_retry(
                 "GET", detail_url, timeout=DEFAULT_TIMEOUT, headers={"User-Agent": USER_AGENT}
@@ -916,7 +922,11 @@ def _figshare_detail_for_doi(doi: str) -> dict[str, Any] | None:
 def _first_matching(
     hits: list[dict[str, Any]], doi: str, keys: tuple[str, ...]
 ) -> dict[str, Any] | None:
-    """Return the first hit whose DOI in *keys* matches, else the first hit."""
+    """Return the hit whose DOI in *keys* matches *doi*.
+
+    Falls back to the sole hit only when the query returned exactly one, so an
+    unrelated record is never guessed out of many results.
+    """
     if not isinstance(hits, list) or not hits:
         return None
     target = doi.lower()
@@ -927,7 +937,9 @@ def _first_matching(
             value = hit.get(key)
             if isinstance(value, str) and normalize_doi(value).lower() == target:
                 return hit
-    return hits[0] if isinstance(hits[0], dict) else None
+    if len(hits) == 1 and isinstance(hits[0], dict):
+        return hits[0]
+    return None
 
 
 # ---------------------------------------------------------------------------
