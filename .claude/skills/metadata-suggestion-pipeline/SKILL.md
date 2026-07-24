@@ -7,6 +7,8 @@ description: Use this skill to suggest metadata field values for a full NMDC sub
 
 Use this skill to suggest metadata field values for a full NMDC submission object. You are the recommender — execute all steps yourself.
 
+**IMPORTANT: Do NOT call StructuredOutput between steps. Complete ALL four steps first, then call StructuredOutput exactly once at the end with the final `LLMOutput` JSON.**
+
 ---
 
 ## Goal

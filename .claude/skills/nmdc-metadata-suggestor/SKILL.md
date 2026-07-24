@@ -35,3 +35,5 @@ Receives data, determines what to run, returns `LLMOutput` JSON. No user interac
 Run the routed skill(s) and return a single `LLMOutput` JSON object.
 
 If both pipelines run, merge their `metadata_fields` lists into one response.
+
+**IMPORTANT: Do NOT call StructuredOutput until all routed skills have finished executing. Call StructuredOutput exactly once at the very end with the complete merged `LLMOutput` JSON.**
