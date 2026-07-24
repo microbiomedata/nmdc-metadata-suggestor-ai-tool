@@ -61,7 +61,6 @@ from nmdc_metadata_suggestor_ai_tool.constants import (
     ZENODO_API,
 )
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import (
-    DOI_REFERENCE_PATTERN,
     normalize_doi,
     request_with_retry,
 )
@@ -1060,6 +1059,16 @@ def _datacite_related_dois(doi: str) -> list[str]:
 # Text / accession mining (fallback when relation metadata is absent)
 # ---------------------------------------------------------------------------
 
+# Repository-specific DOI shapes. Matching the exact form (rather than a generic
+# DOI regex + prefix filter) stops trailing prose from riding along on a mined DOI
+# -- e.g. "10.5281/zenodo.123and" yields "10.5281/zenodo.123", not the whole run.
+_REPO_DOI_PATTERN = re.compile(
+    r"10\.5281/zenodo\.\d+"  # Zenodo
+    r"|10\.6084/m9\.figshare\.\d+(?:\.v\d+)?"  # Figshare (optional version)
+    r"|10\.5061/dryad\.[a-z0-9]+(?:\.\d+)?",  # Dryad (optional version)
+    re.IGNORECASE,
+)
+
 # Common sequence/proteomics repository accession patterns. Detected and surfaced
 # for awareness, but NOT retrieved (they point at raw omics data, out of scope).
 _ACCESSION_PATTERN = re.compile(
@@ -1074,11 +1083,15 @@ _ACCESSION_PATTERN = re.compile(
 
 
 def extract_dataset_dois_from_text(text: str) -> list[str]:
-    """Return data-repository DOIs (Dryad/Zenodo/Figshare) mentioned in *text*."""
+    """Return data-repository DOIs (Dryad/Zenodo/Figshare) mentioned in *text*.
+
+    Uses repository-specific DOI shapes so trailing text can't be captured as
+    part of a matched DOI. DOIs are lowercased (canonical for these repositories).
+    """
     found: list[str] = []
-    for match in DOI_REFERENCE_PATTERN.finditer(text):
-        candidate = normalize_doi(match.group(0).rstrip(".,;:)]}>\"'"))
-        if _repo_for_doi(candidate) and candidate not in found:
+    for match in _REPO_DOI_PATTERN.finditer(text):
+        candidate = normalize_doi(match.group(0)).lower()
+        if candidate not in found:
             found.append(candidate)
     return found
 

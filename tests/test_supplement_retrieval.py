@@ -533,6 +533,18 @@ def test_extract_dataset_dois_from_text() -> None:
     assert "10.1038/nature12373" not in dois  # not a data repo
 
 
+def test_extract_dataset_dois_trims_trailing_prose() -> None:
+    # DOIs abutting following text (no delimiter) must not absorb the prose.
+    text = (
+        "deposited at 10.5281/zenodo.987654and then analysed; "
+        "versioned dataset 10.6084/m9.figshare.42.v2, done."
+    )
+    dois = extract_dataset_dois_from_text(text)
+    assert "10.5281/zenodo.987654" in dois
+    assert "10.6084/m9.figshare.42.v2" in dois
+    assert all(d.isascii() and "and" not in d and "," not in d for d in dois)
+
+
 def test_extract_accessions_from_text() -> None:
     text = (
         "Reads deposited under BioProject PRJNA123456 (runs SRR1234567, SRR1234568) and GSE99999."
