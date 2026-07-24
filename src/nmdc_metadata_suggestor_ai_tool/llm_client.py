@@ -434,14 +434,73 @@ class ConversationManager:
         if session_id is not None:
             options.resume = session_id
 
-        async with ClaudeSDKClient(options=options) as client:
-            await client.query(message)
-            async for event in client.receive_response():
-                if isinstance(event, SystemMessage) and event.subtype == "init":
-                    session_id = event.data["session_id"]
-                elif isinstance(event, AssistantMessage):
-                    print(f"Assistant: {event.content}")
-                elif isinstance(event, ResultMessage):
-                    result = event.structured_output
+        event_log: list[dict[str, Any]] = []
+
+        with mlflow.start_run(run_name="agentic_mlflow", nested=True):
+            mlflow.log_param("model", DEFAULT_CLAUDE_MODEL)
+            mlflow.log_param("session_id_in", session_id)
+            mlflow.log_text(message, "input_message.txt")
+
+            async with ClaudeSDKClient(options=options) as client:
+                await client.query(message)
+                async for event in client.receive_response():
+                    if isinstance(event, SystemMessage) and event.subtype == "init":
+                        session_id = event.data["session_id"]
+                        event_log.append({"type": "system_init", "session_id": session_id})
+                    elif isinstance(event, AssistantMessage):
+                        print(f"Assistant: {event.content}")
+                        blocks = []
+                        for block in event.content if isinstance(event.content, list) else [event.content]:
+                            if isinstance(block, ToolUseBlock):
+                                blocks.append({
+                                    "type": "tool_use",
+                                    "id": block.id,
+                                    "name": block.name,
+                                    "input": block.input,
+                                })
+                            elif hasattr(block, "__dict__"):
+                                blocks.append(vars(block))
+                            else:
+                                blocks.append({"text": str(block)})
+                        event_log.append({"type": "assistant_message", "content": blocks})
+                    elif isinstance(event, ResultMessage):
+                        result = event.structured_output
+                        event_log.append({"type": "result", "structured_output": result})
+
+                        # Log token usage and cost from ResultMessage
+                        usage = event.usage or {}
+                        input_tokens = usage.get("input_tokens", 0)
+                        output_tokens = usage.get("output_tokens", 0)
+                        total_tokens = input_tokens + output_tokens
+                        span = mlflow.get_current_active_span()
+                        if span is not None:
+                            span.set_attribute(
+                                "mlflow.chat.tokenUsage",
+                                {
+                                    "input_tokens": input_tokens,
+                                    "output_tokens": output_tokens,
+                                    "total_tokens": total_tokens,
+                                },
+                            )
+                            if event.total_cost_usd is not None:
+                                span.set_attribute(
+                                    "mlflow.llm.cost",
+                                    {"total_cost": event.total_cost_usd},
+                                )
+                        mlflow.log_metrics({
+                            "input_tokens": input_tokens,
+                            "output_tokens": output_tokens,
+                            "total_tokens": total_tokens,
+                            **({"total_cost_usd": event.total_cost_usd} if event.total_cost_usd is not None else {}),
+                            **({"duration_ms": event.duration_ms} if event.duration_ms else {}),
+                            **({"num_turns": event.num_turns} if event.num_turns else {}),
+                        })
+                        if event.model_usage:
+                            mlflow.log_dict(event.model_usage, "model_usage.json")
+
+            mlflow.log_dict({"events": event_log}, "event_stream.json")
+            mlflow.log_param("session_id_out", session_id)
+            if result is not None:
+                mlflow.log_dict(result if isinstance(result, dict) else {"output": result}, "result.json")
 
         return result, session_id
