@@ -63,6 +63,12 @@ from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import (
     normalize_doi,
     request_with_retry,
 )
+from nmdc_metadata_suggestor_ai_tool.file_kinds import (
+    DEFAULT_USEFUL_KINDS,
+    TEXT_LIKE_EXTENSIONS,
+    classify_file,
+    file_extension,
+)
 from nmdc_metadata_suggestor_ai_tool.models.supplement import (
     SupplementFile,
     SupplementKind,
@@ -71,85 +77,9 @@ from nmdc_metadata_suggestor_ai_tool.models.supplement import (
 
 logger = logging.getLogger(__name__)
 
-# Extension -> kind mapping. Extensions not listed classify as ``OTHER``.
-_EXTENSION_KINDS: dict[str, SupplementKind] = {
-    # Tabular: highest value -- typically per-sample metadata/measurements.
-    "csv": SupplementKind.TABULAR,
-    "tsv": SupplementKind.TABULAR,
-    "tab": SupplementKind.TABULAR,
-    "xlsx": SupplementKind.TABULAR,
-    "xls": SupplementKind.TABULAR,
-    "xlsm": SupplementKind.TABULAR,
-    "ods": SupplementKind.TABULAR,
-    # Documents: supplementary methods, site descriptions, etc.
-    "pdf": SupplementKind.DOCUMENT,
-    "docx": SupplementKind.DOCUMENT,
-    "doc": SupplementKind.DOCUMENT,
-    "rtf": SupplementKind.DOCUMENT,
-    "txt": SupplementKind.DOCUMENT,
-    "text": SupplementKind.DOCUMENT,
-    "md": SupplementKind.DOCUMENT,
-    # Images / media -- rarely useful for value-filling.
-    "png": SupplementKind.IMAGE,
-    "jpg": SupplementKind.IMAGE,
-    "jpeg": SupplementKind.IMAGE,
-    "gif": SupplementKind.IMAGE,
-    "tif": SupplementKind.IMAGE,
-    "tiff": SupplementKind.IMAGE,
-    "bmp": SupplementKind.IMAGE,
-    "eps": SupplementKind.IMAGE,
-    "svg": SupplementKind.IMAGE,
-    "mov": SupplementKind.MEDIA,
-    "mp4": SupplementKind.MEDIA,
-    "avi": SupplementKind.MEDIA,
-    "wmv": SupplementKind.MEDIA,
-    "mp3": SupplementKind.MEDIA,
-    "wav": SupplementKind.MEDIA,
-    # Sequence / large omics data -- out of scope for metadata suggestion.
-    "fasta": SupplementKind.SEQUENCE,
-    "fa": SupplementKind.SEQUENCE,
-    "fastq": SupplementKind.SEQUENCE,
-    "fq": SupplementKind.SEQUENCE,
-    "sam": SupplementKind.SEQUENCE,
-    "bam": SupplementKind.SEQUENCE,
-    "vcf": SupplementKind.SEQUENCE,
-    "gb": SupplementKind.SEQUENCE,
-    "gbk": SupplementKind.SEQUENCE,
-    # Nested archives.
-    "zip": SupplementKind.ARCHIVE,
-    "gz": SupplementKind.ARCHIVE,
-    "tar": SupplementKind.ARCHIVE,
-    "tgz": SupplementKind.ARCHIVE,
-    "7z": SupplementKind.ARCHIVE,
-    "rar": SupplementKind.ARCHIVE,
-}
-
-# Kinds whose content is decodable as plain text and worth inlining directly.
-_TEXT_KINDS_EXTENSIONS = {"csv", "tsv", "tab", "txt", "text", "md"}
-
-# High-value kinds kept by default.
-DEFAULT_USEFUL_KINDS: frozenset[SupplementKind] = frozenset(
-    {SupplementKind.TABULAR, SupplementKind.DOCUMENT}
-)
-
-
-def _extension(filename: str) -> str:
-    """Return the lowercase extension of *filename* without the dot."""
-    base = os.path.basename(filename)
-    _, _, ext = base.rpartition(".")
-    return ext.lower() if "." in base else ""
-
-
-def classify_supplement(filename: str) -> SupplementKind:
-    """Classify a supplement file by its extension.
-
-    Args:
-        filename: The supplement's filename (or path within an archive).
-
-    Returns:
-        The :class:`SupplementKind` for the file, or ``OTHER`` if unrecognized.
-    """
-    return _EXTENSION_KINDS.get(_extension(filename), SupplementKind.OTHER)
+# Backwards-compatible alias: the file-type taxonomy now lives in ``file_kinds``.
+# ``classify_supplement`` remains the documented name used by the skill/tests.
+classify_supplement = classify_file
 
 
 def find_supplement_source_europepmc(doi: str) -> dict[str, object]:
@@ -271,13 +201,13 @@ def _materialize_member(
     Returns:
         ``(text, saved_path)`` -- exactly one is non-None.
     """
-    if _extension(filename) in _TEXT_KINDS_EXTENSIONS:
+    if file_extension(filename) in TEXT_LIKE_EXTENSIONS:
         text = data.decode("utf-8", errors="replace")
         if len(text) > max_text_chars:
             text = text[:max_text_chars] + "\n...[truncated]"
         return text, None
 
-    suffix = f".{_extension(filename)}" if _extension(filename) else ""
+    suffix = f".{file_extension(filename)}" if file_extension(filename) else ""
     if save_dir:
         os.makedirs(save_dir, exist_ok=True)
         safe_name = os.path.basename(filename) or f"supplement{suffix}"
