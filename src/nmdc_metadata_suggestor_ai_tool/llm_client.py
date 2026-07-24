@@ -7,15 +7,22 @@ from typing import Any, cast
 
 import google.auth
 import google.auth.transport.requests
+import mlflow
+import mlflow.anthropic
 from nmdc_metadata_suggestor_ai_tool.tracing import langfuse, observe, setup_tracing
 
 setup_tracing()
+mlflow.set_tracking_uri("http://localhost:5000")
+mlflow.set_experiment("Agentic")
+mlflow.anthropic.autolog()
 
 from claude_agent_sdk import (
+    ClaudeSDKClient,
     AssistantMessage,
     ClaudeAgentOptions,
     ResultMessage,
     SystemMessage,
+    ToolUseBlock,
     query,
 )
 from dotenv import load_dotenv
@@ -398,4 +405,43 @@ class ConversationManager:
                     return result, session_id
         if langfuse is not None:
             langfuse.update_current_span(output=result)
+        return result, session_id
+
+    async def agentic_mlflow(
+        self, session_id: str | None = None, message: str | None = None
+    ) -> tuple[Any, str | None]:
+        """
+        Agentic interaction, session handling, and skill/tool usage via Claude Agent SDK
+        IMPORTANT NOTE: This only works with GCP auth right now.
+
+        Parameters
+        ----------
+        session_id: Optional session ID to resume a previous conversation.
+        If None, starts a new session.
+
+        """
+        if message is None:
+            raise ValueError("message is required")
+
+        options = ClaudeAgentOptions(
+            skills="all",
+            model=DEFAULT_CLAUDE_MODEL,
+            system_prompt=orchestrator_prompt,
+            output_format={"type": "json_schema", "schema": LLMOutput.model_json_schema()},
+        )
+
+        result: Any = None
+        if session_id is not None:
+            options.resume = session_id
+
+        async with ClaudeSDKClient(options=options) as client:
+            await client.query(message)
+            async for event in client.receive_response():
+                if isinstance(event, SystemMessage) and event.subtype == "init":
+                    session_id = event.data["session_id"]
+                elif isinstance(event, AssistantMessage):
+                    print(f"Assistant: {event.content}")
+                elif isinstance(event, ResultMessage):
+                    result = event.structured_output
+
         return result, session_id
