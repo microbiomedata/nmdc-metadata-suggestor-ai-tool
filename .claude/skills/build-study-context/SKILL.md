@@ -53,6 +53,28 @@ result = get_doi_description_or_abstract(
 
 Utilize `download_pdf_to_tempfile` (from **pdf-ingestion** skill).
 
+### 4 — (Optional) Fetch supplementary materials
+
+For publication DOIs, optionally enrich the evidence with high-value supplements
+(sample-metadata tables, supplementary methods) using the **supplement-retrieval**
+skill. This is performance-first — make a single attempt per DOI and skip on
+failure:
+
+```python
+from nmdc_metadata_suggestor_ai_tool.publication_ingestion.retrieve_supplements import (
+    retrieve_supplements,
+)
+
+supp = retrieve_supplements(doi=entry["value"])
+for f in supp.files:
+    if f.text:
+        context_texts.append(f"Supplement {f.filename} (for {entry['value']}):\n{f.text}")
+    # non-text files are at f.saved_path for downstream readers
+```
+
+Only tabular and document supplements are kept by default. Do not retry when
+supplements are unavailable.
+
 ---
 
 ## Output
