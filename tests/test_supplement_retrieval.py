@@ -122,6 +122,16 @@ def test_parse_supplement_captions_bad_xml_returns_empty() -> None:
     assert parse_supplement_captions("<not-closed>") == {}
 
 
+def test_parse_supplement_captions_rejects_doctype_entities() -> None:
+    # A billion-laughs style payload must be refused before parsing.
+    malicious = (
+        '<?xml version="1.0"?>'
+        '<!DOCTYPE lolz [<!ENTITY lol "lol"><!ENTITY lol2 "&lol;&lol;">]>'
+        "<article>&lol2;</article>"
+    )
+    assert parse_supplement_captions(malicious) == {}
+
+
 def test_is_dryad_doi() -> None:
     assert is_dryad_doi(DRYAD_DOI) is True
     assert is_dryad_doi("https://doi.org/10.5061/dryad.x") is True

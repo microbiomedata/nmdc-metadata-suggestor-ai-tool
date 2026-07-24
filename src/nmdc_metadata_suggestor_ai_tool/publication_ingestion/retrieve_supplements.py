@@ -55,6 +55,8 @@ from nmdc_metadata_suggestor_ai_tool.constants import (
     SUPPLEMENT_MAX_FILES,
     SUPPLEMENT_MAX_TEXT_CHARS,
     SUPPLEMENT_MAX_TOTAL_BYTES,
+    SUPPLEMENT_MAX_XML_BYTES,
+    UNSAFE_XML_DECLARATION_PATTERN,
     USER_AGENT,
     ZENODO_API,
 )
@@ -252,8 +254,18 @@ def parse_supplement_captions(xml_text: str | bytes) -> dict[str, str]:
     """
     captions: dict[str, str] = {}
     try:
-        root = ET.fromstring(xml_text if isinstance(xml_text, str) else xml_text.decode("utf-8"))
-    except (ET.ParseError, UnicodeDecodeError):
+        text = xml_text if isinstance(xml_text, str) else xml_text.decode("utf-8")
+    except UnicodeDecodeError:
+        return captions
+
+    # Refuse DOCTYPE/ENTITY declarations to avoid entity-expansion / injection via
+    # untrusted XML, matching the guard used by the DOI resolvers.
+    if UNSAFE_XML_DECLARATION_PATTERN.search(text):
+        return captions
+
+    try:
+        root = ET.fromstring(text)
+    except ET.ParseError:
         return captions
 
     supplement_tags = {"supplementary-material", "inline-supplementary-material", "media"}
@@ -449,17 +461,17 @@ def _apply_selection(
 
 
 def _fetch_europepmc_captions(source: str, article_id: str) -> dict[str, str]:
-    """Best-effort fetch of supplement captions from Europe PMC full-text JATS."""
+    """Best-effort fetch of supplement captions from Europe PMC full-text JATS.
+
+    The JATS document is size-bounded like every other download: an over-large
+    (or missing/non-200) document yields no captions rather than being buffered.
+    """
     url = EUROPEPMC_FULLTEXT_XML_URL_TEMPLATE.format(source=source, article_id=article_id)
     try:
-        response = request_with_retry(
-            "GET", url, timeout=DEFAULT_TIMEOUT, headers={"User-Agent": USER_AGENT}
-        )
-        if response.status_code != 200:
-            return {}
-        return parse_supplement_captions(response.content)
-    except Exception:
+        data = _download_bounded(url, SUPPLEMENT_MAX_XML_BYTES)
+    except RuntimeError:
         return {}
+    return parse_supplement_captions(data)
 
 
 def retrieve_supplements_from_europepmc(

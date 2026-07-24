@@ -153,6 +153,10 @@ SUPPLEMENT_MAX_ARCHIVE_BYTES = int(
 )
 # Max characters of decoded text inlined per text-like supplement file.
 SUPPLEMENT_MAX_TEXT_CHARS = int(os.environ.get("NMDC_SUPPLEMENT_MAX_TEXT_CHARS", str(200_000)))
+# Max size of a full-text JATS XML document fetched for supplement captions.
+# Captions are a nice-to-have, so an over-large document is skipped rather than
+# fully buffered/parsed (matches the bounded handling of untrusted XML elsewhere).
+SUPPLEMENT_MAX_XML_BYTES = int(os.environ.get("NMDC_SUPPLEMENT_MAX_XML_BYTES", str(20_000_000)))
 
 # ---------------------------------------------------------------------------
 # Schema context builder
