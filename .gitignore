@@ -43,8 +43,10 @@ abstracts/
 service-account.json
 *-credentials.json
 credentials*.json
+gcp_credentials.json
 *.key
 *.pem
+
 
 # local claude code credentials 
 settings.local.json
