@@ -83,7 +83,7 @@ from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import (
 result = get_doi_description_or_abstract(
     doi=doi_value,
     skip_classification=True,  # skip when provider is already known
-    sources=["osti"],           # pass provider as first source
+    sources=["osti"],  # pass provider as first source
 )
 
 if result.context:
