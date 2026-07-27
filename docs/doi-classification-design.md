@@ -250,11 +250,11 @@ from nmdc_metadata_suggestor.publication_ingestion.abstract_retriever import (
 )
 
 result: AbstractResult = get_abstract("10.1038/s41564-020-00861-0")
-result.abstract    # str | None — the abstract text
-result.source      # "openalex" | "crossref" | "pubmed" | "content_negotiation" | None
-result.pmid        # str | None — PubMed ID (only if source was PubMed)
-result.attempts    # ["openalex", "crossref"] — sources tried, in order
-result.error       # str | None — why it was refused or not found
+result.abstract  # str | None — the abstract text
+result.source  # "openalex" | "crossref" | "pubmed" | "content_negotiation" | None
+result.pmid  # str | None — PubMed ID (only if source was PubMed)
+result.attempts  # ["openalex", "crossref"] — sources tried, in order
+result.error  # str | None — why it was refused or not found
 ```
 
 ### Classification gate
