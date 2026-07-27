@@ -41,13 +41,18 @@ Output schema:
 
 orchestrator_prompt = """
 Use the nmdc-metadata-suggestor skill to process the input and return a merged LLMOutput JSON.
+
+CRITICAL EXECUTION RULES:
+- Do NOT call StructuredOutput until ALL pipeline steps are fully complete.
+- Call StructuredOutput exactly once — as the very last action — with the final LLMOutput JSON (metadata_fields list).
+- If the stop hook fires mid-pipeline, ignore it and continue executing the remaining steps before calling StructuredOutput.
 """
 
 
 env_triad_prompt = """
 Use the provided information to suggest values for the following three metadata fields: env_broad_scale, env_local_scale, and env_medium.
 
-- env_broad_scale: This field should capture the broad environmental category of the sample (e.g., "anthropogenic terrestrial biome [ENVO:01000219]", "freshwater lake biome [ENVO:01000252]", "marine biome ENVO:00000447]").
+- env_broad_scale: This field should capture the broad environmental category of the sample (e.g., "anthropogenic terrestrial biome [ENVO:01000219]", "freshwater lake biome [ENVO:01000252]", "marine biome [ENVO:00000447]").
 - env_local_scale: This field should capture the more specific local environment of the sample (e.g., "agricultural field [ENVO:00000114]", "rhizosphere [ENVO:00005801]", "aquifer [ENVO:00012408]").
 - env_medium: This field should capture the medium in which the sample was collected ("soil [ENVO:00001998]", "acidic water [ENVO:01000358]", "alluvial paddy field soil [ENVO:00005759]").
 

@@ -98,13 +98,12 @@ Process samples in chunks of 50 if there are many. For each sample, use all gath
 - Always populate `value` when you can identify an appropriate ENVO term — from sample record fields, geographic info, habitat descriptions, or study context
 - If the exact term is already present in the sample record (e.g. an existing `env_broad_scale` field), copy it verbatim into `value`
 - If you quote a value in `reason`, that value is explicit — put it in `value` too
-- Do not leave `value` empty, instead suggest the most generic term relevant if there is not sufficient information for a moer specific term. 
+- Do not leave `value` empty, instead suggest the most generic term relevant if there is not sufficient information for a more specific term.
 
 **Reason rules:**
 - Every `reason` must cite specific input text (exact short quote up to 12 words, or paraphrase with source label such as "abstract", "study description", "sample field")
 - No generic domain justifications without citing input text
 - Do not reference schema package names (e.g. `SoilInterface`) in reasons
-- Omit a field entirely if there is no strong, evidence-backed justification
 ---
 
 ## Output format
@@ -117,38 +116,38 @@ Return a JSON object matching `LLMOutput`. Emit **three entries per sample** (on
     {
       "id": "nmdc:bsm-11-abc123",
       "field_name": "env_broad_scale",
-      "value": "boreal mire biome [ENVO:01001838]",
-      "reason": "'peatland' and 'warming treatment' in study description indicate a boreal peatland biome."
+      "value": "subpolar coniferous forest biome [ENVO:01000250]",
+      "reason": "Study description identifies a 'boreal peatland' site, which maps to the subpolar coniferous forest biome."
     },
     {
       "id": "nmdc:bsm-11-abc123",
       "field_name": "env_local_scale",
-      "value": "",
-      "reason": "'whole-ecosystem treatment' (abstract) suggests a peatland, but no specific local feature is explicitly named."
+      "value": "peatland [ENVO:00000044]",
+      "reason": "Study-level description explicitly names a 'peatland'."
     },
     {
       "id": "nmdc:bsm-11-abc123",
       "field_name": "env_medium",
-      "value": "peat soil [ENVO:00005774]",
-      "reason": "'peat warming' and 'surface peat' repeatedly cited in abstract."
+      "value": "histosol [ENVO:00002243]",
+      "reason": "Sample collection notes reference a 'peat core'; peat is organic soil material that classifies as histosol."
     },
     {
       "id": "nmdc:bsm-11-def456",
       "field_name": "env_broad_scale",
-      "value": "boreal mire biome [ENVO:01001838]",
-      "reason": "Same study context as above — boreal peatland site."
+      "value": "subpolar coniferous forest biome [ENVO:01000250]",
+      "reason": "Same study and 'boreal peatland' site as nmdc:bsm-11-abc123."
     },
     {
       "id": "nmdc:bsm-11-def456",
       "field_name": "env_local_scale",
       "value": "peatland [ENVO:00000044]",
-      "reason": "'Sphagnum bog' explicitly named in sample description field."
+      "reason": "Sample description names a 'Sphagnum bog', a peat-forming wetland."
     },
     {
       "id": "nmdc:bsm-11-def456",
       "field_name": "env_medium",
-      "value": "peat soil [ENVO:00005774]",
-      "reason": "'peat core' in sample collection notes."
+      "value": "histosol [ENVO:00002243]",
+      "reason": "Sample collection notes reference a 'peat core'; peat is organic soil material that classifies as histosol."
     }
   ]
 }

@@ -1,0 +1,67 @@
+name: Security
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    # Audits the full locked dependency tree for known CVEs (pip-audit).
+    # Runs on every push and PR, since CI (ci.yml) does linting/types/tests
+    # but no security scanning.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+      with:
+        enable-cache: true
+        cache-dependency-glob: "uv.lock"
+
+    - name: Set up Python
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+      with:
+        python-version: "3.12"
+
+    - name: Install dependencies
+      run: uv sync
+
+    # Report-only for now: main carries pre-existing CVEs, so a hard failure
+    # would red every build until the backlog is cleared. Dependabot security
+    # updates (.github/dependabot.yml) drive the actual fixes. Once the backlog
+    # is clear, remove continue-on-error to make this a blocking gate.
+    - name: Audit dependencies for known CVEs (pip-audit)
+      continue-on-error: true
+      run: make security
+
+  dependency-review:
+    # Flags dependency changes that INTRODUCE known-vulnerable packages,
+    # comparing the PR head against its base (the scenario behind issue #101,
+    # where the agentic branch added CVEs via the claude-agent-sdk/mcp stack).
+    # PR-only: the action requires a base and head to diff.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      # issues: write is needed by comment-summary-in-pr, which posts the
+      # vulnerability summary as a PR comment (a PR comment uses the issues API).
+      issues: write
+    steps:
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      with:
+        fetch-depth: 0
+        
+    - name: Dependency review
+      uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+      with:
+        fail-on-severity: high
+        comment-summary-in-pr: on-failure
