@@ -6,19 +6,11 @@ from pathlib import Path
 from typing import Any, cast
 
 import google.auth
-import google.auth.transport.requests
-from nmdc_metadata_suggestor_ai_tool.tracing import langfuse, observe, setup_tracing
-
-setup_tracing()
-
-
 from claude_agent_sdk import (
-    ClaudeSDKClient,
     AssistantMessage,
     ClaudeAgentOptions,
     ResultMessage,
     SystemMessage,
-    ToolUseBlock,
     query,
 )
 from dotenv import load_dotenv
@@ -29,6 +21,9 @@ from openai import OpenAI
 
 from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
 from nmdc_metadata_suggestor_ai_tool.system_prompt import orchestrator_prompt
+from nmdc_metadata_suggestor_ai_tool.tracing import langfuse, observe, setup_tracing
+
+setup_tracing()
 
 load_dotenv()
 
