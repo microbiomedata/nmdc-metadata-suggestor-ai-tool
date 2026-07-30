@@ -28,19 +28,23 @@ logger = logging.getLogger(__name__)
 
 F = TypeVar("F", bound=Callable[..., Any])
 
-_langfuse_enabled = bool(
+langfuse_enabled = bool(
     os.environ.get("LANGFUSE_PUBLIC_KEY") and os.environ.get("LANGFUSE_SECRET_KEY")
 )
 
-if _langfuse_enabled:
+if langfuse_enabled:
     try:
         from langfuse import get_client
         from langfuse import observe as _lf_observe
         from openinference.instrumentation.claude_agent_sdk import ClaudeAgentSDKInstrumentor
 
         from langfuse import Langfuse
-
-        Langfuse(environment=os.environ.get("LANGFUSE_TRACING_ENVIRONMENT"))
+        langfuse_environment=os.environ.get("LANGFUSE_TRACING_ENVIRONMENT")
+        # check if the tracing environment is set, default to 'unknown' if not
+        if not langfuse_environment in ["production", "development", "local"]:
+            langfuse_environment = "unknown"
+        logger.debug(f"Langfuse tracing environment set to: {langfuse_environment}")
+        Langfuse(environment=langfuse_environment)
         langfuse = get_client()
         observe = _lf_observe
 
@@ -55,9 +59,9 @@ if _langfuse_enabled:
         logger.debug("Langfuse tracing available; call setup_tracing() to activate")
     except Exception:
         logger.warning("Langfuse/openinference import failed; tracing disabled", exc_info=True)
-        _langfuse_enabled = False
+        langfuse_enabled = False
 
-if not _langfuse_enabled:
+if not langfuse_enabled:
     langfuse = None  # type: ignore[assignment]
 
     def setup_tracing() -> None:  # type: ignore[misc]
@@ -95,5 +99,5 @@ if not _langfuse_enabled:
 
 def flush() -> None:
     """Flush pending Langfuse events (call before process exit in short-lived scripts)."""
-    if _langfuse_enabled and langfuse is not None:
+    if langfuse_enabled and langfuse is not None:
         langfuse.flush()

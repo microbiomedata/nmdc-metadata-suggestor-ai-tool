@@ -1,6 +1,6 @@
 # nmdc-metadata-suggestor-ai-tool
 
-A Python application for the NMDC Submission portal metadata suggestor tool, powered by AI. This project uses modern Python tooling with [uv](https://github.com/astral-sh/uv) for dependency management and Docker for containerization.
+A Python application for the NMDC Submission portal metadata suggestor tool, powered by AI. This project uses modern Python tooling with [uv](https://github.com/astral-sh/uv) for dependency management.
 
 ## Prerequisites
 
@@ -92,6 +92,21 @@ conversation.add_schema_context("<schema description here>")
 response = conversation.generate(model="gemini-2.5-flash", max_tokens=1024, gemini_temperature=0.2)
 print(response)
 ```
+
+## Langfuse set up
+This project uses Langfuse to track LLM logging. We have a pro plan using the cloud-hosted Langfuse. Configuration is simple:
+
+1. Obtain your API keys from the Langfuse UI under **Settings → API Keys** (US cloud: https://us.cloud.langfuse.com).
+2. Copy `.env.example` to `.env` and fill in the Langfuse section:
+
+```bash
+LANGFUSE_PUBLIC_KEY=pk-lf-...
+LANGFUSE_SECRET_KEY=sk-lf-...
+LANGFUSE_BASE_URL=https://us.cloud.langfuse.com
+LANGFUSE_TRACING_ENVIRONMENT=local  # options: production, development, local, unknown
+```
+
+Leaving these variables unset disables tracing entirely.
 
 ## Development
 
