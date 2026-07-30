@@ -21,9 +21,16 @@ from openai import OpenAI
 
 from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
 from nmdc_metadata_suggestor_ai_tool.system_prompt import orchestrator_prompt
-from nmdc_metadata_suggestor_ai_tool.tracing import langfuse, observe, setup_tracing
+from nmdc_metadata_suggestor_ai_tool.tracing import (
+    langfuse,
+    langfuse_enabled,
+    observe,
+    propagate_attributes,
+    setup_tracing,
+)
 
-setup_tracing()
+if langfuse is not None:
+    setup_tracing()
 
 load_dotenv()
 
@@ -376,7 +383,7 @@ class ConversationManager:
             # For resumed sessions the ID is known upfront; new sessions get it
             # from the first SystemMessage below and the trace is updated then.
             if session_id is not None:
-                langfuse.update_current_trace(session_id=session_id)
+                propagate_attributes(session_id=session_id)
 
         result: Any = None
         if session_id is None:
@@ -388,7 +395,7 @@ class ConversationManager:
                 if isinstance(event, SystemMessage) and event.subtype == "init":
                     session_id = event.data["session_id"]
                     if langfuse is not None:
-                        langfuse.update_current_trace(session_id=session_id)
+                        propagate_attributes(session_id=session_id)
                 elif isinstance(event, AssistantMessage):
                     print(f"Assistant: {event.content}")
                 elif isinstance(event, ResultMessage):

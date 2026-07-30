@@ -36,6 +36,7 @@ if langfuse_enabled:
     try:
         from langfuse import Langfuse, get_client
         from langfuse import observe as _lf_observe
+        from langfuse import propagate_attributes
         from openinference.instrumentation.claude_agent_sdk import ClaudeAgentSDKInstrumentor
 
         langfuse_environment = os.environ.get("LANGFUSE_TRACING_ENVIRONMENT")
@@ -62,9 +63,6 @@ if langfuse_enabled:
 
 if not langfuse_enabled:
     langfuse = None  # type: ignore[assignment]
-
-    def setup_tracing() -> None:  # type: ignore[misc]
-        """No-op when Langfuse credentials are not configured."""
 
     def observe(  # type: ignore[misc]  # noqa: UP047
         func: F | None = None,
