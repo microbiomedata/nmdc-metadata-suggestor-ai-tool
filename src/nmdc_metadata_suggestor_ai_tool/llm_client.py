@@ -408,7 +408,7 @@ class ConversationManager:
             options.resume = session_id
             # Session ID is known upfront — propagate it so all child spans
             # (produced by ClaudeAgentSDKInstrumentor) inherit it.
-            async with propagate_attributes(session_id=session_id):
+            with propagate_attributes(session_id=session_id):
                 async for event in query(
                     prompt=message,
                     options=options,
