@@ -14,6 +14,8 @@ from nmdc_metadata_suggestor_ai_tool.llm_client import ConversationManager, LLMC
 from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
 from nmdc_metadata_suggestor_ai_tool.system_prompt import env_triad_prompt, system_prompt
 
+pytestmark = pytest.mark.integration
+
 FIXTURES = Path(__file__).parent / "fixtures"
 INTEGRATION_TIMEOUT = 180  # seconds
 
@@ -48,7 +50,6 @@ def _assert_valid_output(result: object) -> LLMOutput:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 @pytest.mark.timeout(INTEGRATION_TIMEOUT)
 def test_agentic_metadata_pipeline_with_full_submission(requires_credentials: None) -> None:
     """Full submission object → metadata field suggestions via agentic()."""
@@ -62,7 +63,6 @@ def test_agentic_metadata_pipeline_with_full_submission(requires_credentials: No
     assert fields_with_values > 0, "Expected at least one field with a non-empty value"
 
 
-@pytest.mark.integration
 @pytest.mark.timeout(INTEGRATION_TIMEOUT)
 def test_agentic_metadata_pipeline_with_test_submission(requires_credentials: None) -> None:
     """test_submission.json fixture → metadata field suggestions via agentic()."""
@@ -78,7 +78,6 @@ def test_agentic_metadata_pipeline_with_test_submission(requires_credentials: No
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 @pytest.mark.timeout(INTEGRATION_TIMEOUT)
 def test_agentic_env_triad_single_biosample(requires_credentials: None) -> None:
     """Single ETL-shaped biosample → env triad suggestions via agentic()."""
@@ -101,7 +100,6 @@ def test_agentic_env_triad_single_biosample(requires_credentials: None) -> None:
     )
 
 
-@pytest.mark.integration
 @pytest.mark.timeout(INTEGRATION_TIMEOUT)
 def test_agentic_env_triad_with_study_context(requires_credentials: None) -> None:
     """ETL biosamples + study context → env triad suggestions via agentic()."""
@@ -130,7 +128,6 @@ def test_agentic_env_triad_with_study_context(requires_credentials: None) -> Non
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 @pytest.mark.timeout(INTEGRATION_TIMEOUT * 2)
 def test_agentic_session_resumption(requires_credentials: None) -> None:
     """Start a session, then resume it with a follow-up message."""
