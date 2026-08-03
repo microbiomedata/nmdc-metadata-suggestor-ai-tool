@@ -68,6 +68,13 @@ if langfuse_enabled:
 if not langfuse_enabled:
     langfuse = None  # type: ignore[assignment]
 
+    from contextlib import contextmanager
+
+    @contextmanager  # type: ignore[misc]
+    def propagate_attributes(**_kwargs: Any) -> Any:  # type: ignore[misc]
+        """No-op stand-in when Langfuse is not configured."""
+        yield
+
     def setup_tracing() -> None:  # type: ignore[misc]
         """No-op when Langfuse credentials are not configured."""
 
