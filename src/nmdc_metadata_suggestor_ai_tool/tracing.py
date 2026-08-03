@@ -34,11 +34,11 @@ langfuse_enabled = bool(
 
 if langfuse_enabled:
     try:
-        from langfuse import get_client
-        from langfuse import observe as _lf_observe
-        from langfuse import propagate_attributes
-        from openinference.instrumentation.claude_agent_sdk import ClaudeAgentSDKInstrumentor
-        from langfuse import Langfuse
+        from langfuse import get_client  # noqa I001
+        from langfuse import observe as _lf_observe  # noqa I001
+        from langfuse import propagate_attributes  # noqa: F401
+        from openinference.instrumentation.claude_agent_sdk import ClaudeAgentSDKInstrumentor  # noqa I001
+        from langfuse import Langfuse  # noqa I001
 
         langfuse_environment = os.environ.get("LANGFUSE_TRACING_ENVIRONMENT")
         # check if the tracing environment is set, default to 'unknown' if not
@@ -56,6 +56,7 @@ if langfuse_enabled:
             Must be called once before the first ``query()`` call.
             """
             from opentelemetry import trace
+
             ClaudeAgentSDKInstrumentor().instrument(tracer_provider=trace.get_tracer_provider())
             logger.debug("ClaudeAgentSDKInstrumentor active")
 

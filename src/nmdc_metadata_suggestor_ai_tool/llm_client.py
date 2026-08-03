@@ -16,7 +16,6 @@ from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
 from nmdc_metadata_suggestor_ai_tool.system_prompt import orchestrator_prompt
 from nmdc_metadata_suggestor_ai_tool.tracing import (
     langfuse,
-    langfuse_enabled,
     observe,
     propagate_attributes,
     setup_tracing,
@@ -402,7 +401,8 @@ class ConversationManager:
                     result = self.unwrap_structured_output(event.structured_output)
             if langfuse is not None:
                 langfuse.update_current_span(
-                    output=result, metadata={"model": self.llm_client.model, "session_id": session_id}
+                    output=result,
+                    metadata={"model": self.llm_client.model, "session_id": session_id},
                 )
         else:
             options.resume = session_id
