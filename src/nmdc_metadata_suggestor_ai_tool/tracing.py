@@ -34,10 +34,11 @@ langfuse_enabled = bool(
 
 if langfuse_enabled:
     try:
-        from langfuse import Langfuse, get_client
+        from langfuse import get_client
         from langfuse import observe as _lf_observe
         from langfuse import propagate_attributes
         from openinference.instrumentation.claude_agent_sdk import ClaudeAgentSDKInstrumentor
+        from langfuse import Langfuse
 
         langfuse_environment = os.environ.get("LANGFUSE_TRACING_ENVIRONMENT")
         # check if the tracing environment is set, default to 'unknown' if not
@@ -45,6 +46,7 @@ if langfuse_enabled:
             langfuse_environment = "unknown"
         logger.debug(f"Langfuse tracing environment set to: {langfuse_environment}")
         Langfuse(environment=langfuse_environment)
+
         langfuse = get_client()
         observe = _lf_observe
 
@@ -53,8 +55,9 @@ if langfuse_enabled:
 
             Must be called once before the first ``query()`` call.
             """
-            ClaudeAgentSDKInstrumentor().instrument()
-            logger.debug("Langfuse tracing enabled (ClaudeAgentSDKInstrumentor active)")
+            from opentelemetry import trace
+            ClaudeAgentSDKInstrumentor().instrument(tracer_provider=trace.get_tracer_provider())
+            logger.debug("ClaudeAgentSDKInstrumentor active")
 
         logger.debug("Langfuse tracing available; call setup_tracing() to activate")
     except Exception:
@@ -63,6 +66,9 @@ if langfuse_enabled:
 
 if not langfuse_enabled:
     langfuse = None  # type: ignore[assignment]
+
+    def setup_tracing() -> None:  # type: ignore[misc]
+        """No-op when Langfuse credentials are not configured."""
 
     def observe(  # type: ignore[misc]  # noqa: UP047
         func: F | None = None,

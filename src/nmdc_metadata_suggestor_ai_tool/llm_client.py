@@ -6,13 +6,6 @@ from pathlib import Path
 from typing import Any, cast
 
 import google.auth
-from claude_agent_sdk import (
-    AssistantMessage,
-    ClaudeAgentOptions,
-    ResultMessage,
-    SystemMessage,
-    query,
-)
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types as genai_types
@@ -29,8 +22,20 @@ from nmdc_metadata_suggestor_ai_tool.tracing import (
     setup_tracing,
 )
 
+# IMPORTANT: setup_tracing() must run BEFORE importing anything from claude_agent_sdk.
+# The OpenInference instrumentor wraps claude_agent_sdk.query.query in place; a
+# `from claude_agent_sdk import query` performed earlier would bind the local name
+# to the unwrapped function and bypass all per-turn/tool spans.
 if langfuse is not None:
     setup_tracing()
+
+from claude_agent_sdk import (  # noqa: E402
+    AssistantMessage,
+    ClaudeAgentOptions,
+    ResultMessage,
+    SystemMessage,
+    query,
+)
 
 load_dotenv()
 
@@ -352,16 +357,16 @@ class ConversationManager:
     @observe(name="agentic", as_type="span", capture_input=False, capture_output=False)
     async def agentic(
         self, session_id: str | None = None, message: str | None = None
-    ) -> tuple[LLMOutput, str | None]:
+    ) -> tuple[Any, str | None]:
         """
         Agentic interaction, session handling, and skill/tool usage via Claude Agent SDK
         IMPORTANT NOTE: This only works with GCP auth right now.
 
         Parameters
         ----------
-        session_id (str | None): Optional session ID to resume a previous conversation.
-            If None, starts a new session.
-        message (str | None): The message content to send to the agent.
+        session_id: Optional session ID to resume a previous conversation.
+        If None, starts a new session.
+
         """
         # set env variable to enable Claude Agent SDK to pick up GCP credentials
         # Claude Agent SDK requires a Claude model, not a Gemini model, even on Vertex AI
@@ -380,40 +385,38 @@ class ConversationManager:
                 input=message,
                 metadata={"model": self.llm_client.model},
             )
-            # For resumed sessions the ID is known upfront; new sessions get it
-            # from the first SystemMessage below and the trace is updated then.
-            if session_id is not None:
-                propagate_attributes(session_id=session_id)
 
         result: Any = None
         if session_id is None:
-            # start a new session and capture its ID
+            # Session ID is unknown until the first init event, so we tag
+            # the outer span via metadata after the loop completes.
             async for event in query(
                 prompt=message,
                 options=options,
             ):
                 if isinstance(event, SystemMessage) and event.subtype == "init":
                     session_id = event.data["session_id"]
-                    if langfuse is not None:
-                        propagate_attributes(session_id=session_id)
                 elif isinstance(event, AssistantMessage):
                     print(f"Assistant: {event.content}")
                 elif isinstance(event, ResultMessage):
                     result = self.unwrap_structured_output(event.structured_output)
-
+            if langfuse is not None:
+                langfuse.update_current_span(
+                    output=result, metadata={"model": self.llm_client.model, "session_id": session_id}
+                )
         else:
             options.resume = session_id
-            async for event in query(
-                prompt=message,
-                options=options,
-            ):
-                if isinstance(event, SystemMessage) and event.subtype == "init":
-                    session_id = event.data["session_id"]
-                elif isinstance(event, ResultMessage):
-                    result = self.unwrap_structured_output(event.structured_output)
-                    if langfuse is not None:
-                        langfuse.update_current_span(output=result)
-                    return result, session_id
-        if langfuse is not None:
-            langfuse.update_current_span(output=result)
+            # Session ID is known upfront — propagate it so all child spans
+            # (produced by ClaudeAgentSDKInstrumentor) inherit it.
+            async with propagate_attributes(session_id=session_id):
+                async for event in query(
+                    prompt=message,
+                    options=options,
+                ):
+                    if isinstance(event, SystemMessage) and event.subtype == "init":
+                        session_id = event.data["session_id"]
+                    elif isinstance(event, ResultMessage):
+                        result = self.unwrap_structured_output(event.structured_output)
+            if langfuse is not None:
+                langfuse.update_current_span(output=result)
         return result, session_id
