@@ -27,7 +27,6 @@ def _load_fixture(filename: str) -> dict:
         return json.load(f)
 
 
-@pytest.mark.integration
 @pytest.mark.timeout(INTEGRATION_TIMEOUT)
 def test_pipeline_returns_valid_llm_output() -> None:
     """Run the full recommendation pipeline and validate the LLMOutput model."""
@@ -54,7 +53,6 @@ def test_pipeline_returns_valid_llm_output() -> None:
     assert result.access_provider == "gcp"
 
 
-@pytest.mark.integration
 @pytest.mark.timeout(INTEGRATION_TIMEOUT)
 def test_gemini_conversation_with_schema_context() -> None:
     """Verify the Gemini model can process schema context and return valid JSON."""
