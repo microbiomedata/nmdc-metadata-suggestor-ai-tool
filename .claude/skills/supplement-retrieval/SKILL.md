@@ -66,10 +66,10 @@ result = retrieve_supplements(doi="10.1038/s41564-020-00861-0", text=abstract_te
 
 for f in result.files:
     label = f"Supplement {f.filename} [{f.source}]" + (f" — {f.caption}" if f.caption else "")
-    if f.text:            # csv/tsv/txt inlined directly
+    if f.text:  # csv/tsv/txt inlined directly
         add_to_evidence(f"{label}:\n{f.text}")
-    elif f.saved_path:    # xlsx/pdf/docx written to a temp file
-        ...               # hand to a downstream reader if needed
+    elif f.saved_path:  # xlsx/pdf/docx written to a temp file
+        ...  # hand to a downstream reader if needed
 ```
 
 Key fields: `result.files` (kept, merged across sources), `result.skipped` (found

@@ -4,21 +4,21 @@
 
 ```python
 from nmdc_metadata_suggestor_ai_tool.publication_ingestion.retrieve_supplements import (
-    retrieve_supplements,                 # orchestrator: routes + merges by DOI type
+    retrieve_supplements,  # orchestrator: routes + merges by DOI type
     retrieve_supplements_from_europepmc,  # Europe PMC supplementaryFiles ZIP
-    retrieve_supplements_from_pmc_oa,     # NCBI PMC OA .tar.gz package (by PMCID)
-    retrieve_supplements_from_dryad,      # Dryad dataset DOI files (via Zenodo mirror)
-    retrieve_supplements_from_zenodo,     # Zenodo record files (by DOI/concept DOI)
-    retrieve_supplements_from_figshare,   # Figshare article/collection DOI files
-    find_related_data_dois,               # publication DOI -> linked data-repo DOIs
-    extract_dataset_dois_from_text,       # text -> Dryad/Zenodo/Figshare DOIs
-    extract_accessions_from_text,         # text -> PRJNA…/SRR…/GSE… accessions
-    find_supplement_source_europepmc,     # availability check, no download
-    find_supplement_source_pmc_oa,        # resolve PMCID -> OA package URL
-    parse_supplement_captions,            # JATS XML -> {filename_key: caption}
-    classify_supplement,                  # filename -> SupplementKind
-    is_dryad_doi,                         # True for 10.5061/… DOIs
-    DEFAULT_USEFUL_KINDS,                 # {TABULAR, DOCUMENT}
+    retrieve_supplements_from_pmc_oa,  # NCBI PMC OA .tar.gz package (by PMCID)
+    retrieve_supplements_from_dryad,  # Dryad dataset DOI files (via Zenodo mirror)
+    retrieve_supplements_from_zenodo,  # Zenodo record files (by DOI/concept DOI)
+    retrieve_supplements_from_figshare,  # Figshare article/collection DOI files
+    find_related_data_dois,  # publication DOI -> linked data-repo DOIs
+    extract_dataset_dois_from_text,  # text -> Dryad/Zenodo/Figshare DOIs
+    extract_accessions_from_text,  # text -> PRJNA…/SRR…/GSE… accessions
+    find_supplement_source_europepmc,  # availability check, no download
+    find_supplement_source_pmc_oa,  # resolve PMCID -> OA package URL
+    parse_supplement_captions,  # JATS XML -> {filename_key: caption}
+    classify_supplement,  # filename -> SupplementKind
+    is_dryad_doi,  # True for 10.5061/… DOIs
+    DEFAULT_USEFUL_KINDS,  # {TABULAR, DOCUMENT}
 )
 ```
 
@@ -101,9 +101,9 @@ exceeds the global caps.
 ## Related datasets & text mining
 
 ```python
-related = find_related_data_dois(publication_doi)   # -> ["10.5281/zenodo.X", ...]
+related = find_related_data_dois(publication_doi)  # -> ["10.5281/zenodo.X", ...]
 dataset_dois = extract_dataset_dois_from_text(text)  # data-repo DOIs in prose
-accessions = extract_accessions_from_text(text)      # PRJNA…/SRR…/GSE… (not fetched)
+accessions = extract_accessions_from_text(text)  # PRJNA…/SRR…/GSE… (not fetched)
 ```
 
 `find_related_data_dois` reads Crossref `relation` and DataCite
