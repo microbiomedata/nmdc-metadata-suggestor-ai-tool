@@ -12,6 +12,7 @@ import pytest
 
 from nmdc_metadata_suggestor_ai_tool.llm_client import ConversationManager, LLMClient
 from nmdc_metadata_suggestor_ai_tool.recommendation_pipeline import run_recommendation_pipeline
+from nmdc_metadata_suggestor_ai_tool.system_prompt import env_triad_prompt
 from nmdc_metadata_suggestor_ai_tool.utils.utils import validate_output
 
 pytestmark = pytest.mark.integration
@@ -57,7 +58,7 @@ def test_pipeline_returns_valid_llm_output() -> None:
 def test_gemini_conversation_with_schema_context() -> None:
     """Verify the Gemini model can process schema context and return valid JSON."""
     client = LLMClient(access_provider="gcp")
-    conversation = ConversationManager(llm_client=client)
+    conversation = ConversationManager(llm_client=client, system_prompt=env_triad_prompt)
     conversation.add_schema_context('{"fields": [{"name": "env_broad_scale", "type": "string"}]}')
     conversation.add_message(
         text=(
