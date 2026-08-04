@@ -136,8 +136,9 @@ oa = find_supplement_source_pmc_oa("PMC123456")
 # {"pmcid", "tgz_url", "error"?}
 ```
 
-Europe PMC only downloads when `has_supplements` is true (`hasSuppl == "Y"`),
-avoiding wasted requests for articles with no open-access supplements. The OA
+Europe PMC only downloads when the record is open access (`isOpenAccess == "Y"`)
+*and* `has_supplements` is true (`hasSuppl == "Y"`), avoiding wasted requests for
+articles whose supplements the OA-scoped endpoint cannot serve. The OA
 service returns an `error` (e.g. `idDoesNotExist`) when the article is not in the
 OA subset.
 

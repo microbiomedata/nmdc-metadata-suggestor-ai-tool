@@ -493,6 +493,9 @@ def retrieve_supplements_from_europepmc(
     full text are attached when available. Low-value kinds and files exceeding
     the caps are recorded in ``result.skipped`` rather than kept.
 
+    Non-open-access articles are reported as an error without any download
+    attempt: Europe PMC's ``supplementaryFiles`` endpoint is OA-scoped.
+
     Returns:
         A :class:`SupplementRetrievalResult`. ``error`` is set (and ``files``
         empty) when no supplements could be retrieved.
@@ -513,6 +516,11 @@ def retrieve_supplements_from_europepmc(
     result.pmcid = located.get("pmcid")  # type: ignore[assignment]
     if located.get("error"):
         result.error = str(located["error"])
+        return result
+    # The ``supplementaryFiles`` endpoint only serves open-access articles, so a
+    # non-OA record can never yield a ZIP -- skip the request entirely.
+    if not located.get("is_open_access"):
+        result.error = "Article is not open access; Europe PMC serves no supplements for it"
         return result
     if not located.get("has_supplements") or not located.get("zip_url"):
         result.error = "No open-access supplementary files reported for DOI"

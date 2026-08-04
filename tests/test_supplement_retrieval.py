@@ -191,6 +191,18 @@ def test_europepmc_no_open_access_supplements() -> None:
 
 
 @responses.activate
+def test_europepmc_skips_download_for_non_open_access() -> None:
+    # ``supplementaryFiles`` is OA-scoped: a non-OA record must not be fetched
+    # even when the record claims to have supplements.
+    _register_search(has_suppl="Y", open_access="N")
+    result = retrieve_supplements_from_europepmc(DOI)
+    assert result.files == []
+    assert "not open access" in (result.error or "")
+    # Only the metadata lookup was issued -- no ZIP download attempt.
+    assert len(responses.calls) == 1
+
+
+@responses.activate
 def test_europepmc_respects_max_files() -> None:
     _register_search()
     archive = _make_zip({f"{c}.csv": b"x,y\n1,2\n" for c in ("a", "b", "c")})
