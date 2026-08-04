@@ -1249,7 +1249,12 @@ def retrieve_supplements(
     if sources is not None:
         explicit = [_run_source(s, doi, kwargs, None) for s in sources]
         return _merge_results(
-            doi, [r for r in explicit if r is not None], [], max_files, max_total_bytes
+            doi,
+            [r for r in explicit if r is not None],
+            [],
+            max_files,
+            max_total_bytes,
+            save_dir=save_dir,
         )
 
     # Direct data-repository DOI: just that repo.
@@ -1302,7 +1307,7 @@ def retrieve_supplements(
             )  # type: ignore[arg-type]
         )
 
-    merged = _merge_results(doi, results, accessions, max_files, max_total_bytes)
+    merged = _merge_results(doi, results, accessions, max_files, max_total_bytes, save_dir=save_dir)
     merged.pmcid = pmcid or merged.pmcid
     return merged
 
@@ -1327,14 +1332,34 @@ def _run_source(
     return None
 
 
+def _is_removable_temp_file(path: str) -> bool:
+    """Return True when *path* is one of our own ``mkstemp`` files.
+
+    Guards the merge-time cleanup: only files this module created under the
+    system temp directory may be deleted.
+    """
+    try:
+        temp_root = os.path.realpath(tempfile.gettempdir())
+        return os.path.commonpath([temp_root, os.path.realpath(path)]) == temp_root
+    except (OSError, ValueError):  # different drives, unresolvable path
+        return False
+
+
 def _merge_results(
     doi: str,
     results: list[SupplementRetrievalResult],
     accessions: list[str],
     max_files: int,
     max_total_bytes: int,
+    save_dir: str | None = None,
 ) -> SupplementRetrievalResult:
-    """Merge per-source results into one, trimming the union to global caps."""
+    """Merge per-source results into one, trimming the union to global caps.
+
+    Files dropped by the global caps have their temp file removed so nothing
+    leaks. When *save_dir* is set the sources wrote into a caller-managed
+    directory instead, so dropped paths are left alone -- they are the caller's
+    outputs, not our scratch files.
+    """
     attempts: list[str] = []
     for res in results:
         attempts.extend(res.attempts)
@@ -1354,7 +1379,7 @@ def _merge_results(
                 seen.add(key)
                 total_bytes += file.size_bytes or 0
                 kept.append(file)
-            elif file.saved_path:
+            elif file.saved_path and save_dir is None and _is_removable_temp_file(file.saved_path):
                 # This file was already materialized to a temp file by its source
                 # but is being dropped from the merged result (cap/dedup). Delete
                 # it so it doesn't leak -- the caller can only clean files it sees.

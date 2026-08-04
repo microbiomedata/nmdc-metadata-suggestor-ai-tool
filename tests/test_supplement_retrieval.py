@@ -3,6 +3,7 @@
 import io
 import os
 import tarfile
+import tempfile
 import zipfile
 from urllib.parse import quote
 
@@ -835,6 +836,69 @@ def test_merge_results_deletes_trimmed_temp_files(tmp_path) -> None:
     assert [f.filename for f in merged.files] == ["kept.pdf"]
     assert kept_path.exists()  # kept file's temp path untouched
     assert not dropped_path.exists()  # trimmed file's temp path deleted (no leak)
+
+
+def test_merge_results_keeps_user_managed_files(tmp_path) -> None:
+    # With save_dir=..., the saved paths are caller-owned outputs: trimming a file
+    # from the merged result must not delete it.
+    from nmdc_metadata_suggestor_ai_tool.models.supplement import (
+        SupplementFile,
+        SupplementRetrievalResult,
+    )
+    from nmdc_metadata_suggestor_ai_tool.publication_ingestion.retrieve_supplements import (
+        _merge_results,
+    )
+
+    save_dir = tmp_path / "supplements"
+    save_dir.mkdir()
+    dropped_path = save_dir / "dropped.pdf"
+    dropped_path.write_bytes(b"%PDF-1.4 dropped")
+
+    def _result(source: str, name: str, path) -> SupplementRetrievalResult:
+        return SupplementRetrievalResult(
+            doi="x",
+            source=source,
+            files=[
+                SupplementFile(
+                    filename=name,
+                    kind=SupplementKind.DOCUMENT,
+                    source=source,
+                    size_bytes=16,
+                    saved_path=str(path),
+                )
+            ],
+        )
+
+    merged = _merge_results(
+        "x",
+        [
+            _result("europepmc", "kept.pdf", save_dir / "kept.pdf"),
+            _result("zenodo", "dropped.pdf", dropped_path),
+        ],
+        [],
+        max_files=1,
+        max_total_bytes=1_000_000,
+        save_dir=str(save_dir),
+    )
+
+    assert [f.filename for f in merged.files] == ["kept.pdf"]
+    assert dropped_path.exists()  # caller-managed output left in place
+
+
+def test_is_removable_temp_file_rejects_paths_outside_temp() -> None:
+    from nmdc_metadata_suggestor_ai_tool.publication_ingestion.retrieve_supplements import (
+        _is_removable_temp_file,
+    )
+
+    fd, temp_path = tempfile.mkstemp(suffix=".pdf")
+    os.close(fd)
+    try:
+        assert _is_removable_temp_file(temp_path) is True
+    finally:
+        os.remove(temp_path)
+    assert (
+        _is_removable_temp_file(os.path.join(os.getcwd(), "supplements", "table_s1.pdf")) is False
+    )
 
 
 # ---------------------------------------------------------------------------

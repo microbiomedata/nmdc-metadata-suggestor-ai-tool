@@ -125,6 +125,9 @@ remove_temp_files([f.saved_path for f in result.files if f.saved_path])
 ```
 
 Passing `save_dir=...` writes into a directory you manage instead of temp files.
+Files that the global caps trim out of the merged result have their temp file
+deleted for you, but only when `save_dir` is unset -- with `save_dir` the written
+files are yours and are never removed.
 
 ## Availability checks (no download)
 
