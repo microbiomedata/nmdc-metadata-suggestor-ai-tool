@@ -909,20 +909,21 @@ def test_merge_results_keeps_user_managed_files(tmp_path) -> None:
     assert dropped_path.exists()  # caller-managed output left in place
 
 
-def test_is_removable_temp_file_rejects_paths_outside_temp() -> None:
+def test_is_removable_temp_file_rejects_paths_outside_temp(tmp_path, monkeypatch) -> None:
     from nmdc_metadata_suggestor_ai_tool.publication_ingestion.retrieve_supplements import (
         _is_removable_temp_file,
     )
 
-    fd, temp_path = tempfile.mkstemp(suffix=".pdf")
-    os.close(fd)
-    try:
-        assert _is_removable_temp_file(temp_path) is True
-    finally:
-        os.remove(temp_path)
-    assert (
-        _is_removable_temp_file(os.path.join(os.getcwd(), "supplements", "table_s1.pdf")) is False
-    )
+    # Pin the temp root rather than probing the real one: a checkout that itself
+    # lives under /tmp would otherwise make every path look removable.
+    temp_root = tmp_path / "tmproot"
+    temp_root.mkdir()
+    outside = tmp_path / "user-outputs"
+    outside.mkdir()
+    monkeypatch.setattr(tempfile, "gettempdir", lambda: str(temp_root))
+
+    assert _is_removable_temp_file(str(temp_root / "scratch.pdf")) is True
+    assert _is_removable_temp_file(str(outside / "table_s1.pdf")) is False
 
 
 # ---------------------------------------------------------------------------
