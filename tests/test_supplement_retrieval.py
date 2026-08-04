@@ -21,6 +21,9 @@ from nmdc_metadata_suggestor_ai_tool.constants import (
     ZENODO_API,
 )
 from nmdc_metadata_suggestor_ai_tool.models.supplement import SupplementKind
+from nmdc_metadata_suggestor_ai_tool.publication_ingestion import (
+    retrieve_supplements as retrieve_supplements_module,
+)
 from nmdc_metadata_suggestor_ai_tool.publication_ingestion.download_pdf import remove_temp_files
 from nmdc_metadata_suggestor_ai_tool.publication_ingestion.retrieve_supplements import (
     _Member,
@@ -332,6 +335,24 @@ def test_pmc_oa_retrieves_and_captions_from_nxml() -> None:
     assert set(kept) == {"table_s1.csv"}
     assert kept["table_s1.csv"].caption is not None
     assert any(f.kind == SupplementKind.IMAGE for f in result.skipped)
+
+
+@responses.activate
+def test_pmc_oa_skips_oversized_nxml(monkeypatch) -> None:
+    # OA packages are untrusted: an over-large NXML is never handed to the parser.
+    monkeypatch.setattr(retrieve_supplements_module, "SUPPLEMENT_MAX_XML_BYTES", 50)
+    _register_oa_service()
+    targz = _make_targz(
+        {
+            "PMC123456/table_s1.csv": b"sample_id,ph\nA,7\n",
+            "PMC123456/main.nxml": JATS_XML.replace("Table_S1.csv", "table_s1.csv").encode(),
+        }
+    )
+    responses.add(responses.GET, OA_TGZ_URL, body=targz, status=200)
+
+    result = retrieve_supplements_from_pmc_oa("PMC123456", doi=DOI)
+    assert [os.path.basename(f.filename) for f in result.files] == ["table_s1.csv"]
+    assert result.files[0].caption is None  # captions dropped, retrieval unaffected
 
 
 # ---------------------------------------------------------------------------

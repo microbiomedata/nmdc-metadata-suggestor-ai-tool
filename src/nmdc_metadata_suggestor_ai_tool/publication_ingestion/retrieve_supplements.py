@@ -669,23 +669,51 @@ def retrieve_supplements_from_pmc_oa(
     return result
 
 
-def _read_tar_member(tar: tarfile.TarFile, member: tarfile.TarInfo) -> bytes:
-    """Read a regular-file member's bytes from an open tar archive."""
+def _read_tar_member(
+    tar: tarfile.TarFile, member: tarfile.TarInfo, max_bytes: int | None = None
+) -> bytes:
+    """Read a regular-file member's bytes from an open tar archive.
+
+    Raises:
+        RuntimeError: If the member is not a regular file, or if *max_bytes* is
+            given and the member's content exceeds it.
+    """
     handle = tar.extractfile(member)
     if handle is None:
         raise RuntimeError("member is not a regular file")
     with handle:
-        return handle.read()
+        if max_bytes is None:
+            return handle.read()
+        data = handle.read(max_bytes + 1)
+    if len(data) > max_bytes:
+        raise RuntimeError(f"member exceeded size cap of {max_bytes} bytes")
+    return data
 
 
 def _captions_from_tar(tar: tarfile.TarFile) -> dict[str, str]:
-    """Parse supplement captions from the first ``.nxml`` in an OA package."""
+    """Parse supplement captions from the first ``.nxml`` in an OA package.
+
+    OA packages are untrusted input, so the NXML is bounded by
+    ``SUPPLEMENT_MAX_XML_BYTES`` -- the same cap the Europe PMC JATS fetch uses --
+    before it is handed to the XML parser. An oversized NXML yields no captions
+    rather than a large parse.
+    """
     for member in tar.getmembers():
-        if member.isfile() and member.name.lower().endswith(".nxml"):
-            try:
-                return parse_supplement_captions(_read_tar_member(tar, member))
-            except Exception:
-                return {}
+        if not (member.isfile() and member.name.lower().endswith(".nxml")):
+            continue
+        if member.size > SUPPLEMENT_MAX_XML_BYTES:
+            logger.debug(
+                "Skipping oversized NXML %s (%d bytes > %d cap)",
+                member.name,
+                member.size,
+                SUPPLEMENT_MAX_XML_BYTES,
+            )
+            continue
+        try:
+            data = _read_tar_member(tar, member, max_bytes=SUPPLEMENT_MAX_XML_BYTES)
+        except Exception:
+            continue
+        return parse_supplement_captions(data)
     return {}
 
 
