@@ -27,6 +27,7 @@ from nmdc_metadata_suggestor_ai_tool.publication_ingestion import (
 )
 from nmdc_metadata_suggestor_ai_tool.publication_ingestion.download_pdf import remove_temp_files
 from nmdc_metadata_suggestor_ai_tool.publication_ingestion.retrieve_supplements import (
+    _download_bounded,
     _Member,
     _select_members,
     classify_supplement,
@@ -182,6 +183,29 @@ def test_is_dryad_doi() -> None:
     assert is_dryad_doi(DRYAD_DOI) is True
     assert is_dryad_doi("https://doi.org/10.5061/dryad.x") is True
     assert is_dryad_doi(DOI) is False
+
+
+# ---------------------------------------------------------------------------
+# Bounded downloads
+# ---------------------------------------------------------------------------
+
+
+@responses.activate
+def test_download_bounded_errors_are_source_agnostic() -> None:
+    # The same helper fetches archives and single files (Zenodo/Figshare), so the
+    # messages must not claim every oversized body is an "Archive".
+    url = "https://example.org/supplement.xlsx"
+    responses.add(
+        responses.GET, url, body=b"x" * 500, status=200, headers={"Content-Length": "500"}
+    )
+    with pytest.raises(RuntimeError, match=r"^Download size 500 bytes exceeds cap 10 bytes$"):
+        _download_bounded(url, 10)
+
+    # With no declared length the cap trips mid-stream instead.
+    responses.reset()
+    responses.add(responses.GET, url, body=io.BufferedReader(io.BytesIO(b"x" * 500)), status=200)
+    with pytest.raises(RuntimeError, match=r"^Download exceeded size cap of 10 bytes$"):
+        _download_bounded(url, 10)
 
 
 # ---------------------------------------------------------------------------

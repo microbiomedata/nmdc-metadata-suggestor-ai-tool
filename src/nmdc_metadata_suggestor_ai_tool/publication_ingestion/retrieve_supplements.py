@@ -145,6 +145,8 @@ def find_supplement_source_europepmc(doi: str) -> dict[str, object]:
 def _download_bounded(url: str, max_bytes: int) -> bytes:
     """Download *url* into memory, aborting if it exceeds *max_bytes*.
 
+    Used for both archives (Europe PMC ZIP, PMC OA tarball) and single-file
+    downloads (Zenodo/Figshare), so the raised messages stay source-agnostic.
     Uses a streamed read so an over-large body is never fully buffered. The
     ``Content-Length`` header (when present) short-circuits the download.
 
@@ -162,7 +164,7 @@ def _download_bounded(url: str, max_bytes: int) -> bytes:
         response.raise_for_status()
         declared = response.headers.get("Content-Length")
         if declared is not None and declared.isdigit() and int(declared) > max_bytes:
-            raise RuntimeError(f"Archive size {declared} bytes exceeds cap {max_bytes} bytes")
+            raise RuntimeError(f"Download size {declared} bytes exceeds cap {max_bytes} bytes")
         buffer = io.BytesIO()
         total = 0
         for chunk in response.iter_content(chunk_size=65536):
@@ -170,7 +172,7 @@ def _download_bounded(url: str, max_bytes: int) -> bytes:
                 continue
             total += len(chunk)
             if total > max_bytes:
-                raise RuntimeError(f"Archive exceeded size cap of {max_bytes} bytes")
+                raise RuntimeError(f"Download exceeded size cap of {max_bytes} bytes")
             buffer.write(chunk)
         return buffer.getvalue()
     except RuntimeError:
