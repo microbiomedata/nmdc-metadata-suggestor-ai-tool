@@ -1,6 +1,6 @@
 ---
 name: supplement-retrieval
-description: Use this skill to retrieve supplementary materials for a manuscript DOI, prioritizing the file types useful for characterizing NMDC submissions and samples (tabular metadata and supplementary documents). Performance-first: single attempt, no repeated retries.
+description: Use this skill to retrieve supplementary materials for a manuscript DOI, prioritizing the file types useful for characterizing NMDC submissions and samples (tabular metadata and supplementary documents). Performance-first, single attempt, no repeated retries.
 ---
 
 # Supplement Retrieval Skill
