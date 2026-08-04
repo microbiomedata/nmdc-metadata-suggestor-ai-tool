@@ -23,6 +23,8 @@ from nmdc_metadata_suggestor_ai_tool.constants import (
 from nmdc_metadata_suggestor_ai_tool.models.supplement import SupplementKind
 from nmdc_metadata_suggestor_ai_tool.publication_ingestion.download_pdf import remove_temp_files
 from nmdc_metadata_suggestor_ai_tool.publication_ingestion.retrieve_supplements import (
+    _Member,
+    _select_members,
     classify_supplement,
     extract_accessions_from_text,
     extract_dataset_dois_from_text,
@@ -111,6 +113,45 @@ def test_classify_supplement_by_extension() -> None:
     assert classify_supplement("reads.fastq") == SupplementKind.SEQUENCE
     assert classify_supplement("bundle.tar") == SupplementKind.ARCHIVE
     assert classify_supplement("README") == SupplementKind.OTHER
+
+
+def test_select_members_caps_apply_to_unknown_reported_size() -> None:
+    # Sources that report size 0 (no Content-Length) must not bypass the budget.
+    members = [
+        _Member(name="a.csv", size=0, read=lambda: b"x" * 40),
+        _Member(name="b.csv", size=0, read=lambda: b"y" * 40),
+        _Member(name="c.csv", size=0, read=lambda: b"z" * 40),
+    ]
+    kept, skipped = _select_members(
+        members,
+        kept_kinds=frozenset({SupplementKind.TABULAR}),
+        max_files=10,
+        max_file_bytes=100,
+        max_total_bytes=100,
+        max_text_chars=1000,
+        save_dir=None,
+        captions=None,
+    )
+    assert [f.filename for f in kept] == ["a.csv", "b.csv"]
+    assert [f.size_bytes for f in kept] == [40, 40]  # actual bytes, not the reported 0
+    assert any("max_total_bytes" in (f.skipped_reason or "") for f in skipped)
+
+
+def test_select_members_rejects_member_larger_than_reported() -> None:
+    # A member that under-reports its size is dropped after the read rather than
+    # being materialized past the per-file cap.
+    kept, skipped = _select_members(
+        [_Member(name="big.csv", size=0, read=lambda: b"x" * 500)],
+        kept_kinds=frozenset({SupplementKind.TABULAR}),
+        max_files=10,
+        max_file_bytes=100,
+        max_total_bytes=1000,
+        max_text_chars=1000,
+        save_dir=None,
+        captions=None,
+    )
+    assert kept == []
+    assert "byte cap" in (skipped[0].skipped_reason or "")
 
 
 def test_parse_supplement_captions() -> None:

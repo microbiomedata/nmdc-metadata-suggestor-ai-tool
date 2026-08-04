@@ -327,7 +327,9 @@ def _select_members(
     """Filter candidate members to the high-value ones within caps.
 
     Returns ``(kept, skipped)``. Caps are checked against each member's reported
-    size *before* reading, so oversized files are never downloaded/extracted.
+    size *before* reading, so oversized files are never downloaded/extracted, and
+    re-checked against the actual byte count afterwards -- sources that report a
+    zero/unknown ``size`` would otherwise slip past the budget.
     """
     kept: list[SupplementFile] = []
     skipped: list[SupplementFile] = []
@@ -372,14 +374,25 @@ def _select_members(
             skip(name, kind, size, "read error")
             continue
 
+        # Re-check against what we actually read: a reported ``size`` of 0 (common
+        # for HTTP sources that omit Content-Length) would otherwise bypass both
+        # caps, and materializing first would put the bytes on disk regardless.
+        actual = len(data)
+        if actual > max_file_bytes:
+            skip(name, kind, actual, f"file exceeds {max_file_bytes} byte cap")
+            continue
+        if total_kept_bytes + actual > max_total_bytes:
+            skip(name, kind, actual, f"max_total_bytes ({max_total_bytes}) reached")
+            continue
+
         text, saved_path = _materialize_member(kind, name, data, max_text_chars, save_dir)
-        total_kept_bytes += size or len(data)
+        total_kept_bytes += actual
         kept.append(
             SupplementFile(
                 filename=name,
                 kind=kind,
                 source=source,
-                size_bytes=size or len(data),
+                size_bytes=actual,
                 caption=_match_caption(name, captions),
                 text=text,
                 saved_path=saved_path,
