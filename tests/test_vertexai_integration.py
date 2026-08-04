@@ -12,9 +12,8 @@ import pytest
 
 from nmdc_metadata_suggestor_ai_tool.llm_client import ConversationManager, LLMClient
 from nmdc_metadata_suggestor_ai_tool.recommendation_pipeline import run_recommendation_pipeline
-from nmdc_metadata_suggestor_ai_tool.utils.utils import validate_output
 from nmdc_metadata_suggestor_ai_tool.system_prompt import env_triad_prompt
-
+from nmdc_metadata_suggestor_ai_tool.utils.utils import validate_output
 
 pytestmark = pytest.mark.integration
 
