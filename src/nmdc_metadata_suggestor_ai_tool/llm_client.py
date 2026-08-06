@@ -12,28 +12,19 @@ from google.genai import types as genai_types
 from google.oauth2 import service_account
 from openai import OpenAI
 
+from nmdc_metadata_suggestor_ai_tool.langfuse_claude_sdk import (
+    AssistantMessage,
+    ClaudeAgentOptions,
+    ResultMessage,
+    SystemMessage,
+    query,
+)
 from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
 from nmdc_metadata_suggestor_ai_tool.system_prompt import orchestrator_prompt
 from nmdc_metadata_suggestor_ai_tool.tracing import (
     langfuse_client,
     observe,
     propagate_attributes,
-    setup_tracing,
-)
-
-# IMPORTANT: setup_tracing() must run BEFORE importing anything from claude_agent_sdk.
-# The OpenInference instrumentor wraps claude_agent_sdk.query.query in place; a
-# `from claude_agent_sdk import query` performed earlier would bind the local name
-# to the unwrapped function and bypass all per-turn/tool spans.
-if langfuse_client is not None:
-    setup_tracing()
-
-from claude_agent_sdk import (  # noqa: E402
-    AssistantMessage,
-    ClaudeAgentOptions,
-    ResultMessage,
-    SystemMessage,
-    query,
 )
 
 load_dotenv()
