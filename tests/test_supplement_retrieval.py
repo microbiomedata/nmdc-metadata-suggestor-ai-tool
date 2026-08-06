@@ -878,6 +878,47 @@ def test_merge_results_deletes_trimmed_temp_files(tmp_path) -> None:
     assert not dropped_path.exists()  # trimmed file's temp path deleted (no leak)
 
 
+def test_merge_results_keeps_same_basename_from_one_source() -> None:
+    # Dedup is on (source, full filename): two distinct paths from one source that
+    # happen to share a basename are different files and must both survive.
+    from nmdc_metadata_suggestor_ai_tool.models.supplement import (
+        SupplementFile,
+        SupplementRetrievalResult,
+    )
+    from nmdc_metadata_suggestor_ai_tool.publication_ingestion.retrieve_supplements import (
+        _merge_results,
+    )
+
+    def _file(name: str) -> SupplementFile:
+        return SupplementFile(
+            filename=name,
+            kind=SupplementKind.TABULAR,
+            source="pmc_oa",
+            size_bytes=10,
+            text="a,b\n1,2\n",
+        )
+
+    result = SupplementRetrievalResult(
+        doi="x",
+        source="pmc_oa",
+        files=[_file("PMC1/Table_S1.xlsx"), _file("PMC1/extra/Table_S1.xlsx")],
+    )
+
+    merged = _merge_results("x", [result], [], max_files=10, max_total_bytes=1_000_000)
+
+    assert [f.filename for f in merged.files] == [
+        "PMC1/Table_S1.xlsx",
+        "PMC1/extra/Table_S1.xlsx",
+    ]
+
+    # A true repeat of the same path from the same source is still collapsed.
+    repeat = SupplementRetrievalResult(
+        doi="x", source="pmc_oa", files=[_file("PMC1/Table_S1.xlsx")]
+    )
+    deduped = _merge_results("x", [result, repeat], [], max_files=10, max_total_bytes=1_000_000)
+    assert len(deduped.files) == 2
+
+
 def test_merge_results_keeps_user_managed_files(tmp_path) -> None:
     # With save_dir=..., the saved paths are caller-owned outputs: trimming a file
     # from the merged result must not delete it.

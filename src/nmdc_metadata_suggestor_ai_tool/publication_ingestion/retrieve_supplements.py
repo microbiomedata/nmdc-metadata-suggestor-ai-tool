@@ -1382,7 +1382,10 @@ def _merge_results(
     total_bytes = 0
     for res in results:
         for file in res.files:
-            key = (file.source, os.path.basename(file.filename))
+            # Key on the full filename, not the basename: one source can legitimately
+            # carry two distinct files that share a basename (e.g. ``a/Table_S1.xlsx``
+            # and ``b/Table_S1.xlsx``), and collapsing them would lose one.
+            key = (file.source, file.filename)
             keep = (
                 key not in seen
                 and len(kept) < max_files
