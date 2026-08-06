@@ -423,26 +423,6 @@ class SupplementCaps(NamedTuple):
     save_dir: str | None
 
 
-def _resolve_caps(
-    useful_kinds: Iterable[SupplementKind],
-    max_files: int,
-    max_file_bytes: int,
-    max_total_bytes: int,
-    max_archive_bytes: int,
-    max_text_chars: int,
-    save_dir: str | None,
-) -> SupplementCaps:
-    return SupplementCaps(
-        useful_kinds=frozenset(useful_kinds),
-        max_files=max_files,
-        max_file_bytes=max_file_bytes,
-        max_total_bytes=max_total_bytes,
-        max_archive_bytes=max_archive_bytes,
-        max_text_chars=max_text_chars,
-        save_dir=save_dir,
-    )
-
-
 def _apply_selection(
     result: SupplementRetrievalResult,
     members: Iterable[_Member],
@@ -515,14 +495,14 @@ def retrieve_supplements_from_europepmc(
         A :class:`SupplementRetrievalResult`. ``error`` is set (and ``files``
         empty) when no supplements could be retrieved.
     """
-    caps = _resolve_caps(
-        useful_kinds,
-        max_files,
-        max_file_bytes,
-        max_total_bytes,
-        max_archive_bytes,
-        max_text_chars,
-        save_dir,
+    caps = SupplementCaps(
+        useful_kinds=frozenset(useful_kinds),
+        max_files=max_files,
+        max_file_bytes=max_file_bytes,
+        max_total_bytes=max_total_bytes,
+        max_archive_bytes=max_archive_bytes,
+        max_text_chars=max_text_chars,
+        save_dir=save_dir,
     )
     doi = normalize_doi(doi)
     result = SupplementRetrievalResult(doi=doi, source="europepmc", attempts=["europepmc"])
@@ -630,14 +610,14 @@ def retrieve_supplements_from_pmc_oa(
     Captions are parsed from the ``.nxml`` bundled inside the package, so no
     extra request is needed to select supplements by content.
     """
-    caps = _resolve_caps(
-        useful_kinds,
-        max_files,
-        max_file_bytes,
-        max_total_bytes,
-        max_archive_bytes,
-        max_text_chars,
-        save_dir,
+    caps = SupplementCaps(
+        useful_kinds=frozenset(useful_kinds),
+        max_files=max_files,
+        max_file_bytes=max_file_bytes,
+        max_total_bytes=max_total_bytes,
+        max_archive_bytes=max_archive_bytes,
+        max_text_chars=max_text_chars,
+        save_dir=save_dir,
     )
     result = SupplementRetrievalResult(
         doi=normalize_doi(doi) if doi else pmcid, source="pmc_oa", pmcid=pmcid, attempts=["pmc_oa"]
@@ -748,14 +728,14 @@ def retrieve_supplements_from_dryad(
     fetch content from there. When no mirror exists, the Dryad file listing is
     returned as ``skipped`` (marked download-gated) rather than failing to fetch.
     """
-    caps = _resolve_caps(
-        useful_kinds,
-        max_files,
-        max_file_bytes,
-        max_total_bytes,
-        max_archive_bytes,
-        max_text_chars,
-        save_dir,
+    caps = SupplementCaps(
+        useful_kinds=frozenset(useful_kinds),
+        max_files=max_files,
+        max_file_bytes=max_file_bytes,
+        max_total_bytes=max_total_bytes,
+        max_archive_bytes=max_archive_bytes,
+        max_text_chars=max_text_chars,
+        save_dir=save_dir,
     )
     doi = normalize_doi(doi)
     result = SupplementRetrievalResult(doi=doi, source="dryad", attempts=["dryad"])
@@ -840,14 +820,14 @@ def retrieve_supplements_from_zenodo(
     save_dir: str | None = None,
 ) -> SupplementRetrievalResult:
     """Retrieve high-value files from a Zenodo record (by DOI or concept DOI)."""
-    caps = _resolve_caps(
-        useful_kinds,
-        max_files,
-        max_file_bytes,
-        max_total_bytes,
-        max_archive_bytes,
-        max_text_chars,
-        save_dir,
+    caps = SupplementCaps(
+        useful_kinds=frozenset(useful_kinds),
+        max_files=max_files,
+        max_file_bytes=max_file_bytes,
+        max_total_bytes=max_total_bytes,
+        max_archive_bytes=max_archive_bytes,
+        max_text_chars=max_text_chars,
+        save_dir=save_dir,
     )
     doi = normalize_doi(doi)
     result = SupplementRetrievalResult(doi=doi, source="zenodo", attempts=["zenodo"])
@@ -921,14 +901,14 @@ def retrieve_supplements_from_figshare(
     save_dir: str | None = None,
 ) -> SupplementRetrievalResult:
     """Retrieve high-value files from a Figshare article/collection DOI."""
-    caps = _resolve_caps(
-        useful_kinds,
-        max_files,
-        max_file_bytes,
-        max_total_bytes,
-        max_archive_bytes,
-        max_text_chars,
-        save_dir,
+    caps = SupplementCaps(
+        useful_kinds=frozenset(useful_kinds),
+        max_files=max_files,
+        max_file_bytes=max_file_bytes,
+        max_total_bytes=max_total_bytes,
+        max_archive_bytes=max_archive_bytes,
+        max_text_chars=max_text_chars,
+        save_dir=save_dir,
     )
     doi = normalize_doi(doi)
     result = SupplementRetrievalResult(doi=doi, source="figshare", attempts=["figshare"])
