@@ -15,7 +15,7 @@ from openai import OpenAI
 from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
 from nmdc_metadata_suggestor_ai_tool.system_prompt import orchestrator_prompt
 from nmdc_metadata_suggestor_ai_tool.tracing import (
-    langfuse,
+    langfuse_client,
     observe,
     propagate_attributes,
     setup_tracing,
@@ -25,7 +25,7 @@ from nmdc_metadata_suggestor_ai_tool.tracing import (
 # The OpenInference instrumentor wraps claude_agent_sdk.query.query in place; a
 # `from claude_agent_sdk import query` performed earlier would bind the local name
 # to the unwrapped function and bypass all per-turn/tool spans.
-if langfuse is not None:
+if langfuse_client is not None:
     setup_tracing()
 
 from claude_agent_sdk import (  # noqa: E402
@@ -379,8 +379,8 @@ class ConversationManager:
         if message is None:
             raise ValueError("message is required")
 
-        if langfuse is not None:
-            langfuse.update_current_span(
+        if langfuse_client is not None:
+            langfuse_client.update_current_span(
                 input=message,
                 metadata={"model": self.llm_client.model},
             )
@@ -399,8 +399,8 @@ class ConversationManager:
                     print(f"Assistant: {event.content}")
                 elif isinstance(event, ResultMessage):
                     result = self.unwrap_structured_output(event.structured_output)
-            if langfuse is not None:
-                langfuse.update_current_span(
+            if langfuse_client is not None:
+                langfuse_client.update_current_span(
                     output=result,
                     metadata={"model": self.llm_client.model, "session_id": session_id},
                 )
@@ -417,6 +417,6 @@ class ConversationManager:
                         session_id = event.data["session_id"]
                     elif isinstance(event, ResultMessage):
                         result = self.unwrap_structured_output(event.structured_output)
-            if langfuse is not None:
-                langfuse.update_current_span(output=result)
+            if langfuse_client is not None:
+                langfuse_client.update_current_span(output=result)
         return result, session_id

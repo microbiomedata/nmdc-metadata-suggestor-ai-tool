@@ -47,7 +47,7 @@ if langfuse_enabled:
         logger.debug(f"Langfuse tracing environment set to: {langfuse_environment}")
         Langfuse(environment=langfuse_environment)
 
-        langfuse = get_client()
+        langfuse_client = get_client()
         observe = _lf_observe
 
         def setup_tracing() -> None:
@@ -66,7 +66,7 @@ if langfuse_enabled:
         langfuse_enabled = False
 
 if not langfuse_enabled:
-    langfuse = None  # type: ignore[assignment]
+    langfuse_client = None  # type: ignore[assignment]
 
     from contextlib import contextmanager
 
@@ -110,5 +110,5 @@ if not langfuse_enabled:
 
 def flush() -> None:
     """Flush pending Langfuse events (call before process exit in short-lived scripts)."""
-    if langfuse_enabled and langfuse is not None:
-        langfuse.flush()
+    if langfuse_enabled and langfuse_client is not None:
+        langfuse_client.flush()
