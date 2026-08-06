@@ -84,10 +84,3 @@ To cheaply check availability *before* downloading, call
 
 For the full API (per-source helpers, caps, kind filtering, temp-file cleanup),
 see [refs/programmatic.md](refs/programmatic.md).
-
-## Agentic fallback (optional, one shot)
-
-If the programmatic path returns nothing and a supplementary-material URL is known
-(e.g. from a publisher landing page in `SourceRetrievalResult.publication_urls`),
-you may make **one** `web_fetch` attempt on a tabular/document supplement URL. Do
-not loop over many candidate URLs and do not persist temp files.
