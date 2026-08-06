@@ -1,8 +1,7 @@
-"""Tests for supplementary-material retrieval across Europe PMC, PMC OA, Dryad."""
+"""Tests for supplementary-material retrieval across Europe PMC, Dryad, Zenodo, Figshare."""
 
 import io
 import os
-import tarfile
 import tempfile
 import zipfile
 from urllib.parse import quote
@@ -18,7 +17,6 @@ from nmdc_metadata_suggestor_ai_tool.constants import (
     EUROPEPMC_FULLTEXT_XML_URL_TEMPLATE,
     EUROPEPMC_SUPPL_URL_TEMPLATE,
     FIGSHARE_API,
-    PMC_OA_SERVICE_URL,
     ZENODO_API,
 )
 from nmdc_metadata_suggestor_ai_tool.models.supplement import SupplementKind
@@ -29,18 +27,13 @@ from nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements import (
     extract_dataset_dois_from_text,
     find_related_data_dois,
     find_supplement_source_europepmc,
-    find_supplement_source_pmc_oa,
     is_dryad_doi,
     parse_supplement_captions,
     retrieve_supplements,
     retrieve_supplements_from_dryad,
     retrieve_supplements_from_europepmc,
     retrieve_supplements_from_figshare,
-    retrieve_supplements_from_pmc_oa,
     retrieve_supplements_from_zenodo,
-)
-from nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements import (
-    pmc_oa as pmc_oa_module,
 )
 from nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements.retrieve import (
     is_removable_temp_file,
@@ -58,7 +51,6 @@ ZENODO_DOI = "10.5281/zenodo.123456"
 FIGSHARE_DOI = "10.6084/m9.figshare.123456"
 SUPPL_URL = EUROPEPMC_SUPPL_URL_TEMPLATE.format(source="PMC", article_id="PMC123456")
 FULLTEXT_URL = EUROPEPMC_FULLTEXT_XML_URL_TEMPLATE.format(source="PMC", article_id="PMC123456")
-OA_TGZ_URL = "https://ftp.ncbi.nlm.nih.gov/pub/pmc/oa_package/aa/bb/PMC123456.tar.gz"
 
 
 def _make_zip(members: dict[str, bytes]) -> bytes:
@@ -66,16 +58,6 @@ def _make_zip(members: dict[str, bytes]) -> bytes:
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
         for name, content in members.items():
             zf.writestr(name, content)
-    return buffer.getvalue()
-
-
-def _make_targz(members: dict[str, bytes]) -> bytes:
-    buffer = io.BytesIO()
-    with tarfile.open(fileobj=buffer, mode="w:gz") as tf:
-        for name, content in members.items():
-            info = tarfile.TarInfo(name=name)
-            info.size = len(content)
-            tf.addfile(info, io.BytesIO(content))
     return buffer.getvalue()
 
 
@@ -311,82 +293,6 @@ def test_europepmc_bad_zip() -> None:
 
 
 # ---------------------------------------------------------------------------
-# NCBI PMC OA
-# ---------------------------------------------------------------------------
-
-OA_RECORD_XML = """<?xml version="1.0"?>
-<OA>
-  <records>
-    <record id="PMC123456">
-      <link format="tgz" href="ftp://ftp.ncbi.nlm.nih.gov/pub/pmc/oa_package/aa/bb/PMC123456.tar.gz"/>
-    </record>
-  </records>
-</OA>"""
-
-
-def _register_oa_service() -> None:
-    responses.add(responses.GET, PMC_OA_SERVICE_URL, body=OA_RECORD_XML, status=200)
-
-
-@responses.activate
-def test_find_supplement_source_pmc_oa() -> None:
-    _register_oa_service()
-    info = find_supplement_source_pmc_oa("PMC123456")
-    assert info["tgz_url"] == OA_TGZ_URL
-    assert "error" not in info
-
-
-@responses.activate
-def test_find_supplement_source_pmc_oa_error() -> None:
-    responses.add(
-        responses.GET,
-        PMC_OA_SERVICE_URL,
-        body='<OA><error code="idDoesNotExist">bad</error></OA>',
-        status=200,
-    )
-    info = find_supplement_source_pmc_oa("PMC000")
-    assert info["tgz_url"] is None
-    assert info["error"]
-
-
-@responses.activate
-def test_pmc_oa_retrieves_and_captions_from_nxml() -> None:
-    _register_oa_service()
-    targz = _make_targz(
-        {
-            "PMC123456/table_s1.csv": b"sample_id,ph\nA,7\n",
-            "PMC123456/figure1.jpg": b"\xff\xd8fakejpeg",
-            "PMC123456/main.nxml": JATS_XML.replace("Table_S1.csv", "table_s1.csv").encode(),
-        }
-    )
-    responses.add(responses.GET, OA_TGZ_URL, body=targz, status=200)
-
-    result = retrieve_supplements_from_pmc_oa("PMC123456", doi=DOI)
-    kept = {os.path.basename(f.filename): f for f in result.files}
-    assert set(kept) == {"table_s1.csv"}
-    assert kept["table_s1.csv"].caption is not None
-    assert any(f.kind == SupplementKind.IMAGE for f in result.skipped)
-
-
-@responses.activate
-def test_pmc_oa_skips_oversized_nxml(monkeypatch) -> None:
-    # OA packages are untrusted: an over-large NXML is never handed to the parser.
-    monkeypatch.setattr(pmc_oa_module, "SUPPLEMENT_MAX_XML_BYTES", 50)
-    _register_oa_service()
-    targz = _make_targz(
-        {
-            "PMC123456/table_s1.csv": b"sample_id,ph\nA,7\n",
-            "PMC123456/main.nxml": JATS_XML.replace("Table_S1.csv", "table_s1.csv").encode(),
-        }
-    )
-    responses.add(responses.GET, OA_TGZ_URL, body=targz, status=200)
-
-    result = retrieve_supplements_from_pmc_oa("PMC123456", doi=DOI)
-    assert [os.path.basename(f.filename) for f in result.files] == ["table_s1.csv"]
-    assert result.files[0].caption is None  # captions dropped, retrieval unaffected
-
-
-# ---------------------------------------------------------------------------
 # Dryad
 # ---------------------------------------------------------------------------
 
@@ -477,37 +383,6 @@ def test_dryad_no_files() -> None:
 # ---------------------------------------------------------------------------
 # Orchestrator
 # ---------------------------------------------------------------------------
-
-
-@responses.activate
-def test_orchestrator_falls_back_to_pmc_oa() -> None:
-    # Europe PMC reports no supplements -> fall back to the NCBI OA package.
-    _register_search(has_suppl="N")
-    _register_oa_service()
-    targz = _make_targz({"PMC123456/data.csv": b"a,b\n1,2\n"})
-    responses.add(responses.GET, OA_TGZ_URL, body=targz, status=200)
-
-    result = retrieve_supplements(DOI, follow_related=False)
-    assert result.source == "pmc_oa"
-    assert [os.path.basename(f.filename) for f in result.files] == ["data.csv"]
-    assert result.files[0].source == "pmc_oa"
-    assert "europepmc" in result.attempts and "pmc_oa" in result.attempts
-
-
-@responses.activate
-def test_orchestrator_reuses_resolved_pmcid_across_explicit_sources() -> None:
-    # An explicit ["europepmc", "pmc_oa"] run must hit the Europe PMC search API
-    # once: europepmc already resolved the PMCID that pmc_oa needs.
-    _register_search(has_suppl="N")
-    _register_oa_service()
-    targz = _make_targz({"PMC123456/data.csv": b"a,b\n1,2\n"})
-    responses.add(responses.GET, OA_TGZ_URL, body=targz, status=200)
-
-    result = retrieve_supplements(DOI, sources=["europepmc", "pmc_oa"])
-
-    assert [os.path.basename(f.filename) for f in result.files] == ["data.csv"]
-    searches = [c for c in responses.calls if c.request.url.startswith(EUROPEPMC_API_URL)]
-    assert len(searches) == 1
 
 
 @responses.activate
@@ -893,27 +768,27 @@ def test_merge_results_keeps_same_basename_from_one_source() -> None:
         return SupplementFile(
             filename=name,
             kind=SupplementKind.TABULAR,
-            source="pmc_oa",
+            source="europepmc",
             size_bytes=10,
             text="a,b\n1,2\n",
         )
 
     result = SupplementRetrievalResult(
         doi="x",
-        source="pmc_oa",
-        files=[_file("PMC1/Table_S1.xlsx"), _file("PMC1/extra/Table_S1.xlsx")],
+        source="europepmc",
+        files=[_file("si/Table_S1.xlsx"), _file("si/extra/Table_S1.xlsx")],
     )
 
     merged = merge_results("x", [result], [], max_files=10, max_total_bytes=1_000_000)
 
     assert [f.filename for f in merged.files] == [
-        "PMC1/Table_S1.xlsx",
-        "PMC1/extra/Table_S1.xlsx",
+        "si/Table_S1.xlsx",
+        "si/extra/Table_S1.xlsx",
     ]
 
     # A true repeat of the same path from the same source is still collapsed.
     repeat = SupplementRetrievalResult(
-        doi="x", source="pmc_oa", files=[_file("PMC1/Table_S1.xlsx")]
+        doi="x", source="europepmc", files=[_file("si/Table_S1.xlsx")]
     )
     deduped = merge_results("x", [result, repeat], [], max_files=10, max_total_bytes=1_000_000)
     assert len(deduped.files) == 2

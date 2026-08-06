@@ -48,12 +48,10 @@ Call `retrieve_supplements(doi)`. For a publication DOI it resolves in layers an
 1. **Europe PMC** `supplementaryFiles` (ZIP; open-access). Supplement **captions**
    are read from the article's JATS full text, so files can be judged by content,
    not just extension.
-2. **NCBI PMC OA Web Service** (`.tar.gz`) — fallback when Europe PMC has none;
-   captions from the bundled `.nxml`.
-3. **Related datasets** — Dryad/Zenodo/Figshare DOIs linked via the article's
+2. **Related datasets** — Dryad/Zenodo/Figshare DOIs linked via the article's
    relation metadata (`find_related_data_dois`). Dryad content is fetched from
    its Zenodo mirror (Dryad's own download API is auth-gated).
-4. **Text-mined datasets** — when `text=` is given, data-repository DOIs found in
+3. **Text-mined datasets** — when `text=` is given, data-repository DOIs found in
    it are also fetched; sequence/proteomics accessions (PRJNA…, SRR…, GSE…) are
    surfaced in `result.detected_accessions` but **not** retrieved.
 
@@ -77,10 +75,10 @@ but dropped, with `skipped_reason`), `result.source` (contributing sources joine
 by `+`), `result.detected_accessions`, `result.error`. `SupplementFile` carries
 `source`, `caption`, and either `text` (text-like) or `saved_path` (binary).
 
-Pass `sources=[...]` to run an explicit list (`"europepmc"`, `"pmc_oa"`, `"dryad"`,
+Pass `sources=[...]` to run an explicit list (`"europepmc"`, `"dryad"`,
 `"zenodo"`, `"figshare"`), or `follow_related=False` to skip relation-following.
 To cheaply check availability *before* downloading, call
-`find_supplement_source_europepmc(doi)` or `find_supplement_source_pmc_oa(pmcid)`.
+`find_supplement_source_europepmc(doi)`.
 
 For the full API (per-source helpers, caps, kind filtering, temp-file cleanup),
 see [refs/programmatic.md](refs/programmatic.md).

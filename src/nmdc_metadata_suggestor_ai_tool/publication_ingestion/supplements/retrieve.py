@@ -29,14 +29,10 @@ from nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements.dryad imp
     retrieve_supplements_from_dryad,
 )
 from nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements.europepmc import (
-    find_supplement_source_europepmc,
     retrieve_supplements_from_europepmc,
 )
 from nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements.figshare import (
     retrieve_supplements_from_figshare,
-)
-from nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements.pmc_oa import (
-    retrieve_supplements_from_pmc_oa,
 )
 from nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements.related_dois import (
     extract_accessions_from_text,
@@ -75,12 +71,11 @@ def retrieve_supplements(
     Routing:
 
     * **Data-repository DOI** (Dryad/Zenodo/Figshare) -> fetch that repo's files.
-    * **Publication DOI** -> hosted supplements (Europe PMC, then NCBI PMC OA as a
-      fallback), plus, when ``follow_related``, any data-repository datasets linked
-      from the article's Crossref/DataCite relation metadata, plus, when ``text``
-      is given, data-repository DOIs mined from that text. Sequence/proteomics
-      accessions found in ``text`` are surfaced in ``detected_accessions`` but not
-      retrieved.
+    * **Publication DOI** -> hosted supplements (Europe PMC), plus, when
+      ``follow_related``, any data-repository datasets linked from the article's
+      Crossref/DataCite relation metadata, plus, when ``text`` is given,
+      data-repository DOIs mined from that text. Sequence/proteomics accessions
+      found in ``text`` are surfaced in ``detected_accessions`` but not retrieved.
 
     Files from every contributing source are merged under a *shared* budget:
     hosted supplements take priority, and each linked dataset only fetches what
@@ -105,19 +100,10 @@ def retrieve_supplements(
     }
 
     if sources is not None:
-        # Thread the PMCID along the source list: whichever source resolves it
-        # first (usually ``europepmc``) saves the later ones a repeat lookup.
-        explicit: list[SupplementRetrievalResult] = []
-        resolved_pmcid: str | None = None
-        for source in sources:
-            result = run_source(source, doi, kwargs, resolved_pmcid)
-            if result is None:
-                continue
-            resolved_pmcid = resolved_pmcid or result.pmcid
-            explicit.append(result)
+        explicit = [run_source(source, doi, kwargs) for source in sources]
         return merge_results(
             doi,
-            explicit,
+            [result for result in explicit if result is not None],
             [],
             max_files,
             max_total_bytes,
@@ -129,16 +115,10 @@ def retrieve_supplements(
     if repo:
         return DATA_REPO_RETRIEVERS[repo](doi, **kwargs)  # type: ignore[arg-type]
 
-    # Publication DOI: hosted supplements (stop at first with files), then any
-    # linked/mined data-repository datasets.
-    results: list[SupplementRetrievalResult] = []
-    # The Europe PMC retriever already records the PMCID from its own lookup, so
-    # the OA fallback reuses it rather than repeating the search request.
+    # Publication DOI: hosted supplements, then any linked/mined datasets.
     hosted = retrieve_supplements_from_europepmc(doi, **kwargs)  # type: ignore[arg-type]
     pmcid: str | None = hosted.pmcid
-    results.append(hosted)
-    if not hosted.has_supplements and pmcid:
-        results.append(retrieve_supplements_from_pmc_oa(pmcid, doi=doi, **kwargs))  # type: ignore[arg-type]
+    results: list[SupplementRetrievalResult] = [hosted]
 
     data_dois: list[str] = []
     if follow_related:
@@ -181,20 +161,10 @@ def run_source(
     source: str,
     doi: str,
     kwargs: dict[str, Any],
-    pmcid: str | None,
 ) -> SupplementRetrievalResult | None:
-    """Run a single named source (used for explicit ``sources`` overrides).
-
-    *pmcid*, when already resolved by an earlier source, spares ``pmc_oa`` the
-    Europe PMC search request it would otherwise issue to find one.
-    """
+    """Run a single named source (used for explicit ``sources`` overrides)."""
     if source == "europepmc":
         return retrieve_supplements_from_europepmc(doi, **kwargs)
-    if source == "pmc_oa":
-        resolved = pmcid or (str(find_supplement_source_europepmc(doi).get("pmcid") or "") or None)
-        if not resolved:
-            return None
-        return retrieve_supplements_from_pmc_oa(resolved, doi=doi, **kwargs)
     retriever = DATA_REPO_RETRIEVERS.get(source)
     if retriever:
         return retriever(doi, **kwargs)

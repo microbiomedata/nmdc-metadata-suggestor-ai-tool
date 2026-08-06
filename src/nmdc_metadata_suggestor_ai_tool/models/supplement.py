@@ -44,7 +44,7 @@ class SupplementFile(BaseModel):
     source: str | None = Field(
         default=None,
         description="Which source/repository the file came from "
-        "(e.g. 'europepmc', 'pmc_oa', 'dryad', 'zenodo', 'figshare').",
+        "(e.g. 'europepmc', 'dryad', 'zenodo', 'figshare').",
     )
     size_bytes: int | None = None
     caption: str | None = Field(

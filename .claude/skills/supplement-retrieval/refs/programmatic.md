@@ -6,7 +6,6 @@
 from nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements import (
     retrieve_supplements,  # orchestrator: routes + merges by DOI type
     retrieve_supplements_from_europepmc,  # Europe PMC supplementaryFiles ZIP
-    retrieve_supplements_from_pmc_oa,  # NCBI PMC OA .tar.gz package (by PMCID)
     retrieve_supplements_from_dryad,  # Dryad dataset DOI files (via Zenodo mirror)
     retrieve_supplements_from_zenodo,  # Zenodo record files (by DOI/concept DOI)
     retrieve_supplements_from_figshare,  # Figshare article/collection DOI files
@@ -14,7 +13,6 @@ from nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements import (
     extract_dataset_dois_from_text,  # text -> Dryad/Zenodo/Figshare DOIs
     extract_accessions_from_text,  # text -> PRJNA…/SRR…/GSE… accessions
     find_supplement_source_europepmc,  # availability check, no download
-    find_supplement_source_pmc_oa,  # resolve PMCID -> OA package URL
     parse_supplement_captions,  # JATS XML -> {filename_key: caption}
     classify_supplement,  # filename -> SupplementKind
     is_dryad_doi,  # True for 10.5061/… DOIs
@@ -30,7 +28,6 @@ publication_ingestion/supplements/
   __init__.py       # the public API above
   shared.py         # bounded downloads, member selection against the caps, JATS captions
   europepmc.py      # Europe PMC supplementaryFiles ZIP
-  pmc_oa.py         # NCBI PMC OA .tar.gz package
   dryad.py          # Dryad datasets (via their Zenodo mirror)
   zenodo.py         # Zenodo records
   figshare.py       # Figshare articles/collections
@@ -44,7 +41,7 @@ publication_ingestion/supplements/
 retrieve_supplements(
     doi: str,
     *,
-    sources: list[str] | None = None,  # explicit list of europepmc/pmc_oa/dryad/zenodo/figshare
+    sources: list[str] | None = None,  # explicit list of europepmc/dryad/zenodo/figshare
     text: str | None = None,           # abstract/PDF text to mine for dataset DOIs + accessions
     follow_related: bool = True,       # follow Crossref/DataCite relation metadata
     useful_kinds: Iterable[SupplementKind] = DEFAULT_USEFUL_KINDS,
@@ -59,7 +56,7 @@ retrieve_supplements(
 
 **Routing & merge.** A data-repository DOI (`10.5061` Dryad, `10.5281` Zenodo,
 `10.6084` Figshare) fetches that repo's files only. A publication DOI fetches
-hosted supplements (Europe PMC, then NCBI PMC OA as a fallback) **plus** any
+hosted supplements (Europe PMC) **plus** any
 data-repository datasets found via relation metadata (`follow_related`) or mined
 from `text`. Files from all contributing sources are merged and trimmed to
 `max_files` / `max_total_bytes`; `SupplementFile.source` records each file's
@@ -75,7 +72,6 @@ download-gated) rather than returning content — mostly affects the newest
 datasets, since Dryad's Zenodo mirroring wound down around 2020–2022.
 
 Each source also has a standalone function with the same caps (see imports above).
-`retrieve_supplements_from_pmc_oa` takes a `pmcid` (plus optional `doi=`).
 
 All caps are also configurable via `NMDC_SUPPLEMENT_*` environment variables
 (see `constants.py`). Downloads are streamed and size-bounded; oversized files are
@@ -107,7 +103,7 @@ exceeds the global caps.
 |---|---|---|
 | `filename` | `str` | Name within the archive / repository. |
 | `kind` | `SupplementKind` | `tabular`, `document`, `image`, `media`, `sequence`, `archive`, `other`. |
-| `source` | `str \| None` | Origin source: `europepmc`/`pmc_oa`/`dryad`/`zenodo`/`figshare`. |
+| `source` | `str \| None` | Origin source: `europepmc`/`dryad`/`zenodo`/`figshare`. |
 | `size_bytes` | `int \| None` | Uncompressed size. |
 | `caption` | `str \| None` | JATS/repository caption or description, when available. |
 | `text` | `str \| None` | Inlined content for text-like files (csv/tsv/txt), truncated. |
@@ -150,21 +146,15 @@ files are yours and are never removed.
 ```python
 info = find_supplement_source_europepmc(doi)
 # {"source", "article_id", "pmcid", "is_open_access", "has_supplements", "zip_url", "error"?}
-
-oa = find_supplement_source_pmc_oa("PMC123456")
-# {"pmcid", "tgz_url", "error"?}
 ```
 
 Europe PMC only downloads when the record is open access (`isOpenAccess == "Y"`)
 *and* `has_supplements` is true (`hasSuppl == "Y"`), avoiding wasted requests for
-articles whose supplements the OA-scoped endpoint cannot serve. The OA
-service returns an `error` (e.g. `idDoesNotExist`) when the article is not in the
-OA subset.
+articles whose supplements the OA-scoped endpoint cannot serve.
 
 ## Captions (content-based selection)
 
 `parse_supplement_captions(jats_xml)` returns `{caption_key: caption}` where the
 key is the referenced file's basename without extension, lowercased. Europe PMC
-pulls these from the article `fullTextXML`; PMC OA pulls them from the bundled
-`.nxml`. Captions populate `SupplementFile.caption` so you can judge relevance
+pulls these from the article `fullTextXML`. Captions populate `SupplementFile.caption` so you can judge relevance
 ("Table S1. Sample metadata…") beyond the file extension.

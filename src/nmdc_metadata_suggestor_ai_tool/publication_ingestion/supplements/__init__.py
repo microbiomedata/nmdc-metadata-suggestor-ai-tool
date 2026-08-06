@@ -16,7 +16,6 @@ Layout -- one module per source, over a shared core:
 * :mod:`~...supplements.shared` -- bounded downloads, member selection against
   the caps, JATS caption parsing. Every source funnels through it.
 * :mod:`~...supplements.europepmc` -- Europe PMC ``supplementaryFiles`` ZIP.
-* :mod:`~...supplements.pmc_oa` -- NCBI PMC OA ``.tar.gz`` package.
 * :mod:`~...supplements.dryad` / ``zenodo`` / ``figshare`` -- data repositories.
 * :mod:`~...supplements.related_dois` -- the data deposits a publication links to.
 * :mod:`~...supplements.retrieve` -- :func:`retrieve_supplements`, which routes by
@@ -37,10 +36,6 @@ from nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements.europepmc
 )
 from nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements.figshare import (
     retrieve_supplements_from_figshare,
-)
-from nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements.pmc_oa import (
-    find_supplement_source_pmc_oa,
-    retrieve_supplements_from_pmc_oa,
 )
 from nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements.related_dois import (
     extract_accessions_from_text,
@@ -67,13 +62,11 @@ __all__ = [
     "extract_dataset_dois_from_text",
     "find_related_data_dois",
     "find_supplement_source_europepmc",
-    "find_supplement_source_pmc_oa",
     "is_dryad_doi",
     "parse_supplement_captions",
     "retrieve_supplements",
     "retrieve_supplements_from_dryad",
     "retrieve_supplements_from_europepmc",
     "retrieve_supplements_from_figshare",
-    "retrieve_supplements_from_pmc_oa",
     "retrieve_supplements_from_zenodo",
 ]

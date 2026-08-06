@@ -61,9 +61,6 @@ EUROPEPMC_SUPPL_URL_TEMPLATE = f"{EUROPEPMC_REST_URL}/{{source}}/{{article_id}}/
 # captions/labels used to select supplements by content rather than extension.
 EUROPEPMC_FULLTEXT_XML_URL_TEMPLATE = f"{EUROPEPMC_REST_URL}/{{source}}/{{article_id}}/fullTextXML"
 
-# NCBI PMC Open Access Web Service: resolves a PMCID to a downloadable OA
-# package (``.tar.gz``) containing the full text plus all supplementary files.
-PMC_OA_SERVICE_URL = "https://www.ncbi.nlm.nih.gov/pmc/utils/oa/oa.fcgi"
 
 # Dryad data repository (hosts supplement-as-dataset files; DOI prefix 10.5061).
 DRYAD_API_URL = "https://datadryad.org/api/v2"

@@ -1,7 +1,7 @@
 """Pieces every supplement source shares: bounded downloads, member selection, captions.
 
-A *member* is one candidate supplement file from any source -- a ZIP entry, a tar
-entry, or a per-file download URL. Sources turn their listings into
+A *member* is one candidate supplement file from any source -- a ZIP entry or a
+per-file download URL. Sources turn their listings into
 :class:`Member` objects and hand them to :func:`select_members`, which applies the
 kind filter and the caps uniformly, so "which files do we keep, and how big may
 they be" is decided in one place rather than five.
@@ -11,7 +11,6 @@ import io
 import logging
 import os
 import re
-import tarfile
 import tempfile
 import xml.etree.ElementTree as ET
 import zipfile
@@ -48,8 +47,8 @@ classify_supplement = classify_file
 def download_bounded(url: str, max_bytes: int) -> bytes:
     """Download *url* into memory, aborting if it exceeds *max_bytes*.
 
-    Used for both archives (Europe PMC ZIP, PMC OA tarball) and single-file
-    downloads (Zenodo/Figshare), so the raised messages stay source-agnostic.
+    Used for both the Europe PMC ZIP and single-file downloads (Zenodo/Figshare),
+    so the raised messages stay source-agnostic.
     Uses a streamed read so an over-large body is never fully buffered. The
     ``Content-Length`` header (when present) short-circuits the download.
 
@@ -151,7 +150,7 @@ def parse_supplement_captions(xml_text: str | bytes) -> dict[str, str]:
     on the referenced file's normalized basename (see :func:`caption_key`).
 
     Args:
-        xml_text: JATS XML document (Europe PMC ``fullTextXML`` or a PMC nxml).
+        xml_text: JATS XML document (Europe PMC ``fullTextXML``).
 
     Returns:
         Mapping of caption key -> caption text (empty on parse failure).
@@ -209,35 +208,9 @@ class Member(NamedTuple):
     read: Callable[[], bytes]
 
 
-def read_tar_member(
-    tar: tarfile.TarFile, member: tarfile.TarInfo, max_bytes: int | None = None
-) -> bytes:
-    """Read a regular-file member's bytes from an open tar archive.
-
-    Raises:
-        RuntimeError: If the member is not a regular file, or if *max_bytes* is
-            given and the member's content exceeds it.
-    """
-    handle = tar.extractfile(member)
-    if handle is None:
-        raise RuntimeError("member is not a regular file")
-    with handle:
-        if max_bytes is None:
-            return handle.read()
-        data = handle.read(max_bytes + 1)
-    if len(data) > max_bytes:
-        raise RuntimeError(f"member exceeded size cap of {max_bytes} bytes")
-    return data
-
-
 def zip_reader(archive: zipfile.ZipFile, info: zipfile.ZipInfo) -> Callable[[], bytes]:
     """Return a no-arg reader for a ZIP member (bound so it survives the loop)."""
     return lambda: archive.read(info)
-
-
-def tar_reader(tar: tarfile.TarFile, info: tarfile.TarInfo) -> Callable[[], bytes]:
-    """Return a no-arg reader for a tar member."""
-    return lambda: read_tar_member(tar, info)
 
 
 def url_reader(url: str, max_bytes: int) -> Callable[[], bytes]:

@@ -101,7 +101,7 @@ def test_documented_source_names_route_to_a_retriever(monkeypatch) -> None:
     listing = re.search(r"Pass `sources=\[\.\.\.\]`[^.]*?\(([^)]*)\)", skill, re.DOTALL)
     assert listing, "expected SKILL.md to list the accepted `sources` values"
     documented = re.findall(r"`\"(\w+)\"`", listing.group(1))
-    assert set(documented) == {"europepmc", "pmc_oa", "dryad", "zenodo", "figshare"}
+    assert set(documented) == {"europepmc", "dryad", "zenodo", "figshare"}
 
     called: list[str] = []
 
@@ -114,14 +114,6 @@ def test_documented_source_names_route_to_a_retriever(monkeypatch) -> None:
 
     monkeypatch.setattr(
         retrieve_module, "retrieve_supplements_from_europepmc", _recorder("europepmc")
-    )
-    monkeypatch.setattr(
-        retrieve_module,
-        "retrieve_supplements_from_pmc_oa",
-        lambda pmcid, **kwargs: _recorder("pmc_oa")(kwargs.get("doi", pmcid)),
-    )
-    monkeypatch.setattr(
-        retrieve_module, "find_supplement_source_europepmc", lambda doi: {"pmcid": "PMC123456"}
     )
     for repo in ("dryad", "zenodo", "figshare"):
         monkeypatch.setitem(retrieve_module.DATA_REPO_RETRIEVERS, repo, _recorder(repo))
