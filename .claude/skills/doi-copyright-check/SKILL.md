@@ -62,7 +62,7 @@ Map the found license string to the Allowed/No/Uncertain verdict.
     "license_found": "<license string or None>",
     "verdict": "allowed" | "not_allowed" | "uncertain",
     "condition": "<attribution or other constraint, or None>",
-    "note": "<short human-readable explanation>"
+    "note": "<short human-readable explanation>",
 }
 ```
 
