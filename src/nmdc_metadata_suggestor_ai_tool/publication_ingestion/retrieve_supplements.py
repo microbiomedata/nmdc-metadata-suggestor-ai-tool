@@ -1249,10 +1249,19 @@ def retrieve_supplements(
     }
 
     if sources is not None:
-        explicit = [_run_source(s, doi, kwargs, None) for s in sources]
+        # Thread the PMCID along the source list: whichever source resolves it
+        # first (usually ``europepmc``) saves the later ones a repeat lookup.
+        explicit: list[SupplementRetrievalResult] = []
+        resolved_pmcid: str | None = None
+        for source in sources:
+            result = _run_source(source, doi, kwargs, resolved_pmcid)
+            if result is None:
+                continue
+            resolved_pmcid = resolved_pmcid or result.pmcid
+            explicit.append(result)
         return _merge_results(
             doi,
-            [r for r in explicit if r is not None],
+            explicit,
             [],
             max_files,
             max_total_bytes,
@@ -1267,15 +1276,13 @@ def retrieve_supplements(
     # Publication DOI: hosted supplements (stop at first with files), then any
     # linked/mined data-repository datasets.
     results: list[SupplementRetrievalResult] = []
-    pmcid: str | None = None
+    # The Europe PMC retriever already records the PMCID from its own lookup, so
+    # the OA fallback reuses it rather than repeating the search request.
     hosted = retrieve_supplements_from_europepmc(doi, **kwargs)  # type: ignore[arg-type]
-    pmcid = hosted.pmcid
+    pmcid: str | None = hosted.pmcid
     results.append(hosted)
-    if not hosted.has_supplements:
-        if not pmcid:
-            pmcid = str(find_supplement_source_europepmc(doi).get("pmcid") or "") or None
-        if pmcid:
-            results.append(retrieve_supplements_from_pmc_oa(pmcid, doi=doi, **kwargs))  # type: ignore[arg-type]
+    if not hosted.has_supplements and pmcid:
+        results.append(retrieve_supplements_from_pmc_oa(pmcid, doi=doi, **kwargs))  # type: ignore[arg-type]
 
     data_dois: list[str] = []
     if follow_related:
@@ -1320,7 +1327,11 @@ def _run_source(
     kwargs: dict[str, Any],
     pmcid: str | None,
 ) -> SupplementRetrievalResult | None:
-    """Run a single named source (used for explicit ``sources`` overrides)."""
+    """Run a single named source (used for explicit ``sources`` overrides).
+
+    *pmcid*, when already resolved by an earlier source, spares ``pmc_oa`` the
+    Europe PMC search request it would otherwise issue to find one.
+    """
     if source == "europepmc":
         return retrieve_supplements_from_europepmc(doi, **kwargs)
     if source == "pmc_oa":

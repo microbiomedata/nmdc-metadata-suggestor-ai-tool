@@ -489,6 +489,22 @@ def test_orchestrator_falls_back_to_pmc_oa() -> None:
 
 
 @responses.activate
+def test_orchestrator_reuses_resolved_pmcid_across_explicit_sources() -> None:
+    # An explicit ["europepmc", "pmc_oa"] run must hit the Europe PMC search API
+    # once: europepmc already resolved the PMCID that pmc_oa needs.
+    _register_search(has_suppl="N")
+    _register_oa_service()
+    targz = _make_targz({"PMC123456/data.csv": b"a,b\n1,2\n"})
+    responses.add(responses.GET, OA_TGZ_URL, body=targz, status=200)
+
+    result = retrieve_supplements(DOI, sources=["europepmc", "pmc_oa"])
+
+    assert [os.path.basename(f.filename) for f in result.files] == ["data.csv"]
+    searches = [c for c in responses.calls if c.request.url.startswith(EUROPEPMC_API_URL)]
+    assert len(searches) == 1
+
+
+@responses.activate
 def test_orchestrator_routes_dryad_doi() -> None:
     # A Dryad DOI routes to the Dryad retriever, which fetches via the Zenodo mirror.
     responses.add(
