@@ -6,22 +6,26 @@ from pathlib import Path
 from typing import Any, cast
 
 import google.auth
-import google.auth.transport.requests
-from claude_agent_sdk import (
-    AssistantMessage,
-    ClaudeAgentOptions,
-    ResultMessage,
-    SystemMessage,
-    query,
-)
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types as genai_types
 from google.oauth2 import service_account
 from openai import OpenAI
 
+from nmdc_metadata_suggestor_ai_tool.langfuse_claude_sdk import (
+    AssistantMessage,
+    ClaudeAgentOptions,
+    ResultMessage,
+    SystemMessage,
+    query,
+)
 from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
 from nmdc_metadata_suggestor_ai_tool.system_prompt import orchestrator_prompt
+from nmdc_metadata_suggestor_ai_tool.tracing import (
+    langfuse_client,
+    observe,
+    propagate_attributes,
+)
 
 load_dotenv()
 
@@ -340,9 +344,10 @@ class ConversationManager:
                         continue
         raise ValueError(f"Could not extract LLMOutput from structured_output: {raw}")
 
+    @observe(name="agentic", as_type="span", capture_input=False, capture_output=False)
     async def agentic(
         self, session_id: str | None = None, message: str | None = None
-    ) -> tuple[LLMOutput, str | None]:
+    ) -> tuple[Any, str | None]:
         """
         Agentic interaction, session handling, and skill/tool usage via Claude Agent SDK
         IMPORTANT NOTE: This only works with GCP auth right now.
@@ -365,9 +370,16 @@ class ConversationManager:
         if message is None:
             raise ValueError("message is required")
 
+        if langfuse_client is not None:
+            langfuse_client.update_current_span(
+                input=message,
+                metadata={"model": self.llm_client.model},
+            )
+
         result: Any = None
         if session_id is None:
-            # start a new session and capture its ID
+            # Session ID is unknown until the first init event, so we tag
+            # the outer span via metadata after the loop completes.
             async for event in query(
                 prompt=message,
                 options=options,
@@ -378,16 +390,24 @@ class ConversationManager:
                     print(f"Assistant: {event.content}")
                 elif isinstance(event, ResultMessage):
                     result = self.unwrap_structured_output(event.structured_output)
-
+            if langfuse_client is not None:
+                langfuse_client.update_current_span(
+                    output=result,
+                    metadata={"model": self.llm_client.model, "session_id": session_id},
+                )
         else:
             options.resume = session_id
-            async for event in query(
-                prompt=message,
-                options=options,
-            ):
-                if isinstance(event, SystemMessage) and event.subtype == "init":
-                    session_id = event.data["session_id"]
-                elif isinstance(event, ResultMessage):
-                    result = self.unwrap_structured_output(event.structured_output)
-                    return result, session_id
+            # Session ID is known upfront — propagate it so all child spans
+            # (produced by ClaudeAgentSDKInstrumentor) inherit it.
+            with propagate_attributes(session_id=session_id):
+                async for event in query(
+                    prompt=message,
+                    options=options,
+                ):
+                    if isinstance(event, SystemMessage) and event.subtype == "init":
+                        session_id = event.data["session_id"]
+                    elif isinstance(event, ResultMessage):
+                        result = self.unwrap_structured_output(event.structured_output)
+            if langfuse_client is not None:
+                langfuse_client.update_current_span(output=result)
         return result, session_id
