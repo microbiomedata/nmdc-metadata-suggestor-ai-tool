@@ -61,7 +61,7 @@ skill. This is performance-first — make a single attempt per DOI and skip on
 failure:
 
 ```python
-from nmdc_metadata_suggestor_ai_tool.publication_ingestion.retrieve_supplements import (
+from nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements import (
     retrieve_supplements,
 )
 

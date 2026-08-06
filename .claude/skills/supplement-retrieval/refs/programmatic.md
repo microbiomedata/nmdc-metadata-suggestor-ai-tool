@@ -1,9 +1,9 @@
 # Supplement Retrieval — Programmatic API
 
-**Import path:** `nmdc_metadata_suggestor_ai_tool.publication_ingestion.retrieve_supplements`
+**Import path:** `nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements`
 
 ```python
-from nmdc_metadata_suggestor_ai_tool.publication_ingestion.retrieve_supplements import (
+from nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements import (
     retrieve_supplements,  # orchestrator: routes + merges by DOI type
     retrieve_supplements_from_europepmc,  # Europe PMC supplementaryFiles ZIP
     retrieve_supplements_from_pmc_oa,  # NCBI PMC OA .tar.gz package (by PMCID)
@@ -20,6 +20,22 @@ from nmdc_metadata_suggestor_ai_tool.publication_ingestion.retrieve_supplements 
     is_dryad_doi,  # True for 10.5061/… DOIs
     DEFAULT_USEFUL_KINDS,  # {TABULAR, DOCUMENT}
 )
+```
+
+The package is one module per source over a shared core, so you can also import
+from a specific one when you want only that source's internals:
+
+```text
+publication_ingestion/supplements/
+  __init__.py       # the public API above
+  shared.py         # bounded downloads, member selection against the caps, JATS captions
+  europepmc.py      # Europe PMC supplementaryFiles ZIP
+  pmc_oa.py         # NCBI PMC OA .tar.gz package
+  dryad.py          # Dryad datasets (via their Zenodo mirror)
+  zenodo.py         # Zenodo records
+  figshare.py       # Figshare articles/collections
+  related_dois.py   # relation metadata + text/accession mining
+  retrieve.py       # retrieve_supplements: routing, shared budget, merge
 ```
 
 ## `retrieve_supplements(doi, ...)`

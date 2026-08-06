@@ -22,14 +22,8 @@ from nmdc_metadata_suggestor_ai_tool.constants import (
     ZENODO_API,
 )
 from nmdc_metadata_suggestor_ai_tool.models.supplement import SupplementKind
-from nmdc_metadata_suggestor_ai_tool.publication_ingestion import (
-    retrieve_supplements as retrieve_supplements_module,
-)
 from nmdc_metadata_suggestor_ai_tool.publication_ingestion.download_pdf import remove_temp_files
-from nmdc_metadata_suggestor_ai_tool.publication_ingestion.retrieve_supplements import (
-    _download_bounded,
-    _Member,
-    _select_members,
+from nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements import (
     classify_supplement,
     extract_accessions_from_text,
     extract_dataset_dois_from_text,
@@ -44,6 +38,18 @@ from nmdc_metadata_suggestor_ai_tool.publication_ingestion.retrieve_supplements 
     retrieve_supplements_from_figshare,
     retrieve_supplements_from_pmc_oa,
     retrieve_supplements_from_zenodo,
+)
+from nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements import (
+    pmc_oa as pmc_oa_module,
+)
+from nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements.retrieve import (
+    is_removable_temp_file,
+    merge_results,
+)
+from nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements.shared import (
+    Member,
+    download_bounded,
+    select_members,
 )
 
 DOI = "10.1038/s41564-020-00861-0"
@@ -123,11 +129,11 @@ def test_classify_supplement_by_extension() -> None:
 def test_select_members_caps_apply_to_unknown_reported_size() -> None:
     # Sources that report size 0 (no Content-Length) must not bypass the budget.
     members = [
-        _Member(name="a.csv", size=0, read=lambda: b"x" * 40),
-        _Member(name="b.csv", size=0, read=lambda: b"y" * 40),
-        _Member(name="c.csv", size=0, read=lambda: b"z" * 40),
+        Member(name="a.csv", size=0, read=lambda: b"x" * 40),
+        Member(name="b.csv", size=0, read=lambda: b"y" * 40),
+        Member(name="c.csv", size=0, read=lambda: b"z" * 40),
     ]
-    kept, skipped = _select_members(
+    kept, skipped = select_members(
         members,
         kept_kinds=frozenset({SupplementKind.TABULAR}),
         max_files=10,
@@ -145,8 +151,8 @@ def test_select_members_caps_apply_to_unknown_reported_size() -> None:
 def test_select_members_rejects_member_larger_than_reported() -> None:
     # A member that under-reports its size is dropped after the read rather than
     # being materialized past the per-file cap.
-    kept, skipped = _select_members(
-        [_Member(name="big.csv", size=0, read=lambda: b"x" * 500)],
+    kept, skipped = select_members(
+        [Member(name="big.csv", size=0, read=lambda: b"x" * 500)],
         kept_kinds=frozenset({SupplementKind.TABULAR}),
         max_files=10,
         max_file_bytes=100,
@@ -199,13 +205,13 @@ def test_download_bounded_errors_are_source_agnostic() -> None:
         responses.GET, url, body=b"x" * 500, status=200, headers={"Content-Length": "500"}
     )
     with pytest.raises(RuntimeError, match=r"^Download size 500 bytes exceeds cap 10 bytes$"):
-        _download_bounded(url, 10)
+        download_bounded(url, 10)
 
     # With no declared length the cap trips mid-stream instead.
     responses.reset()
     responses.add(responses.GET, url, body=io.BufferedReader(io.BytesIO(b"x" * 500)), status=200)
     with pytest.raises(RuntimeError, match=r"^Download exceeded size cap of 10 bytes$"):
-        _download_bounded(url, 10)
+        download_bounded(url, 10)
 
 
 # ---------------------------------------------------------------------------
@@ -365,7 +371,7 @@ def test_pmc_oa_retrieves_and_captions_from_nxml() -> None:
 @responses.activate
 def test_pmc_oa_skips_oversized_nxml(monkeypatch) -> None:
     # OA packages are untrusted: an over-large NXML is never handed to the parser.
-    monkeypatch.setattr(retrieve_supplements_module, "SUPPLEMENT_MAX_XML_BYTES", 50)
+    monkeypatch.setattr(pmc_oa_module, "SUPPLEMENT_MAX_XML_BYTES", 50)
     _register_oa_service()
     targz = _make_targz(
         {
@@ -834,9 +840,6 @@ def test_merge_results_deletes_trimmed_temp_files(tmp_path) -> None:
         SupplementFile,
         SupplementRetrievalResult,
     )
-    from nmdc_metadata_suggestor_ai_tool.publication_ingestion.retrieve_supplements import (
-        _merge_results,
-    )
 
     kept_path = tmp_path / "kept.pdf"
     kept_path.write_bytes(b"%PDF-1.4 kept")
@@ -871,7 +874,7 @@ def test_merge_results_deletes_trimmed_temp_files(tmp_path) -> None:
     )
 
     # max_files=1 forces the second file to be trimmed from the union.
-    merged = _merge_results("x", [r1, r2], [], max_files=1, max_total_bytes=1_000_000)
+    merged = merge_results("x", [r1, r2], [], max_files=1, max_total_bytes=1_000_000)
 
     assert [f.filename for f in merged.files] == ["kept.pdf"]
     assert kept_path.exists()  # kept file's temp path untouched
@@ -884,9 +887,6 @@ def test_merge_results_keeps_same_basename_from_one_source() -> None:
     from nmdc_metadata_suggestor_ai_tool.models.supplement import (
         SupplementFile,
         SupplementRetrievalResult,
-    )
-    from nmdc_metadata_suggestor_ai_tool.publication_ingestion.retrieve_supplements import (
-        _merge_results,
     )
 
     def _file(name: str) -> SupplementFile:
@@ -904,7 +904,7 @@ def test_merge_results_keeps_same_basename_from_one_source() -> None:
         files=[_file("PMC1/Table_S1.xlsx"), _file("PMC1/extra/Table_S1.xlsx")],
     )
 
-    merged = _merge_results("x", [result], [], max_files=10, max_total_bytes=1_000_000)
+    merged = merge_results("x", [result], [], max_files=10, max_total_bytes=1_000_000)
 
     assert [f.filename for f in merged.files] == [
         "PMC1/Table_S1.xlsx",
@@ -915,7 +915,7 @@ def test_merge_results_keeps_same_basename_from_one_source() -> None:
     repeat = SupplementRetrievalResult(
         doi="x", source="pmc_oa", files=[_file("PMC1/Table_S1.xlsx")]
     )
-    deduped = _merge_results("x", [result, repeat], [], max_files=10, max_total_bytes=1_000_000)
+    deduped = merge_results("x", [result, repeat], [], max_files=10, max_total_bytes=1_000_000)
     assert len(deduped.files) == 2
 
 
@@ -925,9 +925,6 @@ def test_merge_results_keeps_user_managed_files(tmp_path) -> None:
     from nmdc_metadata_suggestor_ai_tool.models.supplement import (
         SupplementFile,
         SupplementRetrievalResult,
-    )
-    from nmdc_metadata_suggestor_ai_tool.publication_ingestion.retrieve_supplements import (
-        _merge_results,
     )
 
     save_dir = tmp_path / "supplements"
@@ -950,7 +947,7 @@ def test_merge_results_keeps_user_managed_files(tmp_path) -> None:
             ],
         )
 
-    merged = _merge_results(
+    merged = merge_results(
         "x",
         [
             _result("europepmc", "kept.pdf", save_dir / "kept.pdf"),
@@ -967,10 +964,6 @@ def test_merge_results_keeps_user_managed_files(tmp_path) -> None:
 
 
 def test_is_removable_temp_file_rejects_paths_outside_temp(tmp_path, monkeypatch) -> None:
-    from nmdc_metadata_suggestor_ai_tool.publication_ingestion.retrieve_supplements import (
-        _is_removable_temp_file,
-    )
-
     # Pin the temp root rather than probing the real one: a checkout that itself
     # lives under /tmp would otherwise make every path look removable.
     temp_root = tmp_path / "tmproot"
@@ -979,8 +972,8 @@ def test_is_removable_temp_file_rejects_paths_outside_temp(tmp_path, monkeypatch
     outside.mkdir()
     monkeypatch.setattr(tempfile, "gettempdir", lambda: str(temp_root))
 
-    assert _is_removable_temp_file(str(temp_root / "scratch.pdf")) is True
-    assert _is_removable_temp_file(str(outside / "table_s1.pdf")) is False
+    assert is_removable_temp_file(str(temp_root / "scratch.pdf")) is True
+    assert is_removable_temp_file(str(outside / "table_s1.pdf")) is False
 
 
 # ---------------------------------------------------------------------------

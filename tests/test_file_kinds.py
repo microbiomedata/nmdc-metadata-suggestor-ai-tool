@@ -35,8 +35,8 @@ def test_taxonomy_constants_are_consistent() -> None:
 
 
 def test_classify_supplement_alias_still_works() -> None:
-    # The supplement module re-exports classify_file under its documented name.
-    from nmdc_metadata_suggestor_ai_tool.publication_ingestion.retrieve_supplements import (
+    # The supplements package re-exports classify_file under its documented name.
+    from nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements import (
         classify_supplement,
     )
 

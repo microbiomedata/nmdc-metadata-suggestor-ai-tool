@@ -58,7 +58,7 @@ Call `retrieve_supplements(doi)`. For a publication DOI it resolves in layers an
    surfaced in `result.detected_accessions` but **not** retrieved.
 
 ```python
-from nmdc_metadata_suggestor_ai_tool.publication_ingestion.retrieve_supplements import (
+from nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements import (
     retrieve_supplements,
 )
 
