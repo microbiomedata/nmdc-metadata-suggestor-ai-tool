@@ -86,25 +86,26 @@ def find_supplement_source_europepmc(doi: str) -> dict[str, object]:
     article_id = article.get("id")
     result["source"] = source
     result["article_id"] = article_id
-    result["pmcid"] = article.get("pmcid")
+    pmcid = article.get("pmcid")
+    result["pmcid"] = pmcid
     result["is_open_access"] = article.get("isOpenAccess") == "Y"
     # ``hasSuppl`` is "Y"/"N" when present. Treat only an explicit "Y" as a
     # signal to attempt download, so we avoid wasted requests (performance-first).
     result["has_supplements"] = article.get("hasSuppl") == "Y"
-    if source and article_id:
-        result["zip_url"] = EUROPEPMC_SUPPL_URL_TEMPLATE.format(
-            source=source, article_id=article_id
-        )
+    # The supplement endpoint keys on the PMCID alone. A record without one (not
+    # in PMC) has no supplements to serve, whatever ``source``/``id`` it carries.
+    if pmcid:
+        result["zip_url"] = EUROPEPMC_SUPPL_URL_TEMPLATE.format(pmcid=pmcid)
     return result
 
 
-def fetch_europepmc_captions(source: str, article_id: str) -> dict[str, str]:
+def fetch_europepmc_captions(pmcid: str) -> dict[str, str]:
     """Best-effort fetch of supplement captions from Europe PMC full-text JATS.
 
     The JATS document is size-bounded like every other download: an over-large
     (or missing/non-200) document yields no captions rather than being buffered.
     """
-    url = EUROPEPMC_FULLTEXT_XML_URL_TEMPLATE.format(source=source, article_id=article_id)
+    url = EUROPEPMC_FULLTEXT_XML_URL_TEMPLATE.format(pmcid=pmcid)
     try:
         data = download_bounded(url, SUPPLEMENT_MAX_XML_BYTES)
     except RuntimeError:
@@ -178,8 +179,8 @@ def retrieve_supplements_from_europepmc(
         return result
 
     captions: dict[str, str] = {}
-    if include_captions and located.get("source") and located.get("article_id"):
-        captions = fetch_europepmc_captions(str(located["source"]), str(located["article_id"]))
+    if include_captions and located.get("pmcid"):
+        captions = fetch_europepmc_captions(str(located["pmcid"]))
 
     with archive:
         members = [

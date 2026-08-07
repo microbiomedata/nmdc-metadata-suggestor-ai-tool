@@ -54,12 +54,13 @@ OSTI_E2_API_URL = "https://www.osti.gov/elink2api/records"
 EUROPEPMC_REST_URL = "https://www.ebi.ac.uk/europepmc/webservices/rest"
 EUROPEPMC_API_URL = f"{EUROPEPMC_REST_URL}/search"
 # Supplementary files endpoint: returns a ZIP archive of an article's
-# supplements. ``source`` is the Europe PMC source DB (e.g. ``PMC``) and
-# ``article_id`` is that source's article id (e.g. ``PMC3258517``).
-EUROPEPMC_SUPPL_URL_TEMPLATE = f"{EUROPEPMC_REST_URL}/{{source}}/{{article_id}}/supplementaryFiles"
+# supplements. Both this and the full-text endpoint key on the bare PMCID
+# (e.g. ``PMC3258517``) -- there is no source-DB path segment. Interpolating a
+# ``{source}/{article_id}`` pair (e.g. ``MED/33526884``) 404s for every article.
+EUROPEPMC_SUPPL_URL_TEMPLATE = f"{EUROPEPMC_REST_URL}/{{pmcid}}/supplementaryFiles"
 # Full-text JATS XML endpoint. Its ``<supplementary-material>`` elements carry
 # captions/labels used to select supplements by content rather than extension.
-EUROPEPMC_FULLTEXT_XML_URL_TEMPLATE = f"{EUROPEPMC_REST_URL}/{{source}}/{{article_id}}/fullTextXML"
+EUROPEPMC_FULLTEXT_XML_URL_TEMPLATE = f"{EUROPEPMC_REST_URL}/{{pmcid}}/fullTextXML"
 
 
 # Dryad data repository (hosts supplement-as-dataset files; DOI prefix 10.5061).

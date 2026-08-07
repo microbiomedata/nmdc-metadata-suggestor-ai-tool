@@ -12,6 +12,7 @@ import responses
 from nmdc_metadata_suggestor_ai_tool.constants import (
     CROSSREF_API_URL,
     DATACITE_API_URL,
+    DEFAULT_TIMEOUT,
     DRYAD_API_URL,
     EUROPEPMC_API_URL,
     EUROPEPMC_FULLTEXT_XML_URL_TEMPLATE,
@@ -19,6 +20,7 @@ from nmdc_metadata_suggestor_ai_tool.constants import (
     FIGSHARE_API,
     ZENODO_API,
 )
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import request_with_retry
 from nmdc_metadata_suggestor_ai_tool.models.supplement import SupplementKind
 from nmdc_metadata_suggestor_ai_tool.publication_ingestion.download_pdf import remove_temp_files
 from nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements import (
@@ -49,8 +51,8 @@ DOI = "10.1038/s41564-020-00861-0"
 DRYAD_DOI = "10.5061/dryad.abc123"
 ZENODO_DOI = "10.5281/zenodo.123456"
 FIGSHARE_DOI = "10.6084/m9.figshare.123456"
-SUPPL_URL = EUROPEPMC_SUPPL_URL_TEMPLATE.format(source="PMC", article_id="PMC123456")
-FULLTEXT_URL = EUROPEPMC_FULLTEXT_XML_URL_TEMPLATE.format(source="PMC", article_id="PMC123456")
+SUPPL_URL = EUROPEPMC_SUPPL_URL_TEMPLATE.format(pmcid="PMC123456")
+FULLTEXT_URL = EUROPEPMC_FULLTEXT_XML_URL_TEMPLATE.format(pmcid="PMC123456")
 
 
 def _make_zip(members: dict[str, bytes]) -> bytes:
@@ -208,6 +210,57 @@ def test_find_supplement_source_reports_availability() -> None:
     assert info["has_supplements"] is True
     assert info["pmcid"] == "PMC123456"
     assert info["zip_url"] == SUPPL_URL
+
+
+@responses.activate
+def test_europepmc_zip_url_keys_on_pmcid_not_source_id() -> None:
+    # The endpoint takes a bare PMCID with no source-DB path segment. Most search
+    # hits are MED-sourced, so building the URL from ``source``/``id`` yields
+    # ``/MED/<pmid>/supplementaryFiles``, which 404s for every article. Asserted
+    # as a literal because a mocked request would match whatever URL we invent.
+    responses.add(
+        responses.GET,
+        EUROPEPMC_API_URL,
+        json={
+            "resultList": {
+                "result": [
+                    {
+                        "source": "MED",
+                        "id": "33526884",
+                        "pmcid": "PMC8007473",
+                        "isOpenAccess": "Y",
+                        "hasSuppl": "Y",
+                    }
+                ]
+            }
+        },
+        status=200,
+    )
+    info = find_supplement_source_europepmc(DOI)
+    assert info["zip_url"] == (
+        "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC8007473/supplementaryFiles"
+    )
+
+
+@responses.activate
+def test_europepmc_without_pmcid_has_no_zip_url() -> None:
+    # A record that is not in PMC has no PMCID to key the endpoint on.
+    responses.add(
+        responses.GET,
+        EUROPEPMC_API_URL,
+        json={
+            "resultList": {
+                "result": [{"source": "MED", "id": "999", "isOpenAccess": "Y", "hasSuppl": "Y"}]
+            }
+        },
+        status=200,
+    )
+    info = find_supplement_source_europepmc(DOI)
+    assert info["zip_url"] is None
+
+    result = retrieve_supplements_from_europepmc(DOI)
+    assert result.files == []
+    assert result.error is not None
 
 
 @responses.activate
@@ -964,6 +1017,8 @@ integration = pytest.mark.integration
 LIVE_ZENODO_DOI = "10.5281/zenodo.8436315"  # .docx + two .csv files
 LIVE_FIGSHARE_DOI = "10.6084/m9.figshare.33084674.v1"  # a .pdf file
 LIVE_DRYAD_DOI = "10.5061/dryad.51c59zwfj"  # Zenodo-mirrored dataset with .csv files
+# Microbiome (BMC), PMC6298009 -- ~1.4 MB supplement ZIP with a captioned PDF.
+LIVE_EUROPEPMC_DOI = "10.1186/s40168-018-0605-2"
 
 
 def _assert_live_result(result, source: str) -> None:
@@ -975,6 +1030,45 @@ def _assert_live_result(result, source: str) -> None:
     for f in result.files:
         assert f.source == source
         assert f.text is not None or f.saved_path is not None
+    remove_temp_files([f.saved_path for f in result.files if f.saved_path])
+
+
+@integration
+def test_europepmc_live() -> None:
+    # The hosted-supplement path for publication DOIs. Nothing but a live call
+    # exercises the real endpoint URL -- mocked tests match whatever URL the code
+    # builds, which is how a wrong URL template went unnoticed.
+    doi = os.environ.get("NMDC_TEST_EUROPEPMC_DOI", LIVE_EUROPEPMC_DOI)
+    _assert_live_result(retrieve_supplements_from_europepmc(doi), "europepmc")
+
+
+@integration
+def test_europepmc_live_url_is_reachable() -> None:
+    # Pin the failure to the URL itself: a 404 here means the endpoint shape
+    # changed, separate from any parsing/caps behavior downstream.
+    doi = os.environ.get("NMDC_TEST_EUROPEPMC_DOI", LIVE_EUROPEPMC_DOI)
+    info = find_supplement_source_europepmc(doi)
+    assert info.get("error") is None, info
+    assert info["has_supplements"] is True, f"expected a record with supplements: {info}"
+    assert info["zip_url"], info
+
+    response = request_with_retry("GET", str(info["zip_url"]), stream=True, timeout=DEFAULT_TIMEOUT)
+    try:
+        assert response.status_code == 200, (
+            f"{info['zip_url']} returned {response.status_code}; the endpoint keys on the "
+            "bare PMCID and takes no source-DB path segment"
+        )
+    finally:
+        response.close()
+
+
+@integration
+def test_retrieve_supplements_live_publication_doi() -> None:
+    # End-to-end through the orchestrator, the way the skill and agent call it.
+    doi = os.environ.get("NMDC_TEST_EUROPEPMC_DOI", LIVE_EUROPEPMC_DOI)
+    result = retrieve_supplements(doi, follow_related=False)
+    assert result.files, f"expected files, got error: {result.error}"
+    assert result.pmcid, "expected the Europe PMC record's PMCID to be reported"
     remove_temp_files([f.saved_path for f in result.files if f.saved_path])
 
 
