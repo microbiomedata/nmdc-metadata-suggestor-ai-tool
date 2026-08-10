@@ -86,7 +86,7 @@ def download_bounded(url: str, max_bytes: int) -> bytes:
             response.close()
 
 
-def _unclaimed_path(save_dir: str, name: str) -> str:
+def unclaimed_path(save_dir: str, name: str) -> str:
     """Return a path under *save_dir* for *name* that no existing file holds.
 
     Members keep only their basename, and two of them can legitimately share one:
@@ -140,7 +140,7 @@ def materialize_member(
     if save_dir:
         os.makedirs(save_dir, exist_ok=True)
         safe_name = os.path.basename(filename) or f"supplement{suffix}"
-        path = _unclaimed_path(save_dir, safe_name)
+        path = unclaimed_path(save_dir, safe_name)
     else:
         fd, path = tempfile.mkstemp(suffix=suffix)
         os.close(fd)
