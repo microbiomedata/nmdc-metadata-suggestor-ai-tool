@@ -14,11 +14,26 @@ from nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements import (
     extract_accessions_from_text,  # text -> PRJNA…/SRR…/GSE… accessions
     find_supplement_source_europepmc,  # availability check, no download
     parse_supplement_captions,  # JATS XML -> {filename_key: caption}
-    classify_supplement,  # filename -> SupplementKind
     is_dryad_doi,  # True for 10.5061/… DOIs
-    DEFAULT_USEFUL_KINDS,  # {TABULAR, DOCUMENT}
 )
 ```
+
+The file-type taxonomy is not supplement-specific and lives in its own module,
+so import it from there rather than through this package:
+
+```python
+from nmdc_metadata_suggestor_ai_tool.file_kinds import (
+    classify_file,  # filename -> SupplementKind
+    DEFAULT_USEFUL_KINDS,  # {TABULAR, DOCUMENT}
+    EXTENSION_KINDS,  # extension -> SupplementKind, the full mapping
+    TEXT_LIKE_EXTENSIONS,  # extensions inlined as text rather than saved
+)
+```
+
+`DEFAULT_USEFUL_KINDS` and `classify_file` (aliased there as
+`classify_supplement`) are also re-exported from the supplements package, so
+older imports still work — but `file_kinds` is where they are defined and
+maintained.
 
 The package is one module per source over a shared core, so you can also import
 from a specific one when you want only that source's internals:
