@@ -7,19 +7,14 @@ are mirrored on Zenodo, and Dryad's own download API is auth-gated.
 from collections.abc import Iterable
 
 from nmdc_metadata_suggestor_ai_tool.constants import (
-    DEFAULT_TIMEOUT,
     SUPPLEMENT_MAX_ARCHIVE_BYTES,
     SUPPLEMENT_MAX_FILE_BYTES,
     SUPPLEMENT_MAX_FILES,
     SUPPLEMENT_MAX_TEXT_CHARS,
     SUPPLEMENT_MAX_TOTAL_BYTES,
-    USER_AGENT,
-    ZENODO_API,
 )
-from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import (
-    normalize_doi,
-    request_with_retry,
-)
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import normalize_doi
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.zenodo import zenodo_search_hits
 from nmdc_metadata_suggestor_ai_tool.file_kinds import DEFAULT_USEFUL_KINDS
 from nmdc_metadata_suggestor_ai_tool.models.supplement import (
     SupplementKind,
@@ -70,22 +65,18 @@ def retrieve_supplements_from_zenodo(
 def zenodo_file_members(doi: str, max_file_bytes: int) -> tuple[list[Member], str | None]:
     """Return download members for the Zenodo record matching *doi*.
 
+    The search itself is delegated to
+    :func:`~nmdc_metadata_suggestor_ai_tool.doi_ingestion.zenodo.zenodo_search_hits`,
+    which the DOI resolver also uses; only the file selection is specific here.
+
     Shared by the Zenodo retriever and the Dryad retriever (Dryad datasets are
     mirrored on Zenodo, and Dryad's own download API is auth-gated). Returns
     ``(members, error)`` where ``error`` is set when no record/files were found.
     """
-    try:
-        response = request_with_retry(
-            "GET",
-            ZENODO_API,
-            params={"q": f'doi:"{doi}" OR conceptdoi:"{doi}"'},
-            timeout=DEFAULT_TIMEOUT,
-            headers={"User-Agent": USER_AGENT},
-        )
-        response.raise_for_status()
-        hits = response.json().get("hits", {}).get("hits", [])
-    except Exception as exc:
-        return [], f"Zenodo lookup failed: {exc}"
+    errors: list[str] = []
+    hits = zenodo_search_hits(doi, errors)
+    if hits is None:
+        return [], errors[0] if errors else "Zenodo lookup failed"
 
     hit = first_matching(hits, doi, ("doi", "conceptdoi"))
     if hit is None:
