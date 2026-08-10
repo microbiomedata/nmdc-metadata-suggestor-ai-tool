@@ -51,14 +51,18 @@ def download_bounded(url: str, max_bytes: int) -> bytes:
     Raises:
         RuntimeError: On HTTP error, oversized response, or network failure.
     """
-    response = request_with_retry(
-        "GET",
-        url,
-        stream=True,
-        timeout=DEFAULT_TIMEOUT,
-        headers={"User-Agent": USER_AGENT},
-    )
+    response = None
     try:
+        # Inside the try: a connection error/timeout here must surface as the
+        # documented RuntimeError like every other failure, since callers treat
+        # a failed download as "no supplements", not as an exception to escape.
+        response = request_with_retry(
+            "GET",
+            url,
+            stream=True,
+            timeout=DEFAULT_TIMEOUT,
+            headers={"User-Agent": USER_AGENT},
+        )
         response.raise_for_status()
         declared = response.headers.get("Content-Length")
         if declared is not None and declared.isdigit() and int(declared) > max_bytes:
@@ -78,7 +82,30 @@ def download_bounded(url: str, max_bytes: int) -> bytes:
     except Exception as exc:
         raise RuntimeError(f"Failed to download supplements: {exc}") from exc
     finally:
-        response.close()
+        if response is not None:
+            response.close()
+
+
+def _unclaimed_path(save_dir: str, name: str) -> str:
+    """Return a path under *save_dir* for *name* that no existing file holds.
+
+    Members keep only their basename, and two of them can legitimately share one:
+    a ZIP's ``figures/Table_S1.xlsx`` and a Zenodo record's ``Table_S1.xlsx`` land
+    in the same result. Writing both to one path would leave two kept files
+    pointing at whichever was written last, so later collisions get a ``-1``,
+    ``-2``, ... suffix instead. Files a previous run left in a caller-managed
+    ``save_dir`` are equally never overwritten.
+    """
+    stem, dot, ext = name.rpartition(".")
+    if not stem:  # no extension, or a dotfile like ".gitignore"
+        stem, dot, ext = name, "", ""
+
+    path = os.path.join(save_dir, name)
+    counter = 1
+    while os.path.exists(path):
+        path = os.path.join(save_dir, f"{stem}-{counter}{dot}{ext}")
+        counter += 1
+    return path
 
 
 def is_unsafe_member(name: str) -> bool:
@@ -113,7 +140,7 @@ def materialize_member(
     if save_dir:
         os.makedirs(save_dir, exist_ok=True)
         safe_name = os.path.basename(filename) or f"supplement{suffix}"
-        path = os.path.join(save_dir, safe_name)
+        path = _unclaimed_path(save_dir, safe_name)
     else:
         fd, path = tempfile.mkstemp(suffix=suffix)
         os.close(fd)

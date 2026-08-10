@@ -7,6 +7,7 @@ import zipfile
 from urllib.parse import quote
 
 import pytest
+import requests
 import responses
 
 from nmdc_metadata_suggestor_ai_tool.constants import (
@@ -149,6 +150,29 @@ def test_select_members_rejects_member_larger_than_reported() -> None:
     assert "byte cap" in (skipped[0].skipped_reason or "")
 
 
+def test_select_members_keeps_colliding_basenames_apart(tmp_path) -> None:
+    # Two members share a basename (one nested in an archive). With save_dir set
+    # they must not write to the same path, or the first file's bytes are lost
+    # and both results point at the second.
+    kept, _skipped = select_members(
+        [
+            Member(name="figures/Table_S1.xlsx", size=4, read=lambda: b"aaaa"),
+            Member(name="Table_S1.xlsx", size=4, read=lambda: b"bbbb"),
+        ],
+        kept_kinds=frozenset({SupplementKind.TABULAR}),
+        max_files=10,
+        max_file_bytes=100,
+        max_total_bytes=1000,
+        max_text_chars=1000,
+        save_dir=str(tmp_path),
+        captions=None,
+    )
+    paths = [f.saved_path for f in kept]
+    assert len(paths) == 2
+    assert len(set(paths)) == 2, "colliding basenames overwrote each other"
+    assert {open(p, "rb").read() for p in paths} == {b"aaaa", b"bbbb"}
+
+
 def test_parse_supplement_captions() -> None:
     captions = parse_supplement_captions(JATS_XML)
     assert captions["table_s1"].startswith("Table S1")
@@ -196,6 +220,26 @@ def test_download_bounded_errors_are_source_agnostic() -> None:
     responses.add(responses.GET, url, body=io.BufferedReader(io.BytesIO(b"x" * 500)), status=200)
     with pytest.raises(RuntimeError, match=r"^Download exceeded size cap of 10 bytes$"):
         download_bounded(url, 10)
+
+
+@responses.activate
+def test_download_bounded_wraps_connection_errors() -> None:
+    # A network failure must arrive as RuntimeError like every other failure:
+    # callers catch that alone, and a bare RequestException would escape them.
+    url = "https://example.org/supplement.xlsx"
+    responses.add(responses.GET, url, body=requests.ConnectionError("connection reset"))
+    with pytest.raises(RuntimeError, match="Failed to download supplements"):
+        download_bounded(url, 1000)
+
+
+@responses.activate
+def test_europepmc_reports_download_failure_instead_of_raising() -> None:
+    # An agentic caller gets a result carrying .error, not an exception.
+    _register_search()
+    responses.add(responses.GET, SUPPL_URL, body=requests.ConnectionError("connection reset"))
+    result = retrieve_supplements_from_europepmc(DOI)
+    assert result.files == []
+    assert "Failed to download supplements" in (result.error or "")
 
 
 # ---------------------------------------------------------------------------
