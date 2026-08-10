@@ -12,16 +12,11 @@ import logging
 import os
 import re
 import tempfile
-import xml.etree.ElementTree as ET
 import zipfile
 from collections.abc import Callable, Iterable
 from typing import Any, NamedTuple
 
-from nmdc_metadata_suggestor_ai_tool.constants import (
-    DEFAULT_TIMEOUT,
-    UNSAFE_XML_DECLARATION_PATTERN,
-    USER_AGENT,
-)
+from nmdc_metadata_suggestor_ai_tool.constants import DEFAULT_TIMEOUT, USER_AGENT
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import (
     normalize_doi,
     request_with_retry,
@@ -36,6 +31,7 @@ from nmdc_metadata_suggestor_ai_tool.models.supplement import (
     SupplementKind,
     SupplementRetrievalResult,
 )
+from nmdc_metadata_suggestor_ai_tool.xml_safety import parse_untrusted_xml
 
 logger = logging.getLogger(__name__)
 
@@ -153,22 +149,12 @@ def parse_supplement_captions(xml_text: str | bytes) -> dict[str, str]:
         xml_text: JATS XML document (Europe PMC ``fullTextXML``).
 
     Returns:
-        Mapping of caption key -> caption text (empty on parse failure).
+        Mapping of caption key -> caption text. Empty when the document fails
+        the shared untrusted-XML guards or does not parse.
     """
     captions: dict[str, str] = {}
-    try:
-        text = xml_text if isinstance(xml_text, str) else xml_text.decode("utf-8")
-    except UnicodeDecodeError:
-        return captions
-
-    # Refuse DOCTYPE/ENTITY declarations to avoid entity-expansion / injection via
-    # untrusted XML, matching the guard used by the DOI resolvers.
-    if UNSAFE_XML_DECLARATION_PATTERN.search(text):
-        return captions
-
-    try:
-        root = ET.fromstring(text)
-    except ET.ParseError:
+    root, _reason = parse_untrusted_xml(xml_text)
+    if root is None:
         return captions
 
     supplement_tags = {"supplementary-material", "inline-supplementary-material", "media"}
