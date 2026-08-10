@@ -4,19 +4,17 @@ from collections.abc import Iterable
 from typing import Any
 
 from nmdc_metadata_suggestor_ai_tool.constants import (
-    DEFAULT_TIMEOUT,
-    FIGSHARE_API,
-    FIGSHARE_COLLECTIONS_API,
     SUPPLEMENT_MAX_ARCHIVE_BYTES,
     SUPPLEMENT_MAX_FILE_BYTES,
     SUPPLEMENT_MAX_FILES,
     SUPPLEMENT_MAX_TEXT_CHARS,
     SUPPLEMENT_MAX_TOTAL_BYTES,
-    USER_AGENT,
 )
-from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import (
-    normalize_doi,
-    request_with_retry,
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import normalize_doi
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.figshare import (
+    FIGSHARE_ENDPOINTS,
+    figshare_detail,
+    figshare_search,
 )
 from nmdc_metadata_suggestor_ai_tool.file_kinds import DEFAULT_USEFUL_KINDS
 from nmdc_metadata_suggestor_ai_tool.models.supplement import (
@@ -80,20 +78,14 @@ def retrieve_supplements_from_figshare(
 
 
 def figshare_detail_for_doi(doi: str) -> dict[str, Any] | None:
-    """Resolve a Figshare DOI to a detailed record (with a ``files`` list)."""
-    for endpoint in (FIGSHARE_API, FIGSHARE_COLLECTIONS_API):
-        try:
-            response = request_with_retry(
-                "GET",
-                endpoint,
-                params={"doi": doi},
-                timeout=DEFAULT_TIMEOUT,
-                headers={"User-Agent": USER_AGENT},
-            )
-            response.raise_for_status()
-            matches = response.json()
-        except Exception:
-            continue
+    """Resolve a Figshare DOI to a detailed record (with a ``files`` list).
+
+    The article/collection search and the follow-up detail fetch are the DOI
+    resolver's; what is specific here is picking the DOI-matching record and
+    requiring one that actually carries files.
+    """
+    for endpoint in FIGSHARE_ENDPOINTS:
+        matches = figshare_search(doi, endpoint)
         if not isinstance(matches, list) or not matches:
             continue
         # The search is filtered by DOI, but if the endpoint returns several
@@ -101,15 +93,7 @@ def figshare_detail_for_doi(doi: str) -> dict[str, Any] | None:
         candidate = first_matching(matches, doi, ("doi",))
         if candidate is None:
             continue
-        detail_url = candidate.get("url_public_api") or f"{endpoint}/{candidate.get('id')}"
-        try:
-            detail_response = request_with_retry(
-                "GET", detail_url, timeout=DEFAULT_TIMEOUT, headers={"User-Agent": USER_AGENT}
-            )
-            detail_response.raise_for_status()
-            detail = detail_response.json()
-        except Exception:
-            continue
+        detail = figshare_detail(candidate, endpoint)
         if isinstance(detail, dict) and detail.get("files"):
             return detail
     return None
