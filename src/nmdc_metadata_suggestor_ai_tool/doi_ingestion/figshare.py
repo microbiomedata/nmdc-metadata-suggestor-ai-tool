@@ -53,7 +53,11 @@ def figshare_search(doi: str, endpoint: str, errors: list[str] | None = None) ->
                 errors, f"Figshare endpoint {endpoint} returned HTTP {response.status_code}"
             )
             return None
-        return response.json()
+        # Bind through `object` rather than returning Any straight out: callers
+        # narrow the payload themselves (Figshare returns a list, or a bare dict
+        # from a detail URL), so nothing downstream should inherit Any.
+        payload: object = response.json()
+        return payload
     except requests.RequestException as exc:
         append_error(
             errors, f"Figshare endpoint {endpoint} request failed: {exc.__class__.__name__}"
