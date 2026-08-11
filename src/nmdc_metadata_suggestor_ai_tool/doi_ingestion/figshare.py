@@ -15,24 +15,31 @@ from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import (
 )
 from nmdc_metadata_suggestor_ai_tool.models.resolver_context import ResolverContext
 
+# A Figshare DOI may name an article or a collection, and the two live behind
+# separate endpoints with no way to tell them apart from the DOI alone. Both the
+# resolver and the supplement retriever try them in this order.
+FIGSHARE_ENDPOINTS = (FIGSHARE_API, FIGSHARE_COLLECTIONS_API)
+
 
 def try_figshare(doi: str, errors: list[str] | None = None) -> ResolverContext | None:
     """Return Figshare context text for article/collection DOI if present."""
-    context = _try_figshare_entity_lookup(doi, FIGSHARE_API, errors=errors)
-    if context:
-        return context
-
-    context = _try_figshare_entity_lookup(doi, FIGSHARE_COLLECTIONS_API, errors=errors)
-    if context:
-        return context
+    for endpoint in FIGSHARE_ENDPOINTS:
+        payload = figshare_search(doi, endpoint, errors=errors)
+        if payload is None:
+            continue
+        context = _extract_figshare_context_with_detail(payload, endpoint, errors=errors)
+        if context:
+            return context
     append_error(errors, "Figshare APIs returned no usable description")
     return None
 
 
-def _try_figshare_entity_lookup(
-    doi: str, endpoint: str, errors: list[str] | None = None
-) -> ResolverContext | None:
-    """Lookup a Figshare entity list by DOI and extract context."""
+def figshare_search(doi: str, endpoint: str, errors: list[str] | None = None) -> object | None:
+    """Return the parsed payload of a Figshare DOI search against *endpoint*.
+
+    Shared with the supplement retriever, which selects a record from the same
+    search results. Returns ``None`` when the endpoint could not be queried.
+    """
     try:
         response = request_with_retry(
             "GET",
@@ -46,7 +53,11 @@ def _try_figshare_entity_lookup(
                 errors, f"Figshare endpoint {endpoint} returned HTTP {response.status_code}"
             )
             return None
-        payload = response.json()
+        # Bind through `object` rather than returning Any straight out: callers
+        # narrow the payload themselves (Figshare returns a list, or a bare dict
+        # from a detail URL), so nothing downstream should inherit Any.
+        payload: object = response.json()
+        return payload
     except requests.RequestException as exc:
         append_error(
             errors, f"Figshare endpoint {endpoint} request failed: {exc.__class__.__name__}"
@@ -55,7 +66,6 @@ def _try_figshare_entity_lookup(
     except ValueError:
         append_error(errors, f"Figshare endpoint {endpoint} returned invalid JSON")
         return None
-    return _extract_figshare_context_with_detail(payload, endpoint, errors=errors)
 
 
 def _extract_figshare_context_with_detail(
@@ -70,7 +80,7 @@ def _extract_figshare_context_with_detail(
         candidates = []
 
     for candidate in candidates:
-        detail = _fetch_figshare_detail(candidate, endpoint, errors=errors)
+        detail = figshare_detail(candidate, endpoint, errors=errors)
         if detail is not None:
             context = _extract_figshare_text(detail)
             if context:
@@ -82,10 +92,14 @@ def _extract_figshare_context_with_detail(
     return None
 
 
-def _fetch_figshare_detail(
+def figshare_detail(
     candidate: dict[str, object], endpoint: str, errors: list[str] | None = None
 ) -> dict[str, object] | None:
-    """Fetch a detailed Figshare record when search payload is summary-only."""
+    """Fetch the detailed Figshare record behind a summary-only search result.
+
+    Shared with the supplement retriever, which needs the same detail record for
+    its ``files`` list. Returns ``None`` when the record could not be fetched.
+    """
     detail_url = candidate.get("url_public_api")
     if not isinstance(detail_url, str) or not detail_url.strip():
         candidate_id = candidate.get("id")
