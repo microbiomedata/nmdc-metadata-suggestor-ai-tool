@@ -1,0 +1,34 @@
+# Review ownership. Each pattern's last match wins, so order matters.
+#
+# The env-triad extension references are written by domain specialists rather
+# than by the code. Assigning them per file means a soil PR requests the soil
+# reviewer and nothing else, and two experts never collide in one diff.
+#
+# Replace the placeholders below with GitHub usernames or teams as owners are
+# confirmed, and delete the lines that stay unowned — an unmatched pattern is
+# silently ignored, which reads as "nobody needs to review this".
+
+# Default: the maintainers.
+# *                                                          @microbiomedata/nmdc-maintainers
+
+# Env-triad domain references, one owner per MIxS environment.
+# /.claude/skills/env-triad/refs/extensions/soil.md            @TODO-soil-reviewer
+# /.claude/skills/env-triad/refs/extensions/water.md           @TODO-water-reviewer
+# /.claude/skills/env-triad/refs/extensions/sediment.md        @TODO-sediment-reviewer
+# /.claude/skills/env-triad/refs/extensions/plant-associated.md @TODO-plant-reviewer
+# /.claude/skills/env-triad/refs/extensions/host-associated.md @TODO-host-reviewer
+# /.claude/skills/env-triad/refs/extensions/air.md             @TODO-air-reviewer
+# /.claude/skills/env-triad/refs/extensions/built-env.md       @TODO-built-env-reviewer
+# /.claude/skills/env-triad/refs/extensions/biofilm.md         @TODO-biofilm-reviewer
+# /.claude/skills/env-triad/refs/extensions/hcr-cores.md       @TODO-hydrocarbon-reviewer
+# /.claude/skills/env-triad/refs/extensions/hcr-fluids-swabs.md @TODO-hydrocarbon-reviewer
+# /.claude/skills/env-triad/refs/extensions/wastewater-sludge.md @TODO-wastewater-reviewer
+# /.claude/skills/env-triad/refs/extensions/misc-envs.md       @TODO-misc-envs-reviewer
+
+# Cross-cutting env-triad rules and the code behind them stay with the
+# maintainers, even when a domain PR touches them.
+# /.claude/skills/env-triad/SKILL.md                           @microbiomedata/nmdc-maintainers
+# /.claude/skills/env-triad/refs/validation.md                 @microbiomedata/nmdc-maintainers
+# /.claude/skills/env-triad/refs/extensions.md                 @microbiomedata/nmdc-maintainers
+# /.claude/skills/env-triad/scripts/                           @microbiomedata/nmdc-maintainers
+# /src/                                                        @microbiomedata/nmdc-maintainers

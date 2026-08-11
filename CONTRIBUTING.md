@@ -129,6 +129,67 @@ def process_metadata(data: dict[str, Any]) -> dict[str, str]:
 - [ ] Commit messages are clear and descriptive
 - [ ] No merge conflicts with main branch
 
+## Contributing domain knowledge to the env-triad skill
+
+You do not need to write Python to contribute here. If you work in soil, water,
+sediment, plant, or another MIxS environment, the most valuable thing you can add
+is knowledge about how samples from that environment should be described.
+
+### Where to write
+
+One file per MIxS extension, in
+`.claude/skills/env-triad/refs/extensions/`. Find yours from the roster in
+[`refs/extensions.md`](.claude/skills/env-triad/refs/extensions.md). Each file has
+four sections; the first two are already filled in, the last two are for you:
+
+| Section | What belongs there |
+|---|---|
+| Where candidates come from | Which value set or ENVO subtrees apply. Usually already correct — tell us if it is not. |
+| Evidence in the sample record | Which sample fields carry the signal for this environment. |
+| **Domain notes** | How a specialist actually decides. Distinctions the terms do not make obvious, common misclassifications, what a submitter's wording usually means. |
+| **Worked examples** | Concrete evidence → value. "Study says X, sample field says Y, so `env_medium` is `<term>` and not `<other term>`, because …" |
+
+Worked examples are the highest-value thing you can write. One good example
+teaches more than a paragraph of rules.
+
+Keep it specific to your environment. Anything that holds across all twelve
+extensions — how a slot is validated, which ontologies a slot allows — belongs in
+[`refs/validation.md`](.claude/skills/env-triad/refs/validation.md) instead, so it
+is not repeated twelve times.
+
+### Look terms up, do not recall them
+
+Every ENVO term you write is checked by `tests/test_env_triad_references.py`: it
+must exist in the pinned ENVO release, must not be obsolete, must carry ENVO's
+own label, and — when your line names a slot — must be the right kind of term for
+that slot. Recalled CURIEs are wrong often enough that this check exists.
+
+Find and confirm terms without leaving the repo:
+
+```bash
+LOOKUP=".claude/skills/env-triad/scripts/envo_lookup.py"
+
+uv run python $LOOKUP search "paddy soil" --slot env_medium
+uv run python $LOOKUP pool soil env_medium
+uv run python $LOOKUP validate env_medium "soil [ENVO:00001998]" --interface soil
+```
+
+Write terms in full as `label [ENVO:NNNNNNN]`. `search` prints exactly that form,
+so copy it verbatim rather than retyping the label.
+
+If you need to name a term as one to *avoid* — something the schema still offers
+but ENVO has removed — add it to `DOCUMENTED_COUNTEREXAMPLES` in the test with a
+comment saying why.
+
+### Before opening the PR
+
+```bash
+uv run pytest tests/test_env_triad_references.py
+```
+
+That is the only suite your change affects. A failure names the file, the line,
+and what to do about it.
+
 ## Reporting Issues
 
 When reporting issues, please include:
