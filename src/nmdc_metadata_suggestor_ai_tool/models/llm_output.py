@@ -20,6 +20,15 @@ class MetadataFieldSuggestion(BaseModel):
         | list[str | int | float | bool]
         | dict[str, str | int | float | bool | list[str | int | float | bool]]
     ) = Field(default="", description="The recommended value for the metadata field")
+    source: str | None = Field(
+        default=None,
+        description=(
+            "Where the value came from, for env triad suggestions: "
+            "'submission_enum' (in the schema's curated value set for this MIxS "
+            "extension), 'envo_expansion' (a verified ENVO term outside that set), "
+            "or 'generalized' (broadest defensible term). Absent for other fields."
+        ),
+    )
 
 
 class LLMOutput(BaseModel):

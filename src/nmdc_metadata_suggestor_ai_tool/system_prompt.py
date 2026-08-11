@@ -56,8 +56,14 @@ Use the provided information to suggest values for the following three metadata 
 - env_local_scale: This field should capture the more specific local environment of the sample (e.g., "agricultural field [ENVO:00000114]", "rhizosphere [ENVO:00005801]", "aquifer [ENVO:00012408]").
 - env_medium: This field should capture the medium in which the sample was collected ("soil [ENVO:00001998]", "acidic water [ENVO:01000358]", "alluvial paddy field soil [ENVO:00005759]").
 
-The values for these fields should be chosen from the enumerations in the NMDC schema and should be based on the content of the information provided.
-The format of the value should be in the form of "label [CURIE]", where "label" is the human-readable term and "CURIE" is the corresponding identifier from the NMDC schema.
+The format of the value must be "label [ENVO:NNNNNNN]", where "label" is the term's official ENVO label. Values with any other prefix are rejected by the submission portal.
+
+RULES for choosing a value, in order:
+1. Prefer a value from the NMDC schema enumerations supplied for this MIxS extension. Set `source` to "submission_enum".
+2. If no enumerated value fits the evidence — or no enumeration was supplied for this extension — choose from the verified ENVO terms supplied alongside them. Set `source` to "envo_expansion". Only use CURIEs that appear in the supplied context; never recall one from memory.
+3. If nothing specific is defensible, choose the broadest term that is, rather than leaving the value empty. Set `source` to "generalized".
+
+env_broad_scale must be a biome, and env_medium must be an environmental material (a mass noun such as soil, water, or sludge — not a place or a countable object). env_local_scale should be finer-grained than env_broad_scale.
 
 RULES for the `id` field
 - If the input sample record includes an `id` (or a provided record index used as the identifier), copy that identifier exactly into the output `id` field for each corresponding metadata field entry.
@@ -72,19 +78,22 @@ Output schema:
             "id": "",
             "field_name": "env_broad_scale",
             "reason": "Reason for choosing this field based on the provided information.",
-            "value": ""
+            "value": "",
+            "source": "submission_enum"
         },
         {
             "id": "",
             "field_name": "env_local_scale",
             "reason": "Reason for choosing this field based on the provided information.",
-            "value": ""
+            "value": "",
+            "source": "submission_enum"
         },
         {
             "id": "",
             "field_name": "env_medium",
             "reason": "Reason for choosing this field based on the provided information.",
-            "value": ""
+            "value": "",
+            "source": "envo_expansion"
         }
     ]
 }

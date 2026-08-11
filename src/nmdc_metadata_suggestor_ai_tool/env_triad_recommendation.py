@@ -1,6 +1,8 @@
 import logging
 from typing import Any
 
+from nmdc_metadata_suggestor_ai_tool.constants import ENV_TRIAD_SLOTS
+from nmdc_metadata_suggestor_ai_tool.envo_index import ValidationResult, get_envo_index
 from nmdc_metadata_suggestor_ai_tool.llm_client import ConversationManager, LLMClient
 from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
 from nmdc_metadata_suggestor_ai_tool.publication_ingestion.download_pdf import remove_temp_files
@@ -14,6 +16,80 @@ from nmdc_metadata_suggestor_ai_tool.utils.submission_parser import (
 from nmdc_metadata_suggestor_ai_tool.utils.utils import chunk_samples, validate_output
 
 logger = logging.getLogger(__name__)
+
+
+def build_envo_expansion_context(interface_names: list[str] | None) -> str:
+    """Assemble the tier-2 ENVO candidate context for the given interfaces.
+
+    Always includes the complete biome list -- all of ENVO holds ~127 biomes, so
+    that is the entire env_broad_scale universe for any MIxS extension. For the
+    other two slots it names the extension-specific subtrees to draw from, which
+    is far smaller than dumping the anchor subtrees themselves.
+    """
+    index = get_envo_index()
+    biomes = index.biome_values()
+    sections = [
+        "# Verified ENVO terms (ENVO expansion tier)",
+        "Use these only when the schema enumerations above have nothing appropriate, "
+        "or when no enumeration was supplied for this MIxS extension.",
+        "",
+        f"## env_broad_scale — every ENVO biome ({len(biomes)}; this is the complete set)",
+        ", ".join(biomes),
+    ]
+    for name in interface_names or []:
+        for slot in ("env_local_scale", "env_medium"):
+            if index.expansion_seeds(name, slot):
+                sections.append("")
+                sections.append(index.format_expansion_context(name, slot))
+    return "\n".join(sections)
+
+
+def enforce_env_triad_values(output: LLMOutput, interface_names: list[str] | None) -> LLMOutput:
+    """Drop or repair env triad values that would fail submission portal validation.
+
+    Label drift is corrected in place. Anything that fails a hard check (bad
+    pattern, unknown or obsolete CURIE, wrong anchor class) is replaced by the
+    extension's generic fallback rather than emitted, so callers never receive an
+    invalid value and never receive an empty one.
+
+    ``source`` is set from the validation result rather than taken from the
+    model, so the tier label reflects whether the value really is in the
+    extension's curated set.
+    """
+    index = get_envo_index()
+    interfaces: list[str | None] = list(interface_names) if interface_names else [None]
+    fallback_interface = interface_names[0] if interface_names else ""
+
+    for suggestion in output.metadata_fields:
+        slot = suggestion.field_name
+        if slot not in ENV_TRIAD_SLOTS or not isinstance(suggestion.value, str):
+            continue
+        if not suggestion.value:
+            continue
+
+        # A value only has to satisfy one of the interfaces in play: the schema
+        # patterns differ, and host-associated admits UBERON where soil does not.
+        results = [index.validate(suggestion.value, slot, name) for name in interfaces]
+        result: ValidationResult = next((r for r in results if r.ok), results[0])
+        if result.ok:
+            suggestion.source = result.source
+            continue
+        if result.corrected_value and len(result.failures) == 1:
+            logger.info(f"Corrected {slot} label: {suggestion.value} -> {result.corrected_value}")
+            suggestion.value = result.corrected_value
+            suggestion.source = index.validate(result.corrected_value, slot, interfaces[0]).source
+            continue
+
+        fallback = index.generic_fallback(fallback_interface, slot)
+        logger.warning(
+            f"Rejected {slot} value {suggestion.value!r} ({'; '.join(result.failures)}); "
+            f"falling back to {fallback!r}"
+        )
+        suggestion.value = fallback
+        suggestion.source = "generalized"
+        suggestion.reason = f"{suggestion.reason} [Original suggestion failed ENVO validation.]"
+
+    return output
 
 
 def get_env_triad_recommendation(
@@ -64,7 +140,9 @@ def get_env_triad_recommendation(
         submission_object: Optional submission object containing metadata fields.
         llm_client: LLMClient instance used for model interaction and configuration.
         interface_names: Optional list of specific interface names to focus on for schema context.
-            If None, defaults to all interfaces.
+            If None, defaults to all interfaces -- roughly 51 KB of value sets, which costs
+            tokens and blurs precision. Pass the extension(s) actually in play whenever they
+            are known. ENVO expansion candidates are scoped to the same list.
         max_tokens: Optional maximum number of output response tokens.
     Returns:
         The response from the LLM containing the recommended environment triad metadata fields.
@@ -83,6 +161,7 @@ def get_env_triad_recommendation(
     mixs_schema = builder.format_env_triad_context(
         class_names=interface_names or builder.list_interfaces()
     )
+    envo_context = build_envo_expansion_context(interface_names)
 
     parsed_submission = get_submission_fields(submission_object) if submission_object else None
     # build submission context once to avoid repeated DOI lookups / PDF downloads per chunk
@@ -109,6 +188,7 @@ def get_env_triad_recommendation(
                 cm.add_message(text="Use the PDFs to inform your suggestions", pdf_files=pdf_files)
 
         cm.add_schema_context(mixs_schema)
+        cm.add_message(text=envo_context)
         for text in study_texts:
             cm.add_message(text=text)
 
@@ -135,4 +215,4 @@ def get_env_triad_recommendation(
     if errors:
         logger.error(f"Errors occurred in chunks: {errors}")
 
-    return aggregated
+    return enforce_env_triad_values(aggregated, interface_names)
