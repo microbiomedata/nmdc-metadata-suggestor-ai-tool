@@ -103,7 +103,7 @@ def test_cited_curie_exists_and_is_current(
     term = index.get(curie)
     assert term is not None, (
         f"{file_name}:{line} cites {curie}, which is not in ENVO {index.envo_version}. "
-        f"Look it up with `envo_lookup.py search`, or add it to DOCUMENTED_COUNTEREXAMPLES "
+        f"Look it up with EnvoIndex.search, or add it to DOCUMENTED_COUNTEREXAMPLES "
         f"if it is named deliberately as a term to avoid."
     )
     assert not term.obsolete, f"{file_name}:{line} cites {curie} ({term.label}), obsolete in ENVO"
@@ -167,18 +167,12 @@ def test_extension_file_keeps_the_expected_sections(path: Path) -> None:
     }, f"{path.name} is missing expected sections; has {sorted(headings)}"
 
 
-@pytest.mark.parametrize(
-    ("interface_name", "curie"),
-    [
-        (name, curie)
-        for name, slots in EXPANSION_SEEDS.items()
-        for c in slots.values()
-        for curie in c
-    ],
-    ids=lambda v: str(v),
-)
-def test_seeded_extensions_point_at_their_pool_command(interface_name: str, curie: str) -> None:
+@pytest.mark.parametrize("interface_name", sorted(EXPANSION_SEEDS), ids=lambda v: str(v))
+def test_seeded_extensions_show_how_to_list_their_subtrees(interface_name: str) -> None:
     """An extension with seeds must tell the reader how to see them."""
     slug = slug_for(interface_name)
     text = (EXTENSIONS_DIR / f"{slug}.md").read_text()
-    assert "envo_lookup.py pool" in text, f"{slug}.md has seeds but no pool command"
+    assert "format_expansion_context" in text, (
+        f"{slug}.md has expansion seeds but never shows how to print them"
+    )
+    assert f'"{interface_name}"' in text, f"{slug}.md does not name its own interface class"

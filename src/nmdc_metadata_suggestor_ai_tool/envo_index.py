@@ -26,6 +26,7 @@ import functools
 import gzip
 import importlib.resources
 import json
+import logging
 import re
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -38,6 +39,10 @@ from nmdc_metadata_suggestor_ai_tool.constants import (
     ENV_TRIAD_SLOTS,
     HARD_ANCHOR_SLOTS,
 )
+from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
+from nmdc_metadata_suggestor_ai_tool.utils.submission_parser import MixsExtensions
+
+logger = logging.getLogger(__name__)
 
 INDEX_RESOURCE = "envo_index.json.gz"
 
@@ -434,18 +439,6 @@ class EnvoIndex:
 
     # -- prompt formatting -------------------------------------------------
 
-    def format_candidates(self, terms: list[EnvoTerm], header: str | None = None) -> str:
-        """Format search hits as Markdown with definitions, for an LLM prompt."""
-        lines: list[str] = [f"## {header}"] if header else []
-        if not terms:
-            lines.append("(no candidates)")
-            return "\n".join(lines)
-        for term in terms:
-            lines.append(f"- {term.value}")
-            if term.definition:
-                lines.append(f"  {term.definition}")
-        return "\n".join(lines)
-
     def format_expansion_context(self, interface_name: str, slot: str) -> str:
         """Describe where ENVO expansion may draw candidates for one slot.
 
@@ -547,6 +540,79 @@ def _load_terms(raw: dict[str, Any]) -> dict[str, EnvoTerm]:
         )
         for curie, entry in raw["terms"].items()
     }
+
+
+def enforce_env_triad_values(output: LLMOutput, interface_names: list[str] | None) -> LLMOutput:
+    """Drop or repair env triad values that would fail submission portal validation.
+
+    Label drift is corrected in place. Anything that fails a hard check (bad
+    pattern, unknown or obsolete CURIE, wrong anchor class) is replaced by the
+    extension's generic fallback rather than emitted, so callers never receive an
+    invalid value and never receive an empty one.
+
+    ``source`` is set from the validation result rather than taken from the
+    model, so the tier label reflects whether the value really is in the
+    extension's curated set.
+
+    This is the deterministic gate: both the programmatic pipeline and the
+    agentic path run every suggestion through it, so a value cannot reach a
+    caller just because the model skipped its own validation step.
+
+    ``interface_names`` of None means the extension is unknown, not that the
+    strictest interface applies -- every extension is then treated as possible,
+    so a legitimate UBERON or PO value is not rejected for want of context.
+    """
+    index = get_envo_index()
+    interfaces: list[str | None] = (
+        list(interface_names) if interface_names else list(MixsExtensions.__members__)
+    )
+    fallback_interface = interface_names[0] if interface_names else ""
+
+    for suggestion in output.metadata_fields:
+        slot = suggestion.field_name
+        if slot not in ENV_TRIAD_SLOTS or not isinstance(suggestion.value, str):
+            continue
+        if not suggestion.value:
+            continue
+
+        # A value only has to satisfy one of the interfaces in play: the schema
+        # patterns differ, and host-associated admits UBERON where soil does not.
+        results = [index.validate(suggestion.value, slot, name) for name in interfaces]
+        # Prefer an interface that found the value in its curated set. Interfaces
+        # iterate in enum order, so taking the first merely-valid result would
+        # label soil [ENVO:00001998] as envo_expansion -- BuiltEnvInterface comes
+        # first and has no value set at all.
+        result: ValidationResult = (
+            next((r for r in results if r.ok and r.in_valueset), None)
+            or next((r for r in results if r.ok), None)
+            or results[0]
+        )
+        if result.ok:
+            suggestion.source = result.source
+            continue
+        if result.corrected_value and len(result.failures) == 1:
+            logger.info(f"Corrected {slot} label: {suggestion.value} -> {result.corrected_value}")
+            suggestion.value = result.corrected_value
+            suggestion.source = enforce_source_for(result.corrected_value, slot, interfaces)
+            continue
+
+        fallback = index.generic_fallback(fallback_interface, slot)
+        logger.warning(
+            f"Rejected {slot} value {suggestion.value!r} ({'; '.join(result.failures)}); "
+            f"falling back to {fallback!r}"
+        )
+        suggestion.value = fallback
+        suggestion.source = "generalized"
+        suggestion.reason = f"{suggestion.reason} [Original suggestion failed ENVO validation.]"
+
+    return output
+
+
+def enforce_source_for(value: str, slot: str, interfaces: list[str | None]) -> str:
+    """The tier label for a value, checked against every interface in play."""
+    index = get_envo_index()
+    results = [index.validate(value, slot, name) for name in interfaces]
+    return next((r.source for r in results if r.ok and r.in_valueset), "envo_expansion")
 
 
 @functools.lru_cache(maxsize=1)

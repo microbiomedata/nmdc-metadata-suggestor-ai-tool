@@ -33,7 +33,7 @@ File names come from the interface class, kebab-cased with `Interface` dropped, 
 
 ### env_broad_scale needs no expansion subtrees
 
-All of ENVO holds 127 biome terms (~5 KB), so `envo_lookup.py biomes` is the complete universe for this slot in *every* extension — no search step, no per-extension curation. The curated broad-scale value sets remain the preferred tier; the rest of the biome list is the labeled tier 2 fallback.
+All of ENVO holds 127 biome terms (~5 KB), so `index.biome_values()` is the complete universe for this slot in *every* extension — no search step, no per-extension curation. The curated broad-scale value sets remain the preferred tier; the rest of the biome list is the labeled tier 2 fallback.
 
 ### Two extensions may go outside ENVO
 
@@ -41,7 +41,7 @@ Their slot patterns say so: `host-associated` admits UBERON on `env_local_scale`
 
 ### Expansion seeds are looked up, never recalled
 
-Seeds live in `EXPANSION_SEEDS` in `src/nmdc_metadata_suggestor_ai_tool/envo_index.py`, and `envo_lookup.py pool` prints them with definitions. Every CURIE there is checked by `tests/test_envo_index.py` to exist, to be current, and to sit under its slot's anchor. So is every CURIE written into these reference files — see `tests/test_env_triad_references.py`.
+Seeds live in `EXPANSION_SEEDS` in `src/nmdc_metadata_suggestor_ai_tool/envo_index.py`, and `index.format_expansion_context(interface, slot)` prints them with definitions. Every CURIE there is checked by `tests/test_envo_index.py` to exist, to be current, and to sit under its slot's anchor. So is every CURIE written into these reference files — see `tests/test_env_triad_references.py`.
 
 ## Future seam
 

@@ -65,30 +65,21 @@ from nmdc_metadata_suggestor_ai_tool.schema_context import SchemaContextBuilder
 SchemaContextBuilder().format_env_triad_context(interfaces)
 ```
 
-**Tier 2** — verified ENVO candidates, from the pinned index. Use `scripts/envo_lookup.py`; do not write Python against the index directly. It reads no network and takes no URL.
+**Tier 2** — verified ENVO candidates from the pinned index. It reads no network and takes no URL.
 
-Run it from the repo root. Write the path out in full each time — do not stash it in a shell variable, which does not word-split under zsh.
+```python
+from nmdc_metadata_suggestor_ai_tool.envo_index import get_envo_index
 
-```bash
-# where to search for this extension
-uv run python .claude/skills/env-triad/scripts/envo_lookup.py pool wastewater_sludge env_medium
-
-# ranked candidates, scoped to the slot anchor and a subtree from `pool`
-uv run python .claude/skills/env-triad/scripts/envo_lookup.py search "activated sludge" \
-    --slot env_medium --within ENVO:00002044
-
-# specialize downward to more specific terms
-uv run python .claude/skills/env-triad/scripts/envo_lookup.py descendants ENVO:00002044
-
-# the tier-3 value for this extension and slot
-uv run python .claude/skills/env-triad/scripts/envo_lookup.py fallback wastewater_sludge env_medium
+index = get_envo_index()
+index.format_expansion_context("WastewaterSludgeInterface", "env_medium")  # where to search
+index.search("activated sludge", slot="env_medium", within=("ENVO:00002044",))
+index.descendants("ENVO:00002044")  # specialize downward to more specific terms
+index.generic_fallback("WastewaterSludgeInterface", "env_medium")  # the tier-3 value
 ```
 
-`search` matches whole words, tries the full phrase first, then falls back to individual words — so `"rhizosphere soil"` returns rhizosphere and soil terms rather than nothing. Scope it with `--slot` and `--within` to keep hits relevant.
+`search` matches whole words, tries the full phrase first, then falls back to individual words — so `"rhizosphere soil"` returns rhizosphere and soil terms rather than nothing. Scope it with `slot=` (the slot's anchor class) and `within=` (a subtree from `format_expansion_context`) to keep hits relevant.
 
-For `env_broad_scale`, skip searching entirely: all of ENVO holds 127 biomes, so the `biomes` command is the complete universe for every extension. Load it once and pick from it.
-
-Run `... envo_lookup.py --help` for the full verb list.
+For `env_broad_scale`, skip searching entirely: all of ENVO holds 127 biomes, so `index.biome_values()` is the complete universe for every extension. Load it once and pick from it.
 
 ---
 
@@ -98,10 +89,10 @@ Process samples in chunks of 50 if there are many. For each sample and each of t
 
 **Value rules:**
 - Prefer a tier 1 value. Drop to tier 2 only when no curated value fits the evidence — then search the index rather than recalling a CURIE, and record `source: "envo_expansion"`
-- Specialize downward: start from the closest tier 1 term (or the extension's seed subtree) and run `descendants` on it, looking for a more specific match the evidence supports
+- Specialize downward: start from the closest tier 1 term (or the extension's seed subtree) and call `descendants` on it, looking for a more specific match the evidence supports
 - If the exact term is already present in the sample record (e.g. an existing `env_broad_scale` field), copy it verbatim into `value` — after validating it
 - If you quote a value in `reason`, that value is explicit — put it in `value` too
-- Never leave `value` empty. With no defensible specific term, emit what `fallback <interface> <slot>` returns and record `source: "generalized"`
+- Never leave `value` empty. With no defensible specific term, emit `index.generic_fallback(interface, slot)` and record `source: "generalized"`
 
 **Reason rules:**
 - Every `reason` must cite specific input text (exact short quote up to 12 words, or paraphrase with a source label such as "abstract", "study description", "sample field")
@@ -112,18 +103,20 @@ Process samples in chunks of 50 if there are many. For each sample and each of t
 
 ## Step 6 — Validate before emitting
 
-Run every value through the gate before emitting it. Pass all the values for one slot at once:
+Check every value before emitting it. A value that fails does not get emitted — drop a tier and try again.
 
-```bash
-uv run python .claude/skills/env-triad/scripts/envo_lookup.py validate env_medium \
-    "activated sludge [ENVO:00002046]" "sludge [ENVO:00002044]" --interface wastewater_sludge
+```python
+result = index.validate(
+    "activated sludge [ENVO:00002046]", "env_medium", "WastewaterSludgeInterface"
+)
+result.ok, result.failures, result.warnings, result.corrected_value, result.source
 ```
 
-Each value prints `PASS` or `FAIL`, its `source` tier, any failures or warnings, and a `use instead:` line when the label needs correcting. **The command exits non-zero if any value failed** — do not emit a value from a failing run. Drop a tier and try again.
+Always pass the interface name: allowed prefixes and value sets are per-interface, so validating without it is stricter than the schema actually is.
 
-Always pass `--interface`: allowed prefixes and value sets are per-interface, so validating without it is stricter than the schema actually is.
+The gate checks the slot's declared pattern, that the term exists in ENVO and is not obsolete, that the label matches ENVO's official label, and anchor-class membership. Warnings are informational; only `failures` block a value. Take the tier label from `result.source` rather than deciding it yourself. Full rules, the per-interface prefix table, and the known schema defects the gate is calibrated around are in [refs/validation.md](refs/validation.md).
 
-The gate checks the slot's declared pattern, that the term exists in ENVO and is not obsolete, that the label matches ENVO's official label, and anchor-class membership. Warnings are informational; only failures block a value. Take the tier label from the reported `source` rather than deciding it yourself. Full rules, the per-interface prefix table, and the known schema defects the gate is calibrated around are in [refs/validation.md](refs/validation.md).
+The same gate runs again in Python on whatever you return, so a value that slips through here is repaired or replaced rather than reaching the caller. That is a backstop, not a substitute — a value it has to replace loses the evidence you gathered and falls back to a generic term.
 
 ---
 

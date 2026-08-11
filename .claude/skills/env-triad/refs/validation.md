@@ -1,13 +1,20 @@
 # Env triad validation
 
-```bash
-uv run python .claude/skills/env-triad/scripts/envo_lookup.py validate env_medium \
-    "activated sludge [ENVO:00002046]" --interface wastewater_sludge
+```python
+from nmdc_metadata_suggestor_ai_tool.envo_index import get_envo_index
+
+result = get_envo_index().validate(
+    "activated sludge [ENVO:00002046]", "env_medium", "WastewaterSludgeInterface"
+)
 ```
 
-Each value prints `PASS` or `FAIL`, its `source` tier, any failures or warnings, and a `use instead:` line when the label needs correcting. The command exits non-zero if any value failed. Only failures block a value; warnings are informational.
+`ValidationResult` carries `ok`, `failures`, `warnings`, `term`, `corrected_value`, `in_valueset`, and `source`. Only `failures` block a value; warnings are informational.
 
-The gate itself is `EnvoIndex.validate` in `src/nmdc_metadata_suggestor_ai_tool/envo_index.py`, which the non-agentic pipeline calls directly.
+## The same gate runs again in Python
+
+`enforce_env_triad_values` applies these checks to every `LLMOutput`, on both the programmatic and the agentic path, so a bad value cannot reach a caller just because this step was skipped. It corrects label drift in place and replaces a hard failure with the extension's generic fallback.
+
+That is a backstop, not a substitute. It has no access to the evidence you gathered, so a value it has to replace becomes a generic term with its reasoning stripped down to a note. Validate here and the suggestion survives intact.
 
 ## The checks
 
@@ -51,7 +58,7 @@ Drop a tier and try again — do not emit a failing value.
 | Wrong anchor | You have the right concept at the wrong grain. A biome proposed for `env_medium` means you named the setting, not the material — search the material anchor instead |
 | Pattern | The prefix is not allowed on this slot. Find the ENVO equivalent, or fall to tier 3 |
 
-If nothing survives, emit what `envo_lookup.py fallback <interface> <slot>` returns, with `source: "generalized"`. Never emit an empty `value`.
+If nothing survives, emit `index.generic_fallback(interface, slot)` with `source: "generalized"`. Never emit an empty `value`.
 
 The fallback is the broadest term in the extension's curated set when that set has a root (`soil [ENVO:00001998]`, `aquatic biome [ENVO:00002030]`), otherwise the first expansion seed (`air [ENVO:00002005]`, `sludge [ENVO:00002044]`). For **`env_local_scale` it is always the bare anchor** — no value set has a genuine broadest member, they are flat collections of sibling features. A `generalized` local scale therefore carries almost no information: treat it as a prompt to re-examine the evidence rather than a usable answer.
 
@@ -72,4 +79,4 @@ Verified against nmdc-submission-schema and ENVO 2026-06-26.
 
 The index is pinned; every command reports the release it was built from when a CURIE is missing. Regenerate with `make build-envo-index`, then review the version and term-count diff before committing.
 
-That target runs `scripts/build_envo_index.py` at the repo root, not inside this skill — it is maintainer tooling, and it is the only place this repo fetches ontology data over the network. Keeping it out of the skill is what lets `envo_lookup.py` promise no network access.
+That target runs `scripts/build_envo_index.py` at the repo root — maintainer tooling, and the only place this repo fetches ontology data over the network. Everything the skill touches reads the committed artifact.

@@ -6,13 +6,14 @@ Interface class `HcrCoresInterface`. No curated value set — ENVO expansion is 
 
 ## Where candidates come from
 
-This extension has expansion subtrees for `env_medium`. Run:
+This extension has expansion subtrees for `env_medium`. Rather than relying on this file, print them with definitions
+and descendant counts:
 
-```bash
-uv run python .claude/skills/env-triad/scripts/envo_lookup.py pool "hydrocarbon resources-cores" env_medium
+```python
+from nmdc_metadata_suggestor_ai_tool.envo_index import get_envo_index
+
+get_envo_index().format_expansion_context("HcrCoresInterface", "env_medium")
 ```
-
-to see them with definitions and descendant counts, rather than relying on this file.
 
 ## Evidence in the sample record
 

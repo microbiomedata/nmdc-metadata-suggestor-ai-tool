@@ -12,6 +12,7 @@ from google.genai import types as genai_types
 from google.oauth2 import service_account
 from openai import OpenAI
 
+from nmdc_metadata_suggestor_ai_tool.envo_index import enforce_env_triad_values
 from nmdc_metadata_suggestor_ai_tool.langfuse_claude_sdk import (
     AssistantMessage,
     ClaudeAgentOptions,
@@ -389,7 +390,9 @@ class ConversationManager:
                 elif isinstance(event, AssistantMessage):
                     print(f"Assistant: {event.content}")
                 elif isinstance(event, ResultMessage):
-                    result = self.unwrap_structured_output(event.structured_output)
+                    result = enforce_env_triad_values(
+                        self.unwrap_structured_output(event.structured_output), None
+                    )
             if langfuse_client is not None:
                 langfuse_client.update_current_span(
                     output=result,
@@ -407,7 +410,9 @@ class ConversationManager:
                     if isinstance(event, SystemMessage) and event.subtype == "init":
                         session_id = event.data["session_id"]
                     elif isinstance(event, ResultMessage):
-                        result = self.unwrap_structured_output(event.structured_output)
+                        result = enforce_env_triad_values(
+                            self.unwrap_structured_output(event.structured_output), None
+                        )
             if langfuse_client is not None:
                 langfuse_client.update_current_span(output=result)
         return result, session_id

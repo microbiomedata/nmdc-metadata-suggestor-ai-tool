@@ -167,15 +167,22 @@ that slot. Recalled CURIEs are wrong often enough that this check exists.
 Find and confirm terms without leaving the repo:
 
 ```bash
-LOOKUP=".claude/skills/env-triad/scripts/envo_lookup.py"
+uv run python -c "
+from nmdc_metadata_suggestor_ai_tool.envo_index import get_envo_index
+index = get_envo_index()
 
-uv run python $LOOKUP search "paddy soil" --slot env_medium
-uv run python $LOOKUP pool soil env_medium
-uv run python $LOOKUP validate env_medium "soil [ENVO:00001998]" --interface soil
+# find a term
+for term in index.search('paddy soil', slot='env_medium'):
+    print(term.value, '--', term.definition)
+
+# confirm one you already have
+print(index.validate('soil [ENVO:00001998]', 'env_medium', 'SoilInterface'))
+"
 ```
 
-Write terms in full as `label [ENVO:NNNNNNN]`. `search` prints exactly that form,
-so copy it verbatim rather than retyping the label.
+Write terms in full as `label [ENVO:NNNNNNN]`. `term.value` prints exactly that
+form, so copy it verbatim rather than retyping the label — a recalled label on a
+real CURIE is the most common way this goes wrong.
 
 If you need to name a term as one to *avoid* — something the schema still offers
 but ENVO has removed — add it to `DOCUMENTED_COUNTEREXAMPLES` in the test with a
