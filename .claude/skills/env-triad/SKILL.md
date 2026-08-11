@@ -49,7 +49,7 @@ interfaces = MixsExtensions.map_to_interface_name(["soil"])  # -> ["SoilInterfac
 
 `map_to_interface_name` accepts portal names (`"soil"`, `"microbial mat_biofilm"`) or class names (`"SoilInterface"`), and warns on anything it does not recognize.
 
-Do **not** fall back to all interfaces when uncertain — that dumps ~51 KB of value sets and blurs the answer. Infer the extension from sample fields (`env_package`, `depth`, `habitat`, `host_name`, `samp_name`); if it is still unclear, use the four extensions that have curated value sets — `SoilInterface`, `WaterInterface`, `SedimentInterface`, `PlantAssociatedInterface` — plus the biome list from Step 4.
+Do **not** fall back to all interfaces when uncertain — that loads ~51 KB of value sets and reduces precision. Infer the extension from sample fields (`env_package`, `depth`, `habitat`, `host_name`, `samp_name`); if it is still unclear, use the four extensions that have curated value sets — `SoilInterface`, `WaterInterface`, `SedimentInterface`, `PlantAssociatedInterface` — plus the biome list from Step 4.
 
 The extension roster, which extensions have value sets, and the per-extension evidence hints are in [refs/extensions.md](refs/extensions.md).
 
@@ -77,7 +77,7 @@ uv run python .claude/skills/env-triad/scripts/envo_lookup.py pool wastewater_sl
 uv run python .claude/skills/env-triad/scripts/envo_lookup.py search "activated sludge" \
     --slot env_medium --within ENVO:00002044
 
-# follow the train down to more specific terms
+# specialize downward to more specific terms
 uv run python .claude/skills/env-triad/scripts/envo_lookup.py descendants ENVO:00002044
 
 # the tier-3 value for this extension and slot
@@ -98,7 +98,7 @@ Process samples in chunks of 50 if there are many. For each sample and each of t
 
 **Value rules:**
 - Prefer a tier 1 value. Drop to tier 2 only when no curated value fits the evidence — then search the index rather than recalling a CURIE, and record `source: "envo_expansion"`
-- "Follow the train down": start from the closest tier 1 term (or the extension's seed subtree) and run `descendants` on it, toward a more specific match the evidence supports
+- Specialize downward: start from the closest tier 1 term (or the extension's seed subtree) and run `descendants` on it, looking for a more specific match the evidence supports
 - If the exact term is already present in the sample record (e.g. an existing `env_broad_scale` field), copy it verbatim into `value` — after validating it
 - If you quote a value in `reason`, that value is explicit — put it in `value` too
 - Never leave `value` empty. With no defensible specific term, emit what `fallback <interface> <slot>` returns and record `source: "generalized"`

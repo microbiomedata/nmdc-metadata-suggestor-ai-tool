@@ -12,7 +12,7 @@ Commands:
     biomes                       Every ENVO biome -- the complete env_broad_scale set
     pool INTERFACE SLOT          Where ENVO expansion may draw candidates
     search TEXT                  Ranked candidates with definitions
-    descendants CURIE            Follow the train down to more specific terms
+    descendants CURIE            Specialize downward to more specific terms
     fallback INTERFACE SLOT      The tier-3 value for this extension and slot
     validate SLOT VALUE...       Gate values before emitting them
 
