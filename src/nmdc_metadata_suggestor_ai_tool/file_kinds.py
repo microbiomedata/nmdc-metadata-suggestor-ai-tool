@@ -74,6 +74,30 @@ DEFAULT_USEFUL_KINDS: frozenset[SupplementKind] = frozenset(
     {SupplementKind.TABULAR, SupplementKind.DOCUMENT}
 )
 
+# Order in which kinds win a contested file budget, most valuable first. Used to
+# rank candidates before a cap is applied, so a listing of 40 figures followed by
+# one spreadsheet still yields the spreadsheet. Covers every ``SupplementKind``.
+KIND_PRIORITY: tuple[SupplementKind, ...] = (
+    SupplementKind.TABULAR,  # spreadsheets/delimited files: the per-sample data itself
+    SupplementKind.DOCUMENT,  # supplementary methods and site descriptions
+    SupplementKind.ARCHIVE,  # may bundle tables, so worth more than a figure
+    SupplementKind.OTHER,  # unrecognized; sometimes delimited data under an odd suffix
+    SupplementKind.SEQUENCE,  # data, but too bulky to help characterize samples
+    SupplementKind.IMAGE,  # figures/gels: no machine-readable values
+    SupplementKind.MEDIA,
+)
+
+KIND_RANKS: dict[SupplementKind, int] = {kind: rank for rank, kind in enumerate(KIND_PRIORITY)}
+
+
+def kind_rank(kind: SupplementKind) -> int:
+    """Return the sort rank of *kind* -- lower is more valuable.
+
+    Pair with a *stable* sort so files of equal rank keep their listing order
+    (which usually runs Table S1, S2, ... within a source).
+    """
+    return KIND_RANKS.get(kind, len(KIND_PRIORITY))
+
 
 def file_extension(filename: str) -> str:
     """Return the lowercase extension of *filename* without the dot (``""`` if none)."""

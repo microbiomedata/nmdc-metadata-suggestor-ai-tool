@@ -25,6 +25,7 @@ from nmdc_metadata_suggestor_ai_tool.file_kinds import (
     TEXT_LIKE_EXTENSIONS,
     classify_file,
     file_extension,
+    kind_rank,
 )
 from nmdc_metadata_suggestor_ai_tool.models.supplement import (
     SupplementFile,
@@ -249,10 +250,19 @@ def select_members(
     size *before* reading, so oversized files are never downloaded/extracted, and
     re-checked against the actual byte count afterwards -- sources that report a
     zero/unknown ``size`` would otherwise slip past the budget.
+
+    Members are considered in :func:`kind_rank` order (data-like files first) so
+    that when the listing holds more candidates than ``max_files``, the budget
+    goes to spreadsheets and delimited files rather than to whatever the source
+    happened to list first. The sort is stable, so within one kind the source's
+    own order survives.
     """
     kept: list[SupplementFile] = []
     skipped: list[SupplementFile] = []
     total_kept_bytes = 0
+    # Ranking needs the whole listing up front; ``Member.read`` stays lazy, so
+    # this materializes names and sizes only, never file content.
+    members = sorted(members, key=lambda member: kind_rank(classify_supplement(member.name)))
 
     def skip(name: str, kind: SupplementKind, size: int, reason: str) -> None:
         skipped.append(
