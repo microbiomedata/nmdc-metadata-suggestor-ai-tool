@@ -6,6 +6,7 @@ value produces a non-zero exit the agent cannot quietly ignore.
 """
 
 import importlib.util
+import shlex
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -14,6 +15,27 @@ import pytest
 
 SKILL_DIR = Path(__file__).resolve().parent.parent / ".claude" / "skills" / "env-triad"
 SCRIPT = SKILL_DIR / "scripts" / "envo_lookup.py"
+SKILL_DOCS = [SKILL_DIR / "SKILL.md", *sorted((SKILL_DIR / "refs").glob("*.md"))]
+
+
+def documented_invocations() -> list[tuple[str, str]]:
+    """Every envo_lookup.py command line inside a ```bash block in the skill docs.
+
+    Prose mentions in backticks are skipped -- only lines an agent would actually
+    copy and run are checked.
+    """
+    found: list[tuple[str, str]] = []
+    for doc in SKILL_DOCS:
+        # Rejoin backslash line continuations so a wrapped command stays one line.
+        in_bash = False
+        for line in doc.read_text().replace("\\\n", " ").splitlines():
+            if line.startswith("```"):
+                in_bash = line.startswith("```bash")
+                continue
+            _, separator, tail = line.partition("envo_lookup.py")
+            if in_bash and separator:
+                found.append((doc.name, tail.strip()))
+    return found
 
 
 @pytest.fixture(scope="module")
@@ -24,6 +46,34 @@ def cli() -> ModuleType:
     sys.modules["envo_lookup"] = module
     spec.loader.exec_module(module)
     return module
+
+
+def test_script_is_where_skill_md_says_it_is() -> None:
+    assert SCRIPT.is_file()
+    assert "scripts/envo_lookup.py" in (SKILL_DIR / "SKILL.md").read_text()
+
+
+@pytest.mark.parametrize(
+    ("doc", "invocation"), documented_invocations(), ids=lambda v: v.replace(" ", "_")[:60]
+)
+def test_documented_commands_are_real(cli: ModuleType, doc: str, invocation: str) -> None:
+    """Every command line in the skill's docs must parse against the real verb set.
+
+    Stops the instructions drifting from the CLI, which the agent would only
+    discover at runtime.
+    """
+    argv = shlex.split(invocation)
+    if not argv or argv[0].startswith("-"):  # bare `--help` mentions
+        return
+    try:
+        cli.build_parser().parse_args(argv)
+    except SystemExit as exit_error:
+        pytest.fail(f"{doc} documents a command the CLI rejects: {invocation!r} ({exit_error})")
+
+
+def test_the_doc_scan_actually_found_commands() -> None:
+    """Guards the parametrize above from silently collecting nothing."""
+    assert len(documented_invocations()) >= 6
 
 
 # --- the read commands ------------------------------------------------------
