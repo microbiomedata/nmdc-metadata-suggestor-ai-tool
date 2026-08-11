@@ -51,7 +51,7 @@ interfaces = MixsExtensions.map_to_interface_name(["soil"])  # -> ["SoilInterfac
 
 Do **not** fall back to all interfaces when uncertain — that loads ~51 KB of value sets and reduces precision. Infer the extension from sample fields (`env_package`, `depth`, `habitat`, `host_name`, `samp_name`); if it is still unclear, use the four extensions that have curated value sets — `SoilInterface`, `WaterInterface`, `SedimentInterface`, `PlantAssociatedInterface` — plus the biome list from Step 4.
 
-The extension roster, which extensions have value sets, and the per-extension evidence hints are in [refs/extensions.md](refs/extensions.md).
+Then read the reference for the extension you settled on. [refs/extensions.md](refs/extensions.md) holds the roster, the rules that hold across all twelve, and a link per extension; `refs/extensions/<name>.md` holds that extension's evidence signals, domain knowledge, and worked examples. Read only the ones for the extensions in play — the others describe environments your samples are not from.
 
 ---
 

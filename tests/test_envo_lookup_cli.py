@@ -15,7 +15,11 @@ import pytest
 
 SKILL_DIR = Path(__file__).resolve().parent.parent / ".claude" / "skills" / "env-triad"
 SCRIPT = SKILL_DIR / "scripts" / "envo_lookup.py"
-SKILL_DOCS = [SKILL_DIR / "SKILL.md", *sorted((SKILL_DIR / "refs").glob("*.md"))]
+SKILL_DOCS = [
+    SKILL_DIR / "SKILL.md",
+    *sorted((SKILL_DIR / "refs").glob("*.md")),
+    *sorted((SKILL_DIR / "refs" / "extensions").glob("*.md")),
+]
 
 
 def documented_invocations() -> list[tuple[str, str]]:
