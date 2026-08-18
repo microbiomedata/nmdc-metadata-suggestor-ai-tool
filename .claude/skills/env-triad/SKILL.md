@@ -105,6 +105,10 @@ Process samples in chunks of 50 if there are many. For each sample and each of t
 
 Check every value before emitting it. A value that fails does not get emitted — drop a tier and try again.
 
+**The descent is bounded at three steps, because tier 3 cannot fail.** `index.generic_fallback(interface, slot)` returns a value for every extension and slot, and a test asserts every one of them validates. So a value that fails at tier 2 falls to tier 3 and stops there — never keep retrying.
+
+For `env_local_scale` that floor is the bare anchor class, which carries almost no information. Reaching it is a prompt to re-read the evidence for a specific feature, not a usable answer.
+
 ```python
 result = index.validate(
     "activated sludge [ENVO:00002046]", "env_medium", "WastewaterSludgeInterface"
