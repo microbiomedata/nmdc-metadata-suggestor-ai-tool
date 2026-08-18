@@ -6,7 +6,7 @@ Portal names come from `HARMONIZER_TEMPLATES` in nmdc-server; `MixsExtensions.ma
 
 ## Roster
 
-**Read only the file for the extension in play.** Each holds that extension's evidence signals and domain knowledge; loading all twelve wastes context on environments the samples are not from.
+**Read the file for each extension in play, and only those.** A study often uses more than one — the submission portal lets a single submission carry several sample tabs, so soil and water together is common. Each file holds that extension's evidence signals and domain knowledge; loading all twelve wastes context on environments the samples are not from.
 
 Value set counts are `env_broad_scale`/`env_local_scale`/`env_medium`.
 
