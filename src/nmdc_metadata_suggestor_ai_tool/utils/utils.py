@@ -40,3 +40,15 @@ def chunk_samples(samples: list[dict], chunk_size: int) -> Iterator[list[dict]]:
     """
     for i in range(0, len(samples), chunk_size):
         yield samples[i : i + chunk_size]
+
+
+def iri_to_curie(iri: str) -> str | None:
+    """Convert an OBO PURL to a CURIE, or None for anything else.
+
+    ``http://purl.obolibrary.org/obo/ENVO_00001998`` -> ``ENVO:00001998``.
+    Only the first underscore is replaced, so IDs that themselves contain one
+    (``NCBITaxon_Union_0000030``) survive the round trip.
+    """
+    if "/obo/" not in iri:
+        return None
+    return iri.rsplit("/", 1)[-1].replace("_", ":", 1)

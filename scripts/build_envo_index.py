@@ -31,6 +31,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+from nmdc_metadata_suggestor_ai_tool.utils.utils import iri_to_curie
+
 ENVO_JSON_URL = "https://purl.obolibrary.org/obo/envo.json"
 
 DEFAULT_OUTPUT = (
@@ -54,13 +56,6 @@ SYNONYM_PREDICATES = {"hasExactSynonym", "hasNarrowSynonym"}
 
 MAX_DEFINITION_CHARS = 400
 MAX_SYNONYMS = 8
-
-
-def iri_to_curie(iri: str) -> str | None:
-    """Convert an OBO PURL to a CURIE, or None for anything else."""
-    if "/obo/" not in iri:
-        return None
-    return iri.rsplit("/", 1)[-1].replace("_", ":", 1)
 
 
 def load_graph(source: str) -> dict[str, Any]:
