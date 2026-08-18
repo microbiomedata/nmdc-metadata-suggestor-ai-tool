@@ -11,9 +11,8 @@ Run them with:
 Credentials (``CBORG_KEY``, ``CBORG_BASE_URL``) are read from the environment,
 which ``llm_client`` populates from ``.env`` via ``load_dotenv()`` at import.
 
-The model is set explicitly so the test pins a specific CBORG-served model
-instead of depending on the pipeline default, keeping the assertion
-deterministic. Override with the ``CBORG_TEST_MODEL`` env var.
+The model defaults to the same model as the production CBORG path. Override it
+with ``CBORG_TEST_MODEL`` to exercise another CBORG-served model explicitly.
 """
 
 import json
@@ -23,12 +22,13 @@ from pathlib import Path
 import pytest
 from openai import OpenAI
 
-from nmdc_metadata_suggestor_ai_tool.llm_client import LLMClient
+from nmdc_metadata_suggestor_ai_tool.llm_client import DEFAULT_GEMINI_MODEL, LLMClient
 from nmdc_metadata_suggestor_ai_tool.recommendation_pipeline import run_recommendation_pipeline
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 INTEGRATION_TIMEOUT = 120  # seconds
-CBORG_MODEL = os.environ.get("CBORG_TEST_MODEL", "gpt-4o-mini")
+INTEGRATION_MAX_TOKENS = 8192
+CBORG_MODEL = os.environ.get("CBORG_TEST_MODEL", DEFAULT_GEMINI_MODEL)
 
 
 def _load_fixture(filename: str) -> dict:
@@ -38,21 +38,22 @@ def _load_fixture(filename: str) -> dict:
 
 @pytest.mark.integration
 @pytest.mark.timeout(INTEGRATION_TIMEOUT)
-def test_cborg_api_reachable(requires_cborg: None) -> None:
-    """The CBORG endpoint responds to an authenticated request with the .env key.
+def test_cborg_responses_api_reachable(requires_cborg: None) -> None:
+    """The CBORG Responses API accepts an authenticated request with the .env key.
 
-    This is the low-level check: credentials and base URL are valid and the
-    gateway is reachable, independent of the recommendation pipeline.
+    This is the low-level check: credentials, base URL, and configured model
+    work through the same endpoint used by the recommendation pipeline.
     """
     client = OpenAI(
         api_key=os.environ["CBORG_KEY"],
         base_url=os.environ["CBORG_BASE_URL"],
     )
-    model_ids = [m.id for m in client.models.list().data]
-    assert model_ids, "CBORG returned no models"
-    assert CBORG_MODEL in model_ids, (
-        f"{CBORG_MODEL} not offered by CBORG; available sample: {model_ids[:8]}"
+    response = client.responses.create(
+        model=CBORG_MODEL,
+        input="Reply with a short acknowledgement.",
+        max_output_tokens=16,
     )
+    assert response.output_text.strip(), "CBORG returned no response text"
 
 
 @pytest.mark.integration
@@ -61,15 +62,17 @@ def test_cborg_pipeline_returns_field_guidance(requires_cborg: None) -> None:
     """The recommendation pipeline runs end to end over CBORG and returns valid output.
 
     This is the field-guidance task: each suggestion names a metadata field the
-    submitter should populate, with a reason. It does not fill in a value, so
-    this asserts field_name and reason are present and does NOT assert a
-    non-empty value (confirmed empty for this task with both gpt-4o-mini and
-    gpt-5).
+    submitter should populate, with a reason. Suggested values are optional for
+    this task, so the test does not require them.
     """
     submission = _load_fixture("full_submission.json")
     client = LLMClient(access_provider="cborg", model=CBORG_MODEL)
 
-    result = run_recommendation_pipeline(submission_object=submission, llm_client=client)
+    result = run_recommendation_pipeline(
+        submission_object=submission,
+        llm_client=client,
+        max_tokens=INTEGRATION_MAX_TOKENS,
+    )
 
     assert result.metadata_fields, "Expected at least one metadata field suggestion"
     for field in result.metadata_fields:
