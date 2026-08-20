@@ -32,6 +32,16 @@ load_dotenv()
 
 DEFAULT_GCP_REGION = "us-east5"
 
+# Set CLAUDE_AGENT_BYPASS_PERMISSIONS=true to disable the SDK's permission guardrails.
+# Disabling allows Claude to run bash commands and WebSearch,
+# which improves preformance but increases security risks.
+# Defaults to "default" which requires explicit permissions for shell commands and WebSearch.
+AGENT_PERMISSION_MODE = (
+    "bypassPermissions"
+    if os.environ.get("CLAUDE_AGENT_BYPASS_PERMISSIONS", "") == "true"
+    else "default"
+)
+
 
 GEMINI_MODELS = [
     "gemini-2.5-pro",
