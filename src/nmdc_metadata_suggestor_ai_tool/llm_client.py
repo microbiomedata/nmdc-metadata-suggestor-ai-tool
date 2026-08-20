@@ -381,7 +381,7 @@ class ConversationManager:
             model=model,
             system_prompt=orchestrator_prompt,
             output_format={"type": "json_schema", "schema": LLMOutput.model_json_schema()},
-            permission_mode="bypassPermissions",
+            permission_mode=cast(Any, AGENT_PERMISSION_MODE),
         )
 
         if message is None:
