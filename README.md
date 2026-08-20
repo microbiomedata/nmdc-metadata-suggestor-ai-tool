@@ -24,6 +24,7 @@ Environment variables used by `LLMClient` and `ConversationManager`:
 - `GOOGLE_APPLICATION_CREDENTIALS`: Path to a GCP service account JSON file (for Vertex AI).
 - `VERTEX_PROJECT_ID`: (Optional) GCP project id for Vertex. If not provided, the SDK will attempt to infer it from credentials.
 - `GCP_REGION`: (Optional) Vertex region override for Gemini calls (falls back to `GCP_REGION`, then `us-east5`).
+- `CLAUDE_CODE_USE_VERTEX`, `ANTHROPIC_VERTEX_PROJECT_ID`, `CLOUD_ML_REGION`: Required only by the agentic path (`ConversationManager.agentic()`), which runs a Claude model through the Claude Code CLI. Without them the CLI does not route to Vertex, and the run fails reporting that the model may not exist or is not accessible.
 - `CBORG_KEY`: API key for CBORG (when using `access_provider=cborg`).
 - `CBORG_BASE_URL`: Base URL for the CBORG API.
 
