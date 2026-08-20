@@ -1,14 +1,11 @@
 """EDI DOI resolver."""
 
-import xml.etree.ElementTree as ET
-
 import requests
 
 from nmdc_metadata_suggestor_ai_tool.constants import (
     DEFAULT_TIMEOUT,
     EDI_DOI_API,
     MAX_EDI_METADATA_XML_CHARS,
-    UNSAFE_XML_DECLARATION_PATTERN,
     USER_AGENT,
 )
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import (
@@ -17,6 +14,7 @@ from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import (
     request_with_retry,
 )
 from nmdc_metadata_suggestor_ai_tool.models.resolver_context import ResolverContext
+from nmdc_metadata_suggestor_ai_tool.xml_safety import parse_untrusted_xml
 
 
 def try_edi(doi: str, errors: list[str] | None = None) -> ResolverContext | None:
@@ -36,18 +34,13 @@ def try_edi(doi: str, errors: list[str] | None = None) -> ResolverContext | None
             append_error(errors, f"EDI metadata request returned HTTP {response.status_code}")
             return None
         xml_text = response.text
-        if len(xml_text) > MAX_EDI_METADATA_XML_CHARS:
-            append_error(errors, "EDI metadata XML exceeded size limit")
-            return None
-        if UNSAFE_XML_DECLARATION_PATTERN.search(xml_text):
-            append_error(errors, "EDI metadata XML contains unsafe declarations")
-            return None
-        root = ET.fromstring(xml_text)
     except requests.RequestException as exc:
         append_error(errors, f"EDI metadata request failed: {exc.__class__.__name__}")
         return None
-    except ET.ParseError:
-        append_error(errors, "EDI metadata response was not valid XML")
+
+    root, reason = parse_untrusted_xml(xml_text, max_chars=MAX_EDI_METADATA_XML_CHARS)
+    if root is None:
+        append_error(errors, f"EDI metadata {reason}")
         return None
 
     abstract = extract_first_xml_text(root, {"abstract"})

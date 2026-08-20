@@ -1,5 +1,7 @@
 """Zenodo DOI resolver."""
 
+from typing import Any
+
 import requests
 
 from nmdc_metadata_suggestor_ai_tool.constants import DEFAULT_TIMEOUT, USER_AGENT, ZENODO_API
@@ -12,8 +14,13 @@ from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import (
 from nmdc_metadata_suggestor_ai_tool.models.resolver_context import ResolverContext
 
 
-def try_zenodo(doi: str, errors: list[str] | None = None) -> ResolverContext | None:
-    """Return Zenodo description text for a DOI if present."""
+def zenodo_search_hits(doi: str, errors: list[str] | None = None) -> list[Any] | None:
+    """Return the raw Zenodo search hits for *doi*, matched as DOI or concept DOI.
+
+    Returns ``None`` when the API call fails or the payload is unusable, with the
+    reason appended to *errors*. Shared with the supplement retriever, which reads
+    each hit's ``files`` rather than its description.
+    """
     query = f'doi:"{doi}" OR conceptdoi:"{doi}"'
     try:
         response = request_with_retry(
@@ -37,6 +44,14 @@ def try_zenodo(doi: str, errors: list[str] | None = None) -> ResolverContext | N
     hits = payload.get("hits", {}).get("hits", [])
     if not isinstance(hits, list):
         append_error(errors, "Zenodo response missing hits list")
+        return None
+    return hits
+
+
+def try_zenodo(doi: str, errors: list[str] | None = None) -> ResolverContext | None:
+    """Return Zenodo description text for a DOI if present."""
+    hits = zenodo_search_hits(doi, errors)
+    if hits is None:
         return None
 
     matching_hits = [hit for hit in hits if _zenodo_hit_matches_doi(hit, doi)]

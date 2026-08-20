@@ -51,7 +51,21 @@ OSTI_API_URL = "https://www.osti.gov/api/v1/records"
 OSTI_E2_API_URL = "https://www.osti.gov/elink2api/records"
 
 # Europe PMC
-EUROPEPMC_API_URL = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
+EUROPEPMC_REST_URL = "https://www.ebi.ac.uk/europepmc/webservices/rest"
+EUROPEPMC_API_URL = f"{EUROPEPMC_REST_URL}/search"
+# Supplementary files endpoint: returns a ZIP archive of an article's
+# supplements. Both this and the full-text endpoint key on the bare PMCID
+# (e.g. ``PMC3258517``) -- there is no source-DB path segment. Interpolating a
+# ``{source}/{article_id}`` pair (e.g. ``MED/33526884``) 404s for every article.
+EUROPEPMC_SUPPL_URL_TEMPLATE = f"{EUROPEPMC_REST_URL}/{{pmcid}}/supplementaryFiles"
+# Full-text JATS XML endpoint. Its ``<supplementary-material>`` elements carry
+# captions/labels used to select supplements by content rather than extension.
+EUROPEPMC_FULLTEXT_XML_URL_TEMPLATE = f"{EUROPEPMC_REST_URL}/{{pmcid}}/fullTextXML"
+
+
+# Dryad data repository (hosts supplement-as-dataset files; DOI prefix 10.5061).
+DRYAD_API_URL = "https://datadryad.org/api/v2"
+DRYAD_DOI_PREFIX = "10.5061"
 
 # PubMed / PMC
 PUBMED_ID_CONVERTER = "https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/"
@@ -116,6 +130,31 @@ TARGET_PROVIDER_KEYWORDS: dict[str, str] = {
     "zenodo": "zenodo",
     "cyverse": "cyverse",
 }
+
+# ---------------------------------------------------------------------------
+# Supplementary material retrieval
+#
+# Performance-first caps: supplement retrieval favors speed over completeness,
+# so downloads are bounded and never retried beyond ``request_with_retry``'s
+# transient-error handling. Override via environment variables if needed.
+# ---------------------------------------------------------------------------
+# Max number of supplement files kept from a single article.
+SUPPLEMENT_MAX_FILES = int(os.environ.get("NMDC_SUPPLEMENT_MAX_FILES", "10"))
+# Max size of a single supplement file (bytes); larger files are skipped.
+SUPPLEMENT_MAX_FILE_BYTES = int(os.environ.get("NMDC_SUPPLEMENT_MAX_FILE_BYTES", str(10_000_000)))
+# Max combined size of all kept supplement files (bytes).
+SUPPLEMENT_MAX_TOTAL_BYTES = int(os.environ.get("NMDC_SUPPLEMENT_MAX_TOTAL_BYTES", str(50_000_000)))
+# Max size of the supplement ZIP archive to download (bytes); larger archives
+# are skipped without downloading (checked against the Content-Length header).
+SUPPLEMENT_MAX_ARCHIVE_BYTES = int(
+    os.environ.get("NMDC_SUPPLEMENT_MAX_ARCHIVE_BYTES", str(100_000_000))
+)
+# Max characters of decoded text inlined per text-like supplement file.
+SUPPLEMENT_MAX_TEXT_CHARS = int(os.environ.get("NMDC_SUPPLEMENT_MAX_TEXT_CHARS", str(200_000)))
+# Max size of a full-text JATS XML document fetched for supplement captions.
+# Captions are a nice-to-have, so an over-large document is skipped rather than
+# fully buffered/parsed (matches the bounded handling of untrusted XML elsewhere).
+SUPPLEMENT_MAX_XML_BYTES = int(os.environ.get("NMDC_SUPPLEMENT_MAX_XML_BYTES", str(20_000_000)))
 
 # ---------------------------------------------------------------------------
 # Schema context builder

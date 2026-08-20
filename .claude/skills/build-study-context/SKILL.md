@@ -56,6 +56,48 @@ Then apply the **doi-copyright-check** skill to the returned metadata:
 
 Utilize `download_pdf_to_tempfile` (from **pdf-ingestion** skill).
 
+### 4 — (Optional) Fetch supplementary materials
+
+For publication DOIs, optionally enrich the evidence with high-value supplements
+(sample-metadata tables, supplementary methods) using the **supplement-retrieval**
+skill. This is performance-first — make a single attempt per DOI and skip on
+failure:
+
+```python
+from nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements import (
+    retrieve_supplements,
+)
+
+# Pass the DOI's abstract text (from step 2) so linked-dataset DOIs mentioned in
+# the prose can also be resolved. The skill routes by DOI type and merges hosted
+# supplements with any linked Dryad/Zenodo/Figshare datasets.
+supp = retrieve_supplements(doi=entry["value"], text=result.context)
+for f in supp.files:
+    if f.text:
+        context_texts.append(
+            f"Supplement {f.filename} [{f.source}] (for {entry['value']}):\n{f.text}"
+        )
+    # non-text files are at f.saved_path for downstream readers
+```
+
+Only tabular and document supplements are kept by default. Do not retry when
+supplements are unavailable.
+
+Non-text supplements (xlsx/pdf/docx) are written to temp files, so delete them
+once you have read what you need — otherwise every run leaves up to
+`max_total_bytes` of them behind:
+
+```python
+from nmdc_metadata_suggestor_ai_tool.publication_ingestion.download_pdf import (
+    remove_temp_files,
+)
+
+remove_temp_files([f.saved_path for f in supp.files if f.saved_path])
+```
+
+Pass `save_dir=...` to `retrieve_supplements` instead if you want to keep the
+files; those are yours to manage and are never removed for you.
+
 ---
 
 ## Output
@@ -67,3 +109,5 @@ An evidence bundle — pass to whatever pipeline skill calls this:
 | `context_texts` | List of strings: base text + one entry per DOI abstract + fetched PDF content. Use as evidence when reasoning. |
 
 No cleanup required in the agentic path — `web_fetch` reads content inline without creating temp files.
+The programmatic supplement path in step 4 is the exception: it writes temp files, which that step's
+`remove_temp_files` call cleans up.
