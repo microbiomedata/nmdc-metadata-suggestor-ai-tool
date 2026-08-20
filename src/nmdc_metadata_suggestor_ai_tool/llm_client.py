@@ -23,6 +23,7 @@ from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
 from nmdc_metadata_suggestor_ai_tool.system_prompt import orchestrator_prompt
 from nmdc_metadata_suggestor_ai_tool.tracing import (
     langfuse_client,
+    log_assistant_message,
     observe,
     propagate_attributes,
 )
@@ -394,11 +395,7 @@ class ConversationManager:
                     session_id = event.data["session_id"]
                 elif isinstance(event, AssistantMessage):
                     print(f"Assistant: {event.content}")
-                    if langfuse_client is not None:
-                        langfuse_client.create_event(
-                            name="assistant_message",
-                            output=event.content,
-                        )
+                    log_assistant_message(event.content)
                 elif isinstance(event, ResultMessage):
                     result = self.unwrap_structured_output(event.structured_output)
             if langfuse_client is not None:
@@ -419,11 +416,7 @@ class ConversationManager:
                         session_id = event.data["session_id"]
                     elif isinstance(event, AssistantMessage):
                         print(f"Assistant: {event.content}")
-                        if langfuse_client is not None:
-                            langfuse_client.create_event(
-                                name="assistant_message",
-                                output=event.content,
-                            )
+                        log_assistant_message(event.content)
                     elif isinstance(event, ResultMessage):
                         result = self.unwrap_structured_output(event.structured_output)
             if langfuse_client is not None:

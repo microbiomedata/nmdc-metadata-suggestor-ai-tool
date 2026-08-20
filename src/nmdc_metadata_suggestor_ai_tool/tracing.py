@@ -108,6 +108,12 @@ if not langfuse_enabled:
         return decorator
 
 
+def log_assistant_message(content: str) -> None:
+    """Emit a Langfuse event for one AssistantMessage turn (no-op when tracing is off)."""
+    if langfuse_client is not None:
+        langfuse_client.create_event(name="assistant_message", output=content)
+
+
 def flush() -> None:
     """Flush pending Langfuse events (call before process exit in short-lived scripts)."""
     if langfuse_enabled and langfuse_client is not None:
