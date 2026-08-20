@@ -366,6 +366,7 @@ class ConversationManager:
             model=model,
             system_prompt=orchestrator_prompt,
             output_format={"type": "json_schema", "schema": LLMOutput.model_json_schema()},
+            permission_mode="bypassPermissions",
         )
 
         if message is None:
@@ -389,6 +390,11 @@ class ConversationManager:
                     session_id = event.data["session_id"]
                 elif isinstance(event, AssistantMessage):
                     print(f"Assistant: {event.content}")
+                    if langfuse_client is not None:
+                        langfuse_client.create_event(
+                            name="assistant_message",
+                            output=event.content,
+                        )
                 elif isinstance(event, ResultMessage):
                     result = self.unwrap_structured_output(event.structured_output)
             if langfuse_client is not None:
@@ -407,6 +413,13 @@ class ConversationManager:
                 ):
                     if isinstance(event, SystemMessage) and event.subtype == "init":
                         session_id = event.data["session_id"]
+                    elif isinstance(event, AssistantMessage):
+                        print(f"Assistant: {event.content}")
+                        if langfuse_client is not None:
+                            langfuse_client.create_event(
+                                name="assistant_message",
+                                output=event.content,
+                            )
                     elif isinstance(event, ResultMessage):
                         result = self.unwrap_structured_output(event.structured_output)
             if langfuse_client is not None:
