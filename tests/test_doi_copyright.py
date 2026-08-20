@@ -42,6 +42,7 @@ def _load(filename: str) -> dict:
     with (FIXTURES / filename).open() as f:
         return json.load(f)
 
+
 _DOI_ALLOWED = "10.1038/s41564-020-00861-0"
 _DOI_RESTRICTED = "10.1126/science.aav2566"
 
@@ -280,8 +281,7 @@ def test_agent_uses_abstract_context_for_cc_by_publication(
     reasons = [f.reason.lower() for f in output.metadata_fields if f.reason]
     abstract_cited = any("abstract" in r for r in reasons)
     assert abstract_cited, (
-        "Expected at least one suggestion to cite the abstract as evidence. "
-        f"Got reasons: {reasons}"
+        f"Expected at least one suggestion to cite the abstract as evidence. Got reasons: {reasons}"
     )
 
 
