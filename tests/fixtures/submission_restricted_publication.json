@@ -1,0 +1,163 @@
+{
+  "metadata_submission": {
+    "packageName": ["soil"],
+    "studyForm": {
+      "studyName": "Global Soil Microbiome Survey — Paywalled Reference Publication",
+      "piName": "Test Researcher",
+      "piEmail": "test.researcher@example.org",
+      "piOrcid": "0000-0000-0000-0002",
+      "description": "Soil metagenomes sampled across 189 globally distributed sites covering major biome types. This study characterizes the biogeographic drivers of soil microbial community composition and function.",
+      "notes": "Reference publication is behind a paywall (Science, AAAS). No open-access license.",
+      "publicationDois": [
+        {
+          "value": "10.1126/science.aav2566",
+          "provider": "crossref"
+        }
+      ],
+      "dataDois": null,
+      "GOLDStudyId": "",
+      "NCBIBioProjectId": ""
+    },
+    "multiOmicsForm": {
+      "award": "CSP",
+      "awardDois": [],
+      "JGIStudyId": "",
+      "omicsProcessingTypes": ["mg"],
+      "mpProtocols": null,
+      "mbProtocols": null,
+      "mbGcProtocols": null,
+      "lipProtocols": null,
+      "nomProtocols": null,
+      "nomLcProtocols": null
+    },
+    "sampleData": {
+      "soil_data": [
+        {
+          "samp_name": "GSS-soil-001",
+          "lat_lon": "51.51 -0.13",
+          "geo_loc_name": "United Kingdom: England, London",
+          "collection_date": "2018-09-01",
+          "depth": "0 - 0.15",
+          "elev": 24,
+          "growth_facil": "field",
+          "analysis_type": ["metagenomics"],
+          "store_cond": "frozen -80C"
+        },
+        {
+          "samp_name": "GSS-soil-002",
+          "lat_lon": "44.80 20.46",
+          "geo_loc_name": "Serbia: Belgrade",
+          "collection_date": "2018-05-14",
+          "depth": "0 - 0.15",
+          "elev": 117,
+          "growth_facil": "field",
+          "analysis_type": ["metagenomics"],
+          "store_cond": "frozen -80C"
+        },
+        {
+          "samp_name": "GSS-soil-003",
+          "lat_lon": "-13.16 -72.54",
+          "geo_loc_name": "Peru: Cusco, Machu Picchu",
+          "collection_date": "2018-07-02",
+          "depth": "0 - 0.1",
+          "elev": 2430,
+          "env_broad_scale": "montane shrubland biome [ENVO:01000216]",
+          "env_local_scale": "mountainous area [ENVO:00000218]",
+          "env_medium": "soil [ENVO:00001998]",
+          "growth_facil": "field",
+          "analysis_type": ["metagenomics"],
+          "store_cond": "frozen -80C"
+        },
+        {
+          "samp_name": "GSS-soil-004",
+          "lat_lon": "30.05 31.25",
+          "geo_loc_name": "Egypt: Cairo",
+          "collection_date": "2018-02-20",
+          "depth": "0 - 0.1",
+          "elev": 23,
+          "env_broad_scale": "desert biome [ENVO:01000179]",
+          "growth_facil": "field",
+          "analysis_type": ["metagenomics"],
+          "store_cond": "frozen -80C"
+        },
+        {
+          "samp_name": "GSS-soil-005",
+          "lat_lon": "55.75 37.62",
+          "geo_loc_name": "Russia: Moscow Oblast",
+          "collection_date": "2018-06-10",
+          "depth": "0 - 0.15",
+          "elev": 144,
+          "growth_facil": "field",
+          "analysis_type": ["metagenomics"],
+          "store_cond": "frozen -80C"
+        },
+        {
+          "samp_name": "GSS-soil-006",
+          "lat_lon": "-26.20 28.04",
+          "geo_loc_name": "South Africa: Gauteng, Johannesburg",
+          "collection_date": "2018-11-05",
+          "depth": "0 - 0.1",
+          "elev": 1753,
+          "env_medium": "savanna soil [ENVO:00005750]",
+          "growth_facil": "field",
+          "analysis_type": ["metagenomics"],
+          "store_cond": "frozen -80C"
+        },
+        {
+          "samp_name": "GSS-soil-007",
+          "lat_lon": "35.69 139.69",
+          "geo_loc_name": "Japan: Tokyo",
+          "collection_date": "2018-04-22",
+          "depth": "0 - 0.1",
+          "elev": 40,
+          "env_local_scale": "woodland area [ENVO:00000109]",
+          "growth_facil": "field",
+          "analysis_type": ["metagenomics"],
+          "store_cond": "frozen -80C"
+        },
+        {
+          "samp_name": "GSS-soil-008",
+          "lat_lon": "45.42 -75.70",
+          "geo_loc_name": "Canada: Ontario, Ottawa",
+          "collection_date": "2018-08-16",
+          "depth": "0 - 0.15",
+          "elev": 70,
+          "env_broad_scale": "boreal forest biome [ENVO:01000250]",          
+          "growth_facil": "field",
+          "analysis_type": ["metagenomics"],
+          "store_cond": "frozen -80C"
+        },
+        {
+          "samp_name": "GSS-soil-009",
+          "lat_lon": "-1.29 36.82",
+          "geo_loc_name": "Kenya: Nairobi",
+          "collection_date": "2018-03-08",
+          "depth": "0 - 0.1",
+          "elev": 1661,
+          "env_broad_scale": "tropical savanna biome [ENVO:01000186]",
+          "growth_facil": "field",
+          "analysis_type": ["metagenomics"],
+          "store_cond": "frozen -80C"
+        },
+        {
+          "samp_name": "GSS-soil-010",
+          "lat_lon": "39.91 116.39",
+          "geo_loc_name": "China: Beijing",
+          "collection_date": "2018-10-19",
+          "depth": "0 - 0.15",
+          "elev": 43,
+          "env_local_scale": "woodland area [ENVO:00000109]",
+          "growth_facil": "field",
+          "analysis_type": ["metagenomics"],
+          "store_cond": "frozen -80C"
+        }
+      ]
+    }
+  },
+  "status": "In Progress",
+  "source_client": "submission_portal",
+  "is_test_submission": true,
+  "id": "fixture-restricted-0001",
+  "study_name": "Global Soil Microbiome Survey — Paywalled Reference Publication",
+  "templates": ["soil"]
+}
