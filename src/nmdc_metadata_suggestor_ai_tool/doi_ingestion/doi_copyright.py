@@ -48,7 +48,10 @@ _CC_SLUG_VERDICTS: dict[str, tuple[Verdict, str]] = {
     "by-nd": ("allowed", "Attribute; use verbatim only — do not modify or redistribute"),
     "by-nc": ("allowed", "Non-commercial use only — verify your use case is non-commercial"),
     "by-nc-sa": ("allowed", "Non-commercial use only; derived works must carry the same license"),
-    "by-nc-nd": ("allowed", "Non-commercial use only; use verbatim only — do not modify or redistribute"),
+    "by-nc-nd": (
+        "allowed",
+        "Non-commercial use only; use verbatim only — do not modify or redistribute",
+    ),
 }
 
 # Patterns that indicate a CC license string (non-URL form)
