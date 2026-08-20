@@ -358,7 +358,11 @@ class ConversationManager:
         If None, starts a new session.
 
         """
-        model = DEFAULT_CLAUDE_MODEL if self.llm_client.access_provider == "gcp" else self.llm_client.model
+        model = (
+            DEFAULT_CLAUDE_MODEL
+            if self.llm_client.access_provider == "gcp"
+            else self.llm_client.model
+        )
         # set env variable to enable Claude Agent SDK to pick up GCP credentials
         # Claude Agent SDK requires a Claude model, not a Gemini model, even on Vertex AI
         options = ClaudeAgentOptions(
