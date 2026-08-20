@@ -4,7 +4,7 @@ Unit tests cover the decision rules in ``.claude/skills/doi-copyright-check/SKIL
 
 * CC BY family → allowed (with attribution condition)
 * CC BY-ND → allowed (verbatim only)
-* CC BY-NC family → not_allowed (non-commercial restriction)
+* CC BY-NC family → allowed (non-commercial use only; restriction noted in condition)
 * CC0 / public domain → allowed (no attribution required)
 * All-rights-reserved / no CC license → not_allowed
 * No license info at all → uncertain
@@ -141,11 +141,11 @@ def test_all_rights_reserved_publication_is_not_allowed(
         # CC BY-ND — allowed (verbatim-only caveat)
         ("https://creativecommons.org/licenses/by-nd/4.0/", "allowed"),
         ("CC BY-ND 3.0", "allowed"),
-        # CC BY-NC family — not_allowed (non-commercial restriction)
-        ("https://creativecommons.org/licenses/by-nc/4.0/", "not_allowed"),
-        ("CC BY-NC 4.0", "not_allowed"),
-        ("https://creativecommons.org/licenses/by-nc-sa/4.0/", "not_allowed"),
-        ("https://creativecommons.org/licenses/by-nc-nd/4.0/", "not_allowed"),
+        # CC BY-NC family — allowed for PNNL internal use (non-commercial restriction in condition)
+        ("https://creativecommons.org/licenses/by-nc/4.0/", "allowed"),
+        ("CC BY-NC 4.0", "allowed"),
+        ("https://creativecommons.org/licenses/by-nc-sa/4.0/", "allowed"),
+        ("https://creativecommons.org/licenses/by-nc-nd/4.0/", "allowed"),
         # CC0 / public domain — allowed
         ("https://creativecommons.org/publicdomain/zero/1.0/", "allowed"),
         ("CC0 1.0", "allowed"),
@@ -186,13 +186,15 @@ def test_all_rights_reserved_string_is_not_allowed() -> None:
 
 
 def test_license_url_by_nc_parsed_correctly() -> None:
-    """CC BY-NC URL is parsed to the correct slug and returns not_allowed."""
+    """CC BY-NC URL is parsed to the correct slug and returns allowed (non-commercial use only)."""
     result = check_doi_copyright(
         doi="10.9999/nc-url",
         license_string="http://creativecommons.org/licenses/by-nc/4.0/",
     )
-    assert result.verdict == "not_allowed"
+    assert result.verdict == "allowed"
     assert result.license_found is not None
+    assert result.condition is not None
+    assert "non-commercial" in result.condition.lower()
 
 
 def test_license_url_by_sa_parsed_correctly() -> None:

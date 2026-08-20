@@ -30,8 +30,8 @@ Evaluate the license string from the DOI metadata (typically in `result.context`
 | `CC BY 4.0` / `CC-BY` / `CC BY 3.0` | Yes | Attribute the original authors and source |
 | `CC BY-SA 4.0` / `CC BY-SA 3.0` | Yes | Attribute; any derived work must carry the same license |
 | `CC BY-ND 4.0` / `CC BY-ND 3.0` | Yes (verbatim context only) | Attribute; do not modify or redistribute the content itself — see ND note below |
-| `CC BY-NC 4.0` / `CC BY-NC 3.0` | Yes, PNNL internal use only | Non-commercial; attribute |
-| `CC BY-NC-SA` / `CC BY-NC-ND` | Yes, PNNL internal use only | Non-commercial; apply SA/ND constraints above |
+| `CC BY-NC 4.0` / `CC BY-NC 3.0` | Yes, non-commercial use only | Non-commercial; attribute; verify your use case is non-commercial |
+| `CC BY-NC-SA` / `CC BY-NC-ND` | Yes, non-commercial use only | Non-commercial; apply SA/ND constraints above |
 | `CC0` / Public Domain | Yes | No attribution required |
 | All rights reserved / no CC license found | **No** — skip this content | Cannot use without explicit publisher permission |
 | License unclear / not found | **Uncertain** — flag for review | Do not use; surface the DOI for manual check |
@@ -40,7 +40,7 @@ Evaluate the license string from the DOI metadata (typically in `result.context`
 
 > **Note on CC BY-ND ("No Derivatives"):** Passing text verbatim to an LLM as prompt context does not obviously create a derivative work, which is the basis for treating it as allowed. However, this interpretation is not settled law. If the content will be excerpted, paraphrased, or transformed in the LLM output, treat it as **Uncertain** and flag for manual review instead.
 
-> **Note on CC BY-NC and commercial use:** NC licenses permit internal research use at a non-profit or government lab (like PNNL). If any part of the pipeline or its outputs supports a commercial product or revenue-generating activity, the NC restriction may be triggered — escalate to the PNNL library team.
+> **Note on CC BY-NC and commercial use:** NC licenses permit non-commercial use (research, academic, government, non-profit contexts). If any part of the pipeline or its outputs supports a commercial product or revenue-generating activity, the NC restriction may be triggered — verify with your institution's library or legal team before proceeding.
 
 > **Note on version differences (3.0 vs 4.0):** For practical purposes, CC 3.0 and 4.0 licenses of the same type are treated identically here. CC 4.0 introduced minor improvements (e.g., explicit database rights) but the core permissions are the same.
 
@@ -89,5 +89,5 @@ After calling **doi-ingestion** for each DOI:
 ## Important caveats
 
 - **Author self-use:** An author using their own non-OA paper may have retained rights under their individual copyright agreement, but this tool cannot verify that. Treat non-CC content as `not_allowed` regardless.
-- **This is not legal advice.** The legal landscape around AI and copyright is actively evolving. When in doubt, escalate to the PNNL library team before using restricted content.
+- **This is not legal advice.** The legal landscape around AI and copyright is actively evolving. When in doubt, consult your institution's library or legal team before using restricted content.
 - **Training vs. context:** These rules apply only to inference-time context. Using content to train or fine-tune a model, or retaining a copy of the content, requires a separate and stricter review.

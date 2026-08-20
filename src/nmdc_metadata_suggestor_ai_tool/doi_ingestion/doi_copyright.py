@@ -46,9 +46,9 @@ _CC_SLUG_VERDICTS: dict[str, tuple[Verdict, str]] = {
     "by": ("allowed", "Attribute the original authors and source"),
     "by-sa": ("allowed", "Attribute; any derived work must carry the same license"),
     "by-nd": ("allowed", "Attribute; use verbatim only — do not modify or redistribute"),
-    "by-nc": ("not_allowed", "Non-commercial only; PNNL internal use — verify before including"),
-    "by-nc-sa": ("not_allowed", "Non-commercial; apply SA constraints — PNNL internal use only"),
-    "by-nc-nd": ("not_allowed", "Non-commercial; apply ND constraints — PNNL internal use only"),
+    "by-nc": ("allowed", "Non-commercial use only — verify your use case is non-commercial"),
+    "by-nc-sa": ("allowed", "Non-commercial use only; derived works must carry the same license"),
+    "by-nc-nd": ("allowed", "Non-commercial use only; use verbatim only — do not modify or redistribute"),
 }
 
 # Patterns that indicate a CC license string (non-URL form)
@@ -141,8 +141,8 @@ def check_doi_copyright(
             if nc:
                 note = (
                     f"License {slug.upper()} is non-commercial. "
-                    "Allowed for PNNL internal research use only; "
-                    "verify no commercial activity is involved."
+                    "Allowed for non-commercial use only; "
+                    "verify your use case is non-commercial before including."
                 )
             elif nd:
                 note = (
