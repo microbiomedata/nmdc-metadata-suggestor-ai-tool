@@ -1,9 +1,9 @@
 # Env triad validation
 
 ```python
-from nmdc_metadata_suggestor_ai_tool.envo_index import get_envo_index
+from nmdc_metadata_suggestor_ai_tool.envo import get_envo
 
-result = get_envo_index().validate(
+result = get_envo().validate(
     "activated sludge [ENVO:00002046]", "env_medium", "WastewaterSludgeInterface"
 )
 ```
@@ -22,7 +22,7 @@ That is a backstop, not a substitute. It has no access to the evidence you gathe
 |---|---|---|
 | 1 | Slot name | Not one of the three env triad slots |
 | 2 | Value pattern | The value does not match the pattern the schema declares **for this interface and slot** — see prefixes below |
-| 3 | Term exists | The ENVO CURIE is absent from the pinned ENVO release |
+| 3 | Term exists | The ENVO CURIE is absent from the ENVO release oaklib is serving |
 | 4 | Not obsolete | ENVO has deprecated the term |
 | 5 | Label matches | The label differs from ENVO's official label. `corrected_value` carries the fix — use it rather than re-deriving |
 | 6 | Anchor class | The term does not descend from the slot's MIxS anchor |
@@ -58,7 +58,7 @@ Drop a tier and try again — do not emit a failing value.
 | Wrong anchor | You have the right concept at the wrong grain. A biome proposed for `env_medium` means you named the setting, not the material — search the material anchor instead |
 | Pattern | The prefix is not allowed on this slot. Find the ENVO equivalent, or fall to tier 3 |
 
-If nothing survives, emit `index.generic_fallback(interface, slot)` with `source: "generalized"`. Never emit an empty `value`.
+If nothing survives, emit `envo.generic_fallback(interface, slot)` with `source: "generalized"`. Never emit an empty `value`.
 
 The fallback is the broadest term in the extension's curated set when that set has a root (`soil [ENVO:00001998]`, `aquatic biome [ENVO:00002030]`), otherwise the first expansion seed (`air [ENVO:00002005]`, `sludge [ENVO:00002044]`). For **`env_local_scale` it is always the bare anchor** — no value set has a genuine broadest member, they are flat collections of sibling features. A `generalized` local scale therefore carries almost no information: treat it as a prompt to re-examine the evidence rather than a usable answer.
 
@@ -73,10 +73,13 @@ Beyond the mechanical checks: `env_local_scale` should be finer-grained than `en
 Verified against nmdc-submission-schema and ENVO 2026-06-26.
 
 - **`ENVO:02000139`** (desert spring) and **`ENVO:02000145`** (subterranean lake) appear in the water value sets and no longer exist in ENVO or OLS4. The gate rejects them; do not emit them even though the schema offers them. Worth reporting upstream.
-- Aside from those two, no curated value in any of the four value sets is rejected — `tests/test_envo_index.py` asserts it, so a schema bump that breaks the assumption fails CI rather than silently dropping suggestions.
+- Aside from those two, no curated value in any of the four value sets is rejected — `tests/test_envo.py` asserts it, so a schema bump that breaks the assumption fails CI rather than silently dropping suggestions.
 
-## Refreshing the index
+## Which ENVO release is in play
 
-The index is pinned; every command reports the release it was built from when a CURIE is missing. Regenerate with `make build-envo-index`, then review the version and term-count diff before committing.
+Ontology access goes through oaklib's `sqlite:obo:envo` adapter, which downloads and caches ENVO on
+first use. `envo.envo_version` reports the release, and every "not in ENVO" failure quotes it, so a
+rejection can always be traced to a specific release.
 
-That target runs `scripts/build_envo_index.py` at the repo root — maintainer tooling, and the only place this repo fetches ontology data over the network. Everything the skill touches reads the committed artifact.
+Nothing about ENVO is asserted from memory anywhere in this skill. Every CURIE in the code and in
+these reference files is checked against that release on every test run.

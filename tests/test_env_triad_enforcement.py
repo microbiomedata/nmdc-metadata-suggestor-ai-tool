@@ -2,7 +2,7 @@
 
 These cover the non-agentic path in env_triad_recommendation: the ENVO candidate
 context handed to the model, and the gate that repairs or replaces what comes
-back. Unit tests for the index itself live in test_envo_index.py.
+back. Unit tests for the index itself live in test_envo.py.
 """
 
 from nmdc_metadata_suggestor_ai_tool.env_triad_recommendation import (

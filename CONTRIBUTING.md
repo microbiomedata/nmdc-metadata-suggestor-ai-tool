@@ -160,7 +160,7 @@ is not repeated twelve times.
 ### Look terms up, do not recall them
 
 Every ENVO term you write is checked by `tests/test_env_triad_references.py`: it
-must exist in the pinned ENVO release, must not be obsolete, must carry ENVO's
+must exist in the ENVO release oaklib is serving, must not be obsolete, must carry ENVO's
 own label, and — when your line names a slot — must be the right kind of term for
 that slot. Recalled CURIEs are wrong often enough that this check exists.
 
@@ -168,15 +168,15 @@ Find and confirm terms without leaving the repo:
 
 ```bash
 uv run python -c "
-from nmdc_metadata_suggestor_ai_tool.envo_index import get_envo_index
-index = get_envo_index()
+from nmdc_metadata_suggestor_ai_tool.envo import get_envo
+envo = get_envo()
 
 # find a term
-for term in index.search('paddy soil', slot='env_medium'):
+for term in envo.search('paddy soil', slot='env_medium'):
     print(term.value, '--', term.definition)
 
 # confirm one you already have
-print(index.validate('soil [ENVO:00001998]', 'env_medium', 'SoilInterface'))
+print(envo.validate('soil [ENVO:00001998]', 'env_medium', 'SoilInterface'))
 "
 ```
 

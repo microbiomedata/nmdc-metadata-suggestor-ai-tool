@@ -140,6 +140,14 @@ EXCLUDED_SLOTS: frozenset[str] = frozenset(
 # ---------------------------------------------------------------------------
 ENV_TRIAD_SLOTS: tuple[str, ...] = ("env_broad_scale", "env_local_scale", "env_medium")
 
+# oaklib adapter for ENVO. semantic-sql; oaklib downloads and caches the
+# ontology on first use. Override for a self-hosted or pinned build.
+ENVO_ADAPTER = os.environ.get("ENVO_ADAPTER", "sqlite:obo:envo")
+
+# The env triad slot patterns admit ENVO plus, on some slots, UBERON or PO.
+# Only ENVO terms can be checked against the ontology adapter.
+ENVO_PREFIX = "ENVO:"
+
 # MIxS anchor class per env triad slot, as recommended by the slot descriptions
 # in nmdc-submission-schema.
 ENV_TRIAD_ANCHORS: dict[str, str] = {
@@ -159,7 +167,7 @@ HARD_ANCHOR_SLOTS: frozenset[str] = frozenset({"env_broad_scale", "env_medium"})
 # host-associated local scale and medium also admit UBERON, and the
 # plant-associated / soil / water local scale and medium also admit PO. Validation
 # reads the real pattern from the schema; this is the ENVO-only default used when
-# the interface is unknown. See envo_index.get_slot_pattern.
+# the interface is unknown. See envo.get_slot_pattern.
 DEFAULT_ENV_TRIAD_VALUE_PATTERN = r"^([^\s-]{1,2}|[^\s-]+.+[^\s-]+) \[ENVO:\d{7,8}\]$"
 
 # Pulls the CURIE out of a value that has already matched its slot pattern.

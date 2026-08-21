@@ -1,4 +1,4 @@
-.PHONY: help dev-install test test-integration lint lint-fix format security check-deps clean docker-build docker-run docker-dev validate-doi classify-doi classify-fixture get-abstract get-abstracts build-envo-index
+.PHONY: help dev-install test test-integration lint lint-fix format security check-deps clean docker-build docker-run docker-dev validate-doi classify-doi classify-fixture get-abstract get-abstracts
 
 help: ## Show this help message
 	@echo "Usage: make [target]"
@@ -38,12 +38,6 @@ security: ## Audit dependencies for known CVEs (pip-audit)
 
 check-deps: ## Check dependency hygiene: unused/missing/misplaced dependencies (deptry)
 	uv run --with deptry deptry src
-
-# The only place this repo fetches ontology data. Runtime never hits the network:
-# envo_index.py reads the committed artifact. Review the envo_version and term-count
-# diff before committing a refresh.
-build-envo-index: ## Rebuild the pinned ENVO index from the current ENVO release
-	uv run python scripts/build_envo_index.py
 
 clean: ## Clean up generated files
 	rm -rf .pytest_cache

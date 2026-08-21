@@ -12,7 +12,7 @@ from google.genai import types as genai_types
 from google.oauth2 import service_account
 from openai import OpenAI
 
-from nmdc_metadata_suggestor_ai_tool.envo_index import enforce_env_triad_values
+from nmdc_metadata_suggestor_ai_tool.envo import enforce_env_triad_values
 from nmdc_metadata_suggestor_ai_tool.langfuse_claude_sdk import (
     AssistantMessage,
     ClaudeAgentOptions,

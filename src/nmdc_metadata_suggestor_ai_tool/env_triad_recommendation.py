@@ -1,9 +1,9 @@
 import logging
 from typing import Any
 
-from nmdc_metadata_suggestor_ai_tool.envo_index import (
+from nmdc_metadata_suggestor_ai_tool.envo import (
     enforce_env_triad_values,
-    get_envo_index,
+    get_envo,
 )
 from nmdc_metadata_suggestor_ai_tool.llm_client import ConversationManager, LLMClient
 from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
@@ -28,7 +28,7 @@ def build_envo_expansion_context(interface_names: list[str] | None) -> str:
     other two slots it names the extension-specific subtrees to draw from, which
     is far smaller than dumping the anchor subtrees themselves.
     """
-    index = get_envo_index()
+    index = get_envo()
     biomes = index.biome_values()
     sections = [
         "# Verified ENVO terms (ENVO expansion tier)",

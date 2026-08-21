@@ -1,50 +1,57 @@
-"""Pinned ENVO lookup and env triad validation.
+"""ENVO lookups and env triad validation.
 
-Backs the ENVO-expansion tier of the ``env-triad`` skill: when the submission
-schema's curated value set for a MIxS extension has nothing appropriate -- or,
-for the eight extensions that ship no value set at all, from the start -- this
-module supplies verified ENVO candidates and gates every value before it is
-emitted.
+Ontology access goes through :mod:`oaklib` -- term lookup, obsolescence,
+labels, and the subclass hierarchy are all its job, and nothing here
+reimplements them. What this module adds is the NMDC-specific layer oaklib has
+no opinion about: which ENVO subtree each MIxS env triad slot must point into,
+what each submission-schema interface permits, the three-tier resolution the
+skill follows, and the gate every suggested value passes before it reaches a
+caller.
 
-The index is a pinned artifact built by ``scripts/build_envo_index.py`` and
-shipped in ``data/envo_index.json.gz``. Reading it needs only the standard
-library and never touches the network, so the agent is never pointed at a URL.
-Refresh it deliberately with ``make build-envo-index``.
+The adapter is ``sqlite:obo:envo`` (semantic-sql). oaklib downloads and caches
+the ontology on first use, so a cold process pays that once; warm, a lookup is
+sub-millisecond. Pre-warm it in a container image with::
+
+    python -c "from oaklib import get_adapter; get_adapter('sqlite:obo:envo')"
 
 Usage mirrors :class:`~nmdc_metadata_suggestor_ai_tool.schema_context.SchemaContextBuilder`::
 
-    from nmdc_metadata_suggestor_ai_tool.envo_index import get_envo_index
+    from nmdc_metadata_suggestor_ai_tool.envo import get_envo
 
-    index = get_envo_index()
-    index.search("rhizosphere", slot="env_local_scale")
-    index.validate("soil [ENVO:00001998]", "env_medium")
+    envo = get_envo()
+    envo.search("rhizosphere", slot="env_local_scale")
+    envo.validate("soil [ENVO:00001998]", "env_medium", "SoilInterface")
 """
 
 from __future__ import annotations
 
 import functools
-import gzip
-import importlib.resources
-import json
 import logging
 import re
-from collections import defaultdict
-from dataclasses import dataclass, field
-from typing import Any
+from collections.abc import Callable
+from dataclasses import dataclass
+
+from oaklib import get_adapter  # type: ignore[import-untyped]
+from oaklib.datamodels.search import (  # type: ignore[import-untyped]
+    SearchConfiguration,
+    SearchProperty,
+)
+from oaklib.datamodels.vocabulary import IS_A  # type: ignore[import-untyped]
+from oaklib.interfaces import OboGraphInterface  # type: ignore[import-untyped]
 
 from nmdc_metadata_suggestor_ai_tool.constants import (
     DEFAULT_ENV_TRIAD_VALUE_PATTERN,
     ENV_TRIAD_ANCHORS,
     ENV_TRIAD_CURIE_PATTERN,
     ENV_TRIAD_SLOTS,
+    ENVO_ADAPTER,
+    ENVO_PREFIX,
     HARD_ANCHOR_SLOTS,
 )
 from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
 from nmdc_metadata_suggestor_ai_tool.utils.submission_parser import MixsExtensions
 
 logger = logging.getLogger(__name__)
-
-INDEX_RESOURCE = "envo_index.json.gz"
 
 # MIxS extensions whose env triad slots carry a curated value set in
 # nmdc-submission-schema. Everything else has env triad slots but no valueset,
@@ -58,10 +65,10 @@ CURATED_INTERFACES: frozenset[str] = frozenset(
 # generic fallback when nothing more specific is defensible. A slot with no
 # entry expands over its whole anchor subtree.
 #
-# env_broad_scale is absent by design: all of ENVO holds 127 biome terms, so
+# env_broad_scale is absent by design: all of ENVO holds ~130 biome terms, so
 # every extension gets the complete list (see `biome_values`) rather than seeds.
 #
-# Every CURIE here is verified by tests/test_envo_index.py to exist, to be
+# Every CURIE here is verified by tests/test_envo.py to exist, to be
 # non-obsolete, and to sit under its slot's anchor -- these are looked up, not
 # recalled.
 EXPANSION_SEEDS: dict[str, dict[str, tuple[str, ...]]] = {
@@ -94,16 +101,16 @@ EXPANSION_SEEDS: dict[str, dict[str, tuple[str, ...]]] = {
     # expansion runs over the whole environmental-material anchor.
 }
 
+MAX_DEFINITION_CHARS = 400
+
 
 @dataclass(frozen=True)
 class EnvoTerm:
-    """One ENVO class from the pinned index."""
+    """One ENVO class, as this package needs it."""
 
     curie: str
     label: str
     definition: str | None = None
-    synonyms: tuple[str, ...] = ()
-    parents: tuple[str, ...] = ()
     anchors: tuple[str, ...] = ()
     obsolete: bool = False
 
@@ -135,63 +142,73 @@ class ValidationResult:
         return "submission_enum" if self.in_valueset else "envo_expansion"
 
 
-@dataclass
-class EnvoIndex:
-    """Read-only view over the pinned ENVO index."""
+class Envo:
+    """NMDC env triad rules over an oaklib ENVO adapter."""
 
-    envo_version: str | None
-    terms: dict[str, EnvoTerm]
-    _children: dict[str, set[str]] = field(default_factory=lambda: defaultdict(set), repr=False)
+    def __init__(self, adapter: OboGraphInterface | None = None) -> None:
+        self.adapter = adapter if adapter is not None else get_adapter(ENVO_ADAPTER)
+        self._anchor_cache: dict[str, frozenset[str]] = {}
 
-    def __post_init__(self) -> None:
-        children: dict[str, set[str]] = defaultdict(set)
-        for curie, term in self.terms.items():
-            for parent in term.parents:
-                children[parent].add(curie)
-        self._children = children
+    # -- provenance --------------------------------------------------------
+
+    @functools.cached_property
+    def envo_version(self) -> str | None:
+        """The ENVO release the adapter is serving, for reports and errors."""
+        for ontology in self.adapter.ontologies():
+            versions = (self.adapter.ontology_metadata_map(ontology) or {}).get("owl:versionIRI")
+            if versions:
+                return str(versions[0] if isinstance(versions, list) else versions)
+        return None
 
     # -- lookup ------------------------------------------------------------
 
+    @functools.cached_property
+    def _obsolete(self) -> frozenset[str]:
+        return frozenset(str(c) for c in self.adapter.obsoletes())
+
     def get(self, curie: str) -> EnvoTerm | None:
         """Return the term for a CURIE, or None if ENVO does not define it."""
-        return self.terms.get(curie)
+        label = self.adapter.label(curie)
+        if label is None:
+            return None
+        definition = self.adapter.definition(curie)
+        return EnvoTerm(
+            curie=curie,
+            label=label,
+            definition=definition[:MAX_DEFINITION_CHARS] if definition else None,
+            anchors=tuple(slot for slot in ENV_TRIAD_SLOTS if curie in self._anchor_members(slot)),
+            obsolete=curie in self._obsolete,
+        )
 
     def descendants(self, curie: str) -> set[str]:
-        """Return the transitive subclass closure below a CURIE."""
-        seen: set[str] = set()
-        stack = [curie]
-        while stack:
-            for child in self._children.get(stack.pop(), ()):
-                if child not in seen:
-                    seen.add(child)
-                    stack.append(child)
-        return seen
+        """Transitive subclass closure below a CURIE, excluding the term itself."""
+        return {
+            str(c) for c in self.adapter.descendants(curie, predicates=[IS_A]) if str(c) != curie
+        }
 
     def ancestors(self, curie: str) -> set[str]:
-        """Return the transitive superclasses of a CURIE."""
-        seen: set[str] = set()
-        stack = [curie]
-        while stack:
-            term = self.terms.get(stack.pop())
-            if term is None:
-                continue
-            for parent in term.parents:
-                if parent not in seen:
-                    seen.add(parent)
-                    stack.append(parent)
-        return seen
+        """Transitive superclasses of a CURIE, excluding the term itself."""
+        return {str(c) for c in self.adapter.ancestors(curie, predicates=[IS_A]) if str(c) != curie}
 
     def is_under(self, curie: str, ancestor: str) -> bool:
         """True when curie is ancestor or descends from it."""
         return curie == ancestor or ancestor in self.ancestors(curie)
 
+    def _anchor_members(self, slot: str) -> frozenset[str]:
+        """ENVO terms under a slot's MIxS anchor class.
+
+        Cached because `enforce_env_triad_values` checks membership up to twelve
+        times per suggestion; one closure query beats a per-call graph walk.
+        """
+        if slot not in self._anchor_cache:
+            self._anchor_cache[slot] = frozenset(
+                c for c in self.descendants(ENV_TRIAD_ANCHORS[slot]) if c.startswith(ENVO_PREFIX)
+            )
+        return self._anchor_cache[slot]
+
     def in_anchor(self, curie: str, slot: str) -> bool:
         """True when a CURIE satisfies the slot's MIxS anchor class."""
-        anchor = ENV_TRIAD_ANCHORS[slot]
-        term = self.terms.get(curie)
-        if term is None:
-            return False
-        return curie == anchor or slot in term.anchors
+        return curie == ENV_TRIAD_ANCHORS[slot] or curie in self._anchor_members(slot)
 
     # -- search ------------------------------------------------------------
 
@@ -205,88 +222,107 @@ class EnvoIndex:
     ) -> list[EnvoTerm]:
         """Rank ENVO terms matching text, scoped to a slot anchor and/or subtrees.
 
-        Matching is on whole words in labels and synonyms, so "air" does not
-        match "dairy". The whole phrase is tried first, ranking exact label >
-        label edge > label word > synonym. Only if that finds nothing does a
-        multi-word query fall back to matching its individual words, ranked by
-        how many hit -- so "rhizosphere soil", which is no term's label, still
-        returns rhizosphere and soil terms rather than nothing.
+        Candidates come from oaklib's search. What is added here is the ordering
+        the skill wants -- exact label first, then label edge, word, alias -- and
+        a fallback to individual words when the whole phrase finds nothing, so
+        "rhizosphere soil" returns rhizosphere and soil terms rather than the
+        empty result oaklib gives for a phrase no term is called.
         """
         query = text.strip().lower()
         if not query:
             return []
 
-        candidates = [
-            (curie, term)
-            for curie, term in self.terms.items()
-            if (include_obsolete or not term.obsolete)
-            and (slot is None or self.in_anchor(curie, slot))
-        ]
+        scope: set[str] | None = None
         if within:
-            scope: set[str] = set()
+            scope = set()
             for root in within:
                 scope.add(root)
                 scope |= self.descendants(root)
-            candidates = [row for row in candidates if row[0] in scope]
 
-        scored = self._score(candidates, query)
-        words = [word for word in query.split() if len(word) > 2]
+        def eligible(curie: str) -> bool:
+            if not curie.startswith(ENVO_PREFIX):
+                return False
+            if not include_obsolete and curie in self._obsolete:
+                return False
+            if slot is not None and not self.in_anchor(curie, slot):
+                return False
+            return scope is None or curie in scope
+
+        scored = self._rank(query, eligible)
+        words = [w for w in query.split() if len(w) > 2]
         if not scored and len(words) > 1:
-            per_word = [self._score(candidates, word) for word in words]
             best: dict[str, tuple[int, int, EnvoTerm]] = {}
-            for row in (row for word_rows in per_word for row in word_rows):
-                score, _, curie, term = row
-                hits, top, _ = best.get(curie, (0, 0, term))
-                best[curie] = (hits + 1, max(top, score), term)
-            # Rank by how many query words hit, then by how strongly the best one
-            # did -- so an exact label match on the rarer word ("rhizosphere")
-            # outranks a synonym match on the common one ("soil").
+            for word in words:
+                for score, _, curie, term in self._rank(word, eligible):
+                    hits, top, _ = best.get(curie, (0, 0, term))
+                    best[curie] = (hits + 1, max(top, score), term)
+            # Rank by how many query words hit, then how strongly the best one
+            # did, so an exact label match on the rarer word ("rhizosphere")
+            # outranks an alias match on the common one ("soil").
             scored = [
-                (hits * 1000 + top, -len(term.label or ""), curie, term)
+                (hits * 1000 + top, -len(term.label), curie, term)
                 for curie, (hits, top, term) in best.items()
             ]
 
         scored.sort(key=lambda row: (-row[0], -row[1], row[2]))
         return [row[3] for row in scored[:limit]]
 
-    def _score(
-        self, candidates: list[tuple[str, EnvoTerm]], query: str
+    def _rank(
+        self, query: str, eligible: Callable[[str], bool]
     ) -> list[tuple[int, int, str, EnvoTerm]]:
-        """Score candidates against one whole-word query phrase."""
-        word_pattern = re.compile(rf"\b{re.escape(query)}\b")
+        """Score oaklib's hits for one whole-word query phrase."""
+        config = SearchConfiguration(
+            properties=[SearchProperty.LABEL, SearchProperty.ALIAS], is_partial=True
+        )
+        word = re.compile(rf"\b{re.escape(query)}\b")
         scored: list[tuple[int, int, str, EnvoTerm]] = []
-        for curie, term in candidates:
-            label = (term.label or "").lower()
+        for hit in self.adapter.basic_search(query, config=config):
+            curie = str(hit)
+            if not eligible(curie):
+                continue
+            term = self.get(curie)
+            if term is None:
+                continue
+            label = term.label.lower()
             if label == query:
                 score = 100
             elif label.startswith(f"{query} ") or label.endswith(f" {query}"):
                 score = 80
-            elif word_pattern.search(label):
+            elif word.search(label):
                 score = 60
-            elif any(word_pattern.search(syn.lower()) for syn in term.synonyms):
+            elif self._alias_hit(curie, word):
                 score = 40
             else:
+                # oaklib's partial search is a substring match, so "air" comes
+                # back for "dairy food product". Whole-word only, per the skill.
                 continue
             scored.append((score, -len(label), curie, term))
         return scored
+
+    def _alias_hit(self, curie: str, word: re.Pattern[str]) -> bool:
+        """True when a synonym matches the query on a word boundary."""
+        aliases = self.adapter.entity_alias_map(curie) or {}
+        return any(word.search(str(a).lower()) for values in aliases.values() for a in values)
 
     # -- candidate pools ---------------------------------------------------
 
     def biome_values(self) -> list[str]:
         """Every non-obsolete ENVO biome, as ``label [CURIE]`` strings.
 
-        All of ENVO holds ~127 biomes, so the complete env_broad_scale universe
+        All of ENVO holds ~130 biomes, so the complete env_broad_scale universe
         fits in a prompt for any MIxS extension -- no search step needed.
         """
         return self.values_under(ENV_TRIAD_ANCHORS["env_broad_scale"])
 
     def values_under(self, curie: str, limit: int | None = None) -> list[str]:
-        """Non-obsolete descendants of a CURIE, as ``label [CURIE]`` strings."""
-        values = sorted(
-            term.value
-            for child in self.descendants(curie)
-            if (term := self.terms.get(child)) is not None and not term.obsolete
-        )
+        """Non-obsolete ENVO descendants of a CURIE, as ``label [CURIE]`` strings."""
+        wanted = [
+            c
+            for c in self.descendants(curie)
+            if c.startswith(ENVO_PREFIX) and c not in self._obsolete
+        ]
+        labels = dict(self.adapter.labels(wanted))
+        values = sorted(f"{labels[c]} [{c}]" for c in wanted if labels.get(c))
         return values[:limit] if limit is not None else values
 
     def expansion_seeds(self, interface_name: str, slot: str) -> tuple[str, ...]:
@@ -306,7 +342,7 @@ class EnvoIndex:
             return curated
         seeds = self.expansion_seeds(interface_name, slot)
         curie = seeds[0] if seeds else ENV_TRIAD_ANCHORS[slot]
-        term = self.terms.get(curie)
+        term = self.get(curie)
         return term.value if term else curie
 
     def most_general_value(self, values: frozenset[str] | set[str]) -> str | None:
@@ -319,19 +355,18 @@ class EnvoIndex:
         sibling features whose best candidate covers 3 to 7 of 50-plus. Picking
         a winner there would dress an arbitrary choice up as a considered one.
 
-        Non-ENVO values (UBERON, PO) are skipped: they are outside the index, so
-        their place in the hierarchy is unknown.
+        Non-ENVO values (UBERON, PO) are skipped: the ENVO adapter cannot place
+        them in the hierarchy.
         """
         by_curie: dict[str, str] = {}
         for value in values:
             match = ENV_TRIAD_CURIE_PATTERN.match(value)
-            if match and match.group(2) in self.terms:
+            if match and match.group(2).startswith(ENVO_PREFIX) and self.get(match.group(2)):
                 by_curie[match.group(2)] = value
         if not by_curie:
             return None
         best = min(
-            by_curie,
-            key=lambda curie: (-len(self.descendants(curie) & by_curie.keys()), curie),
+            by_curie, key=lambda curie: (-len(self.descendants(curie) & by_curie.keys()), curie)
         )
         subsumed = len(self.descendants(best) & by_curie.keys())
         return by_curie[best] if subsumed * 2 > len(by_curie) - 1 else None
@@ -351,13 +386,13 @@ class EnvoIndex:
 
         Where a slot's pattern admits UBERON or PO alongside ENVO -- the
         host-associated and plant/soil/water local scale and medium slots do --
-        such a value passes the pattern but cannot be checked further, since only
-        ENVO is indexed. That is reported as a warning, not a failure.
+        such a value passes the pattern but cannot be checked further, since the
+        adapter only knows ENVO. That is reported as a warning, not a failure.
 
-        The anchor gate polices ENVO expansion, not the schema: a value already in
-        the interface's curated set is never rejected for its anchor. Existence
-        and obsolescence still apply, so dead CURIEs the schema still offers are
-        caught wherever they appear.
+        The anchor gate polices ENVO expansion, not the schema: a value already
+        in the interface's curated set is never rejected for its anchor.
+        Existence and obsolescence still apply, so terms the schema still offers
+        but ENVO has dropped are caught wherever they appear.
         """
         if slot not in ENV_TRIAD_SLOTS:
             return ValidationResult(
@@ -388,19 +423,19 @@ class EnvoIndex:
             )
 
         label, curie = curie_match.group(1), curie_match.group(2)
-        if not curie.startswith("ENVO:"):
+        if not curie.startswith(ENVO_PREFIX):
             return ValidationResult(
                 ok=True,
                 value=value,
                 slot=slot,
                 warnings=(
                     f"{curie} is allowed by this slot's pattern but is not an ENVO term, "
-                    "so it cannot be checked against the pinned index",
+                    "so it cannot be checked against the ontology",
                 ),
                 in_valueset=in_valueset,
             )
 
-        term = self.terms.get(curie)
+        term = self.get(curie)
         if term is None:
             return ValidationResult(
                 ok=False,
@@ -412,13 +447,16 @@ class EnvoIndex:
 
         corrected: str | None = None
         if term.obsolete:
-            failures.append(f"{curie} is obsolete in ENVO")
+            replacement = self.replacement_for(curie)
+            hint = f"; ENVO replaced it with {replacement}" if replacement else ""
+            failures.append(f"{curie} is obsolete in ENVO{hint}")
+            corrected = replacement
         if term.label and label != term.label:
             failures.append(f"label {label!r} does not match the ENVO label {term.label!r}")
-            corrected = term.value
+            corrected = corrected or term.value
         if not self.in_anchor(curie, slot):
             anchor = ENV_TRIAD_ANCHORS[slot]
-            anchor_term = self.terms.get(anchor)
+            anchor_term = self.get(anchor)
             anchor_label = anchor_term.label if anchor_term else anchor
             message = f"{curie} does not descend from {anchor_label} [{anchor}]"
             if slot in HARD_ANCHOR_SLOTS and not in_valueset:
@@ -437,6 +475,20 @@ class EnvoIndex:
             in_valueset=in_valueset,
         )
 
+    def replacement_for(self, curie: str) -> str | None:
+        """The ``label [CURIE]`` ENVO says supersedes an obsolete term, if any.
+
+        oaklib carries `term replaced by` (IAO:0100001); the previous pinned
+        artifact dropped it, so an obsolete term could only be rejected rather
+        than redirected.
+        """
+        metadata = self.adapter.entity_metadata_map(curie) or {}
+        for successor in metadata.get("IAO:0100001") or []:
+            term = self.get(str(successor))
+            if term is not None:
+                return term.value
+        return None
+
     # -- prompt formatting -------------------------------------------------
 
     def format_expansion_context(self, interface_name: str, slot: str) -> str:
@@ -447,7 +499,7 @@ class EnvoIndex:
         rather than dumping hundreds of terms into the prompt.
         """
         anchor = ENV_TRIAD_ANCHORS[slot]
-        anchor_term = self.terms.get(anchor)
+        anchor_term = self.get(anchor)
         anchor_value = anchor_term.value if anchor_term else anchor
         lines = [f"## {slot} — ENVO expansion pool ({interface_name})"]
 
@@ -467,7 +519,7 @@ class EnvoIndex:
 
         lines.append(f"Search within these subtrees (all under {anchor_value}):")
         for seed in seeds:
-            term = self.terms.get(seed)
+            term = self.get(seed)
             if term is None:
                 continue
             lines.append(f"- {term.value} — {len(self.values_under(seed))} descendants")
@@ -513,8 +565,6 @@ def get_slot_pattern(interface_name: str | None, slot: str) -> re.Pattern[str]:
     """
     source = DEFAULT_ENV_TRIAD_VALUE_PATTERN
     if interface_name:
-        # Imported lazily: validation of a plain ENVO value should not pay for a
-        # SchemaView load.
         from nmdc_metadata_suggestor_ai_tool.schema_context import get_schema_view
 
         try:
@@ -527,19 +577,10 @@ def get_slot_pattern(interface_name: str | None, slot: str) -> re.Pattern[str]:
     return re.compile(source)
 
 
-def _load_terms(raw: dict[str, Any]) -> dict[str, EnvoTerm]:
-    return {
-        curie: EnvoTerm(
-            curie=curie,
-            label=entry.get("label") or curie,
-            definition=entry.get("definition"),
-            synonyms=tuple(entry.get("synonyms", ())),
-            parents=tuple(entry.get("parents", ())),
-            anchors=tuple(entry.get("anchors", ())),
-            obsolete=bool(entry.get("obsolete")),
-        )
-        for curie, entry in raw["terms"].items()
-    }
+@functools.lru_cache(maxsize=1)
+def get_envo() -> Envo:
+    """Load and cache the ENVO adapter with the NMDC env triad rules attached."""
+    return Envo()
 
 
 def enforce_env_triad_values(output: LLMOutput, interface_names: list[str] | None) -> LLMOutput:
@@ -562,7 +603,7 @@ def enforce_env_triad_values(output: LLMOutput, interface_names: list[str] | Non
     strictest interface applies -- every extension is then treated as possible,
     so a legitimate UBERON or PO value is not rejected for want of context.
     """
-    index = get_envo_index()
+    envo = get_envo()
     interfaces: list[str | None] = (
         list(interface_names) if interface_names else list(MixsExtensions.__members__)
     )
@@ -577,7 +618,7 @@ def enforce_env_triad_values(output: LLMOutput, interface_names: list[str] | Non
 
         # A value only has to satisfy one of the interfaces in play: the schema
         # patterns differ, and host-associated admits UBERON where soil does not.
-        results = [index.validate(suggestion.value, slot, name) for name in interfaces]
+        results = [envo.validate(suggestion.value, slot, name) for name in interfaces]
         # Prefer an interface that found the value in its curated set. Interfaces
         # iterate in enum order, so taking the first merely-valid result would
         # label soil [ENVO:00001998] as envo_expansion -- BuiltEnvInterface comes
@@ -591,12 +632,12 @@ def enforce_env_triad_values(output: LLMOutput, interface_names: list[str] | Non
             suggestion.source = result.source
             continue
         if result.corrected_value and len(result.failures) == 1:
-            logger.info(f"Corrected {slot} label: {suggestion.value} -> {result.corrected_value}")
+            logger.info(f"Corrected {slot} value: {suggestion.value} -> {result.corrected_value}")
             suggestion.value = result.corrected_value
             suggestion.source = enforce_source_for(result.corrected_value, slot, interfaces)
             continue
 
-        fallback = index.generic_fallback(fallback_interface, slot)
+        fallback = envo.generic_fallback(fallback_interface, slot)
         logger.warning(
             f"Rejected {slot} value {suggestion.value!r} ({'; '.join(result.failures)}); "
             f"falling back to {fallback!r}"
@@ -610,18 +651,6 @@ def enforce_env_triad_values(output: LLMOutput, interface_names: list[str] | Non
 
 def enforce_source_for(value: str, slot: str, interfaces: list[str | None]) -> str:
     """The tier label for a value, checked against every interface in play."""
-    index = get_envo_index()
-    results = [index.validate(value, slot, name) for name in interfaces]
+    envo = get_envo()
+    results = [envo.validate(value, slot, name) for name in interfaces]
     return next((r.source for r in results if r.ok and r.in_valueset), "envo_expansion")
-
-
-@functools.lru_cache(maxsize=1)
-def get_envo_index() -> EnvoIndex:
-    """Load and cache the pinned ENVO index shipped with this package."""
-    resource = importlib.resources.files("nmdc_metadata_suggestor_ai_tool.data").joinpath(
-        INDEX_RESOURCE
-    )
-    with importlib.resources.as_file(resource) as path:
-        with gzip.open(path, "rt", encoding="utf-8") as handle:
-            raw = json.load(handle)
-    return EnvoIndex(envo_version=raw.get("envo_version"), terms=_load_terms(raw))

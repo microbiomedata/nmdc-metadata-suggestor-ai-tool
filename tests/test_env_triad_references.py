@@ -18,9 +18,9 @@ from pathlib import Path
 import pytest
 
 from nmdc_metadata_suggestor_ai_tool.constants import ENV_TRIAD_SLOTS
-from nmdc_metadata_suggestor_ai_tool.envo_index import (
+from nmdc_metadata_suggestor_ai_tool.envo import (
     EXPANSION_SEEDS,
-    get_envo_index,
+    get_envo,
     get_slot_valueset,
 )
 from nmdc_metadata_suggestor_ai_tool.utils.submission_parser import MixsExtensions
@@ -99,11 +99,11 @@ def test_cited_curie_exists_and_is_current(
 ) -> None:
     if curie in DOCUMENTED_COUNTEREXAMPLES:
         return
-    index = get_envo_index()
+    index = get_envo()
     term = index.get(curie)
     assert term is not None, (
         f"{file_name}:{line} cites {curie}, which is not in ENVO {index.envo_version}. "
-        f"Look it up with EnvoIndex.search, or add it to DOCUMENTED_COUNTEREXAMPLES "
+        f"Look it up with Envo.search, or add it to DOCUMENTED_COUNTEREXAMPLES "
         f"if it is named deliberately as a term to avoid."
     )
     assert not term.obsolete, f"{file_name}:{line} cites {curie} ({term.label}), obsolete in ENVO"
@@ -116,7 +116,7 @@ def test_cited_curie_exists_and_is_current(
 
 def test_full_values_carry_the_official_envo_label() -> None:
     """A `label [CURIE]` written into a reference file must use ENVO's own label."""
-    index = get_envo_index()
+    index = get_envo()
     drift = []
     for path in reference_files():
         for number, line in enumerate(path.read_text().splitlines(), 1):

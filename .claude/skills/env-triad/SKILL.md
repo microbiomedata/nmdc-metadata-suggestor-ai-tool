@@ -65,21 +65,21 @@ from nmdc_metadata_suggestor_ai_tool.schema_context import SchemaContextBuilder
 SchemaContextBuilder().format_env_triad_context(interfaces)
 ```
 
-**Tier 2** — verified ENVO candidates from the pinned index. It reads no network and takes no URL.
+**Tier 2** — verified ENVO candidates, looked up in ENVO through oaklib. Never recall a CURIE; every one you use must come back from a lookup.
 
 ```python
-from nmdc_metadata_suggestor_ai_tool.envo_index import get_envo_index
+from nmdc_metadata_suggestor_ai_tool.envo import get_envo
 
-index = get_envo_index()
-index.format_expansion_context("WastewaterSludgeInterface", "env_medium")  # where to search
-index.search("activated sludge", slot="env_medium", within=("ENVO:00002044",))
-index.descendants("ENVO:00002044")  # specialize downward to more specific terms
-index.generic_fallback("WastewaterSludgeInterface", "env_medium")  # the tier-3 value
+envo = get_envo()
+envo.format_expansion_context("WastewaterSludgeInterface", "env_medium")  # where to search
+envo.search("activated sludge", slot="env_medium", within=("ENVO:00002044",))
+envo.descendants("ENVO:00002044")  # specialize downward to more specific terms
+envo.generic_fallback("WastewaterSludgeInterface", "env_medium")  # the tier-3 value
 ```
 
 `search` matches whole words, tries the full phrase first, then falls back to individual words — so `"rhizosphere soil"` returns rhizosphere and soil terms rather than nothing. Scope it with `slot=` (the slot's anchor class) and `within=` (a subtree from `format_expansion_context`) to keep hits relevant.
 
-For `env_broad_scale`, skip searching entirely: all of ENVO holds 127 biomes, so `index.biome_values()` is the complete universe for every extension. Load it once and pick from it.
+For `env_broad_scale`, skip searching entirely: all of ENVO holds 127 biomes, so `envo.biome_values()` is the complete universe for every extension. Load it once and pick from it.
 
 ---
 
@@ -92,7 +92,7 @@ Process samples in chunks of 50 if there are many. For each sample and each of t
 - Specialize downward: start from the closest tier 1 term (or the extension's seed subtree) and call `descendants` on it, looking for a more specific match the evidence supports
 - If the exact term is already present in the sample record (e.g. an existing `env_broad_scale` field), copy it verbatim into `value` — after validating it
 - If you quote a value in `reason`, that value is explicit — put it in `value` too
-- Never leave `value` empty. With no defensible specific term, emit `index.generic_fallback(interface, slot)` and record `source: "generalized"`
+- Never leave `value` empty. With no defensible specific term, emit `envo.generic_fallback(interface, slot)` and record `source: "generalized"`
 
 **Reason rules:**
 - Every `reason` must cite specific input text (exact short quote up to 12 words, or paraphrase with a source label such as "abstract", "study description", "sample field")
@@ -105,12 +105,12 @@ Process samples in chunks of 50 if there are many. For each sample and each of t
 
 Check every value before emitting it. A value that fails does not get emitted — drop a tier and try again.
 
-**The descent is bounded at three steps, because tier 3 cannot fail.** `index.generic_fallback(interface, slot)` returns a value for every extension and slot, and a test asserts every one of them validates. So a value that fails at tier 2 falls to tier 3 and stops there — never keep retrying.
+**The descent is bounded at three steps, because tier 3 cannot fail.** `envo.generic_fallback(interface, slot)` returns a value for every extension and slot, and a test asserts every one of them validates. So a value that fails at tier 2 falls to tier 3 and stops there — never keep retrying.
 
 For `env_local_scale` that floor is the bare anchor class, which carries almost no information. Reaching it is a prompt to re-read the evidence for a specific feature, not a usable answer.
 
 ```python
-result = index.validate(
+result = envo.validate(
     "activated sludge [ENVO:00002046]", "env_medium", "WastewaterSludgeInterface"
 )
 result.ok, result.failures, result.warnings, result.corrected_value, result.source

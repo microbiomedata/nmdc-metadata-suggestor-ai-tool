@@ -10,9 +10,9 @@ This extension has expansion subtrees for `env_medium`. Rather than relying on t
 and descendant counts:
 
 ```python
-from nmdc_metadata_suggestor_ai_tool.envo_index import get_envo_index
+from nmdc_metadata_suggestor_ai_tool.envo import get_envo
 
-get_envo_index().format_expansion_context("WastewaterSludgeInterface", "env_medium")
+get_envo().format_expansion_context("WastewaterSludgeInterface", "env_medium")
 ```
 
 ## Evidence in the sample record
