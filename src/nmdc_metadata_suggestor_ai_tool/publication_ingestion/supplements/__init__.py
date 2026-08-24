@@ -6,7 +6,8 @@ package therefore favors *performance over completeness*:
 
 * Only high-value file kinds (tabular data and documents; see
   :class:`~nmdc_metadata_suggestor_ai_tool.models.supplement.SupplementKind`)
-  are kept by default.
+  are kept by default, and when more candidates pass the filter than the caps
+  allow, they are kept in ``KIND_PRIORITY`` order -- data-like files first.
 * Downloads are bounded by size/count caps and are never retried beyond
   ``request_with_retry``'s transient-error handling. If supplements are hard to
   obtain, we give up quickly rather than hammering the source.
@@ -25,7 +26,11 @@ For publisher-hosted supplements behind Cloudflare/JS challenges, prefer the
 agentic ``web_fetch`` path documented in the ``supplement-retrieval`` skill.
 """
 
-from nmdc_metadata_suggestor_ai_tool.file_kinds import DEFAULT_USEFUL_KINDS
+from nmdc_metadata_suggestor_ai_tool.file_kinds import (
+    DEFAULT_USEFUL_KINDS,
+    KIND_PRIORITY,
+    kind_rank,
+)
 from nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements.dryad import (
     is_dryad_doi,
     retrieve_supplements_from_dryad,
@@ -56,6 +61,7 @@ from nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements.zenodo im
 
 __all__ = [
     "DEFAULT_USEFUL_KINDS",
+    "KIND_PRIORITY",
     "SupplementCaps",
     "classify_supplement",
     "extract_accessions_from_text",
@@ -63,6 +69,7 @@ __all__ = [
     "find_related_data_dois",
     "find_supplement_source_europepmc",
     "is_dryad_doi",
+    "kind_rank",
     "parse_supplement_captions",
     "retrieve_supplements",
     "retrieve_supplements_from_dryad",

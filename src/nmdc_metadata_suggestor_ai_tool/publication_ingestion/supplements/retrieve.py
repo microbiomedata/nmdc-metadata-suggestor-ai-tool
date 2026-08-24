@@ -18,7 +18,7 @@ from nmdc_metadata_suggestor_ai_tool.constants import (
     SUPPLEMENT_MAX_TOTAL_BYTES,
 )
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import normalize_doi
-from nmdc_metadata_suggestor_ai_tool.file_kinds import DEFAULT_USEFUL_KINDS
+from nmdc_metadata_suggestor_ai_tool.file_kinds import DEFAULT_USEFUL_KINDS, kind_rank
 from nmdc_metadata_suggestor_ai_tool.models.supplement import (
     SupplementFile,
     SupplementKind,
@@ -82,6 +82,12 @@ def retrieve_supplements(
     remains of ``max_files`` / ``max_total_bytes``, so the total downloaded never
     exceeds the global caps. Each ``SupplementFile.source`` records its origin.
     Pass ``sources`` to run an explicit source list instead of the default routing.
+
+    Within each source, and again across the merged union, files compete for the
+    caps in ``KIND_PRIORITY`` order, so a spreadsheet is kept ahead of a document
+    or figure. Priority cannot reach across the fetch order, though: a source that
+    spends the whole ``max_files`` budget leaves nothing for later sources, whose
+    files are never downloaded and so never enter the ranking.
 
     Returns:
         A merged :class:`SupplementRetrievalResult`. When nothing is kept, the
@@ -194,6 +200,11 @@ def merge_results(
 ) -> SupplementRetrievalResult:
     """Merge per-source results into one, trimming the union to global caps.
 
+    The union is ranked by :func:`kind_rank` before trimming, so the global caps
+    fall on the least data-like files: a spreadsheet from the last source outranks
+    a figure from the first. The sort is stable, so files of equal kind keep the
+    source order they arrived in (hosted supplements ahead of linked datasets).
+
     Files dropped by the global caps have their temp file removed so nothing
     leaks. When *save_dir* is set the sources wrote into a caller-managed
     directory instead, so dropped paths are left alone -- they are the caller's
@@ -203,29 +214,32 @@ def merge_results(
     for res in results:
         attempts.extend(res.attempts)
 
+    candidates = sorted(
+        (file for res in results for file in res.files),
+        key=lambda file: kind_rank(file.kind),
+    )
     kept: list[SupplementFile] = []
     seen: set[tuple[str | None, str]] = set()
     total_bytes = 0
-    for res in results:
-        for file in res.files:
-            # Key on the full filename, not the basename: one source can legitimately
-            # carry two distinct files that share a basename (e.g. ``a/Table_S1.xlsx``
-            # and ``b/Table_S1.xlsx``), and collapsing them would lose one.
-            key = (file.source, file.filename)
-            keep = (
-                key not in seen
-                and len(kept) < max_files
-                and total_bytes + (file.size_bytes or 0) <= max_total_bytes
-            )
-            if keep:
-                seen.add(key)
-                total_bytes += file.size_bytes or 0
-                kept.append(file)
-            elif file.saved_path and save_dir is None and is_removable_temp_file(file.saved_path):
-                # This file was already materialized to a temp file by its source
-                # but is being dropped from the merged result (cap/dedup). Delete
-                # it so it doesn't leak -- the caller can only clean files it sees.
-                remove_temp_file(file.saved_path)
+    for file in candidates:
+        # Key on the full filename, not the basename: one source can legitimately
+        # carry two distinct files that share a basename (e.g. ``a/Table_S1.xlsx``
+        # and ``b/Table_S1.xlsx``), and collapsing them would lose one.
+        key = (file.source, file.filename)
+        keep = (
+            key not in seen
+            and len(kept) < max_files
+            and total_bytes + (file.size_bytes or 0) <= max_total_bytes
+        )
+        if keep:
+            seen.add(key)
+            total_bytes += file.size_bytes or 0
+            kept.append(file)
+        elif file.saved_path and save_dir is None and is_removable_temp_file(file.saved_path):
+            # This file was already materialized to a temp file by its source
+            # but is being dropped from the merged result (cap/dedup). Delete
+            # it so it doesn't leak -- the caller can only clean files it sees.
+            remove_temp_file(file.saved_path)
 
     merged = SupplementRetrievalResult(
         doi=doi,

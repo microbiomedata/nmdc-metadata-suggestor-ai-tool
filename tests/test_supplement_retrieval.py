@@ -150,6 +150,50 @@ def test_select_members_rejects_member_larger_than_reported() -> None:
     assert "byte cap" in (skipped[0].skipped_reason or "")
 
 
+def test_select_members_spends_max_files_on_data_like_kinds() -> None:
+    # The source lists documents first, but a cap this tight must go to the
+    # spreadsheets -- they carry the per-sample values we are after.
+    members = [
+        Member(name="methods.txt", size=4, read=lambda: b"aaaa"),
+        Member(name="notes.txt", size=4, read=lambda: b"bbbb"),
+        Member(name="Table_S1.csv", size=4, read=lambda: b"a,b\n"),
+        Member(name="Table_S2.csv", size=4, read=lambda: b"c,d\n"),
+    ]
+    kept, skipped = select_members(
+        members,
+        kept_kinds=frozenset({SupplementKind.TABULAR, SupplementKind.DOCUMENT}),
+        max_files=2,
+        max_file_bytes=100,
+        max_total_bytes=1000,
+        max_text_chars=1000,
+        save_dir=None,
+        captions=None,
+    )
+    # Ranking is by kind first, then the source's own order within a kind.
+    assert [f.filename for f in kept] == ["Table_S1.csv", "Table_S2.csv"]
+    assert {f.filename for f in skipped} == {"methods.txt", "notes.txt"}
+    assert all("max_files" in (f.skipped_reason or "") for f in skipped)
+
+
+def test_select_members_spends_max_total_bytes_on_data_like_kinds() -> None:
+    # The byte cap is ranked the same way: a big document must not crowd out a
+    # table that was listed after it.
+    kept, _skipped = select_members(
+        [
+            Member(name="methods.pdf", size=80, read=lambda: b"%PDF" + b"x" * 76),
+            Member(name="Table_S1.csv", size=40, read=lambda: b"a,b\n" * 10),
+        ],
+        kept_kinds=frozenset({SupplementKind.TABULAR, SupplementKind.DOCUMENT}),
+        max_files=10,
+        max_file_bytes=100,
+        max_total_bytes=100,
+        max_text_chars=1000,
+        save_dir=None,
+        captions=None,
+    )
+    assert [f.filename for f in kept] == ["Table_S1.csv"]
+
+
 def test_select_members_keeps_colliding_basenames_apart(tmp_path) -> None:
     # Two members share a basename (one nested in an archive). With save_dir set
     # they must not write to the same path, or the first file's bytes are lost
@@ -366,6 +410,28 @@ def test_europepmc_respects_max_files() -> None:
     result = retrieve_supplements_from_europepmc(DOI, max_files=2)
     assert len(result.files) == 2
     assert any("max_files" in (f.skipped_reason or "") for f in result.skipped)
+
+
+@responses.activate
+def test_europepmc_max_files_goes_to_tabular_over_documents() -> None:
+    # The archive lists its documents first; the cap must still land on the
+    # spreadsheets, which is where the per-sample metadata lives.
+    _register_search()
+    archive = _make_zip(
+        {
+            "methods.pdf": b"%PDF-1.4 methods",
+            "protocol.pdf": b"%PDF-1.4 protocol",
+            "Table_S1.csv": b"sample_id,depth\nA,10\n",
+            "Table_S2.csv": b"sample_id,ph\nA,7\n",
+        }
+    )
+    responses.add(responses.GET, SUPPL_URL, body=archive, status=200)
+    responses.add(responses.GET, FULLTEXT_URL, body=b"<article/>", status=200)
+
+    result = retrieve_supplements_from_europepmc(DOI, max_files=2)
+
+    assert [f.filename for f in result.files] == ["Table_S1.csv", "Table_S2.csv"]
+    assert {f.filename for f in result.skipped} == {"methods.pdf", "protocol.pdf"}
 
 
 @responses.activate
@@ -851,6 +917,37 @@ def test_merge_results_deletes_trimmed_temp_files(tmp_path) -> None:
     assert [f.filename for f in merged.files] == ["kept.pdf"]
     assert kept_path.exists()  # kept file's temp path untouched
     assert not dropped_path.exists()  # trimmed file's temp path deleted (no leak)
+
+
+def test_merge_results_prefers_data_like_files_across_sources() -> None:
+    # The global cap is spent on kind, not on which source happened to run first:
+    # a linked dataset's spreadsheet outranks a hosted document.
+    from nmdc_metadata_suggestor_ai_tool.models.supplement import (
+        SupplementFile,
+        SupplementRetrievalResult,
+    )
+
+    def _file(name: str, kind: SupplementKind, source: str) -> SupplementFile:
+        return SupplementFile(filename=name, kind=kind, source=source, size_bytes=10, text="x")
+
+    hosted = SupplementRetrievalResult(
+        doi="x",
+        source="europepmc",
+        files=[
+            _file("methods.pdf", SupplementKind.DOCUMENT, "europepmc"),
+            _file("Table_S1.csv", SupplementKind.TABULAR, "europepmc"),
+        ],
+    )
+    linked = SupplementRetrievalResult(
+        doi="x",
+        source="zenodo",
+        files=[_file("samples.xlsx", SupplementKind.TABULAR, "zenodo")],
+    )
+
+    merged = merge_results("x", [hosted, linked], [], max_files=2, max_total_bytes=1_000_000)
+
+    assert [f.filename for f in merged.files] == ["Table_S1.csv", "samples.xlsx"]
+    assert merged.source == "europepmc+zenodo"
 
 
 def test_merge_results_keeps_same_basename_from_one_source() -> None:
