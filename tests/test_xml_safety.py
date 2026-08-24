@@ -1,6 +1,5 @@
 """Tests for the shared untrusted-XML parsing guards."""
 
-import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import pytest
@@ -161,30 +160,38 @@ def test_declaration_guard_rejects_payloads_with_and_without_a_wrapper() -> None
 # --- CDATA holds character data, so a declaration inside one is text ---
 
 
-def test_cdata_containing_a_doctype_is_not_rejected() -> None:
-    """An abstract may legitimately quote markup.
+def test_cdata_containing_a_doctype_is_rejected_a_known_false_positive() -> None:
+    """Documents a real false positive we are choosing to keep.
 
-    The declaration scan runs before parsing, so without blanking CDATA first it
-    fires on text the author wrote. That sent valid input to the regex fallback,
-    which corrupted it: this case returned 'text]]>' instead of the real text.
+    The declaration scan runs on raw text, so an abstract that legitimately
+    quotes "<!DOCTYPE" inside CDATA is refused and falls through to the regex
+    fallback, which mangles it. Blanking CDATA before the scan fixes that and
+    opens a hole, see test_regex_lexing_cannot_be_made_safe, so the false
+    positive is the safer half of the trade. A parser-level guard fixes both.
     """
     from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import strip_jats_xml
 
-    assert strip_jats_xml("<p><![CDATA[Example <!DOCTYPE x> text]]></p>") == (
-        "Example <!DOCTYPE x> text"
+    root, reason = parse_untrusted_xml("<root><![CDATA[<!DOCTYPE x>]]></root>")
+    assert root is None
+    assert reason == "XML contains unsafe declarations"
+    # The caller degrades to the regex fallback rather than failing.
+    assert strip_jats_xml("<p><![CDATA[Example <!DOCTYPE x> text]]></p>") == "text]]>"
+
+
+def test_regex_lexing_cannot_be_made_safe() -> None:
+    """Why the scan does not try to skip CDATA.
+
+    A comment can open inside a CDATA marker and close after a real DOCTYPE, so
+    any regex that treats comments and CDATA as independent regions can be made
+    to blank out a live declaration while ElementTree still parses and expands
+    it. Verified: blanking CDATA alone let this payload through and &e; expanded.
+    """
+    payload = (
+        '<!-- <![CDATA[ --><!DOCTYPE root [<!ENTITY e "expanded">]><root>&e;</root><!-- ]]> -->'
     )
-
-
-def test_xxe_inside_cdata_parses_without_reading_the_file(tmp_path: Path) -> None:
-    """Inert, because CDATA contents are never markup."""
-    secret = tmp_path / "secret.txt"
-    secret.write_text("SENSITIVE-FILE-CONTENTS")
-    payload = f'<root><![CDATA[<!DOCTYPE x [<!ENTITY xxe SYSTEM "file://{secret}">]>]]></root>'
-
     root, reason = parse_untrusted_xml(payload)
-    assert root is not None, reason
-    text = ET.tostring(root, encoding="unicode", method="text")
-    assert "SENSITIVE-FILE-CONTENTS" not in text
+    assert root is None, "a declaration hidden across lexical regions must still be refused"
+    assert reason == "XML contains unsafe declarations"
 
 
 @pytest.mark.parametrize(
