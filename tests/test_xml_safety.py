@@ -1,5 +1,6 @@
 """Tests for the shared untrusted-XML parsing guards."""
 
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import pytest
@@ -153,5 +154,60 @@ def test_declaration_guard_rejects_payloads_with_and_without_a_wrapper() -> None
     assert reason == "XML contains unsafe declarations"
 
     root, reason = parse_untrusted_xml(_billion_laughs())
+    assert root is None
+    assert reason == "XML contains unsafe declarations"
+
+
+# --- CDATA holds character data, so a declaration inside one is text ---
+
+
+def test_cdata_containing_a_doctype_is_not_rejected() -> None:
+    """An abstract may legitimately quote markup.
+
+    The declaration scan runs before parsing, so without blanking CDATA first it
+    fires on text the author wrote. That sent valid input to the regex fallback,
+    which corrupted it: this case returned 'text]]>' instead of the real text.
+    """
+    from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import strip_jats_xml
+
+    assert strip_jats_xml("<p><![CDATA[Example <!DOCTYPE x> text]]></p>") == (
+        "Example <!DOCTYPE x> text"
+    )
+
+
+def test_xxe_inside_cdata_parses_without_reading_the_file(tmp_path: Path) -> None:
+    """Inert, because CDATA contents are never markup."""
+    secret = tmp_path / "secret.txt"
+    secret.write_text("SENSITIVE-FILE-CONTENTS")
+    payload = f'<root><![CDATA[<!DOCTYPE x [<!ENTITY xxe SYSTEM "file://{secret}">]>]]></root>'
+
+    root, reason = parse_untrusted_xml(payload)
+    assert root is not None, reason
+    text = ET.tostring(root, encoding="unicode", method="text")
+    assert "SENSITIVE-FILE-CONTENTS" not in text
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        pytest.param(
+            '<![CDATA[]]><!DOCTYPE x [<!ENTITY e "P">]><root>&e;</root>', id="cdata-then-doctype"
+        ),
+        pytest.param(
+            '<![CDATA[ <!DOCTYPE x [<!ENTITY e "P">]><root>&e;</root>', id="unterminated-cdata"
+        ),
+        pytest.param(
+            '<!DOCTYPE x [<!ENTITY e "<![CDATA[">]><root>&e;</root>', id="doctype-wrapping-cdata"
+        ),
+        pytest.param(
+            '<![CDATA[a]]><!DOCTYPE x [<!ENTITY e "P">]><![CDATA[b]]><root>&e;</root>',
+            id="declaration-between-cdata-sections",
+        ),
+        pytest.param('<![CDATA[]]><!doctype x [<!entity e "P">]><root>&e;</root>', id="lowercase"),
+    ],
+)
+def test_blanking_cdata_cannot_hide_a_real_declaration(payload: str) -> None:
+    """A real DOCTYPE precedes the root element, so it can never sit inside CDATA."""
+    root, reason = parse_untrusted_xml(payload)
     assert root is None
     assert reason == "XML contains unsafe declarations"

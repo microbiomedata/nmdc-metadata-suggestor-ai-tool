@@ -8,7 +8,10 @@ pattern, a different parser) lands for every caller at once.
 
 import xml.etree.ElementTree as ET
 
-from nmdc_metadata_suggestor_ai_tool.constants import UNSAFE_XML_DECLARATION_PATTERN
+from nmdc_metadata_suggestor_ai_tool.constants import (
+    CDATA_SECTION_PATTERN,
+    UNSAFE_XML_DECLARATION_PATTERN,
+)
 
 
 def parse_untrusted_xml(
@@ -41,7 +44,9 @@ def parse_untrusted_xml(
 
     if max_chars is not None and len(xml_text) > max_chars:
         return None, "XML exceeded size limit"
-    if UNSAFE_XML_DECLARATION_PATTERN.search(xml_text):
+    # Scan with CDATA blanked out: its contents are character data, so a
+    # "<!DOCTYPE" there is text an author wrote, not a declaration.
+    if UNSAFE_XML_DECLARATION_PATTERN.search(CDATA_SECTION_PATTERN.sub("", xml_text)):
         return None, "XML contains unsafe declarations"
 
     try:

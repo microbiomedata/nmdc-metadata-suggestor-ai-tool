@@ -102,6 +102,11 @@ MAX_DATAONE_SOLR_XML_CHARS = int(os.environ.get("NMDC_DATAONE_SOLR_MAX_XML_CHARS
 # measured 2026-08-24, so this leaves roughly 6x headroom over the largest.
 MAX_EUROPEPMC_FULLTEXT_XML_CHARS = int(os.environ.get("NMDC_EUROPEPMC_MAX_XML_CHARS", "2000000"))
 UNSAFE_XML_DECLARATION_PATTERN = re.compile(r"<!\s*(?:DOCTYPE|ENTITY)\b", re.IGNORECASE)
+# A CDATA section holds character data, never markup, so "<!DOCTYPE" inside one
+# is literal text. Blanked before the declaration scan so valid input is not
+# rejected. A real DOCTYPE must precede the root element and therefore cannot
+# sit inside a CDATA section, so this cannot hide one.
+CDATA_SECTION_PATTERN = re.compile(r"<!\[CDATA\[.*?\]\]>", re.DOTALL)
 
 
 # DOI prefixes that indicate the target provider for context retrieval.

@@ -170,6 +170,7 @@ Advanced ingestion tuning (all optional; defaults shown):
 
 - `NMDC_EDI_MAX_XML_CHARS`: Max characters read from an untrusted EDI metadata XML payload (default `2000000`).
 - `NMDC_DATAONE_SOLR_MAX_XML_CHARS`: Max characters read from an untrusted DataONE Solr XML payload (default `2000000`).
+- `NMDC_EUROPEPMC_MAX_XML_CHARS`: Max characters read from an untrusted Europe PMC full text XML payload (default `2000000`).
 - `NMDC_HTTP_RETRY_ATTEMPTS`: Retry attempts for publication/DOI HTTP requests (default `3`).
 - `NMDC_HTTP_RETRY_BACKOFF_SECONDS`: Base backoff in seconds between retries (default `0`).
 - `NMDC_HTTP_MAX_RETRY_DELAY_SECONDS`: Cap in seconds on retry delay (default `30`).
