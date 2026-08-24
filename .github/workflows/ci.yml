@@ -41,7 +41,7 @@ jobs:
         uv run ruff format --check
 
     - name: Run type checking
-      run: uv run mypy src
+      run: uv run mypy src tests
 
     - name: Check dependency hygiene
       run: make check-deps

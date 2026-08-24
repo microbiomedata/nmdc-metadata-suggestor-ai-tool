@@ -34,7 +34,7 @@ test-integration: ## Run integration tests against real APIs
 
 lint: ## Run linters
 	uv run ruff check
-	uv run mypy src
+	uv run mypy src tests
 	$(MAKE) check-phony
 
 check-phony: ## Verify .PHONY lists exactly the targets the Makefile defines

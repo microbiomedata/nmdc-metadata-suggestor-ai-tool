@@ -1,6 +1,7 @@
 import time
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
 
@@ -9,15 +10,18 @@ from nmdc_metadata_suggestor_ai_tool.llm_client import LLMClient
 from nmdc_metadata_suggestor_ai_tool.utils import build_submission_context
 
 
-def load_sample_submission_object() -> dict:
+def load_sample_submission_object() -> dict[str, Any]:
     """Load a sample submission object from the test fixtures."""
     import json
 
     sample_path = Path(__file__).parent / "fixtures" / "test_submission.json"
     with open(sample_path) as f:
-        return json.load(f)
+        data: dict[str, Any] = json.load(f)
+        return data
 
 
+# Duck-types LLMClient for the pipeline's purposes. Call sites cast rather than
+# subclass, so the fake does not inherit LLMClient's credential setup.
 class _FakeLLMClient:
     def __init__(self, response: str) -> None:
         self.response = response
@@ -70,7 +74,7 @@ def test_run_recommendation_pipeline_validates_and_returns_output(
 
     result = recommendation_pipeline.run_recommendation_pipeline(
         submission_object=sample_submission_object,
-        llm_client=client,
+        llm_client=cast(LLMClient, client),
     )
 
     assert result.metadata_fields[0].field_name == "env_broad_scale"
@@ -90,7 +94,7 @@ def test_run_recommendation_pipeline_raises_for_invalid_output_schema(
     with pytest.raises(ValueError, match="expected output schema"):
         recommendation_pipeline.run_recommendation_pipeline(
             submission_object=sample_submission_object,
-            llm_client=client,
+            llm_client=cast(LLMClient, client),
         )
 
 
@@ -100,7 +104,7 @@ _VALID_RESPONSE = (
 )
 
 
-def _spy_on_schema_context(monkeypatch: pytest.MonkeyPatch) -> dict:
+def _spy_on_schema_context(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     """Stub the network abstract lookup and capture the class names that the
     pipeline hands to ``format_multi_interface_context``.
 
@@ -141,7 +145,7 @@ def test_interface_name_resolves_to_interface_class_names(
 
     recommendation_pipeline.run_recommendation_pipeline(
         submission_object=load_sample_submission_object(),
-        llm_client=client,
+        llm_client=cast(LLMClient, client),
         interface_name="soil",
     )
 
@@ -161,7 +165,7 @@ def test_interface_name_accepts_interface_class_name_form(
 
     recommendation_pipeline.run_recommendation_pipeline(
         submission_object=load_sample_submission_object(),
-        llm_client=client,
+        llm_client=cast(LLMClient, client),
         interface_name="SoilInterface",
     )
 
@@ -187,7 +191,7 @@ def test_interface_name_does_not_crash_schema_context_builder(
 
     result = recommendation_pipeline.run_recommendation_pipeline(
         submission_object=load_sample_submission_object(),
-        llm_client=client,
+        llm_client=cast(LLMClient, client),
         interface_name="soil",
     )
 
@@ -208,7 +212,7 @@ def test_interface_name_overrides_submission_package(
 
     recommendation_pipeline.run_recommendation_pipeline(
         submission_object=load_sample_submission_object(),
-        llm_client=client,
+        llm_client=cast(LLMClient, client),
         interface_name="water",
     )
 
@@ -229,7 +233,7 @@ def test_absent_interface_name_falls_back_to_submission_package(
 
     recommendation_pipeline.run_recommendation_pipeline(
         submission_object=load_sample_submission_object(),
-        llm_client=client,
+        llm_client=cast(LLMClient, client),
         interface_name=interface_name,
     )
 
