@@ -98,6 +98,9 @@ ZENODO_API = "https://zenodo.org/api/records"
 # Safety limits for untrusted XML payloads in DOI resolvers.
 MAX_EDI_METADATA_XML_CHARS = int(os.environ.get("NMDC_EDI_MAX_XML_CHARS", "2000000"))
 MAX_DATAONE_SOLR_XML_CHARS = int(os.environ.get("NMDC_DATAONE_SOLR_MAX_XML_CHARS", "2000000"))
+# Europe PMC full text runs ~36KB to ~307KB across a sample of four articles
+# measured 2026-08-24, so this leaves roughly 6x headroom over the largest.
+MAX_EUROPEPMC_FULLTEXT_XML_CHARS = int(os.environ.get("NMDC_EUROPEPMC_MAX_XML_CHARS", "2000000"))
 UNSAFE_XML_DECLARATION_PATTERN = re.compile(r"<!\s*(?:DOCTYPE|ENTITY)\b", re.IGNORECASE)
 
 
