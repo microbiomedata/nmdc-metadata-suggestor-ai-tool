@@ -1,3 +1,9 @@
+# Targets that really do build a file or directory named after themselves.
+# These must NOT be listed in .PHONY; every other target must be. Empty today,
+# because nothing here builds an artifact of its own name. See
+# docs/makefile-phony.md.
+FILE_TARGETS =
+
 .PHONY: help all-install prod-install dev-install test test-integration lint check-phony format security check-deps clean docker-build docker-dev-build docker-run docker-dev docker-dev-down docker-shell run validate-doi classify-doi classify-fixture get-abstract get-abstracts
 
 help: ## Show this help message

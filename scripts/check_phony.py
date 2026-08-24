@@ -1,8 +1,10 @@
 """Check that the Makefile's .PHONY line matches the targets it defines.
 
 A target is phony when running it produces no file named after the target.
-Every target in this Makefile is phony, so .PHONY should list all of them
-and nothing else.
+Every phony target must be in .PHONY. A target that genuinely does build a
+file of its own name must instead be listed in the Makefile's FILE_TARGETS
+variable, and kept out of .PHONY. Every target must be in exactly one of the
+two.
 
 checkmake's rule of the same name does not check this: its `phonydeclared`
 only fires on targets with an empty recipe body, so it passes a Makefile
@@ -24,6 +26,8 @@ MAKEFILE = Path(__file__).resolve().parent.parent / "Makefile"
 # immediately-expanded variable assignment such as `VAR := value`).
 TARGET_RE = re.compile(r"^([A-Za-z0-9_][A-Za-z0-9_.-]*)\s*:(?!=)")
 PHONY_RE = re.compile(r"^\.PHONY\s*:(.*)$")
+# Targets the Makefile declares as genuinely building a file of their own name.
+FILE_TARGETS_RE = re.compile(r"^FILE_TARGETS\s*[:?]?=(.*)$")
 
 
 def main() -> int:
@@ -31,10 +35,15 @@ def main() -> int:
 
     targets: list[str] = []
     declared: list[str] = []
+    file_targets: list[str] = []
     for line in text.splitlines():
         phony = PHONY_RE.match(line)
         if phony:
             declared.extend(phony.group(1).split())
+            continue
+        file_decl = FILE_TARGETS_RE.match(line)
+        if file_decl:
+            file_targets.extend(file_decl.group(1).split())
             continue
         target = TARGET_RE.match(line)
         if target:
@@ -42,7 +51,7 @@ def main() -> int:
 
     problems: list[str] = []
 
-    undeclared = [t for t in targets if t not in declared]
+    undeclared = [t for t in targets if t not in declared and t not in file_targets]
     if undeclared:
         problems.append(
             "targets missing from .PHONY (make will skip these if a file of "
@@ -53,13 +62,24 @@ def main() -> int:
     if orphaned:
         problems.append(f".PHONY names that are not targets: {' '.join(orphaned)}")
 
+    both = [t for t in file_targets if t in declared]
+    if both:
+        problems.append(
+            "declared in FILE_TARGETS and in .PHONY; a target that builds a "
+            f"file of its own name must not be phony: {' '.join(both)}"
+        )
+
+    unknown = [t for t in file_targets if t not in targets]
+    if unknown:
+        problems.append(f"FILE_TARGETS names that are not targets: {' '.join(unknown)}")
+
     # A target name that also exists as a path is the case .PHONY exists to
     # handle, so it is worth failing on whatever put the path there. This
     # matches untracked files too, which is deliberate: make skips a
     # non-phony target just as readily for a local stray directory as for a
     # committed one. It does not prove the target built that path.
     root = MAKEFILE.parent
-    collide = [t for t in targets if (root / t).exists()]
+    collide = [t for t in targets if t not in file_targets and (root / t).exists()]
     if collide:
         problems.append(
             "target names that also exist as a path in the working tree, "

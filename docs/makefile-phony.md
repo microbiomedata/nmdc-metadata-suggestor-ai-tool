@@ -13,14 +13,17 @@ that name. Two things go wrong when the line drifts:
 - **A real file target wrongly declared phony.** Make stops checking its timestamp, so it
   rebuilds every time and other targets can no longer depend on it meaningfully.
 
-Every target in this Makefile is phony today. None of them writes a file named after itself.
+Every target in this Makefile is phony today. None of them writes a file named after itself, so
+`FILE_TARGETS` at the top of the Makefile is empty.
 
 ## Why this is checked automatically
 
 `make lint` runs `make check-phony`, which runs `scripts/check_phony.py`. It fails on:
 
-- a target missing from `.PHONY`
+- a target that is in neither `.PHONY` nor `FILE_TARGETS`
 - a `.PHONY` entry that is not a target
+- a target listed in both `.PHONY` and `FILE_TARGETS`, which contradicts itself
+- a `FILE_TARGETS` entry that is not a target
 - a target name that also exists as a path in the working tree, tracked or untracked, since that
   is exactly when a non-phony target gets silently skipped
 - a target defined twice
@@ -51,9 +54,12 @@ a local check instead of adding a dependency.
 
 ## Adding a target
 
-Add it to `.PHONY` in the same place. `make check-phony` fails if you forget. If the new target
-genuinely builds a file named after itself, rename the target after the path it builds and leave
-it out of `.PHONY`.
+Add it to `.PHONY`. `make check-phony` fails if you forget.
+
+If the new target genuinely builds a file or directory named after itself, add it to
+`FILE_TARGETS` instead and keep it out of `.PHONY`. That is the case make's dependency tracking is
+for, and declaring it there also exempts it from the path check below, since the path existing is
+the expected outcome rather than a problem. Listing a target in both is an error.
 
 The path check matches untracked files too. That is deliberate: make skips a non-phony target just
 as readily for a stray local directory as for a committed one. If `make lint` fails on this
