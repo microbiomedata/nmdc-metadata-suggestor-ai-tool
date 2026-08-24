@@ -211,3 +211,35 @@ def test_blanking_cdata_cannot_hide_a_real_declaration(payload: str) -> None:
     root, reason = parse_untrusted_xml(payload)
     assert root is None
     assert reason == "XML contains unsafe declarations"
+
+
+# --- the size limit must stay wired into the caller, not just exist in the helper ---
+
+
+def test_supplement_caption_parsing_enforces_the_size_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pins ``max_chars`` into the ``parse_supplement_captions`` call.
+
+    Without this the limit can be deleted from the call site and the whole
+    suite still passes, because every other test uses documents far under it.
+    The order matters: assert the fixture parses to a caption first, otherwise
+    a document that yields nothing for unrelated reasons would satisfy the
+    second assertion whether or not the limit is applied.
+    """
+    from nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements import shared
+
+    jats = (
+        "<article><body>"
+        '<supplementary-material xlink:href="table1.csv" '
+        'xmlns:xlink="http://www.w3.org/1999/xlink">'
+        "<caption><p>Supplementary table one</p></caption>"
+        "</supplementary-material></body></article>"
+    )
+
+    assert shared.parse_supplement_captions(jats) == {"table1": "Supplementary table one"}, (
+        "the fixture must parse to a caption first, or the assertion below proves nothing"
+    )
+
+    monkeypatch.setattr(shared, "MAX_EUROPEPMC_FULLTEXT_XML_CHARS", 10)
+    assert not shared.parse_supplement_captions(jats)
