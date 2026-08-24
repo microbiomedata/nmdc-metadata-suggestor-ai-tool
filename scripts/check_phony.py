@@ -53,15 +53,18 @@ def main() -> int:
     if orphaned:
         problems.append(f".PHONY names that are not targets: {' '.join(orphaned)}")
 
-    # The other half of the rule: a target that really does build a file of
-    # its own name must not be phony. We cannot read recipes, but a target
-    # name existing as a path is the signal worth failing on.
+    # A target name that also exists as a path is the case .PHONY exists to
+    # handle, so it is worth failing on whatever put the path there. This
+    # matches untracked files too, which is deliberate: make skips a
+    # non-phony target just as readily for a local stray directory as for a
+    # committed one. It does not prove the target built that path.
     root = MAKEFILE.parent
     collide = [t for t in targets if (root / t).exists()]
     if collide:
         problems.append(
-            "target names that exist as a path, so they may build a file of "
-            f"their own name and should not be phony: {' '.join(collide)}"
+            "target names that also exist as a path in the working tree, "
+            "tracked or not; keep them phony, or rename the target if it is "
+            f"meant to build that path: {' '.join(collide)}"
         )
 
     duplicates = sorted({t for t in targets if targets.count(t) > 1})

@@ -21,7 +21,8 @@ Every target in this Makefile is phony today. None of them writes a file named a
 
 - a target missing from `.PHONY`
 - a `.PHONY` entry that is not a target
-- a target name that exists as a path in the repo, which suggests it should not be phony
+- a target name that also exists as a path in the working tree, tracked or untracked, since that
+  is exactly when a non-phony target gets silently skipped
 - a target defined twice
 
 The check exists because the line drifted once already. It listed 17 names against 23 targets,
@@ -51,5 +52,9 @@ a local check instead of adding a dependency.
 ## Adding a target
 
 Add it to `.PHONY` in the same place. `make check-phony` fails if you forget. If the new target
-genuinely builds a file named after itself, leave it out of `.PHONY` and the check will tell you
-so once that file exists.
+genuinely builds a file named after itself, rename the target after the path it builds and leave
+it out of `.PHONY`.
+
+The path check matches untracked files too. That is deliberate: make skips a non-phony target just
+as readily for a stray local directory as for a committed one. If `make lint` fails on this
+locally and the path is junk, delete the path.
