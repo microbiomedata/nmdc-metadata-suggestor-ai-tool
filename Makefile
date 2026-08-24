@@ -1,4 +1,4 @@
-.PHONY: help all-install prod-install dev-install test test-integration lint format security check-deps clean docker-build docker-dev-build docker-run docker-dev docker-dev-down docker-shell run validate-doi classify-doi classify-fixture get-abstract get-abstracts
+.PHONY: help all-install prod-install dev-install test test-integration lint check-phony format security check-deps clean docker-build docker-dev-build docker-run docker-dev docker-dev-down docker-shell run validate-doi classify-doi classify-fixture get-abstract get-abstracts
 
 help: ## Show this help message
 	@echo "Usage: make [target]"
@@ -23,7 +23,11 @@ test-integration: ## Run integration tests against real APIs
 
 lint: ## Run linters
 	uv run ruff check
-	uv run mypy src 
+	uv run mypy src
+	$(MAKE) check-phony
+
+check-phony: ## Verify .PHONY lists exactly the targets the Makefile defines
+	uv run python scripts/check_phony.py
 
 format: ## This is a two part command that both checks, then auto-fixes formatting issues where it can.
 	uv run ruff format
