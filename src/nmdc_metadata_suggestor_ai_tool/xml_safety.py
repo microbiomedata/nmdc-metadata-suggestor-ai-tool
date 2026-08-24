@@ -2,13 +2,28 @@
 
 Every payload this package parses comes off the network, so all of it goes
 through :func:`parse_untrusted_xml` rather than calling ``ElementTree`` directly.
-Keeping the guards in one place means a future hardening change (a stricter
-pattern, a different parser) lands for every caller at once.
+Keeping the guards in one place means a future hardening change lands for every
+caller at once.
+
+The guard is ``defusedxml``, which refuses entity declarations and external
+references inside the parser. It replaced a regex that scanned for
+``<!DOCTYPE``/``<!ENTITY`` before parsing, for two reasons, both measured.
+
+The regex was unsafe. XML comments, CDATA sections and processing instructions
+are lexical regions a regex cannot track across, so a comment could open inside
+a CDATA marker and close after a real declaration, hiding it from the scan while
+ElementTree still parsed and expanded it.
+
+The regex was also too strict to work. A plain ``<!DOCTYPE article`` carries no
+entities and is normal in JATS: three of four Europe PMC full texts sampled on
+2026-08-24 had one, and the scan refused all three, so supplement caption
+extraction silently returned nothing for them.
 """
 
 import xml.etree.ElementTree as ET
 
-from nmdc_metadata_suggestor_ai_tool.constants import UNSAFE_XML_DECLARATION_PATTERN
+from defusedxml.common import DefusedXmlException
+from defusedxml.ElementTree import fromstring as defused_fromstring
 
 
 def parse_untrusted_xml(
@@ -18,9 +33,10 @@ def parse_untrusted_xml(
 ) -> tuple[ET.Element | None, str | None]:
     """Parse untrusted XML, refusing payloads that are oversized or unsafe.
 
-    DOCTYPE/ENTITY declarations are rejected outright: ElementTree does not
-    expand external entities, but it does expand internal ones, so a declaration
-    is the entry point for entity-expansion ("billion laughs") attacks.
+    Entity declarations and external references are refused by the parser, which
+    blocks entity expansion ("billion laughs") and external-entity reads. A
+    document type declaration on its own is allowed, because it is normal in
+    JATS and harmless without entities.
 
     Args:
         xml_text: The document, as text or UTF-8 bytes.
@@ -41,15 +57,10 @@ def parse_untrusted_xml(
 
     if max_chars is not None and len(xml_text) > max_chars:
         return None, "XML exceeded size limit"
-    # Scanned on the raw text, deliberately. Blanking CDATA first, so that a
-    # "<!DOCTYPE" an author quoted is not mistaken for a declaration, is
-    # unsafe: a comment can open inside a CDATA marker and close after a real
-    # declaration, hiding it from any regex that treats those as separate
-    # lexical regions. See test_regex_lexing_cannot_be_made_safe.
-    if UNSAFE_XML_DECLARATION_PATTERN.search(xml_text):
-        return None, "XML contains unsafe declarations"
 
     try:
-        return ET.fromstring(xml_text), None
+        return defused_fromstring(xml_text), None
+    except DefusedXmlException:
+        return None, "XML contains unsafe declarations"
     except ET.ParseError:
         return None, "response was not valid XML"

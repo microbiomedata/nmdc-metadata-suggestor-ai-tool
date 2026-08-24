@@ -43,15 +43,21 @@ def test_rejects_entity_declarations() -> None:
     # Every caller relies on this: ElementTree expands internal entities, so a
     # billion-laughs payload must be refused before it reaches the parser.
     root, reason = parse_untrusted_xml(BILLION_LAUGHS)
-    assert root is None
-    assert reason == "XML contains unsafe declarations"
+    assert root is None, reason
 
 
-def test_rejects_doctype_regardless_of_spacing_and_case() -> None:
+def test_rejects_malformed_declarations_and_stray_entities() -> None:
+    """Renamed from test_rejects_doctype_regardless_of_spacing_and_case.
+
+    It no longer describes the behaviour: a well-formed DOCTYPE carrying no
+    entities is now allowed, because JATS uses one. These three payloads are
+    still refused, but as malformed XML rather than as unsafe declarations, so
+    the assertion is on the refusal rather than on the reason string.
+    """
     for payload in ("<! doctype doc><doc/>", "<!DocType doc><doc/>", "<!ENTITY x 'y'><doc/>"):
         root, reason = parse_untrusted_xml(payload)
-        assert root is None, payload
-        assert reason == "XML contains unsafe declarations"
+        assert root is None, f"{payload} was accepted"
+        assert reason is not None
 
 
 def test_rejects_oversized_payload_before_parsing() -> None:
@@ -149,33 +155,39 @@ def test_strip_jats_xml_routes_through_the_shared_guard(
 def test_declaration_guard_rejects_payloads_with_and_without_a_wrapper() -> None:
     """The guard does not depend on how the caller wraps the payload."""
     root, reason = parse_untrusted_xml(f"<root>{_billion_laughs()}</root>")
-    assert root is None
-    assert reason == "XML contains unsafe declarations"
+    assert root is None, reason
 
     root, reason = parse_untrusted_xml(_billion_laughs())
-    assert root is None
-    assert reason == "XML contains unsafe declarations"
+    assert root is None, reason
 
 
 # --- CDATA holds character data, so a declaration inside one is text ---
 
 
-def test_cdata_containing_a_doctype_is_rejected_a_known_false_positive() -> None:
-    """Documents a real false positive we are choosing to keep.
+def test_cdata_quoting_a_doctype_round_trips() -> None:
+    """An abstract may legitimately quote markup, and must survive intact.
 
-    The declaration scan runs on raw text, so an abstract that legitimately
-    quotes "<!DOCTYPE" inside CDATA is refused and falls through to the regex
-    fallback, which mangles it. Blanking CDATA before the scan fixes that and
-    opens a hole, see test_regex_lexing_cannot_be_made_safe, so the false
-    positive is the safer half of the trade. A parser-level guard fixes both.
+    The previous regex guard refused this and degraded to a tag-stripping
+    fallback that returned "text]]>". Guarding at the parser removes the
+    false positive without weakening anything.
     """
     from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import strip_jats_xml
 
-    root, reason = parse_untrusted_xml("<root><![CDATA[<!DOCTYPE x>]]></root>")
-    assert root is None
-    assert reason == "XML contains unsafe declarations"
-    # The caller degrades to the regex fallback rather than failing.
-    assert strip_jats_xml("<p><![CDATA[Example <!DOCTYPE x> text]]></p>") == "text]]>"
+    assert strip_jats_xml("<p><![CDATA[Example <!DOCTYPE x> text]]></p>") == (
+        "Example <!DOCTYPE x> text"
+    )
+
+
+def test_document_type_declaration_alone_is_allowed() -> None:
+    """A DOCTYPE without entities is normal in JATS and must not be refused.
+
+    Three of four Europe PMC full texts sampled on 2026-08-24 carried
+    ``<!DOCTYPE article``. The regex guard refused all three, so supplement
+    caption extraction silently returned nothing for them.
+    """
+    root, reason = parse_untrusted_xml("<!DOCTYPE article><root>hi</root>")
+    assert root is not None, reason
+    assert root.text == "hi"
 
 
 def test_regex_lexing_cannot_be_made_safe() -> None:
@@ -216,8 +228,7 @@ def test_regex_lexing_cannot_be_made_safe() -> None:
 def test_blanking_cdata_cannot_hide_a_real_declaration(payload: str) -> None:
     """A real DOCTYPE precedes the root element, so it can never sit inside CDATA."""
     root, reason = parse_untrusted_xml(payload)
-    assert root is None
-    assert reason == "XML contains unsafe declarations"
+    assert root is None, reason
 
 
 # --- the size limit must stay wired into the caller, not just exist in the helper ---
@@ -250,3 +261,32 @@ def test_supplement_caption_parsing_enforces_the_size_limit(
 
     monkeypatch.setattr(shared, "MAX_EUROPEPMC_FULLTEXT_XML_CHARS", 10)
     assert not shared.parse_supplement_captions(jats)
+
+
+def test_real_jats_doctype_is_accepted() -> None:
+    """Regression for a live bug: JATS carries a DOCTYPE and we refused it.
+
+    Sampled four Europe PMC full texts on 2026-08-24. Three began with
+    ``<!DOCTYPE article ...``, and the regex guard refused all three, so
+    ``parse_supplement_captions`` returned nothing for them. PMC9950430 alone
+    holds 23 supplement elements and now yields 12 captions.
+
+    The declaration below is the real one from PMC9950430, trimmed to its
+    public and system identifiers.
+    """
+    doctype = (
+        '<!DOCTYPE article PUBLIC "-//NLM//DTD JATS (Z39.96) '
+        'Journal Archiving and Interchange DTD v1.2 20190208//EN" '
+        '"JATS-archivearticle1.dtd">'
+    )
+    root, reason = parse_untrusted_xml(f"{doctype}<article><body><p>hi</p></body></article>")
+    assert root is not None, f"real JATS must parse, got {reason!r}"
+    assert root.findtext("./body/p") == "hi"
+
+
+def test_external_dtd_reference_is_not_fetched() -> None:
+    """The JATS DOCTYPE names a system DTD; it must never be retrieved."""
+    doctype = '<!DOCTYPE article SYSTEM "http://127.0.0.1:9/nonexistent.dtd">'
+    root, reason = parse_untrusted_xml(f"{doctype}<article>hi</article>")
+    assert root is not None, reason
+    assert root.text == "hi"
