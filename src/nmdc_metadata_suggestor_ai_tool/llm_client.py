@@ -38,6 +38,12 @@ logger = logging.getLogger(__name__)
 # The tool the agent calls to hand back its final answer.
 STRUCTURED_OUTPUT_TOOL = "StructuredOutput"
 
+# Restrictions that apply to the unattended agent but not to a person working in the repo:
+# no network fetches, no repo mutation, no dependency changes. Kept out of
+# .claude/settings.json deliberately -- that file governs every Claude Code session here, and
+# denying `git commit` there breaks ordinary development.
+AGENT_SETTINGS = Path(__file__).resolve().parents[2] / ".claude" / "agent-settings.json"
+
 DEFAULT_GCP_REGION = "us-east5"
 
 
@@ -451,6 +457,12 @@ class ConversationManager:
             skills="all",
             model=DEFAULT_CLAUDE_MODEL,
             system_prompt=orchestrator_prompt,
+            # Read .claude/settings.json. Without this the SDK runs under the default
+            # permission mode, where Bash needs interactive approval -- which a headless run
+            # cannot give, so every ontology lookup the skill asks for is denied and the
+            # agent answers from the prompt alone.
+            setting_sources=["project"],
+            settings=str(AGENT_SETTINGS) if AGENT_SETTINGS.is_file() else None,
             output_format={"type": "json_schema", "schema": LLMOutput.model_json_schema()},
         )
 

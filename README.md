@@ -34,6 +34,12 @@ Environment variables are loaded from a `.env` file in the project root via
 set in your shell take precedence over `.env` values (`override=False` is the
 default).
 
+### Agent permissions
+
+`ConversationManager.agentic()` reads `.claude/settings.json` for its tool allowlist. Without it
+the headless agent cannot run ontology lookups and answers from its prompt alone — silently.
+See [docs/agent-permissions.md](docs/agent-permissions.md).
+
 ### ENVO ontology cache
 
 Env triad suggestions resolve ENVO terms through [oaklib](https://github.com/INCATools/ontology-access-kit).
