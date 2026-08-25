@@ -6,6 +6,8 @@ oaklib caches the ontology after first use, so only a cold environment pays a
 download.
 """
 
+import re
+
 import pytest
 
 from nmdc_metadata_suggestor_ai_tool.constants import (
@@ -283,6 +285,63 @@ def test_validate_catches_label_drift_and_offers_the_fix(envo: Envo) -> None:
     result = envo.validate("dirt [ENVO:00001998]", "env_medium")
     assert not result.ok
     assert result.corrected_value == "soil [ENVO:00001998]"
+
+
+# --- composed values: label and CURIE naming different terms ------------------
+#
+# A model that assembles "label [CURIE]" rather than copying an entry can pair a label from
+# one value-set entry with a CURIE from another. Both halves then resolve, so the CURIE alone
+# cannot say which was meant.
+
+
+def test_conflicting_label_and_curie_repairs_toward_the_label(envo: Envo) -> None:
+    """Observed in the wild: the label's own CURIE is the one the reason text argues for."""
+    result = envo.validate(
+        "temperate coniferous forest biome [ENVO:01000219]", "env_broad_scale", "SoilInterface"
+    )
+    assert not result.ok
+    assert result.corrected_value == "temperate coniferous forest biome [ENVO:01000211]"
+
+
+def test_the_two_halves_of_that_value_are_separate_valueset_entries(envo: Envo) -> None:
+    """Neither half is invented -- which is exactly why the CURIE cannot arbitrate."""
+    curated = get_slot_valueset("SoilInterface", "env_broad_scale")
+    assert "temperate coniferous forest biome [ENVO:01000211]" in curated
+    assert "anthropogenic terrestrial biome [ENVO:01000219]" in curated
+
+
+def test_a_label_naming_nothing_is_treated_as_drift(envo: Envo) -> None:
+    """'dirt' is no ENVO term, so the CURIE is sound and only the label needs fixing."""
+    result = envo.validate("dirt [ENVO:00001998]", "env_medium", "SoilInterface")
+    assert result.corrected_value == "soil [ENVO:00001998]"
+
+
+def test_a_synonym_label_normalises_to_the_official_one(envo: Envo) -> None:
+    result = envo.validate("regolith [ENVO:00001998]", "env_medium", "SoilInterface")
+    assert result.corrected_value == "soil [ENVO:00001998]"
+    assert "synonym" in result.failures[0]
+
+
+def test_no_repair_when_the_label_names_a_term_that_fails_the_slot(envo: Envo) -> None:
+    """soil is a real term, but not a biome -- so neither half of the value is usable."""
+    result = envo.validate("soil [ENVO:01000219]", "env_broad_scale", "SoilInterface")
+    assert not result.ok
+    assert result.corrected_value is None
+
+
+def test_every_curated_value_is_internally_consistent(envo: Envo) -> None:
+    """The value sets are not the source of composed values; the model is."""
+    mismatched = []
+    for interface_name in sorted(CURATED_INTERFACES):
+        for slot in ENV_TRIAD_SLOTS:
+            for value in get_slot_valueset(interface_name, slot):
+                match = re.match(r"^(.*) \[(ENVO:\d+)\]$", value)
+                if not match:
+                    continue
+                term = envo.get(match.group(2))
+                if term and term.label != match.group(1):
+                    mismatched.append(value)
+    assert not mismatched
 
 
 def test_validate_rejects_a_non_triad_slot(envo: Envo) -> None:

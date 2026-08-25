@@ -47,6 +47,26 @@ So host anatomy is legitimately available for host-associated samples, and plant
 
 **Check 6 never applies to a value already in the interface's curated set.** The anchor gate polices ENVO expansion, not the schema. `rhizosphere [ENVO:00005801]`, for instance, is a curated plant-associated `env_medium` that ENVO classifies as a system rather than a material. Checks 3 and 4 still apply everywhere, so dead CURIEs are caught even inside a curated set.
 
+## When the label and the CURIE disagree
+
+They can disagree in three ways, and the gate treats them differently, because the CURIE is
+not automatically the trustworthy half.
+
+| The label | Outcome |
+|---|---|
+| is a synonym of the CURIE's term | normalised to ENVO's official label |
+| names no ENVO term (`dirt`) | drift on a sound CURIE — corrected to the official label |
+| names a *different* real term | **repaired toward the label**, if that term suits the slot |
+| names several terms, or one that fails the slot | rejected; neither half can be trusted |
+
+The third row is the one worth understanding. `temperate coniferous forest biome
+[ENVO:01000219]` pairs a label whose CURIE is `ENVO:01000211` with the CURIE for
+`anthropogenic terrestrial biome` — two separate entries in the same value set. Trusting the
+CURIE would silently commit a different biome from the one the `reason` argues for, so the
+label wins: it is what was reasoned about and what a reviewer reads.
+
+A wrong CURIE under a right label is therefore recoverable. A wrong label is not.
+
 ## On failure
 
 Drop a tier and try again — do not emit a failing value.

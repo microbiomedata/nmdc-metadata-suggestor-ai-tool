@@ -452,8 +452,9 @@ class Envo:
             failures.append(f"{curie} is obsolete in ENVO{hint}")
             corrected = replacement
         if term.label and label != term.label:
-            failures.append(f"label {label!r} does not match the ENVO label {term.label!r}")
-            corrected = corrected or term.value
+            message, repair = self._reconcile_label(label, curie, term, slot)
+            failures.append(message)
+            corrected = corrected or repair
         if not self.in_anchor(curie, slot):
             anchor = ENV_TRIAD_ANCHORS[slot]
             anchor_term = self.get(anchor)
@@ -474,6 +475,60 @@ class Envo:
             corrected_value=corrected,
             in_valueset=in_valueset,
         )
+
+    def _reconcile_label(
+        self, label: str, curie: str, term: EnvoTerm, slot: str
+    ) -> tuple[str, str | None]:
+        """Decide what a label that is not the CURIE's official label means.
+
+        A model that composes ``label [CURIE]`` instead of copying an entry can pair a label
+        from one value-set entry with a CURIE from another. Both halves then name real terms
+        and there is no way to tell from the CURIE alone which was meant -- but the label is
+        what the model reasoned about and what a reviewer reads, so the label wins where it
+        resolves cleanly.
+
+        Returns the failure message and, when the repair is unambiguous, the value to use
+        instead. ``None`` means do not guess.
+        """
+        official = f"label {label!r} does not match the ENVO label {term.label!r}"
+
+        if self._is_alias_of(curie, label):
+            return f"{official}; it is a synonym of that term", term.value
+
+        named = [c for c in self.adapter.curies_by_label(label) if c.startswith(ENVO_PREFIX)]
+        if len(named) > 1:
+            return f"{official}, and {label!r} itself names several ENVO terms: {named}", None
+        if not named:
+            # The label names nothing in ENVO, so it is drift on an otherwise good CURIE.
+            return official, term.value
+        if named[0] == curie:  # pragma: no cover - equal labels are handled above
+            return official, term.value
+
+        other = named[0]
+        repaired = f"{label} [{other}]"
+        if self._curie_fits_slot(other, slot, repaired in get_slot_valueset(None, slot)):
+            return (
+                f"{official}; {label!r} is {other}, so the CURIE and label name different "
+                f"terms. Repairing toward the label",
+                repaired,
+            )
+        return (
+            f"{official}; {label!r} is {other}, which does not satisfy {slot}, so neither "
+            f"half of the value can be trusted",
+            None,
+        )
+
+    def _is_alias_of(self, curie: str, label: str) -> bool:
+        """True when label is a recorded synonym of the term, not a different term."""
+        aliases = self.adapter.entity_alias_map(curie) or {}
+        return any(str(a).lower() == label.lower() for values in aliases.values() for a in values)
+
+    def _curie_fits_slot(self, curie: str, slot: str, in_valueset: bool) -> bool:
+        """Whether a CURIE is usable for a slot, on the same terms `validate` applies."""
+        term = self.get(curie)
+        if term is None or term.obsolete:
+            return False
+        return in_valueset or slot not in HARD_ANCHOR_SLOTS or self.in_anchor(curie, slot)
 
     def replacement_for(self, curie: str) -> str | None:
         """The ``label [CURIE]`` ENVO says supersedes an obsolete term, if any.
@@ -631,11 +686,20 @@ def enforce_env_triad_values(output: LLMOutput, interface_names: list[str] | Non
         if result.ok:
             suggestion.source = result.source
             continue
-        if result.corrected_value and len(result.failures) == 1:
-            logger.info(f"Corrected {slot} value: {suggestion.value} -> {result.corrected_value}")
-            suggestion.value = result.corrected_value
-            suggestion.source = enforce_source_for(result.corrected_value, slot, interfaces)
-            continue
+
+        # Apply a repair only if the repaired value itself validates -- a correction that
+        # fixes one failure while leaving another is not a correction.
+        repair = next((r.corrected_value for r in results if r.corrected_value), None)
+        if repair:
+            rechecked = [envo.validate(repair, slot, name) for name in interfaces]
+            fixed = next((r for r in rechecked if r.ok and r.in_valueset), None) or next(
+                (r for r in rechecked if r.ok), None
+            )
+            if fixed is not None:
+                logger.info(f"Repaired {slot} value: {suggestion.value!r} -> {repair!r}")
+                suggestion.value = repair
+                suggestion.source = fixed.source
+                continue
 
         fallback = envo.generic_fallback(fallback_interface, slot)
         logger.warning(
@@ -647,10 +711,3 @@ def enforce_env_triad_values(output: LLMOutput, interface_names: list[str] | Non
         suggestion.reason = f"{suggestion.reason} [Original suggestion failed ENVO validation.]"
 
     return output
-
-
-def enforce_source_for(value: str, slot: str, interfaces: list[str | None]) -> str:
-    """The tier label for a value, checked against every interface in play."""
-    envo = get_envo()
-    results = [envo.validate(value, slot, name) for name in interfaces]
-    return next((r.source for r in results if r.ok and r.in_valueset), "envo_expansion")

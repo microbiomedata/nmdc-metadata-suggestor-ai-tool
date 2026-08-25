@@ -87,6 +87,12 @@ For `env_broad_scale`, skip searching entirely: all of ENVO holds 127 biomes, so
 
 Process samples in chunks of 50 if there are many. For each sample and each of the three slots, work down the tiers.
 
+**Values are copied, never assembled.** Take the whole `label [ENVO:NNNNNNN]` string
+verbatim — from the value set, or from `term.value` on a term you looked up. Never pair a
+label you wrote yourself with a CURIE, and never take the label from one value-set entry and
+the CURIE from another. Both halves can name real terms while the pair names neither, and the
+value set cannot save you: it is a flat list, so adjacent entries look interchangeable.
+
 **Value rules:**
 - Prefer a tier 1 value. Drop to tier 2 only when no curated value fits the evidence — then search the index rather than recalling a CURIE, and record `source: "envo_expansion"`
 - Specialize downward: start from the closest tier 1 term (or the extension's seed subtree) and call `descendants` on it, looking for a more specific match the evidence supports

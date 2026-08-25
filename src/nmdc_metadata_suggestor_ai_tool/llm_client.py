@@ -1,7 +1,10 @@
 """Unified LLM client for OpenAI-compatible providers and Vertex AI."""
 
 import base64
+import json
+import logging
 import os
+from collections import Counter
 from pathlib import Path
 from typing import Any, cast
 
@@ -29,6 +32,11 @@ from nmdc_metadata_suggestor_ai_tool.tracing import (
 )
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
+
+# The tool the agent calls to hand back its final answer.
+STRUCTURED_OUTPUT_TOOL = "StructuredOutput"
 
 DEFAULT_GCP_REGION = "us-east5"
 
@@ -345,6 +353,80 @@ class ConversationManager:
                         continue
         raise ValueError(f"Could not extract LLMOutput from structured_output: {raw}")
 
+    @staticmethod
+    def structured_output_from_tool_use(event: AssistantMessage) -> dict[str, Any] | None:
+        """The payload the agent passed to the StructuredOutput tool, if it called it.
+
+        ``ResultMessage.structured_output`` has come back empty on runs where the agent did
+        call the tool with a complete answer, which silently drops every suggestion. This
+        recovers it from the tool call itself.
+        """
+        for block in event.content or []:
+            if getattr(block, "name", None) != STRUCTURED_OUTPUT_TOOL:
+                continue
+            payload = getattr(block, "input", None)
+            if not isinstance(payload, dict):
+                continue
+            inner: Any = payload.get("output", payload)
+            if isinstance(inner, str):
+                try:
+                    inner = json.loads(inner)
+                except json.JSONDecodeError:
+                    continue
+            if isinstance(inner, dict):
+                return inner
+        return None
+
+    @staticmethod
+    def run_health(event: ResultMessage) -> dict[str, Any]:
+        """Surface how the run actually went, rather than only what it returned.
+
+        A headless run cannot approve tool use, so it can be blocked on every call and still
+        finish. Those denials were previously invisible.
+        """
+        denials = event.permission_denials or []
+        health: dict[str, Any] = {
+            "num_turns": event.num_turns,
+            "permission_denials": len(denials),
+            "terminal_reason": event.terminal_reason,
+            "stop_reason": event.stop_reason,
+            "is_error": event.is_error,
+        }
+        if denials:
+            by_tool = Counter(d.get("tool_name", "?") for d in denials if isinstance(d, dict))
+            health["permission_denials_by_tool"] = dict(by_tool)
+            logger.warning(
+                f"Agent run blocked on {len(denials)} tool permission denial(s): {dict(by_tool)}. "
+                "Headless runs cannot approve tools; grant them in settings."
+            )
+        if event.is_error or event.errors:
+            health["errors"] = event.errors
+            logger.error(f"Agent run errored ({event.terminal_reason}): {event.errors}")
+        return health
+
+    def finalize_result(self, event: ResultMessage, tool_payload: dict[str, Any] | None) -> Any:
+        """Build the validated LLMOutput from whichever source actually carried it."""
+        output = None
+        if isinstance(event.structured_output, dict):
+            try:
+                output = self.unwrap_structured_output(event.structured_output)
+            except ValueError:
+                output = None
+        if (output is None or not output.metadata_fields) and tool_payload is not None:
+            recovered = self.unwrap_structured_output(tool_payload)
+            if recovered.metadata_fields:
+                logger.warning(
+                    f"ResultMessage carried no metadata_fields; recovered "
+                    f"{len(recovered.metadata_fields)} from the {STRUCTURED_OUTPUT_TOOL} call."
+                )
+                output = recovered
+        if output is None:
+            raise ValueError(
+                f"No usable structured output: got {type(event.structured_output)} from "
+                f"ResultMessage and no {STRUCTURED_OUTPUT_TOOL} tool call."
+            )
+        return enforce_env_triad_values(output, None)
+
     @observe(name="agentic", as_type="span", capture_input=False, capture_output=False)
     async def agentic(
         self, session_id: str | None = None, message: str | None = None
@@ -378,6 +460,8 @@ class ConversationManager:
             )
 
         result: Any = None
+        health: dict[str, Any] = {}
+        tool_payload: dict[str, Any] | None = None
         if session_id is None:
             # Session ID is unknown until the first init event, so we tag
             # the outer span via metadata after the loop completes.
@@ -389,14 +473,18 @@ class ConversationManager:
                     session_id = event.data["session_id"]
                 elif isinstance(event, AssistantMessage):
                     print(f"Assistant: {event.content}")
+                    tool_payload = self.structured_output_from_tool_use(event) or tool_payload
                 elif isinstance(event, ResultMessage):
-                    result = enforce_env_triad_values(
-                        self.unwrap_structured_output(event.structured_output), None
-                    )
+                    health = self.run_health(event)
+                    result = self.finalize_result(event, tool_payload)
             if langfuse_client is not None:
                 langfuse_client.update_current_span(
                     output=result,
-                    metadata={"model": self.llm_client.model, "session_id": session_id},
+                    metadata={
+                        "model": self.llm_client.model,
+                        "session_id": session_id,
+                        **health,
+                    },
                 )
         else:
             options.resume = session_id
@@ -409,10 +497,11 @@ class ConversationManager:
                 ):
                     if isinstance(event, SystemMessage) and event.subtype == "init":
                         session_id = event.data["session_id"]
+                    elif isinstance(event, AssistantMessage):
+                        tool_payload = self.structured_output_from_tool_use(event) or tool_payload
                     elif isinstance(event, ResultMessage):
-                        result = enforce_env_triad_values(
-                            self.unwrap_structured_output(event.structured_output), None
-                        )
+                        health = self.run_health(event)
+                        result = self.finalize_result(event, tool_payload)
             if langfuse_client is not None:
-                langfuse_client.update_current_span(output=result)
+                langfuse_client.update_current_span(output=result, metadata=health)
         return result, session_id
