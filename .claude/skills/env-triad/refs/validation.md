@@ -45,7 +45,7 @@ So host anatomy is legitimately available for host-associated samples, and plant
 
 **Check 6 is a hard gate only for `env_broad_scale` and `env_medium`.** For `env_local_scale` it is a warning: the local-scale value sets carry 13–16 terms per package that do not sit under the anchor (`aquifer`, `farm`, `fen`, `biofilm`, `litter layer`). Gating there would reject values NMDC's own schema allows.
 
-**Check 6 never applies to a value already in the interface's curated set.** The anchor gate polices ENVO expansion, not the schema. `rhizosphere [ENVO:00005801]`, for instance, is a curated plant-associated `env_medium` that ENVO classifies as a system rather than a material. Checks 3 and 4 still apply everywhere, so dead CURIEs are caught even inside a curated set.
+**Check 6 never applies to a value already in *that* interface's curated set.** The anchor gate polices ENVO expansion, not the schema. `rhizosphere [ENVO:00005801]`, for instance, is a curated plant-associated `env_medium` that ENVO classifies as a system rather than a material. Checks 3 and 4 still apply everywhere, so dead CURIEs are caught even inside a curated set.
 
 ## When the label and the CURIE disagree
 
@@ -66,6 +66,21 @@ CURIE would silently commit a different biome from the one the `reason` argues f
 label wins: it is what was reasoned about and what a reviewer reads.
 
 A wrong CURIE under a right label is therefore recoverable. A wrong label is not.
+
+## One term cannot answer two slots
+
+The three slots ask different questions, so the same CURIE appearing in two of them for one
+sample is incoherent however defensible each value looks alone. ENVO decides which slot keeps
+it: the term stays where it satisfies the anchor and the other slot generalizes. When it
+satisfies both slots there is nothing to arbitrate on, so both stand and the clash is logged.
+
+Seen with `rhizosphere [ENVO:00005801]` returned as both `env_local_scale` and `env_medium`,
+with the two `reason` texts contradicting each other.
+
+The waiver above is also scoped: it applies only when the caller names the extension. When
+the extension is unknown, another extension's curated list does not license an off-anchor
+term — `rhizosphere` is an `env_medium` for plant-associated only, and a soil sample does not
+inherit that.
 
 ## On failure
 

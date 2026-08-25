@@ -28,6 +28,7 @@ from __future__ import annotations
 import functools
 import logging
 import re
+from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -48,7 +49,10 @@ from nmdc_metadata_suggestor_ai_tool.constants import (
     ENVO_PREFIX,
     HARD_ANCHOR_SLOTS,
 )
-from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
+from nmdc_metadata_suggestor_ai_tool.models.llm_output import (
+    LLMOutput,
+    MetadataFieldSuggestion,
+)
 from nmdc_metadata_suggestor_ai_tool.utils.submission_parser import MixsExtensions
 
 logger = logging.getLogger(__name__)
@@ -374,7 +378,12 @@ class Envo:
     # -- validation --------------------------------------------------------
 
     def validate(
-        self, value: str, slot: str, interface_name: str | None = None
+        self,
+        value: str,
+        slot: str,
+        interface_name: str | None = None,
+        *,
+        waive_anchor_in_valueset: bool = True,
     ) -> ValidationResult:
         """Check one ``label [CURIE]`` value against the env triad rules.
 
@@ -393,6 +402,12 @@ class Envo:
         in the interface's curated set is never rejected for its anchor.
         Existence and obsolescence still apply, so terms the schema still offers
         but ENVO has dropped are caught wherever they appear.
+
+        Set ``waive_anchor_in_valueset=False`` when the caller does not know which
+        extension is in play. The waiver exists to respect the extension's own
+        curated list; letting some *other* extension's list license an off-anchor
+        term is not the same thing. Only two curated values on hard-anchor slots
+        depend on the waiver at all, so switching it off is close to free.
         """
         if slot not in ENV_TRIAD_SLOTS:
             return ValidationResult(
@@ -460,7 +475,7 @@ class Envo:
             anchor_term = self.get(anchor)
             anchor_label = anchor_term.label if anchor_term else anchor
             message = f"{curie} does not descend from {anchor_label} [{anchor}]"
-            if slot in HARD_ANCHOR_SLOTS and not in_valueset:
+            if slot in HARD_ANCHOR_SLOTS and not (in_valueset and waive_anchor_in_valueset):
                 failures.append(message)
             else:
                 warnings.append(message)
@@ -659,6 +674,9 @@ def enforce_env_triad_values(output: LLMOutput, interface_names: list[str] | Non
     so a legitimate UBERON or PO value is not rejected for want of context.
     """
     envo = get_envo()
+    # The curated-set waiver on the anchor gate applies only when the caller named the
+    # extensions; another extension's list must not license an off-anchor term.
+    known = bool(interface_names)
     interfaces: list[str | None] = (
         list(interface_names) if interface_names else list(MixsExtensions.__members__)
     )
@@ -673,7 +691,10 @@ def enforce_env_triad_values(output: LLMOutput, interface_names: list[str] | Non
 
         # A value only has to satisfy one of the interfaces in play: the schema
         # patterns differ, and host-associated admits UBERON where soil does not.
-        results = [envo.validate(suggestion.value, slot, name) for name in interfaces]
+        results = [
+            envo.validate(suggestion.value, slot, name, waive_anchor_in_valueset=known)
+            for name in interfaces
+        ]
         # Prefer an interface that found the value in its curated set. Interfaces
         # iterate in enum order, so taking the first merely-valid result would
         # label soil [ENVO:00001998] as envo_expansion -- BuiltEnvInterface comes
@@ -691,7 +712,10 @@ def enforce_env_triad_values(output: LLMOutput, interface_names: list[str] | Non
         # fixes one failure while leaving another is not a correction.
         repair = next((r.corrected_value for r in results if r.corrected_value), None)
         if repair:
-            rechecked = [envo.validate(repair, slot, name) for name in interfaces]
+            rechecked = [
+                envo.validate(repair, slot, name, waive_anchor_in_valueset=known)
+                for name in interfaces
+            ]
             fixed = next((r for r in rechecked if r.ok and r.in_valueset), None) or next(
                 (r for r in rechecked if r.ok), None
             )
@@ -710,4 +734,60 @@ def enforce_env_triad_values(output: LLMOutput, interface_names: list[str] | Non
         suggestion.source = "generalized"
         suggestion.reason = f"{suggestion.reason} [Original suggestion failed ENVO validation.]"
 
+    _enforce_slot_coherence(output, fallback_interface)
     return output
+
+
+def _enforce_slot_coherence(output: LLMOutput, fallback_interface: str) -> None:
+    """Reject one term standing in two slots of the same sample.
+
+    The three slots answer different questions -- which biome, which nearby feature, which
+    material -- so one term cannot honestly answer two of them. Per-value checks cannot see
+    this: each value is defensible alone. Observed with ``rhizosphere`` returned as both
+    env_local_scale and env_medium, where the reason texts contradicted each other.
+
+    ENVO decides which slot keeps it: the term stays where it satisfies the anchor and is
+    generalized elsewhere. When it satisfies every slot it was used in, there is nothing to
+    arbitrate on, so both are left alone and the clash is logged.
+    """
+    envo = get_envo()
+    by_sample: dict[str, dict[str, list[MetadataFieldSuggestion]]] = defaultdict(
+        lambda: defaultdict(list)
+    )
+    for suggestion in output.metadata_fields:
+        slot = suggestion.field_name
+        if slot not in ENV_TRIAD_SLOTS or not isinstance(suggestion.value, str):
+            continue
+        if not suggestion.id or not suggestion.value:
+            continue
+        match = ENV_TRIAD_CURIE_PATTERN.match(suggestion.value)
+        if match:
+            by_sample[suggestion.id][match.group(2)].append(suggestion)
+
+    for sample_id, terms in by_sample.items():
+        for curie, clashing in terms.items():
+            if len(clashing) < 2:
+                continue
+            fits = [s for s in clashing if envo.in_anchor(curie, s.field_name)]
+            if len(fits) != 1:
+                logger.warning(
+                    f"{sample_id}: {curie} used for "
+                    f"{sorted(s.field_name for s in clashing)}; cannot tell which slot it "
+                    f"belongs to, leaving both."
+                )
+                continue
+            keep = fits[0]
+            for suggestion in clashing:
+                if suggestion is keep:
+                    continue
+                fallback = envo.generic_fallback(fallback_interface, suggestion.field_name)
+                logger.warning(
+                    f"{sample_id}: {curie} cannot be both {keep.field_name} and "
+                    f"{suggestion.field_name}; it satisfies {keep.field_name}, so "
+                    f"{suggestion.field_name} falls back to {fallback!r}."
+                )
+                suggestion.value = fallback
+                suggestion.source = "generalized"
+                suggestion.reason = (
+                    f"{suggestion.reason} [Reused the {keep.field_name} term; generalized instead.]"
+                )

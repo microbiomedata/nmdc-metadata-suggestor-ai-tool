@@ -115,3 +115,91 @@ def test_unknown_interfaces_still_correct_label_drift() -> None:
     suggestion = output.metadata_fields[0]
     assert suggestion.value == "soil [ENVO:00001998]"
     assert suggestion.source == "submission_enum"
+
+
+# --- the curated-set waiver, and who it applies to ---------------------------
+#
+# The anchor gate is waived for a value in the extension's own curated set, so we do not
+# reject what the schema offers. rhizosphere is the case that matters: ENVO does not class
+# it as an environmental material, but PlantAssociatedInterface lists it as an env_medium.
+
+
+def triad(local: str, medium: str, sample_id: str = "s1") -> LLMOutput:
+    return LLMOutput(
+        metadata_fields=[
+            MetadataFieldSuggestion(
+                id=sample_id, field_name="env_local_scale", value=local, reason="r"
+            ),
+            MetadataFieldSuggestion(
+                id=sample_id, field_name="env_medium", value=medium, reason="r"
+            ),
+        ]
+    )
+
+
+def test_a_named_extension_may_waive_the_anchor_for_its_own_valueset() -> None:
+    output = enforce_env_triad_values(
+        one_suggestion("rhizosphere [ENVO:00005801]"), ["PlantAssociatedInterface"]
+    )
+    assert output.metadata_fields[0].value == "rhizosphere [ENVO:00005801]"
+
+
+def test_another_extensions_valueset_does_not_waive_the_anchor() -> None:
+    """Soil samples must not inherit the plant-associated list's off-anchor entry."""
+    output = enforce_env_triad_values(
+        one_suggestion("rhizosphere [ENVO:00005801]"), ["SoilInterface"]
+    )
+    assert output.metadata_fields[0].source == "generalized"
+
+
+def test_unknown_extensions_do_not_waive_the_anchor_either() -> None:
+    """The agentic path has no interface list; that is not licence to take the loosest one."""
+    output = enforce_env_triad_values(one_suggestion("rhizosphere [ENVO:00005801]"), None)
+    assert output.metadata_fields[0].source == "generalized"
+
+
+# --- one term cannot answer two slots ----------------------------------------
+
+
+def test_a_term_reused_across_slots_is_kept_where_its_anchor_fits() -> None:
+    """Seen in a real run: rhizosphere returned as both local scale and medium."""
+    output = enforce_env_triad_values(
+        triad("rhizosphere [ENVO:00005801]", "rhizosphere [ENVO:00005801]"),
+        ["PlantAssociatedInterface"],
+    )
+    local, medium = output.metadata_fields
+    assert local.value == "rhizosphere [ENVO:00005801]"
+    assert medium.source == "generalized"
+    assert "Reused the env_local_scale term" in medium.reason
+
+
+def test_a_term_fitting_both_slots_is_left_alone() -> None:
+    """soil satisfies both anchors, so there is nothing to arbitrate on."""
+    output = enforce_env_triad_values(
+        triad("soil [ENVO:00001998]", "soil [ENVO:00001998]"), ["SoilInterface"]
+    )
+    assert all(f.value == "soil [ENVO:00001998]" for f in output.metadata_fields)
+
+
+def test_distinct_terms_across_slots_are_untouched() -> None:
+    output = enforce_env_triad_values(
+        triad("rhizosphere [ENVO:00005801]", "soil [ENVO:00001998]"), ["SoilInterface"]
+    )
+    assert [f.value for f in output.metadata_fields] == [
+        "rhizosphere [ENVO:00005801]",
+        "soil [ENVO:00001998]",
+    ]
+
+
+def test_coherence_is_scoped_to_one_sample() -> None:
+    """Two samples may legitimately share a term in the same slot."""
+    output = LLMOutput(
+        metadata_fields=[
+            *triad("rhizosphere [ENVO:00005801]", "soil [ENVO:00001998]", "s1").metadata_fields,
+            *triad("rhizosphere [ENVO:00005801]", "soil [ENVO:00001998]", "s2").metadata_fields,
+        ]
+    )
+    assert all(
+        f.source != "generalized"
+        for f in enforce_env_triad_values(output, ["SoilInterface"]).metadata_fields
+    )
