@@ -431,6 +431,21 @@ class Envo:
                 in_valueset=in_valueset,
             )
 
+        if "|" in value:
+            # ENVO documents a pipe-separated multi-term form and the schema regex tolerates
+            # it by accident, but everything downstream assumes one term. Say so plainly
+            # rather than reporting a mangled label.
+            return ValidationResult(
+                ok=False,
+                value=value,
+                slot=slot,
+                failures=(
+                    "contains '|'. ENVO allows several terms per slot, but this pipeline "
+                    "emits one; choose the single best term.",
+                ),
+                in_valueset=in_valueset,
+            )
+
         curie_match = ENV_TRIAD_CURIE_PATTERN.match(value)
         if curie_match is None:  # pragma: no cover - the slot patterns all enforce this shape
             return ValidationResult(

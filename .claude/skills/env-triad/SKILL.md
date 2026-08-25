@@ -87,6 +87,10 @@ For `env_broad_scale`, skip searching entirely: all of ENVO holds 127 biomes, so
 
 Process samples in chunks of 50 if there are many. For each sample and each of the three slots, work down the tiers.
 
+Before choosing terms, know what the three slots actually ask for — a biome, a countable
+thing nearby, and a mass noun. [refs/slots.md](refs/slots.md) has ENVO's own guidance,
+including the anti-patterns it names.
+
 **Values are copied, never assembled.** Take the whole `label [ENVO:NNNNNNN]` string
 verbatim — from the value set, or from `term.value` on a term you looked up. Never pair a
 label you wrote yourself with a CURIE, and never take the label from one value-set entry and

@@ -43,6 +43,8 @@ So host anatomy is legitimately available for host-associated samples, and plant
 
 ## Two gates are deliberately soft
 
+The anchor classes are structural stand-ins for what the slots actually ask for; [slots.md](slots.md) states the real rules, and governs where the two disagree.
+
 **Check 6 is a hard gate only for `env_broad_scale` and `env_medium`.** For `env_local_scale` it is a warning: the local-scale value sets carry 13–16 terms per package that do not sit under the anchor (`aquifer`, `farm`, `fen`, `biofilm`, `litter layer`). Gating there would reject values NMDC's own schema allows.
 
 **Check 6 never applies to a value already in *that* interface's curated set.** The anchor gate polices ENVO expansion, not the schema. `rhizosphere [ENVO:00005801]`, for instance, is a curated plant-associated `env_medium` that ENVO classifies as a system rather than a material. Checks 3 and 4 still apply everywhere, so dead CURIEs are caught even inside a curated set.

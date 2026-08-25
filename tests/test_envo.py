@@ -406,3 +406,12 @@ def test_local_scale_anchor_is_advisory_not_a_gate(envo: Envo) -> None:
         assert result.ok, value
         assert result.warnings, value
         assert not envo.validate(value, "env_medium", "SoilInterface").ok, value
+
+
+def test_a_piped_multi_term_value_fails_with_a_clear_reason(envo: Envo) -> None:
+    """ENVO documents the pipe form and the schema regex tolerates it; we do not support it."""
+    result = envo.validate(
+        "soil [ENVO:00001998]|sediment [ENVO:00002007]", "env_medium", "SoilInterface"
+    )
+    assert not result.ok
+    assert "one" in result.failures[0] and "|" in result.failures[0]

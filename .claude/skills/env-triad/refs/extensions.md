@@ -31,6 +31,8 @@ File names come from the interface class, kebab-cased with `Interface` dropped, 
 
 ## Rules that hold across every extension
 
+What each slot means, and the term types ENVO rules out, are in [slots.md](slots.md) — they hold regardless of extension.
+
 ### env_broad_scale needs no expansion subtrees
 
 All of ENVO holds 127 biome terms (~5 KB), so `envo.biome_values()` is the complete universe for this slot in *every* extension — no search step, no per-extension curation. The curated broad-scale value sets remain the preferred tier; the rest of the biome list is the labeled tier 2 fallback.
