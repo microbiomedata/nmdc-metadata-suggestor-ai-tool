@@ -114,3 +114,27 @@ def test_errors_and_terminal_reason_are_surfaced() -> None:
 
 def test_a_clean_run_reports_no_denials() -> None:
     assert ConversationManager.run_health(FakeResultMessage())["permission_denials"] == 0
+
+
+# --- the tool argument name is not stable -----------------------------------
+
+
+@pytest.mark.parametrize("key", ["output", "json_output", "some_future_name"])
+def test_payload_is_found_whatever_the_argument_is_called(key: str) -> None:
+    """Seen as both `output` and `json_output` across runs on the same SDK."""
+    event = FakeAssistantMessage([FakeToolUse("StructuredOutput", {key: suggestions()})])
+    assert ConversationManager.structured_output_from_tool_use(event) == suggestions()
+
+
+@pytest.mark.parametrize("key", ["output", "json_output"])
+def test_payload_is_found_when_it_is_a_json_string(key: str) -> None:
+    event = FakeAssistantMessage(
+        [FakeToolUse("StructuredOutput", {key: json.dumps(suggestions())})]
+    )
+    assert ConversationManager.structured_output_from_tool_use(event) == suggestions()
+
+
+def test_an_empty_wrapper_is_not_mistaken_for_a_result() -> None:
+    """Requiring metadata_fields stops a shell dict passing as a recovered answer."""
+    event = FakeAssistantMessage([FakeToolUse("StructuredOutput", {"json_output": {"other": 1}})])
+    assert ConversationManager.structured_output_from_tool_use(event) is None

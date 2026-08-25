@@ -367,14 +367,18 @@ class ConversationManager:
             payload = getattr(block, "input", None)
             if not isinstance(payload, dict):
                 continue
-            inner: Any = payload.get("output", payload)
-            if isinstance(inner, str):
-                try:
-                    inner = json.loads(inner)
-                except json.JSONDecodeError:
-                    continue
-            if isinstance(inner, dict):
-                return inner
+            # The argument name has been seen as both "output" and "json_output", and the
+            # value as both a dict and a JSON string, so search rather than assume. Requiring
+            # metadata_fields keeps an empty wrapper from passing as a recovered result.
+            for candidate in (*payload.values(), payload):
+                parsed: Any = candidate
+                if isinstance(parsed, str):
+                    try:
+                        parsed = json.loads(parsed)
+                    except json.JSONDecodeError:
+                        continue
+                if isinstance(parsed, dict) and parsed.get("metadata_fields"):
+                    return parsed
         return None
 
     @staticmethod
