@@ -29,8 +29,9 @@ Every target in this Makefile is phony today. None of them writes a file named a
 - a target defined twice
 
 The check exists because the line drifted once already. It listed 17 names against 23 targets,
-so `all-install`, `prod-install`, `docker-dev-build`, `docker-dev-down`, `docker-shell` and `run`
-were all skippable, and it listed `lint-fix`, which was never a target.
+so `all-install`, `prod-install`, `run` and four `docker-*` targets were all skippable, and it
+listed `lint-fix`, which was never a target. The `docker-*` targets have since been removed:
+they called files that were deleted in July.
 
 ## Why not use checkmake
 

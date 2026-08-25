@@ -1,10 +1,15 @@
-# Targets that really do build a file or directory named after themselves.
-# These must NOT be listed in .PHONY; every other target must be. Empty today,
-# because nothing here builds an artifact of its own name. See
-# docs/makefile-phony.md.
+# Every target below is listed in .PHONY, because none of them creates a file
+# named after itself. That is the whole rule: declare a target phony unless
+# running it writes a file or directory of that exact name.
+#
+# FILE_TARGETS is the escape hatch for the exception. If a target ever does
+# build a file named after itself, list it here INSTEAD of in .PHONY, and make
+# will use its timestamp to skip rebuilds. Nothing qualifies today, so it is
+# empty. `make check-phony` fails if a target is in both lists or neither.
+# Background: docs/makefile-phony.md.
 FILE_TARGETS =
 
-.PHONY: help all-install prod-install dev-install test test-integration lint check-phony format security check-deps clean docker-build docker-dev-build docker-run docker-dev docker-dev-down docker-shell run validate-doi classify-doi classify-fixture get-abstract get-abstracts
+.PHONY: help all-install prod-install dev-install test test-integration lint check-phony format security check-deps clean run validate-doi classify-doi classify-fixture get-abstract get-abstracts
 
 help: ## Show this help message
 	@echo "Usage: make [target]"
@@ -59,24 +64,6 @@ clean: ## Clean up generated files
 	rm -rf *.egg-info
 	find . -type d -name __pycache__ -exec rm -rf {} +
 	find . -type f -name "*.pyc" -delete
-
-docker-build: ## Build production Docker image
-	docker build -t nmdc-suggestor:latest .
-
-docker-dev-build: ## Build development Docker image
-	docker build -f Dockerfile.dev -t nmdc-suggestor:dev .
-
-docker-run: ## Run production Docker container
-	docker run --env-file .env nmdc-suggestor:latest
-
-docker-dev: ## Start development environment with Docker Compose
-	docker-compose up
-
-docker-dev-down: ## Stop development environment
-	docker-compose down
-
-docker-shell: ## Open shell in development container
-	docker-compose exec app bash
 
 run: ## Run the application locally
 	uv run nmdc-suggestor
