@@ -43,16 +43,6 @@ cp .env.example .env
 # Edit .env and add your API keys
 ```
 
-Using Docker:
-```bash
-# Start development environment
-docker-compose up
-
-# Or for interactive development
-docker-compose up -d
-docker-compose exec app bash
-```
-
 ### Code Quality
 
 Before submitting a pull request, ensure your code passes all quality checks:
