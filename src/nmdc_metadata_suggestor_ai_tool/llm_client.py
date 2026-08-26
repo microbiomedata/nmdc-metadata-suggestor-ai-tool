@@ -451,11 +451,16 @@ class ConversationManager:
         If None, starts a new session.
 
         """
+        model = (
+            DEFAULT_CLAUDE_MODEL
+            if self.llm_client.access_provider == "gcp"
+            else self.llm_client.model
+        )
         # set env variable to enable Claude Agent SDK to pick up GCP credentials
         # Claude Agent SDK requires a Claude model, not a Gemini model, even on Vertex AI
         options = ClaudeAgentOptions(
             skills="all",
-            model=DEFAULT_CLAUDE_MODEL,
+            model=model,
             system_prompt=orchestrator_prompt,
             # Read .claude/settings.json. Without this the SDK runs under the default
             # permission mode, where Bash needs interactive approval -- which a headless run
@@ -472,7 +477,7 @@ class ConversationManager:
         if langfuse_client is not None:
             langfuse_client.update_current_span(
                 input=message,
-                metadata={"model": self.llm_client.model},
+                metadata={"model": model},
             )
 
         result: Any = None
@@ -497,7 +502,7 @@ class ConversationManager:
                 langfuse_client.update_current_span(
                     output=result,
                     metadata={
-                        "model": self.llm_client.model,
+                        "model": model,
                         "session_id": session_id,
                         **health,
                     },

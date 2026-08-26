@@ -1,4 +1,15 @@
-.PHONY: help dev-install test test-integration lint lint-fix format security check-deps clean docker-build docker-run docker-dev validate-doi classify-doi classify-fixture get-abstract get-abstracts
+# Every target below is listed in .PHONY, because none of them creates a file
+# named after itself. That is the whole rule: declare a target phony unless
+# running it writes a file or directory of that exact name.
+#
+# FILE_TARGETS is the escape hatch for the exception. If a target ever does
+# build a file named after itself, list it here INSTEAD of in .PHONY, and make
+# will use its timestamp to skip rebuilds. Nothing qualifies today, so it is
+# empty. `make check-phony` fails if a target is in both lists or neither.
+# Background: docs/makefile-phony.md.
+FILE_TARGETS =
+
+.PHONY: help all-install prod-install dev-install test test-integration lint check-phony format security check-deps clean run validate-doi classify-doi classify-fixture get-abstract get-abstracts
 
 help: ## Show this help message
 	@echo "Usage: make [target]"
@@ -23,7 +34,11 @@ test-integration: ## Run integration tests against real APIs
 
 lint: ## Run linters
 	uv run ruff check
-	uv run mypy src 
+	uv run mypy src
+	$(MAKE) check-phony
+
+check-phony: ## Verify .PHONY lists exactly the targets the Makefile defines
+	uv run python scripts/check_phony.py
 
 format: ## This is a two part command that both checks, then auto-fixes formatting issues where it can.
 	uv run ruff format
@@ -49,24 +64,6 @@ clean: ## Clean up generated files
 	rm -rf *.egg-info
 	find . -type d -name __pycache__ -exec rm -rf {} +
 	find . -type f -name "*.pyc" -delete
-
-docker-build: ## Build production Docker image
-	docker build -t nmdc-suggestor:latest .
-
-docker-dev-build: ## Build development Docker image
-	docker build -f Dockerfile.dev -t nmdc-suggestor:dev .
-
-docker-run: ## Run production Docker container
-	docker run --env-file .env nmdc-suggestor:latest
-
-docker-dev: ## Start development environment with Docker Compose
-	docker-compose up
-
-docker-dev-down: ## Stop development environment
-	docker-compose down
-
-docker-shell: ## Open shell in development container
-	docker-compose exec app bash
 
 run: ## Run the application locally
 	uv run nmdc-suggestor

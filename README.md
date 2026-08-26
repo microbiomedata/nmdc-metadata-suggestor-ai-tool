@@ -24,6 +24,7 @@ Environment variables used by `LLMClient` and `ConversationManager`:
 - `GOOGLE_APPLICATION_CREDENTIALS`: Path to a GCP service account JSON file (for Vertex AI).
 - `VERTEX_PROJECT_ID`: (Optional) GCP project id for Vertex. If not provided, the SDK will attempt to infer it from credentials.
 - `GCP_REGION`: (Optional) Vertex region override for Gemini calls (falls back to `GCP_REGION`, then `us-east5`).
+- `CLAUDE_CODE_USE_VERTEX` (Required by ConversationManager.agentic()) : Forces `claude_agent_sdk` to use vertex AI for credentials. Required for our use as we use GCP for agentic auth. 
 - `CBORG_KEY`: API key for CBORG (when using `access_provider=cborg`).
 - `CBORG_BASE_URL`: Base URL for the CBORG API.
 
@@ -84,25 +85,35 @@ Set `ENVO_ADAPTER` to point at a different build (a pinned or self-hosted one) i
    ```
 
    ```python
+   import json
+
    from nmdc_metadata_suggestor_ai_tool.llm_client import LLMClient
    from nmdc_metadata_suggestor_ai_tool.recommendation_pipeline import run_recommendation_pipeline
 
-   submission_object = {
-       # NMDC submission JSON payload
-   }
+   # Any NMDC submission JSON payload. This example fixture ships with the repo:
+   # a soil study with a data DOI, so the run also exercises DOI abstract ingestion.
+   with open("tests/fixtures/test_submission.json") as f:
+       submission_object = json.load(f)
 
    client = LLMClient(access_provider="gcp")
    result = run_recommendation_pipeline(submission_object, client)
-   print(result.model_dump())
+   print(result.model_dump_json(indent=2))
    ```
+
+   Each suggestion names an NMDC field the submitter should fill in and a `reason` citing
+   the submission text that supports it. `value` is filled in only when the submission
+   contains that value literally; when the value is inferred, the inference goes in the
+   `reason` and `value` stays `""`. An empty `value` is expected output, not a failure.
+   (The env triad path is the exception — it always returns a `label [CURIE]` value.)
 
 Advanced: direct `ConversationManager` usage (optional)
 
 ```python
 from nmdc_metadata_suggestor_ai_tool.llm_client import LLMClient, ConversationManager
+from nmdc_metadata_suggestor_ai_tool.system_prompt import system_prompt
 
 client = LLMClient(access_provider="gcp")
-conversation = ConversationManager(llm_client=client)
+conversation = ConversationManager(llm_client=client, system_prompt=system_prompt)
 # Add plain text context (pdf_files may be a list of local PDF paths)
 conversation.add_message(text="Please summarize the submission.", pdf_files=None)
 # Add any schema context to guide the model
