@@ -63,7 +63,7 @@ PNNL_GPT_MODELS = [
 ]
 
 DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
-DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-5@20250929"
+DEFAULT_CLAUDE_MODEL = "claude-opus-4-6"
 DEFAULT_MAX_TOKENS_BY_PROVIDER: dict[str, int] = {
     "pnnl": 128000,
     "cborg": 128000,
