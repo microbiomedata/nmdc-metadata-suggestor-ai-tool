@@ -402,6 +402,30 @@ class ConversationManager:
             "stop_reason": event.stop_reason,
             "is_error": event.is_error,
         }
+        # Vertex bills per token, so cost is the thing to watch on every run. ResultMessage
+        # carries it and we were dropping it, which left no way to see what a run spent.
+        health["total_cost_usd"] = event.total_cost_usd
+        health["duration_ms"] = event.duration_ms
+        usage_by_model = event.model_usage or {}
+        if usage_by_model:
+            # canonicalModel is whatever actually served the request -- more trustworthy than
+            # llm_client.model, which on the gcp path defaults to a Gemini id and so has been
+            # mislabelling these traces.
+            health["models_used"] = sorted(
+                u.get("canonicalModel") or name for name, u in usage_by_model.items()
+            )
+            for key, field in (
+                ("input_tokens", "inputTokens"),
+                ("output_tokens", "outputTokens"),
+                ("cache_read_tokens", "cacheReadInputTokens"),
+                ("cache_write_tokens", "cacheCreationInputTokens"),
+            ):
+                health[key] = sum(u.get(field) or 0 for u in usage_by_model.values())
+        if event.total_cost_usd is not None:
+            logger.info(
+                f"Agent run cost ${event.total_cost_usd:.4f} over {event.num_turns} turn(s) "
+                f"on {', '.join(health.get('models_used') or ['unknown model'])}."
+            )
         if denials:
             by_tool = Counter(d.get("tool_name", "?") for d in denials if isinstance(d, dict))
             health["permission_denials_by_tool"] = dict(by_tool)
