@@ -179,10 +179,10 @@ def append_error(errors: list[str] | None, message: str) -> None:
 def strip_jats_xml(xml_abstract: str) -> str:
     """Strip JATS/XML tags from text and unescape HTML entities.
 
-    The wrapping element is what makes a hostile abstract harmless: a DOCTYPE
-    inside it is invalid XML, and a DOCTYPE is the only entry point for entity
-    expansion. That is emergent rather than intended, so the payload also goes
-    through the shared guard, which rejects the declaration outright.
+    Abstracts come off the network, so the payload goes through the shared
+    guard, which rejects entity declarations and external references. An
+    entity-free DOCTYPE is permitted. The wrapping element is unrelated to
+    safety: JATS abstracts are fragments with no single root, so they need one.
     """
     root, _reason = parse_untrusted_xml(f"<root>{xml_abstract}</root>")
     if root is not None:
