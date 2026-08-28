@@ -27,8 +27,7 @@ from nmdc_metadata_suggestor_ai_tool.doi_ingestion.jgi import try_jgi
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.kbase import try_kbase
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.massive import try_massive
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.openalex import try_openalex
-from nmdc_metadata_suggestor_ai_tool.doi_ingestion.osti import try_osti
-from nmdc_metadata_suggestor_ai_tool.doi_ingestion.osti import try_osti_award
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.osti import try_osti, try_osti_award
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.pubmed import try_pubmed
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.zenodo import try_zenodo
 from nmdc_metadata_suggestor_ai_tool.models.doi import DoiClassification, SourceRetrievalResult
@@ -449,11 +448,14 @@ def _fetch_osti(
     """Fetch and wrap context from OSTI API."""
     return _fetch_resolver_context(doi, provider, "osti", attempts, source_errors, try_osti)
 
+
 def _fetch_osti_award(
     doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
 ) -> SourceRetrievalResult | None:
     """Fetch and wrap context from OSTI Award API."""
-    return _fetch_resolver_context(doi, provider, "osti_award", attempts, source_errors, try_osti_award)
+    return _fetch_resolver_context(
+        doi, provider, "osti_award", attempts, source_errors, try_osti_award
+    )
 
 
 _SOURCE_FETCHERS: dict[str, Fetcher] = {

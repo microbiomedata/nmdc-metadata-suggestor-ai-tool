@@ -12,8 +12,8 @@ import requests
 from nmdc_metadata_suggestor_ai_tool.constants import (
     DEFAULT_TIMEOUT,
     OSTI_API_URL,
-    OSTI_E2_API_URL,
     OSTI_AWARD_API_URL,
+    OSTI_E2_API_URL,
     USER_AGENT,
 )
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import (
