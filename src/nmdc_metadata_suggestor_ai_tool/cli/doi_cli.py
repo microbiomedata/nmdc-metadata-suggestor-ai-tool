@@ -14,6 +14,7 @@ Usage::
 import csv
 import json
 import sys
+from collections.abc import Iterable
 from pathlib import Path
 
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import (
@@ -133,6 +134,27 @@ def cmd_get_abstracts(out_dir: str = "abstracts") -> None:
     print(f"\nResults saved to {out_path}/", file=sys.stderr)
 
 
+def _dedupe_normalized(raw: Iterable[str]) -> list[str]:
+    """Drop blanks and duplicates, comparing DOIs in normalized form.
+
+    Deduplicating the raw strings is not enough: `doi:10.1038/x`,
+    `https://doi.org/10.1038/x` and `10.1038/x` are the same DOI written three
+    ways. Left raw, each one would be fetched separately, counted separately in
+    the coverage summary, and written to the same output filename, so the last
+    fetch would silently overwrite the others.
+
+    The first spelling seen is the one returned, so output filenames stay
+    predictable from the input.
+    """
+    seen: dict[str, str] = {}
+    for value in raw:
+        value = value.strip()
+        if not value:
+            continue
+        seen.setdefault(normalize_doi(value), value)
+    return list(seen.values())
+
+
 def _read_dois_from_file(file_path: Path) -> list[str]:
     """Read DOIs from a TSV, CSV, or plain text file.
 
@@ -162,15 +184,9 @@ def _read_dois_from_file(file_path: Path) -> list[str]:
         # csv.DictReader fills missing trailing fields with None (not ""), for
         # rows shorter than the header — coerce before .strip() so a short or
         # malformed row doesn't crash the whole batch with an AttributeError.
-        return list(
-            dict.fromkeys(
-                (row.get(actual_col) or "").strip()
-                for row in reader
-                if (row.get(actual_col) or "").strip()
-            )
-        )
+        return _dedupe_normalized((row.get(actual_col) or "").strip() for row in reader)
 
-    return list(dict.fromkeys(line.strip() for line in text.splitlines() if line.strip()))
+    return _dedupe_normalized(line.strip() for line in text.splitlines())
 
 
 def _print_coverage_summary(results: list[dict]) -> None:

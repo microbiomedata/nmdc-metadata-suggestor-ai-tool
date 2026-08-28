@@ -402,3 +402,34 @@ def test_classify_real_dataset() -> None:
     assert result.is_valid is True
     assert result.registration_agency == "DataCite"
     assert result.inferred_nmdc_category == "dataset_doi"
+
+
+def test_read_dois_from_file_dedupes_equivalent_spellings(tmp_path: Path) -> None:
+    """The same DOI written three ways is one DOI.
+
+    Deduplicating raw strings let `doi:10.1038/x`, `https://doi.org/10.1038/x`
+    and `10.1038/x` all survive. Each would be fetched separately, counted
+    separately in the coverage summary, and written to the same output
+    filename, so the last fetch would silently overwrite the others.
+    """
+    from nmdc_metadata_suggestor_ai_tool.cli.doi_cli import _read_dois_from_file
+
+    f = tmp_path / "mixed.txt"
+    f.write_text(
+        "doi:10.1038/s41564-020-00861-0\n"
+        "https://doi.org/10.1038/s41564-020-00861-0\n"
+        "10.1038/s41564-020-00861-0\n"
+        "10.1000/other\n"
+    )
+    got = _read_dois_from_file(f)
+    assert len(got) == 2, got
+    assert got[0] == "doi:10.1038/s41564-020-00861-0", "first spelling seen should win"
+    assert "10.1000/other" in got
+
+
+def test_read_dois_from_file_dedupes_across_a_csv_column(tmp_path: Path) -> None:
+    from nmdc_metadata_suggestor_ai_tool.cli.doi_cli import _read_dois_from_file
+
+    f = tmp_path / "mixed.tsv"
+    f.write_text("doi\tnote\n10.1038/x\ta\nhttps://doi.org/10.1038/x\tb\n10.1000/y\tc\n")
+    assert _read_dois_from_file(f) == ["10.1038/x", "10.1000/y"]
