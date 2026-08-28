@@ -161,6 +161,7 @@ Not all 14,938 biosamples appear — only those whose study has at least one DOI
 
 ```python
 from berdl_notebook_utils import get_spark_session
+
 spark = get_spark_session()
 df = spark.sql("""
     SELECT d.study_id, d.doi_value, d.doi_category, b.id AS biosample_id
