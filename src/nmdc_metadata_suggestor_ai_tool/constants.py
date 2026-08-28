@@ -49,6 +49,7 @@ OPENALEX_API_URL = "https://api.openalex.org/works"
 # OSTI
 OSTI_API_URL = "https://www.osti.gov/api/v1/records"
 OSTI_E2_API_URL = "https://www.osti.gov/elink2api/records"
+OSTI_AWARD_API_URL = "https://www.osti.gov/award-doi-service/api/v1/search"
 
 # Europe PMC
 EUROPEPMC_REST_URL = "https://www.ebi.ac.uk/europepmc/webservices/rest"
@@ -114,6 +115,7 @@ TARGET_PROVIDER_PREFIXES: dict[str, str] = {
     "10.17504": "cyverse",
     "10.5281": "zenodo",
     "10.11578": "osti",
+    "10.46936": "osti_award",
 }
 
 TARGET_PROVIDER_KEYWORDS: dict[str, str] = {
