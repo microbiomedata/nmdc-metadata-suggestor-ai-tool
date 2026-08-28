@@ -18,7 +18,9 @@ import asyncio
 import importlib
 import inspect
 import re
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -94,7 +96,7 @@ def test_documented_retrieve_supplements_signature_matches() -> None:
     assert "doi" in documented
 
 
-def test_documented_source_names_route_to_a_retriever(monkeypatch) -> None:
+def test_documented_source_names_route_to_a_retriever(monkeypatch: pytest.MonkeyPatch) -> None:
     # SKILL.md tells the agent it may pass sources=["europepmc", ...]. Each name
     # must reach a retriever rather than being silently ignored.
     skill = (SKILL_DIR / "SKILL.md").read_text()
@@ -105,8 +107,8 @@ def test_documented_source_names_route_to_a_retriever(monkeypatch) -> None:
 
     called: list[str] = []
 
-    def _recorder(name: str):
-        def _retrieve(doi: str, **kwargs) -> SupplementRetrievalResult:
+    def _recorder(name: str) -> Callable[..., SupplementRetrievalResult]:
+        def _retrieve(doi: str, **kwargs: Any) -> SupplementRetrievalResult:
             called.append(name)
             return SupplementRetrievalResult(doi=doi, source=name, attempts=[name])
 

@@ -4,6 +4,7 @@ import io
 import os
 import tempfile
 import zipfile
+from pathlib import Path
 from urllib.parse import quote
 
 import pytest
@@ -194,7 +195,7 @@ def test_select_members_spends_max_total_bytes_on_data_like_kinds() -> None:
     assert [f.filename for f in kept] == ["Table_S1.csv"]
 
 
-def test_select_members_keeps_colliding_basenames_apart(tmp_path) -> None:
+def test_select_members_keeps_colliding_basenames_apart(tmp_path: Path) -> None:
     # Two members share a basename (one nested in an archive). With save_dir set
     # they must not write to the same path, or the first file's bytes are lost
     # and both results point at the second.
@@ -212,9 +213,10 @@ def test_select_members_keeps_colliding_basenames_apart(tmp_path) -> None:
         captions=None,
     )
     paths = [f.saved_path for f in kept]
+    assert all(p is not None for p in paths)
     assert len(paths) == 2
     assert len(set(paths)) == 2, "colliding basenames overwrote each other"
-    assert {open(p, "rb").read() for p in paths} == {b"aaaa", b"bbbb"}
+    assert {Path(str(p)).read_bytes() for p in paths} == {b"aaaa", b"bbbb"}
 
 
 def test_parse_supplement_captions() -> None:
@@ -873,7 +875,7 @@ def test_orchestrator_shares_budget_across_sources() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_merge_results_deletes_trimmed_temp_files(tmp_path) -> None:
+def test_merge_results_deletes_trimmed_temp_files(tmp_path: Path) -> None:
     from nmdc_metadata_suggestor_ai_tool.models.supplement import (
         SupplementFile,
         SupplementRetrievalResult,
@@ -988,7 +990,7 @@ def test_merge_results_keeps_same_basename_from_one_source() -> None:
     assert len(deduped.files) == 2
 
 
-def test_merge_results_keeps_user_managed_files(tmp_path) -> None:
+def test_merge_results_keeps_user_managed_files(tmp_path: Path) -> None:
     # With save_dir=..., the saved paths are caller-owned outputs: trimming a file
     # from the merged result must not delete it.
     from nmdc_metadata_suggestor_ai_tool.models.supplement import (
@@ -1001,7 +1003,7 @@ def test_merge_results_keeps_user_managed_files(tmp_path) -> None:
     dropped_path = save_dir / "dropped.pdf"
     dropped_path.write_bytes(b"%PDF-1.4 dropped")
 
-    def _result(source: str, name: str, path) -> SupplementRetrievalResult:
+    def _result(source: str, name: str, path: Path) -> SupplementRetrievalResult:
         return SupplementRetrievalResult(
             doi="x",
             source=source,
@@ -1032,7 +1034,9 @@ def test_merge_results_keeps_user_managed_files(tmp_path) -> None:
     assert dropped_path.exists()  # caller-managed output left in place
 
 
-def test_is_removable_temp_file_rejects_paths_outside_temp(tmp_path, monkeypatch) -> None:
+def test_is_removable_temp_file_rejects_paths_outside_temp(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # Pin the temp root rather than probing the real one: a checkout that itself
     # lives under /tmp would otherwise make every path look removable.
     temp_root = tmp_path / "tmproot"
@@ -1162,7 +1166,7 @@ LIVE_DRYAD_DOI = "10.5061/dryad.51c59zwfj"  # Zenodo-mirrored dataset with .csv 
 LIVE_EUROPEPMC_DOI = "10.1186/s40168-018-0605-2"
 
 
-def _assert_live_result(result, source: str) -> None:
+def _assert_live_result(result: object, source: str) -> None:
     from nmdc_metadata_suggestor_ai_tool.models.supplement import SupplementRetrievalResult
 
     assert isinstance(result, SupplementRetrievalResult)

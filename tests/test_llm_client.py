@@ -3,6 +3,7 @@
 from typing import Any
 
 import pytest
+from openai import OpenAI
 
 from nmdc_metadata_suggestor_ai_tool.llm_client import (
     DEFAULT_MAX_TOKENS_BY_PROVIDER,
@@ -87,6 +88,7 @@ def test_cborg_client_reads_env_at_initialization_time(monkeypatch: Any) -> None
     client = LLMClient(access_provider="cborg")
 
     assert client.model == "gemini-2.5-flash"
+    assert isinstance(client.client, OpenAI)
     assert str(client.client.base_url).rstrip("/") == "https://api.cborg.lbl.gov"
 
 
