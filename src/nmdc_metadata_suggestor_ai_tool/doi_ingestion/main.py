@@ -486,5 +486,4 @@ _PROVIDER_API_SOURCES = {
     "cyverse",
     "zenodo",
     "osti",
-    "osti_award",
 }
