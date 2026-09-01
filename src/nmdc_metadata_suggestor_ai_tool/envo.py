@@ -52,6 +52,8 @@ from nmdc_metadata_suggestor_ai_tool.constants import (
 from nmdc_metadata_suggestor_ai_tool.models.llm_output import (
     LLMOutput,
     MetadataFieldSuggestion,
+    TriadProvenance,
+    TriadTier,
 )
 from nmdc_metadata_suggestor_ai_tool.utils.submission_parser import MixsExtensions
 
@@ -141,8 +143,8 @@ class ValidationResult:
         return self.ok
 
     @property
-    def source(self) -> str:
-        """The tier this value actually came from, for ``MetadataFieldSuggestion``."""
+    def source(self) -> TriadTier:
+        """The tier this value actually came from, for ``TriadProvenance``."""
         return "submission_enum" if self.in_valueset else "envo_expansion"
 
 
@@ -676,9 +678,9 @@ def enforce_env_triad_values(output: LLMOutput, interface_names: list[str] | Non
     extension's generic fallback rather than emitted, so callers never receive an
     invalid value and never receive an empty one.
 
-    ``source`` is set from the validation result rather than taken from the
-    model, so the tier label reflects whether the value really is in the
-    extension's curated set.
+    ``provenance`` is written from the validation result rather than taken from
+    the model, so the tier is a derived fact about the value: which pool it came
+    from, whose value set justified that, and whether the gate changed it.
 
     This is the deterministic gate: both the programmatic pipeline and the
     agentic path run every suggestion through it, so a value cannot reach a
@@ -706,38 +708,51 @@ def enforce_env_triad_values(output: LLMOutput, interface_names: list[str] | Non
 
         # A value only has to satisfy one of the interfaces in play: the schema
         # patterns differ, and host-associated admits UBERON where soil does not.
-        results = [
-            envo.validate(suggestion.value, slot, name, waive_anchor_in_valueset=known)
+        graded = [
+            (name, envo.validate(suggestion.value, slot, name, waive_anchor_in_valueset=known))
             for name in interfaces
         ]
         # Prefer an interface that found the value in its curated set. Interfaces
         # iterate in enum order, so taking the first merely-valid result would
         # label soil [ENVO:00001998] as envo_expansion -- BuiltEnvInterface comes
         # first and has no value set at all.
-        result: ValidationResult = (
-            next((r for r in results if r.ok and r.in_valueset), None)
-            or next((r for r in results if r.ok), None)
-            or results[0]
+        chosen: tuple[str | None, ValidationResult] = (
+            next(((n, r) for n, r in graded if r.ok and r.in_valueset), None)
+            or next(((n, r) for n, r in graded if r.ok), None)
+            or graded[0]
         )
+        iface, result = chosen
         if result.ok:
-            suggestion.source = result.source
+            suggestion.provenance = TriadProvenance(
+                tier=result.source,
+                outcome="accepted",
+                interface=iface if result.in_valueset else None,
+                scoped=known,
+            )
             continue
 
         # Apply a repair only if the repaired value itself validates -- a correction that
         # fixes one failure while leaving another is not a correction.
-        repair = next((r.corrected_value for r in results if r.corrected_value), None)
+        repair = next((r.corrected_value for _, r in graded if r.corrected_value), None)
         if repair:
             rechecked = [
-                envo.validate(repair, slot, name, waive_anchor_in_valueset=known)
+                (name, envo.validate(repair, slot, name, waive_anchor_in_valueset=known))
                 for name in interfaces
             ]
-            fixed = next((r for r in rechecked if r.ok and r.in_valueset), None) or next(
-                (r for r in rechecked if r.ok), None
+            fixed = next(((n, r) for n, r in rechecked if r.ok and r.in_valueset), None) or next(
+                ((n, r) for n, r in rechecked if r.ok), None
             )
             if fixed is not None:
+                fixed_iface, fixed_result = fixed
                 logger.info(f"Repaired {slot} value: {suggestion.value!r} -> {repair!r}")
+                suggestion.provenance = TriadProvenance(
+                    tier=fixed_result.source,
+                    outcome="repaired",
+                    interface=fixed_iface if fixed_result.in_valueset else None,
+                    scoped=known,
+                    original_value=suggestion.value,
+                )
                 suggestion.value = repair
-                suggestion.source = fixed.source
                 continue
 
         fallback = envo.generic_fallback(fallback_interface, slot)
@@ -745,15 +760,21 @@ def enforce_env_triad_values(output: LLMOutput, interface_names: list[str] | Non
             f"Rejected {slot} value {suggestion.value!r} ({'; '.join(result.failures)}); "
             f"falling back to {fallback!r}"
         )
+        suggestion.provenance = TriadProvenance(
+            tier="generalized",
+            outcome="replaced",
+            interface=fallback_interface or None,
+            scoped=known,
+            original_value=suggestion.value,
+        )
         suggestion.value = fallback
-        suggestion.source = "generalized"
         suggestion.reason = f"{suggestion.reason} [Original suggestion failed ENVO validation.]"
 
-    _enforce_slot_coherence(output, fallback_interface)
+    _enforce_slot_coherence(output, fallback_interface, known)
     return output
 
 
-def _enforce_slot_coherence(output: LLMOutput, fallback_interface: str) -> None:
+def _enforce_slot_coherence(output: LLMOutput, fallback_interface: str, scoped: bool) -> None:
     """Reject one term standing in two slots of the same sample.
 
     The three slots answer different questions -- which biome, which nearby feature, which
@@ -801,8 +822,17 @@ def _enforce_slot_coherence(output: LLMOutput, fallback_interface: str) -> None:
                     f"{suggestion.field_name}; it satisfies {keep.field_name}, so "
                     f"{suggestion.field_name} falls back to {fallback!r}."
                 )
+                # Narrowing is lost across the regroup above; only str values are
+                # collected into `by_sample`, so this is a str in practice.
+                previous = suggestion.value if isinstance(suggestion.value, str) else None
+                suggestion.provenance = TriadProvenance(
+                    tier="generalized",
+                    outcome="replaced",
+                    interface=fallback_interface or None,
+                    scoped=scoped,
+                    original_value=previous,
+                )
                 suggestion.value = fallback
-                suggestion.source = "generalized"
                 suggestion.reason = (
                     f"{suggestion.reason} [Reused the {keep.field_name} term; generalized instead.]"
                 )

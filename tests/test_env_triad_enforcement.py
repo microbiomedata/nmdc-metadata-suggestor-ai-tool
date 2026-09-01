@@ -12,11 +12,9 @@ from nmdc_metadata_suggestor_ai_tool.env_triad_recommendation import (
 from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput, MetadataFieldSuggestion
 
 
-def one_suggestion(value: str, slot: str = "env_medium", source: str | None = None) -> LLMOutput:
+def one_suggestion(value: str, slot: str = "env_medium") -> LLMOutput:
     return LLMOutput(
-        metadata_fields=[
-            MetadataFieldSuggestion(field_name=slot, reason="r", value=value, source=source)
-        ]
+        metadata_fields=[MetadataFieldSuggestion(field_name=slot, reason="r", value=value)]
     )
 
 
@@ -42,18 +40,23 @@ def test_enforce_repairs_label_drift() -> None:
     output = enforce_env_triad_values(one_suggestion("dirt [ENVO:00001998]"), ["SoilInterface"])
     suggestion = output.metadata_fields[0]
     assert suggestion.value == "soil [ENVO:00001998]"
-    assert suggestion.source == "submission_enum"
+    assert suggestion.provenance is not None
+    assert suggestion.provenance.tier == "submission_enum"
+    assert suggestion.provenance.outcome == "repaired"
+    assert suggestion.provenance.original_value == "dirt [ENVO:00001998]"
+    assert suggestion.provenance.interface == "SoilInterface"
+    assert suggestion.provenance.scoped is True
 
 
-def test_enforce_overrides_a_mislabelled_source() -> None:
-    """The tier label comes from validation, not from the model's self-report."""
+def test_enforce_derives_the_tier_from_validation() -> None:
+    """The tier is derived from the value, not reported by the model."""
     output = enforce_env_triad_values(
-        one_suggestion("activated sludge [ENVO:00002046]", source="submission_enum"),
+        one_suggestion("activated sludge [ENVO:00002046]"),
         ["WastewaterSludgeInterface"],
     )
     suggestion = output.metadata_fields[0]
     assert suggestion.value == "activated sludge [ENVO:00002046]"
-    assert suggestion.source == "envo_expansion"
+    assert suggestion.provenance.tier == "envo_expansion"
 
 
 def test_enforce_accepts_uberon_for_host_associated() -> None:
@@ -68,7 +71,7 @@ def test_enforce_replaces_an_invalid_value_with_the_fallback() -> None:
     output = enforce_env_triad_values(one_suggestion("made up [ENVO:09999999]"), ["AirInterface"])
     suggestion = output.metadata_fields[0]
     assert suggestion.value == "air [ENVO:00002005]"
-    assert suggestion.source == "generalized"
+    assert suggestion.provenance.tier == "generalized"
     assert "failed ENVO validation" in suggestion.reason
 
 
@@ -95,26 +98,36 @@ def test_unknown_interfaces_still_label_a_curated_value_correctly() -> None:
     output = enforce_env_triad_values(one_suggestion("soil [ENVO:00001998]"), None)
     suggestion = output.metadata_fields[0]
     assert suggestion.value == "soil [ENVO:00001998]"
-    assert suggestion.source == "submission_enum"
+    assert suggestion.provenance is not None
+    assert suggestion.provenance.tier == "submission_enum"
+    assert suggestion.provenance.outcome == "accepted"
+    assert suggestion.provenance.original_value is None
+    # scoped=False records that the caller never named the extension: the gate found the
+    # value curated under SoilInterface, which is not the same as knowing the sample is soil.
+    assert suggestion.provenance.interface == "SoilInterface"
+    assert suggestion.provenance.scoped is False
 
 
 def test_unknown_interfaces_still_reject_a_dead_curie() -> None:
     output = enforce_env_triad_values(one_suggestion("subterranean lake [ENVO:02000145]"), None)
-    assert output.metadata_fields[0].source == "generalized"
+    assert output.metadata_fields[0].provenance.tier == "generalized"
 
 
 def test_unknown_interfaces_still_reject_a_biome_as_a_medium() -> None:
     output = enforce_env_triad_values(
         one_suggestion("temperate grassland biome [ENVO:01000193]"), None
     )
-    assert output.metadata_fields[0].source == "generalized"
+    assert output.metadata_fields[0].provenance.tier == "generalized"
 
 
 def test_unknown_interfaces_still_correct_label_drift() -> None:
     output = enforce_env_triad_values(one_suggestion("dirt [ENVO:00001998]"), None)
     suggestion = output.metadata_fields[0]
     assert suggestion.value == "soil [ENVO:00001998]"
-    assert suggestion.source == "submission_enum"
+    assert suggestion.provenance is not None
+    assert suggestion.provenance.outcome == "repaired"
+    assert suggestion.provenance.original_value == "dirt [ENVO:00001998]"
+    assert suggestion.provenance.scoped is False
 
 
 # --- the curated-set waiver, and who it applies to ---------------------------
@@ -149,13 +162,13 @@ def test_another_extensions_valueset_does_not_waive_the_anchor() -> None:
     output = enforce_env_triad_values(
         one_suggestion("rhizosphere [ENVO:00005801]"), ["SoilInterface"]
     )
-    assert output.metadata_fields[0].source == "generalized"
+    assert output.metadata_fields[0].provenance.tier == "generalized"
 
 
 def test_unknown_extensions_do_not_waive_the_anchor_either() -> None:
     """The agentic path has no interface list; that is not licence to take the loosest one."""
     output = enforce_env_triad_values(one_suggestion("rhizosphere [ENVO:00005801]"), None)
-    assert output.metadata_fields[0].source == "generalized"
+    assert output.metadata_fields[0].provenance.tier == "generalized"
 
 
 # --- one term cannot answer two slots ----------------------------------------
@@ -169,7 +182,7 @@ def test_a_term_reused_across_slots_is_kept_where_its_anchor_fits() -> None:
     )
     local, medium = output.metadata_fields
     assert local.value == "rhizosphere [ENVO:00005801]"
-    assert medium.source == "generalized"
+    assert medium.provenance.tier == "generalized"
     assert "Reused the env_local_scale term" in medium.reason
 
 
@@ -200,6 +213,6 @@ def test_coherence_is_scoped_to_one_sample() -> None:
         ]
     )
     assert all(
-        f.source != "generalized"
+        f.provenance.tier != "generalized"
         for f in enforce_env_triad_values(output, ["SoilInterface"]).metadata_fields
     )
