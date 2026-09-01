@@ -78,22 +78,19 @@ Output schema:
             "id": "",
             "field_name": "env_broad_scale",
             "reason": "Reason for choosing this field based on the provided information.",
-            "value": "",
-            "source": "submission_enum"
+            "value": ""
         },
         {
             "id": "",
             "field_name": "env_local_scale",
             "reason": "Reason for choosing this field based on the provided information.",
-            "value": "",
-            "source": "submission_enum"
+            "value": ""
         },
         {
             "id": "",
             "field_name": "env_medium",
             "reason": "Reason for choosing this field based on the provided information.",
-            "value": "",
-            "source": "envo_expansion"
+            "value": ""
         }
     ]
 }

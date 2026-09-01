@@ -95,11 +95,11 @@ Drop a tier and try again — do not emit a failing value.
 | Wrong anchor | You have the right concept at the wrong grain. A biome proposed for `env_medium` means you named the setting, not the material — search the material anchor instead |
 | Pattern | The prefix is not allowed on this slot. Find the ENVO equivalent, or fall to tier 3 |
 
-If nothing survives, emit `envo.generic_fallback(interface, slot)` with `source: "generalized"`. Never emit an empty `value`.
+If nothing survives, emit `envo.generic_fallback(interface, slot)`. Never emit an empty `value`.
 
 The fallback is the broadest term in the extension's curated set when that set has a root (`soil [ENVO:00001998]`, `aquatic biome [ENVO:00002030]`), otherwise the first expansion seed (`air [ENVO:00002005]`, `sludge [ENVO:00002044]`). For **`env_local_scale` it is always the bare anchor** — no value set has a genuine broadest member, they are flat collections of sibling features. A `generalized` local scale therefore carries almost no information: treat it as a prompt to re-examine the evidence rather than a usable answer.
 
-`result.in_valueset` tells you which tier a value actually came from, and `result.source` turns that into the `submission_enum` / `envo_expansion` label — use it rather than deciding the tier yourself.
+`result.in_valueset` tells you which tier a value actually came from, and `result.source` turns that into the `submission_enum` / `envo_expansion` label. Both are for your own reasoning: the gate writes the tier into `provenance` on the returned suggestion, so you do not emit it.
 
 ## Coherence
 

@@ -9,13 +9,13 @@ Suggest `env_broad_scale`, `env_local_scale`, and `env_medium` for one or more N
 
 Values use the format `"label [ENVO:NNNNNNN]"`. Resolve in three tiers, preferring the earliest that fits:
 
-| Tier | `source` | Where the value comes from |
+| Tier | Name | Where the value comes from |
 |---|---|---|
 | 1 | `submission_enum` | The curated value set for this MIxS extension in the NMDC submission schema |
 | 2 | `envo_expansion` | A verified ENVO term outside that set — used when tier 1 has nothing appropriate, or when the extension ships no value set at all (8 of 12 do not) |
 | 3 | `generalized` | The broadest defensible term for the extension. Never leave `value` empty |
 
-Every value passes **Step 6 validation** before you emit it.
+Every value passes **Step 6 validation** before you emit it. You do not report which tier you used — the validation gate derives that itself and records it as `provenance` on the returned suggestion.
 
 ---
 
@@ -98,11 +98,11 @@ the CURIE from another. Both halves can name real terms while the pair names nei
 value set cannot save you: it is a flat list, so adjacent entries look interchangeable.
 
 **Value rules:**
-- Prefer a tier 1 value. Drop to tier 2 only when no curated value fits the evidence — then search the index rather than recalling a CURIE, and record `source: "envo_expansion"`
+- Prefer a tier 1 value. Drop to tier 2 only when no curated value fits the evidence — then search the index rather than recalling a CURIE
 - Specialize downward: start from the closest tier 1 term (or the extension's seed subtree) and call `descendants` on it, looking for a more specific match the evidence supports
 - If the exact term is already present in the sample record (e.g. an existing `env_broad_scale` field), copy it verbatim into `value` — after validating it
 - If you quote a value in `reason`, that value is explicit — put it in `value` too
-- Never leave `value` empty. With no defensible specific term, emit `envo.generic_fallback(interface, slot)` and record `source: "generalized"`
+- Never leave `value` empty. With no defensible specific term, emit `envo.generic_fallback(interface, slot)`
 
 **Reason rules:**
 - Every `reason` must cite specific input text (exact short quote up to 12 words, or paraphrase with a source label such as "abstract", "study description", "sample field")
@@ -128,7 +128,7 @@ result.ok, result.failures, result.warnings, result.corrected_value, result.sour
 
 Always pass the interface name: allowed prefixes and value sets are per-interface, so validating without it is stricter than the schema actually is.
 
-The gate checks the slot's declared pattern, that the term exists in ENVO and is not obsolete, that the label matches ENVO's official label, and anchor-class membership. Warnings are informational; only `failures` block a value. Take the tier label from `result.source` rather than deciding it yourself. Full rules, the per-interface prefix table, and the known schema defects the gate is calibrated around are in [refs/validation.md](refs/validation.md).
+The gate checks the slot's declared pattern, that the term exists in ENVO and is not obsolete, that the label matches ENVO's official label, and anchor-class membership. Warnings are informational; only `failures` block a value. The tier is derived from the result, not something you report. Full rules, the per-interface prefix table, and the known schema defects the gate is calibrated around are in [refs/validation.md](refs/validation.md).
 
 The same gate runs again in Python on whatever you return, so a value that slips through here is repaired or replaced rather than reaching the caller. That is a backstop, not a substitute — a value it has to replace loses the evidence you gathered and falls back to a generic term.
 
@@ -136,7 +136,7 @@ The same gate runs again in Python on whatever you return, so a value that slips
 
 ## Output format
 
-Return a JSON object matching `LLMOutput`. Emit **three entries per sample** (one per env triad field) — so N samples produces 3N entries total. Every entry must carry the sample's `id` and its `source` tier.
+Return a JSON object matching `LLMOutput`. Emit **three entries per sample** (one per env triad field) — so N samples produces 3N entries total. Every entry must carry the sample's `id`.
 
 ```json
 {
@@ -145,29 +145,25 @@ Return a JSON object matching `LLMOutput`. Emit **three entries per sample** (on
       "id": "nmdc:bsm-11-abc123",
       "field_name": "env_broad_scale",
       "value": "subpolar coniferous forest biome [ENVO:01000250]",
-      "reason": "Study description identifies a 'boreal peatland' site, which maps to the subpolar coniferous forest biome.",
-      "source": "submission_enum"
+      "reason": "Study description identifies a 'boreal peatland' site, which maps to the subpolar coniferous forest biome."
     },
     {
       "id": "nmdc:bsm-11-abc123",
       "field_name": "env_local_scale",
       "value": "peatland [ENVO:00000044]",
-      "reason": "Study-level description explicitly names a 'peatland'.",
-      "source": "submission_enum"
+      "reason": "Study-level description explicitly names a 'peatland'."
     },
     {
       "id": "nmdc:bsm-11-abc123",
       "field_name": "env_medium",
       "value": "histosol [ENVO:00002243]",
-      "reason": "Sample collection notes reference a 'peat core'; peat is organic soil material that classifies as histosol.",
-      "source": "submission_enum"
+      "reason": "Sample collection notes reference a 'peat core'; peat is organic soil material that classifies as histosol."
     },
     {
       "id": "nmdc:bsm-11-def456",
       "field_name": "env_medium",
       "value": "activated sludge [ENVO:00002046]",
-      "reason": "Sample description names an 'aeration basin' of a treatment plant.",
-      "source": "envo_expansion"
+      "reason": "Sample description names an 'aeration basin' of a treatment plant."
     }
   ]
 }
