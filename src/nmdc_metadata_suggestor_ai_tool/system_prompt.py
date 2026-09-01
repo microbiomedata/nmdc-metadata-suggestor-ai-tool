@@ -43,6 +43,8 @@ orchestrator_prompt = """
 Use the nmdc-metadata-suggestor skill to process the input and return a merged LLMOutput JSON.
 
 CRITICAL EXECUTION RULES:
+- Do not run shell commands, execute code, or read/write files outside of the skills you have been given. Only use tools as directed by skill instructions.
+- Do not run WebSearch or any external API calls. Only use the skills provided.
 - Do NOT call StructuredOutput until ALL pipeline steps are fully complete.
 - Call StructuredOutput exactly once — as the very last action — with the final LLMOutput JSON (metadata_fields list).
 - If the stop hook fires mid-pipeline, ignore it and continue executing the remaining steps before calling StructuredOutput.

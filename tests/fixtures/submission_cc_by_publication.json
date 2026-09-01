@@ -1,0 +1,160 @@
+{
+  "metadata_submission": {
+    "packageName": ["soil"],
+    "studyForm": {
+      "studyName": "Genomic Catalog of Earth's Microbiomes — Soil Biosample Study",
+      "piName": "Test Researcher",
+      "piEmail": "test.researcher@example.org",
+      "piOrcid": "0000-0000-0000-0001",
+      "description":"",
+      "notes": "Samples stored at -80C prior to DNA extraction.",
+      "publicationDois": [
+        {
+          "value": "10.1038/s41564-020-00861-0",
+          "provider": "crossref"
+        }
+      ],
+      "dataDois": null,
+      "GOLDStudyId": "",
+      "NCBIBioProjectId": ""
+    },
+    "multiOmicsForm": {
+      "award": "CSP",
+      "awardDois": [],
+      "JGIStudyId": "",
+      "omicsProcessingTypes": ["mg"],
+      "mpProtocols": null,
+      "mbProtocols": null,
+      "mbGcProtocols": null,
+      "lipProtocols": null,
+      "nomProtocols": null,
+      "nomLcProtocols": null
+    },
+    "sampleData": {
+      "soil_data": [
+        {
+          "samp_name": "GCEM-soil-001",
+          "lat_lon": "37.87 -122.26",
+          "geo_loc_name": "USA: California, Berkeley",
+          "collection_date": "2019-06-15",
+          "depth": "0 - 0.1",
+          "elev": 180,
+          "growth_facil": "field",
+          "analysis_type": ["metagenomics"],
+          "store_cond": "frozen -80C"
+        },
+        {
+          "samp_name": "GCEM-soil-002",
+          "lat_lon": "-3.46 -62.22",
+          "geo_loc_name": "Brazil: Amazonas, Manaus",
+          "collection_date": "2019-03-10",
+          "depth": "0 - 0.1",
+          "elev": 92,
+          "env_broad_scale": "tropical moist broadleaf forest biome [ENVO:01000228]",
+          "growth_facil": "field",
+          "analysis_type": ["metagenomics"],
+          "store_cond": "frozen -80C"
+        },
+        {
+          "samp_name": "GCEM-soil-003",
+          "lat_lon": "68.35 18.82",
+          "geo_loc_name": "Sweden: Lapland, Abisko",
+          "collection_date": "2019-07-22",
+          "depth": "0 - 0.1",
+          "elev": 385,
+          "env_medium": "Arctic soil [ENVO:00005741]",
+          "growth_facil": "field",
+          "analysis_type": ["metagenomics"],
+          "store_cond": "frozen -80C"
+        },
+        {
+          "samp_name": "GCEM-soil-004",
+          "lat_lon": "-33.87 151.21",
+          "geo_loc_name": "Australia: New South Wales, Sydney",
+          "collection_date": "2019-10-05",
+          "depth": "0 - 0.1",
+          "elev": 39,
+          "growth_facil": "field",
+          "analysis_type": ["metagenomics"],
+          "store_cond": "frozen -80C"
+        },
+        {
+          "samp_name": "GCEM-soil-005",
+          "lat_lon": "51.45 -1.03",
+          "geo_loc_name": "United Kingdom: England, Oxfordshire",
+          "collection_date": "2019-05-18",
+          "depth": "0 - 0.1",
+          "elev": 57,
+          "env_local_scale": "meadow [ENVO:00000108]",
+          "growth_facil": "field",
+          "analysis_type": ["metagenomics"],
+          "store_cond": "frozen -80C"
+        },
+        {
+          "samp_name": "GCEM-soil-006",
+          "lat_lon": "23.11 79.47",
+          "geo_loc_name": "India: Madhya Pradesh, Jabalpur",
+          "collection_date": "2019-01-30",
+          "depth": "0 - 0.15",
+          "elev": 393,
+          "env_medium": "soil [ENVO:00001998]",
+          "growth_facil": "field",
+          "analysis_type": ["metagenomics"],
+          "store_cond": "frozen -80C"
+        },
+        {
+          "samp_name": "GCEM-soil-007",
+          "lat_lon": "-34.61 -58.38",
+          "geo_loc_name": "Argentina: Buenos Aires",
+          "collection_date": "2019-09-12",
+          "depth": "0 - 0.1",
+          "elev": 25,
+          "growth_facil": "field",
+          "analysis_type": ["metagenomics"],
+          "store_cond": "frozen -80C"
+        },
+        {
+          "samp_name": "GCEM-soil-008",
+          "lat_lon": "36.21 37.16",
+          "geo_loc_name": "Turkey: Aleppo, Gaziantep",
+          "collection_date": "2019-04-03",
+          "depth": "0 - 0.1",
+          "elev": 855,
+          "growth_facil": "field",
+          "analysis_type": ["metagenomics"],
+          "store_cond": "frozen -80C"
+        },
+        {
+          "samp_name": "GCEM-soil-009",
+          "lat_lon": "0.34 32.58",
+          "geo_loc_name": "Uganda: Kampala",
+          "collection_date": "2019-08-07",
+          "depth": "0 - 0.1",
+          "elev": 1160,
+          "env_broad_scale": "tropical moist broadleaf forest biome [ENVO:01000228]",
+          "growth_facil": "field",
+          "analysis_type": ["metagenomics"],
+          "store_cond": "frozen -80C"
+        },
+        {
+          "samp_name": "GCEM-soil-010",
+          "lat_lon": "43.70 -79.42",
+          "geo_loc_name": "Canada: Ontario, Toronto",
+          "collection_date": "2019-06-28",
+          "depth": "0 - 0.1",
+          "elev": 76,
+          "env_local_scale": "woodland area [ENVO:00000109]",
+          "growth_facil": "field",
+          "analysis_type": ["metagenomics"],
+          "store_cond": "frozen -80C"
+        }
+      ]
+    }
+  },
+  "status": "In Progress",
+  "source_client": "submission_portal",
+  "is_test_submission": true,
+  "id": "fixture-cc-by-0001",
+  "study_name": "Genomic Catalog of Earth's Microbiomes — Soil Biosample Study",
+  "templates": ["soil"]
+}

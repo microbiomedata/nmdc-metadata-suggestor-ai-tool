@@ -23,6 +23,7 @@ from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
 from nmdc_metadata_suggestor_ai_tool.system_prompt import orchestrator_prompt
 from nmdc_metadata_suggestor_ai_tool.tracing import (
     langfuse_client,
+    log_assistant_message,
     observe,
     propagate_attributes,
 )
@@ -30,6 +31,16 @@ from nmdc_metadata_suggestor_ai_tool.tracing import (
 load_dotenv()
 
 DEFAULT_GCP_REGION = "us-east5"
+
+# Set CLAUDE_AGENT_BYPASS_PERMISSIONS=true to disable the SDK's permission guardrails.
+# Disabling allows Claude to run bash commands and WebSearch,
+# which improves preformance but increases security risks.
+# Defaults to "default" which requires explicit permissions for shell commands and WebSearch.
+AGENT_PERMISSION_MODE = (
+    "bypassPermissions"
+    if os.environ.get("CLAUDE_AGENT_BYPASS_PERMISSIONS", "") == "true"
+    else "default"
+)
 
 
 GEMINI_MODELS = [
@@ -370,6 +381,7 @@ class ConversationManager:
             model=model,
             system_prompt=orchestrator_prompt,
             output_format={"type": "json_schema", "schema": LLMOutput.model_json_schema()},
+            permission_mode=cast(Any, AGENT_PERMISSION_MODE),
         )
 
         if message is None:
@@ -393,6 +405,7 @@ class ConversationManager:
                     session_id = event.data["session_id"]
                 elif isinstance(event, AssistantMessage):
                     print(f"Assistant: {event.content}")
+                    log_assistant_message(event.content)
                 elif isinstance(event, ResultMessage):
                     result = self.unwrap_structured_output(event.structured_output)
             if langfuse_client is not None:
@@ -411,6 +424,9 @@ class ConversationManager:
                 ):
                     if isinstance(event, SystemMessage) and event.subtype == "init":
                         session_id = event.data["session_id"]
+                    elif isinstance(event, AssistantMessage):
+                        print(f"Assistant: {event.content}")
+                        log_assistant_message(event.content)
                     elif isinstance(event, ResultMessage):
                         result = self.unwrap_structured_output(event.structured_output)
             if langfuse_client is not None:
