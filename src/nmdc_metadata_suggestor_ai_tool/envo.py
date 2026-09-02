@@ -701,15 +701,17 @@ def enforce_env_triad_values(output: LLMOutput, interface_names: list[str] | Non
 
     for suggestion in output.metadata_fields:
         slot = suggestion.field_name
-        if slot not in ENV_TRIAD_SLOTS or not isinstance(suggestion.value, str):
+        if slot not in ENV_TRIAD_SLOTS:
             continue
-        if not suggestion.value:
-            continue
+        # Empty and non-string values were previously skipped, which let them reach the
+        # caller untouched and made the promise above false. Neither can satisfy the slot
+        # pattern, so send them down the same path as any other invalid value.
+        proposed = suggestion.value if isinstance(suggestion.value, str) else ""
 
         # A value only has to satisfy one of the interfaces in play: the schema
         # patterns differ, and host-associated admits UBERON where soil does not.
         graded = [
-            (name, envo.validate(suggestion.value, slot, name, waive_anchor_in_valueset=known))
+            (name, envo.validate(proposed, slot, name, waive_anchor_in_valueset=known))
             for name in interfaces
         ]
         # Prefer an interface that found the value in its curated set. Interfaces
@@ -750,7 +752,7 @@ def enforce_env_triad_values(output: LLMOutput, interface_names: list[str] | Non
                     outcome="repaired",
                     interface=fixed_iface if fixed_result.in_valueset else None,
                     scoped=known,
-                    original_value=suggestion.value,
+                    original_value=proposed,
                 )
                 suggestion.value = repair
                 continue
@@ -765,7 +767,7 @@ def enforce_env_triad_values(output: LLMOutput, interface_names: list[str] | Non
             outcome="replaced",
             interface=fallback_interface or None,
             scoped=known,
-            original_value=suggestion.value,
+            original_value=proposed or None,
         )
         suggestion.value = fallback
         suggestion.reason = f"{suggestion.reason} [Original suggestion failed ENVO validation.]"

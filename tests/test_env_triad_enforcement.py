@@ -5,6 +5,8 @@ context handed to the model, and the gate that repairs or replaces what comes
 back. Unit tests for the index itself live in test_envo.py.
 """
 
+from typing import Any
+
 from nmdc_metadata_suggestor_ai_tool.env_triad_recommendation import (
     build_envo_expansion_context,
     enforce_env_triad_values,
@@ -12,7 +14,7 @@ from nmdc_metadata_suggestor_ai_tool.env_triad_recommendation import (
 from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput, MetadataFieldSuggestion
 
 
-def one_suggestion(value: str, slot: str = "env_medium") -> LLMOutput:
+def one_suggestion(value: Any, slot: str = "env_medium") -> LLMOutput:
     return LLMOutput(
         metadata_fields=[MetadataFieldSuggestion(field_name=slot, reason="r", value=value)]
     )
@@ -216,3 +218,13 @@ def test_coherence_is_scoped_to_one_sample() -> None:
         f.provenance.tier != "generalized"
         for f in enforce_env_triad_values(output, ["SoilInterface"]).metadata_fields
     )
+
+
+def test_enforce_replaces_unusable_values() -> None:
+    """The docstring promises no empty value reaches a caller; these used to be skipped."""
+    for value in ("", "   ", ["soil [ENVO:00001998]"]):
+        output = enforce_env_triad_values(one_suggestion(value), ["SoilInterface"])
+        suggestion = output.metadata_fields[0]
+        assert suggestion.value == "soil [ENVO:00001998]"
+        assert suggestion.provenance is not None
+        assert suggestion.provenance.outcome == "replaced"
