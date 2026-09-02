@@ -363,9 +363,18 @@ class ConversationManager:
     def structured_output_from_tool_use(event: AssistantMessage) -> dict[str, Any] | None:
         """The payload the agent passed to the StructuredOutput tool, if it called it.
 
-        ``ResultMessage.structured_output`` has come back empty on runs where the agent did
-        call the tool with a complete answer, which silently drops every suggestion. This
-        recovers it from the tool call itself.
+        ``ResultMessage.structured_output`` can come back empty on a run where the agent did
+        call the tool with a complete answer, so the tool call is the only surviving copy of
+        it. What is stable about that call is the tool name and the payload shape, not the
+        name of the argument the payload arrives under::
+
+            ToolUseBlock(
+                name="StructuredOutput",
+                input={<key varies>: '{"metadata_fields": [...]}'},  # dict or JSON string
+            )
+
+        So this searches the values rather than reading a known key, and requires
+        ``metadata_fields`` so an empty wrapper is not recovered as an answer.
         """
         for block in event.content or []:
             if getattr(block, "name", None) != STRUCTURED_OUTPUT_TOOL:
@@ -373,9 +382,6 @@ class ConversationManager:
             payload = getattr(block, "input", None)
             if not isinstance(payload, dict):
                 continue
-            # The argument name has been seen as both "output" and "json_output", and the
-            # value as both a dict and a JSON string, so search rather than assume. Requiring
-            # metadata_fields keeps an empty wrapper from passing as a recovered result.
             for candidate in (*payload.values(), payload):
                 parsed: Any = candidate
                 if isinstance(parsed, str):
