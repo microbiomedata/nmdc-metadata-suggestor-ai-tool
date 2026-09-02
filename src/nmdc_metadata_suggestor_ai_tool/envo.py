@@ -692,7 +692,11 @@ def enforce_env_triad_values(output: LLMOutput, interface_names: list[str] | Non
 
     ``interface_names`` of None means the extension is unknown, not that the
     strictest interface applies -- every extension is then treated as possible,
-    so a legitimate UBERON or PO value is not rejected for want of context.
+    so a legitimate UBERON or PO value is not rejected for want of context. It
+    does weaken the tier, though: a value counts as ``submission_enum`` if any
+    extension's value set holds it rather than this submission's own, and the
+    curated-set waiver on the anchor gate does not apply. Name the extensions
+    when you know them.
     """
     envo = get_envo()
     # Accept portal names ("soil") as well as interface class names. An unmapped name
