@@ -7,13 +7,24 @@ from pydantic import BaseModel, Field
 TriadTier = Literal["submission_enum", "envo_expansion", "generalized"]
 
 
-class TriadProvenance(BaseModel):
+class BaseProvenance(BaseModel):
+    """Base class for all provenance records.
+
+    Subclass this for each validation gate that can modify a suggestion's value.
+    The ``gate`` discriminator identifies which gate wrote the record.
+    """
+
+    gate: str = Field(description="Which validation gate wrote this provenance record.")
+
+
+class TriadProvenance(BaseProvenance):
     """How one env triad value was arrived at.
 
     Written by ``enforce_env_triad_values`` and never by the model: the tier is a
     derived fact about the value, not a claim the model makes about itself.
     """
 
+    gate: str = "env_triad"
     tier: TriadTier = Field(
         description=(
             "Which pool the value came from: 'submission_enum' (in a curated value set), "
@@ -66,12 +77,9 @@ class MetadataFieldSuggestion(BaseModel):
         | list[str | int | float | bool]
         | dict[str, str | int | float | bool | list[str | int | float | bool]]
     ) = Field(default="", description="The recommended value for the metadata field")
-    provenance: "TriadProvenance | None" = Field(
+    provenance: BaseProvenance | None = Field(
         default=None,
-        description=(
-            "How an env triad value was arrived at. Populated by the validation gate, "
-            "never by the model. Absent for other fields."
-        ),
+        description="How this value was arrived at. Populated by a validation gate, never by the model. Absent for fields with no gate.",
     )
 
 
