@@ -691,13 +691,15 @@ def enforce_env_triad_values(output: LLMOutput, interface_names: list[str] | Non
     so a legitimate UBERON or PO value is not rejected for want of context.
     """
     envo = get_envo()
+    # Accept portal names ("soil") as well as interface class names. An unmapped name
+    # would otherwise reach get_slot_valueset, match nothing, and silently relabel a
+    # curated value as expansion.
+    named = MixsExtensions.map_to_interface_name(interface_names) if interface_names else []
     # The curated-set waiver on the anchor gate applies only when the caller named the
     # extensions; another extension's list must not license an off-anchor term.
-    known = bool(interface_names)
-    interfaces: list[str | None] = (
-        list(interface_names) if interface_names else list(MixsExtensions.__members__)
-    )
-    fallback_interface = interface_names[0] if interface_names else ""
+    known = bool(named)
+    interfaces: list[str | None] = list(named) if named else list(MixsExtensions.__members__)
+    fallback_interface = named[0] if named else ""
 
     for suggestion in output.metadata_fields:
         slot = suggestion.field_name

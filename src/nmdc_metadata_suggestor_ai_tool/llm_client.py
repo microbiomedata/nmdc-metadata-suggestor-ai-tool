@@ -444,7 +444,12 @@ class ConversationManager:
             logger.error(f"Agent run errored ({event.terminal_reason}): {event.errors}")
         return health
 
-    def finalize_result(self, event: ResultMessage, tool_payload: dict[str, Any] | None) -> Any:
+    def finalize_result(
+        self,
+        event: ResultMessage,
+        tool_payload: dict[str, Any] | None,
+        interface_names: list[str] | None = None,
+    ) -> Any:
         """Build the validated LLMOutput from whichever source actually carried it."""
         output = None
         if isinstance(event.structured_output, dict):
@@ -465,11 +470,14 @@ class ConversationManager:
                 f"No usable structured output: got {type(event.structured_output)} from "
                 f"ResultMessage and no {STRUCTURED_OUTPUT_TOOL} tool call."
             )
-        return enforce_env_triad_values(output, None)
+        return enforce_env_triad_values(output, interface_names)
 
     @observe(name="agentic", as_type="span", capture_input=False, capture_output=False)
     async def agentic(
-        self, session_id: str | None = None, message: str | None = None
+        self,
+        session_id: str | None = None,
+        message: str | None = None,
+        interface_names: list[str] | None = None,
     ) -> tuple[Any, str | None]:
         """
         Agentic interaction, session handling, and skill/tool usage via Claude Agent SDK
@@ -479,6 +487,10 @@ class ConversationManager:
         ----------
         session_id: Optional session ID to resume a previous conversation.
         If None, starts a new session.
+        interface_names: The MIxS extension(s) the samples belong to, passed on to the
+        validation gate. Leaving this None does not make the gate stricter -- it makes
+        the tier weaker, because a value then counts as submission_enum if any
+        extension's value set holds it rather than this submission's own.
 
         """
         model = (
@@ -527,7 +539,7 @@ class ConversationManager:
                     tool_payload = self.structured_output_from_tool_use(event) or tool_payload
                 elif isinstance(event, ResultMessage):
                     health = self.run_health(event)
-                    result = self.finalize_result(event, tool_payload)
+                    result = self.finalize_result(event, tool_payload, interface_names)
             if langfuse_client is not None:
                 langfuse_client.update_current_span(
                     output=result,
@@ -552,7 +564,7 @@ class ConversationManager:
                         tool_payload = self.structured_output_from_tool_use(event) or tool_payload
                     elif isinstance(event, ResultMessage):
                         health = self.run_health(event)
-                        result = self.finalize_result(event, tool_payload)
+                        result = self.finalize_result(event, tool_payload, interface_names)
             if langfuse_client is not None:
                 langfuse_client.update_current_span(output=result, metadata=health)
         return result, session_id

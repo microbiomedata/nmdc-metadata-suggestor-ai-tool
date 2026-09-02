@@ -228,3 +228,14 @@ def test_enforce_replaces_unusable_values() -> None:
         assert suggestion.value == "soil [ENVO:00001998]"
         assert suggestion.provenance is not None
         assert suggestion.provenance.outcome == "replaced"
+
+
+def test_enforce_accepts_portal_names_for_interfaces() -> None:
+    """A portal name must scope the gate exactly as the interface class name does."""
+    for names in (["soil"], ["SoilInterface"]):
+        output = enforce_env_triad_values(one_suggestion("soil [ENVO:00001998]"), names)
+        provenance = output.metadata_fields[0].provenance
+        assert provenance is not None
+        assert provenance.tier == "submission_enum"
+        assert provenance.interface == "SoilInterface"
+        assert provenance.scoped is True
