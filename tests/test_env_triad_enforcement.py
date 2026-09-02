@@ -5,6 +5,7 @@ context handed to the model, and the gate that repairs or replaces what comes
 back. Unit tests for the index itself live in test_envo.py.
 """
 
+import json
 from typing import Any
 
 from nmdc_metadata_suggestor_ai_tool.env_triad_recommendation import (
@@ -274,3 +275,18 @@ def test_a_curated_value_that_is_also_the_fallback_stays_tier_one() -> None:
     provenance = output.metadata_fields[0].provenance
     assert isinstance(provenance, TriadProvenance)
     assert provenance.tier == "submission_enum"
+
+
+def test_provenance_survives_serialization() -> None:
+    """The field is annotated as the base class, so the subclass needs SerializeAsAny.
+
+    Every other test here reads the in-memory object, where the subclass fields are
+    always present; without this the tier could be dropped on the way out and nothing
+    would fail.
+    """
+    output = enforce_env_triad_values(one_suggestion("dirt [ENVO:00001998]"), ["SoilInterface"])
+    dumped = json.loads(output.model_dump_json())["metadata_fields"][0]["provenance"]
+    assert dumped["gate"] == "env_triad"
+    assert dumped["tier"] == "submission_enum"
+    assert dumped["outcome"] == "repaired"
+    assert dumped["original_value"] == "dirt [ENVO:00001998]"

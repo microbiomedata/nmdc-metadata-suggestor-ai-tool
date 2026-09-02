@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SerializeAsAny
 
 TriadTier = Literal["submission_enum", "envo_expansion", "generalized"]
 
@@ -77,7 +77,10 @@ class MetadataFieldSuggestion(BaseModel):
         | list[str | int | float | bool]
         | dict[str, str | int | float | bool | list[str | int | float | bool]]
     ) = Field(default="", description="The recommended value for the metadata field")
-    provenance: BaseProvenance | None = Field(
+    # SerializeAsAny keeps the subclass's own fields. Annotated as the base, pydantic
+    # serializes to the base -- a TriadProvenance would leave the process as {"gate":
+    # "env_triad"} with tier, outcome, interface, scoped and original_value dropped.
+    provenance: SerializeAsAny[BaseProvenance] | None = Field(
         default=None,
         description=(
             "How this value was arrived at. Populated by a validation gate, never by the model. "
