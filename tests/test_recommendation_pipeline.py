@@ -5,9 +5,9 @@ from typing import Any, cast
 
 import pytest
 
-from nmdc_metadata_suggestor_ai_tool import recommendation_pipeline
+import nmdc_metadata_suggestor_ai_tool.recommendation_pipeline as recommendation_pipeline
+import nmdc_metadata_suggestor_ai_tool.utils.build_submission_context as build_submission_context
 from nmdc_metadata_suggestor_ai_tool.llm_client import LLMClient
-from nmdc_metadata_suggestor_ai_tool.utils import build_submission_context
 
 
 def load_sample_submission_object() -> dict[str, Any]:

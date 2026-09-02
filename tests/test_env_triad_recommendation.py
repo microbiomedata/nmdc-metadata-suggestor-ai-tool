@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 
-from nmdc_metadata_suggestor_ai_tool import env_triad_recommendation
+import nmdc_metadata_suggestor_ai_tool.env_triad_recommendation as env_triad_recommendation
 from nmdc_metadata_suggestor_ai_tool.llm_client import LLMClient
 
 pytestmark = pytest.mark.integration

@@ -35,6 +35,24 @@ Environment variables are loaded from a `.env` file in the project root via
 set in your shell take precedence over `.env` values (`override=False` is the
 default).
 
+### Agent permissions
+
+`ConversationManager.agentic()` reads `.claude/settings.json` for its tool allowlist. Without it
+the headless agent cannot run ontology lookups and answers from its prompt alone — silently.
+See [docs/agent-permissions.md](docs/agent-permissions.md).
+
+### ENVO ontology cache
+
+Env triad suggestions resolve ENVO terms through [oaklib](https://github.com/INCATools/ontology-access-kit).
+On first use oaklib downloads the ENVO semantic-sql build (~15 MB) and caches it under `~/.data/oaklib`;
+later runs read the cache. Warm it ahead of time — in a container image, or before a first run offline:
+
+```bash
+uv run python -c "from oaklib import get_adapter; get_adapter('sqlite:obo:envo')"
+```
+
+Set `ENVO_ADAPTER` to point at a different build (a pinned or self-hosted one) if you need to.
+
 ### Using uv (Local Development)
 
 1. **Install uv** (if not already installed):

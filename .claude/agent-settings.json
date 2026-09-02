@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(curl:*)",
+      "Bash(wget:*)",
+      "Bash(nc:*)",
+      "Bash(ssh:*)",
+      "Bash(rm:*)",
+      "Bash(git push:*)",
+      "Bash(git commit:*)",
+      "Bash(git reset:*)",
+      "Bash(git checkout:*)",
+      "Bash(gh:*)",
+      "Bash(uv add:*)",
+      "Bash(uv remove:*)",
+      "Bash(pip install:*)"
+    ]
+  }
+}

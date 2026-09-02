@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+from nmdc_metadata_suggestor_ai_tool.schema_context import get_schema_view
 from nmdc_metadata_suggestor_ai_tool.utils.submission_parser import (
     MixsExtensions,
     get_submission_fields,
@@ -78,3 +79,33 @@ def test_map_to_interface_name_preserves_order_across_mixed_forms() -> None:
     """A mix of value and name forms is normalized to class names in input order."""
     result = MixsExtensions.map_to_interface_name(["water", "SoilInterface", "air"])
     assert result == ["WaterInterface", "SoilInterface", "AirInterface"]
+
+
+def test_every_env_triad_interface_is_reachable_from_a_portal_name() -> None:
+    """A dropped extension silently loses its value set, so the roster must be complete."""
+    schema_view = get_schema_view()
+    with_triad = {
+        name
+        for name in schema_view.all_classes()
+        if name.endswith("Interface")
+        and "env_broad_scale" in {s.name for s in schema_view.class_induced_slots(name)}
+    }
+    assert with_triad <= set(MixsExtensions.__members__)
+
+
+@pytest.mark.parametrize(
+    "spelling",
+    [
+        "miscellaneous natural or artificial environment",  # the portal's template key
+        "miscellaneous natural or artifical environment",  # legacy misspelling
+    ],
+)
+def test_misc_envs_resolves_from_either_spelling(spelling: str) -> None:
+    assert MixsExtensions.map_to_interface_name([spelling]) == ["MiscEnvsInterface"]
+
+
+def test_wastewater_sludge_resolves_from_its_sample_slot_name() -> None:
+    """Schema-only extension: no portal template, so the ETL path is its only route."""
+    assert MixsExtensions.map_to_interface_name(["wastewater_sludge"]) == [
+        "WastewaterSludgeInterface"
+    ]
