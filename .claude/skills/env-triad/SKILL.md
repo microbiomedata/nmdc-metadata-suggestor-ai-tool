@@ -82,6 +82,14 @@ envo.descendants("ENVO:00002044")  # specialize downward to more specific terms
 envo.generic_fallback("WastewaterSludgeInterface", "env_medium")  # the tier-3 value
 ```
 
+These do not all return the same shape:
+
+| call | returns |
+|---|---|
+| `search`, `get` | `EnvoTerm` objects — take `term.value` |
+| `biome_values`, `generic_fallback` | `label [CURIE]` strings already — use them as they are |
+| `descendants` | bare CURIEs — resolve each through `get` before use, and never pair one with a label you wrote yourself |
+
 `search` matches whole words, tries the full phrase first, then falls back to individual words — so `"rhizosphere soil"` returns rhizosphere and soil terms rather than nothing. Scope it with `slot=` (the slot's anchor class) and `within=` (a subtree from `format_expansion_context`) to keep hits relevant.
 
 For `env_broad_scale`, skip searching entirely: all of ENVO holds 127 biomes, so `envo.biome_values()` is the complete universe for every extension. Load it once and pick from it.
