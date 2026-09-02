@@ -79,7 +79,10 @@ class MetadataFieldSuggestion(BaseModel):
     ) = Field(default="", description="The recommended value for the metadata field")
     provenance: BaseProvenance | None = Field(
         default=None,
-        description="How this value was arrived at. Populated by a validation gate, never by the model. Absent for fields with no gate.",
+        description=(
+            "How this value was arrived at. Populated by a validation gate, never by the model. "
+            "Absent for fields with no gate."
+        ),
     )
 
 
