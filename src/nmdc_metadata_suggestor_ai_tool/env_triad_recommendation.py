@@ -27,6 +27,12 @@ def build_envo_expansion_context(interface_names: list[str] | None) -> str:
     that is the entire env_broad_scale universe for any MIxS extension. For the
     other two slots it names the extension-specific subtrees to draw from, which
     is far smaller than dumping the anchor subtrees themselves.
+
+    ``interface_names`` of None means every extension, matching what the schema
+    context does with the same argument. Reading None as "no extensions" left the
+    prompt with biomes and nothing else, while still instructing the model to use
+    only supplied CURIEs -- an impossible pair for the eight extensions that ship
+    no curated value set.
     """
     index = get_envo()
     biomes = index.biome_values()
@@ -38,7 +44,7 @@ def build_envo_expansion_context(interface_names: list[str] | None) -> str:
         f"## env_broad_scale — every ENVO biome ({len(biomes)}; this is the complete set)",
         ", ".join(biomes),
     ]
-    for name in interface_names or []:
+    for name in interface_names or list(MixsExtensions.__members__):
         for slot in ("env_local_scale", "env_medium"):
             if index.expansion_seeds(name, slot):
                 sections.append("")

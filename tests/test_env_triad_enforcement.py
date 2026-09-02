@@ -47,6 +47,18 @@ def test_expansion_context_always_carries_the_biome_list() -> None:
     assert "marine biome [ENVO:00000447]" in context
 
 
+def test_unknown_interfaces_still_get_expansion_candidates() -> None:
+    """None means every extension here, matching what the schema context does with it.
+
+    Eight of the twelve extensions ship no curated value set, so ENVO expansion is their
+    only grounding. Reading None as "no extensions" left the prompt carrying biomes and
+    nothing else, while still telling the model to use only supplied CURIEs.
+    """
+    context = build_envo_expansion_context(None)
+    assert "sludge [ENVO:00002044]" in context
+    assert "air [ENVO:00002005]" in context
+
+
 def test_expansion_context_names_the_extension_subtrees() -> None:
     context = build_envo_expansion_context(["WastewaterSludgeInterface"])
     assert "sludge [ENVO:00002044]" in context
