@@ -11,13 +11,29 @@ from nmdc_metadata_suggestor_ai_tool.env_triad_recommendation import (
     build_envo_expansion_context,
     enforce_env_triad_values,
 )
-from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput, MetadataFieldSuggestion
+from nmdc_metadata_suggestor_ai_tool.models.llm_output import (
+    LLMOutput,
+    MetadataFieldSuggestion,
+    TriadProvenance,
+)
 
 
 def one_suggestion(value: Any, slot: str = "env_medium") -> LLMOutput:
     return LLMOutput(
         metadata_fields=[MetadataFieldSuggestion(field_name=slot, reason="r", value=value)]
     )
+
+
+def tier_of(suggestion: MetadataFieldSuggestion) -> str:
+    """The tier the gate assigned, asserting it assigned one at all."""
+    assert suggestion.provenance is not None
+    return suggestion.provenance.tier
+
+
+def provenance_of(output: LLMOutput, index: int = 0) -> TriadProvenance:
+    provenance = output.metadata_fields[index].provenance
+    assert provenance is not None
+    return provenance
 
 
 # --- ENVO context -----------------------------------------------------------
@@ -43,7 +59,7 @@ def test_enforce_repairs_label_drift() -> None:
     suggestion = output.metadata_fields[0]
     assert suggestion.value == "soil [ENVO:00001998]"
     assert suggestion.provenance is not None
-    assert suggestion.provenance.tier == "submission_enum"
+    assert tier_of(suggestion) == "submission_enum"
     assert suggestion.provenance.outcome == "repaired"
     assert suggestion.provenance.original_value == "dirt [ENVO:00001998]"
     assert suggestion.provenance.interface == "SoilInterface"
@@ -58,7 +74,7 @@ def test_enforce_derives_the_tier_from_validation() -> None:
     )
     suggestion = output.metadata_fields[0]
     assert suggestion.value == "activated sludge [ENVO:00002046]"
-    assert suggestion.provenance.tier == "envo_expansion"
+    assert tier_of(suggestion) == "envo_expansion"
 
 
 def test_enforce_accepts_uberon_for_host_associated() -> None:
@@ -73,7 +89,7 @@ def test_enforce_replaces_an_invalid_value_with_the_fallback() -> None:
     output = enforce_env_triad_values(one_suggestion("made up [ENVO:09999999]"), ["AirInterface"])
     suggestion = output.metadata_fields[0]
     assert suggestion.value == "air [ENVO:00002005]"
-    assert suggestion.provenance.tier == "generalized"
+    assert tier_of(suggestion) == "generalized"
     assert "failed ENVO validation" in suggestion.reason
 
 
@@ -101,7 +117,7 @@ def test_unknown_interfaces_still_label_a_curated_value_correctly() -> None:
     suggestion = output.metadata_fields[0]
     assert suggestion.value == "soil [ENVO:00001998]"
     assert suggestion.provenance is not None
-    assert suggestion.provenance.tier == "submission_enum"
+    assert tier_of(suggestion) == "submission_enum"
     assert suggestion.provenance.outcome == "accepted"
     assert suggestion.provenance.original_value is None
     # scoped=False records that the caller never named the extension: the gate found the
@@ -112,14 +128,14 @@ def test_unknown_interfaces_still_label_a_curated_value_correctly() -> None:
 
 def test_unknown_interfaces_still_reject_a_dead_curie() -> None:
     output = enforce_env_triad_values(one_suggestion("subterranean lake [ENVO:02000145]"), None)
-    assert output.metadata_fields[0].provenance.tier == "generalized"
+    assert provenance_of(output).tier == "generalized"
 
 
 def test_unknown_interfaces_still_reject_a_biome_as_a_medium() -> None:
     output = enforce_env_triad_values(
         one_suggestion("temperate grassland biome [ENVO:01000193]"), None
     )
-    assert output.metadata_fields[0].provenance.tier == "generalized"
+    assert provenance_of(output).tier == "generalized"
 
 
 def test_unknown_interfaces_still_correct_label_drift() -> None:
@@ -164,13 +180,13 @@ def test_another_extensions_valueset_does_not_waive_the_anchor() -> None:
     output = enforce_env_triad_values(
         one_suggestion("rhizosphere [ENVO:00005801]"), ["SoilInterface"]
     )
-    assert output.metadata_fields[0].provenance.tier == "generalized"
+    assert provenance_of(output).tier == "generalized"
 
 
 def test_unknown_extensions_do_not_waive_the_anchor_either() -> None:
     """The agentic path has no interface list; that is not licence to take the loosest one."""
     output = enforce_env_triad_values(one_suggestion("rhizosphere [ENVO:00005801]"), None)
-    assert output.metadata_fields[0].provenance.tier == "generalized"
+    assert provenance_of(output).tier == "generalized"
 
 
 # --- one term cannot answer two slots ----------------------------------------
@@ -184,7 +200,7 @@ def test_a_term_reused_across_slots_is_kept_where_its_anchor_fits() -> None:
     )
     local, medium = output.metadata_fields
     assert local.value == "rhizosphere [ENVO:00005801]"
-    assert medium.provenance.tier == "generalized"
+    assert tier_of(medium) == "generalized"
     assert "Reused the env_local_scale term" in medium.reason
 
 
@@ -215,7 +231,7 @@ def test_coherence_is_scoped_to_one_sample() -> None:
         ]
     )
     assert all(
-        f.provenance.tier != "generalized"
+        tier_of(f) != "generalized"
         for f in enforce_env_triad_values(output, ["SoilInterface"]).metadata_fields
     )
 

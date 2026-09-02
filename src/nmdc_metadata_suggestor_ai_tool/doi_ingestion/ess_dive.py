@@ -119,7 +119,8 @@ def _parse_dataone_solr_docs(xml_text: str) -> list[dict[str, object]]:
 
     The payload is untrusted, so it is parsed through
     :func:`~nmdc_metadata_suggestor_ai_tool.xml_safety.parse_untrusted_xml`,
-    which rejects oversized payloads and DTD/entity declarations.
+    which rejects oversized payloads, entity declarations and external
+    references. An entity-free DOCTYPE is permitted.
     """
     root, _reason = parse_untrusted_xml(xml_text, max_chars=MAX_DATAONE_SOLR_XML_CHARS)
     if root is None:

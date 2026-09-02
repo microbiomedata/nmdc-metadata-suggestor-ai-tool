@@ -1,6 +1,7 @@
 import json
 import logging
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -13,9 +14,10 @@ from nmdc_metadata_suggestor_ai_tool.utils.submission_parser import (
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 
-def _load_fixture(filename: str) -> dict:
+def _load_fixture(filename: str) -> dict[str, Any]:
     with (FIXTURES_DIR / filename).open() as fixture_file:
-        return json.load(fixture_file)
+        data: dict[str, Any] = json.load(fixture_file)
+        return data
 
 
 def test_get_submission_fields_extracts_protocol_metadata_from_fixture() -> None:

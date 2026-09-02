@@ -55,7 +55,7 @@ make test
 # Or individually:
 uv run ruff format     # Format code
 uv run ruff check      # Lint code
-uv run mypy src        # Type check
+uv run mypy src tests  # Type check
 uv run pytest          # Run tests
 ```
 

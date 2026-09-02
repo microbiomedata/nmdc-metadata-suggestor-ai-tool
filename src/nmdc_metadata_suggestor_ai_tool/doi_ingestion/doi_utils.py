@@ -33,6 +33,7 @@ from nmdc_metadata_suggestor_ai_tool.models.doi import (
     DoiClassification,
     DoiValidation,
 )
+from nmdc_metadata_suggestor_ai_tool.xml_safety import parse_untrusted_xml
 
 DEFAULT_RETRY_ATTEMPTS = int(os.environ.get("NMDC_HTTP_RETRY_ATTEMPTS", "3"))
 # Default backoff is 0 to avoid introducing real sleep delays by default (e.g., in tests).
@@ -176,13 +177,17 @@ def append_error(errors: list[str] | None, message: str) -> None:
 
 
 def strip_jats_xml(xml_abstract: str) -> str:
-    """Strip JATS/XML tags from text and unescape HTML entities."""
-    try:
-        root = ET.fromstring(f"<root>{xml_abstract}</root>")
+    """Strip JATS/XML tags from text and unescape HTML entities.
+
+    Abstracts come off the network, so the payload goes through the shared
+    guard, which rejects entity declarations and external references. An
+    entity-free DOCTYPE is permitted. The wrapping element is unrelated to
+    safety: JATS abstracts are fragments with no single root, so they need one.
+    """
+    root, _reason = parse_untrusted_xml(f"<root>{xml_abstract}</root>")
+    if root is not None:
         text = ET.tostring(root, encoding="unicode", method="text")
         return html.unescape(text).strip()
-    except ET.ParseError:
-        pass
 
     text = re.sub(r"<[^>]+>", "", xml_abstract)
     return html.unescape(text).strip()

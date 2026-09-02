@@ -53,7 +53,7 @@ class MetadataFieldSuggestion(BaseModel):
     """A single metadata field recommendation from the LLM."""
 
     id: str | None = Field(
-        None,
+        default=None,
         description="Unique identifier if the sample record is associated with a specific input",
     )
     field_name: str = Field(description="Name of the metadata field")

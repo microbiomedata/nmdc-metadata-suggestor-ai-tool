@@ -9,7 +9,7 @@
 # Background: docs/makefile-phony.md.
 FILE_TARGETS =
 
-.PHONY: help all-install prod-install dev-install test test-integration lint check-phony format security check-deps clean run validate-doi classify-doi classify-fixture get-abstract get-abstracts
+.PHONY: help all-install prod-install dev-install test test-integration lint check-phony format security check-deps clean validate-doi classify-doi classify-fixture get-abstract get-abstracts
 
 help: ## Show this help message
 	@echo "Usage: make [target]"
@@ -34,7 +34,7 @@ test-integration: ## Run integration tests against real APIs
 
 lint: ## Run linters
 	uv run ruff check
-	uv run mypy src
+	uv run mypy src tests
 	$(MAKE) check-phony
 
 check-phony: ## Verify .PHONY lists exactly the targets the Makefile defines
@@ -65,10 +65,7 @@ clean: ## Clean up generated files
 	find . -type d -name __pycache__ -exec rm -rf {} +
 	find . -type f -name "*.pyc" -delete
 
-run: ## Run the application locally
-	uv run nmdc-suggestor
-
-DOI_CLI = uv run python -m nmdc_metadata_suggestor.cli.doi_cli
+DOI_CLI = uv run python -m nmdc_metadata_suggestor_ai_tool.cli.doi_cli
 
 validate-doi: ## Validate a DOI (usage: make validate-doi DOI=10.1038/s41564-020-00861-0)
 	$(DOI_CLI) validate $(DOI)
