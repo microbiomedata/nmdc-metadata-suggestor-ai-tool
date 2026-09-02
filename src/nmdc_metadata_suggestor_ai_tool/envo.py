@@ -335,6 +335,10 @@ class Envo:
         """Seed CURIEs for ENVO expansion, or () to expand over the whole anchor."""
         return EXPANSION_SEEDS.get(interface_name, {}).get(slot, ())
 
+    # most_general_value walks the value set doing subsumption checks; a sweep over all
+    # twelve interfaces measured ~2s uncached, and the tier check below runs per suggestion.
+    # There are 12 interfaces x 3 slots of distinct arguments, and Envo is a singleton.
+    @functools.lru_cache(maxsize=128)  # noqa: B019
     def generic_fallback(self, interface_name: str, slot: str) -> str:
         """The most generic defensible value for a slot, used by the tier-3 path.
 
@@ -727,10 +731,23 @@ def enforce_env_triad_values(output: LLMOutput, interface_names: list[str] | Non
         )
         iface, result = chosen
         if result.ok:
+            tier: TriadTier = result.source
+            attributed = iface if result.in_valueset else None
+            # `generalized` used to be unreachable for a value the model chose, because the
+            # tier came from in_valueset alone: a deliberate broad answer read as expansion.
+            # A curated value keeps submission_enum -- tier 1 outranks tier 3, and several
+            # fallbacks (soil [ENVO:00001998]) are curated values in their own right.
+            if tier == "envo_expansion":
+                owner = next(
+                    (n for n in interfaces if envo.generic_fallback(n or "", slot) == proposed),
+                    None,
+                )
+                if owner is not None:
+                    tier, attributed = "generalized", owner
             suggestion.provenance = TriadProvenance(
-                tier=result.source,
+                tier=tier,
                 outcome="accepted",
-                interface=iface if result.in_valueset else None,
+                interface=attributed,
                 scoped=known,
             )
             continue

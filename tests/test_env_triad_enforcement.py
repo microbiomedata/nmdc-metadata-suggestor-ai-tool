@@ -239,3 +239,21 @@ def test_enforce_accepts_portal_names_for_interfaces() -> None:
         assert provenance.tier == "submission_enum"
         assert provenance.interface == "SoilInterface"
         assert provenance.scoped is True
+
+
+def test_a_model_chosen_fallback_is_labelled_generalized() -> None:
+    """`generalized` used to be reachable only when the gate substituted a value."""
+    output = enforce_env_triad_values(one_suggestion("air [ENVO:00002005]"), ["AirInterface"])
+    provenance = output.metadata_fields[0].provenance
+    assert provenance is not None
+    assert provenance.tier == "generalized"
+    assert provenance.outcome == "accepted"
+    assert provenance.interface == "AirInterface"
+
+
+def test_a_curated_value_that_is_also_the_fallback_stays_tier_one() -> None:
+    """soil [ENVO:00001998] is both the soil fallback and a curated value."""
+    output = enforce_env_triad_values(one_suggestion("soil [ENVO:00001998]"), ["SoilInterface"])
+    provenance = output.metadata_fields[0].provenance
+    assert provenance is not None
+    assert provenance.tier == "submission_enum"

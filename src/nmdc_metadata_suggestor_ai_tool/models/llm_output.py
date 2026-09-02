@@ -31,8 +31,8 @@ class TriadProvenance(BaseModel):
     interface: str | None = Field(
         default=None,
         description=(
-            "The MIxS extension whose curated value set justified a 'submission_enum' "
-            "tier. Null when no value set was involved."
+            "The MIxS extension that determined the tier: whose curated value set holds "
+            "the value, or whose generic fallback it is. Null when neither applies."
         ),
     )
     scoped: bool = Field(
