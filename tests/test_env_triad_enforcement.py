@@ -15,6 +15,7 @@ from nmdc_metadata_suggestor_ai_tool.models.llm_output import (
     LLMOutput,
     MetadataFieldSuggestion,
     TriadProvenance,
+    TriadTier,
 )
 
 
@@ -24,15 +25,15 @@ def one_suggestion(value: Any, slot: str = "env_medium") -> LLMOutput:
     )
 
 
-def tier_of(suggestion: MetadataFieldSuggestion) -> str:
+def tier_of(suggestion: MetadataFieldSuggestion) -> TriadTier:
     """The tier the gate assigned, asserting it assigned one at all."""
-    assert suggestion.provenance is not None
+    assert isinstance(suggestion.provenance, TriadProvenance)
     return suggestion.provenance.tier
 
 
 def provenance_of(output: LLMOutput, index: int = 0) -> TriadProvenance:
     provenance = output.metadata_fields[index].provenance
-    assert provenance is not None
+    assert isinstance(provenance, TriadProvenance)
     return provenance
 
 
@@ -58,7 +59,7 @@ def test_enforce_repairs_label_drift() -> None:
     output = enforce_env_triad_values(one_suggestion("dirt [ENVO:00001998]"), ["SoilInterface"])
     suggestion = output.metadata_fields[0]
     assert suggestion.value == "soil [ENVO:00001998]"
-    assert suggestion.provenance is not None
+    assert isinstance(suggestion.provenance, TriadProvenance)
     assert tier_of(suggestion) == "submission_enum"
     assert suggestion.provenance.outcome == "repaired"
     assert suggestion.provenance.original_value == "dirt [ENVO:00001998]"
@@ -116,7 +117,7 @@ def test_unknown_interfaces_still_label_a_curated_value_correctly() -> None:
     output = enforce_env_triad_values(one_suggestion("soil [ENVO:00001998]"), None)
     suggestion = output.metadata_fields[0]
     assert suggestion.value == "soil [ENVO:00001998]"
-    assert suggestion.provenance is not None
+    assert isinstance(suggestion.provenance, TriadProvenance)
     assert tier_of(suggestion) == "submission_enum"
     assert suggestion.provenance.outcome == "accepted"
     assert suggestion.provenance.original_value is None
@@ -142,7 +143,7 @@ def test_unknown_interfaces_still_correct_label_drift() -> None:
     output = enforce_env_triad_values(one_suggestion("dirt [ENVO:00001998]"), None)
     suggestion = output.metadata_fields[0]
     assert suggestion.value == "soil [ENVO:00001998]"
-    assert suggestion.provenance is not None
+    assert isinstance(suggestion.provenance, TriadProvenance)
     assert suggestion.provenance.outcome == "repaired"
     assert suggestion.provenance.original_value == "dirt [ENVO:00001998]"
     assert suggestion.provenance.scoped is False
@@ -242,7 +243,7 @@ def test_enforce_replaces_unusable_values() -> None:
         output = enforce_env_triad_values(one_suggestion(value), ["SoilInterface"])
         suggestion = output.metadata_fields[0]
         assert suggestion.value == "soil [ENVO:00001998]"
-        assert suggestion.provenance is not None
+        assert isinstance(suggestion.provenance, TriadProvenance)
         assert suggestion.provenance.outcome == "replaced"
 
 
@@ -251,7 +252,7 @@ def test_enforce_accepts_portal_names_for_interfaces() -> None:
     for names in (["soil"], ["SoilInterface"]):
         output = enforce_env_triad_values(one_suggestion("soil [ENVO:00001998]"), names)
         provenance = output.metadata_fields[0].provenance
-        assert provenance is not None
+        assert isinstance(provenance, TriadProvenance)
         assert provenance.tier == "submission_enum"
         assert provenance.interface == "SoilInterface"
         assert provenance.scoped is True
@@ -261,7 +262,7 @@ def test_a_model_chosen_fallback_is_labelled_generalized() -> None:
     """`generalized` used to be reachable only when the gate substituted a value."""
     output = enforce_env_triad_values(one_suggestion("air [ENVO:00002005]"), ["AirInterface"])
     provenance = output.metadata_fields[0].provenance
-    assert provenance is not None
+    assert isinstance(provenance, TriadProvenance)
     assert provenance.tier == "generalized"
     assert provenance.outcome == "accepted"
     assert provenance.interface == "AirInterface"
@@ -271,5 +272,5 @@ def test_a_curated_value_that_is_also_the_fallback_stays_tier_one() -> None:
     """soil [ENVO:00001998] is both the soil fallback and a curated value."""
     output = enforce_env_triad_values(one_suggestion("soil [ENVO:00001998]"), ["SoilInterface"])
     provenance = output.metadata_fields[0].provenance
-    assert provenance is not None
+    assert isinstance(provenance, TriadProvenance)
     assert provenance.tier == "submission_enum"
