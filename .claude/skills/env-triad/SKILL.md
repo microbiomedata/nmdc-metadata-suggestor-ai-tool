@@ -57,6 +57,11 @@ Then read the reference for the extension you settled on. [refs/extensions.md](r
 
 ## Step 4 — Load candidate pools
 
+Run these with `uv run python -c`, and keep the snippet free of standalone `#` comment
+lines. A newline followed by `#` inside the quoted command is ambiguous to the permission
+checker, which refuses the call rather than validate a command it cannot fully parse, and
+the lookup is then lost. A trailing comment after code on the same line is fine.
+
 **Tier 1** — the curated value set, via the **schema-context** skill:
 
 ```python
