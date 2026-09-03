@@ -1,4 +1,4 @@
-"""Shared pytest fixtures for tests requiring LLM credentials (GCP or PNNL)."""
+"""Shared pytest fixtures for tests requiring LLM credentials (GCP, PNNL, or CBORG)."""
 
 import os
 from pathlib import Path
@@ -38,3 +38,16 @@ def requires_credentials(has_gcp_credentials: bool, has_pnnl_credentials: bool) 
     """Skip the current test when neither GCP nor PNNL credentials are available."""
     if not has_gcp_credentials and not has_pnnl_credentials:
         pytest.skip("Neither GCP nor PNNL credentials available")
+
+
+@pytest.fixture(scope="session")
+def has_cborg_credentials() -> bool:
+    """Return whether CBORG credentials are configured via API key and base URL."""
+    return bool(os.environ.get("CBORG_KEY") and os.environ.get("CBORG_BASE_URL"))
+
+
+@pytest.fixture
+def requires_cborg(has_cborg_credentials: bool) -> None:
+    """Skip the current test when CBORG credentials are not available."""
+    if not has_cborg_credentials:
+        pytest.skip("CBORG credentials (CBORG_KEY, CBORG_BASE_URL) not available")
