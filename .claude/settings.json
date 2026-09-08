@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv run python:*)",
+      "Bash(uv run pytest:*)",
+      "Bash(python3:*)",
+      "Bash(grep:*)",
+      "Bash(rg:*)",
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(wc:*)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./**/*credential*)",
+      "Read(./**/*secret*)",
+      "Read(./**/gcp_credentials.json)"
+    ]
+  }
+}

@@ -27,8 +27,14 @@ from nmdc_metadata_suggestor_ai_tool.file_kinds import (
     DEFAULT_USEFUL_KINDS,  # {TABULAR, DOCUMENT}
     EXTENSION_KINDS,  # extension -> SupplementKind, the full mapping
     TEXT_LIKE_EXTENSIONS,  # extensions inlined as text rather than saved
+    KIND_PRIORITY,  # kinds in the order they win a contested budget
+    kind_rank,  # SupplementKind -> sort rank (lower = more valuable)
 )
 ```
+
+`KIND_PRIORITY` orders every kind most-valuable-first — `tabular`, `document`,
+`archive`, `other`, `sequence`, `image`, `media` — and is what decides *which*
+files survive a cap, not just which kinds are eligible.
 
 `DEFAULT_USEFUL_KINDS` and `classify_file` (aliased there as
 `classify_supplement`) are also re-exported from the supplements package, so
@@ -74,7 +80,10 @@ retrieve_supplements(
 hosted supplements (Europe PMC) **plus** any
 data-repository datasets found via relation metadata (`follow_related`) or mined
 from `text`. Files from all contributing sources are merged and trimmed to
-`max_files` / `max_total_bytes`; `SupplementFile.source` records each file's
+`max_files` / `max_total_bytes` **in `KIND_PRIORITY` order**, so when more files
+qualify than the caps allow, spreadsheets and delimited files are kept ahead of
+documents, and documents ahead of figures — regardless of listing or source order.
+Within one kind the original order is preserved. `SupplementFile.source` records each file's
 origin and `result.source` joins the contributors with `+`. When nothing is kept,
 the first source that *found* candidates is returned so its `skipped`/`error`
 detail is preserved. Pass an explicit `sources=[...]` to bypass routing.
@@ -94,7 +103,9 @@ skipped by reported size *before* being read, and no archive is buffered beyond
 `max_archive_bytes`. Across a publication's sources the caps act as one **shared
 budget**: hosted supplements are fetched first and each linked dataset only pulls
 what remains of `max_files` / `max_total_bytes`, so the total downloaded never
-exceeds the global caps.
+exceeds the global caps. Kind priority ranks what has been fetched; it cannot
+reach across the fetch order, so a source that spends the whole `max_files`
+budget leaves later sources' files undownloaded and therefore unranked.
 
 ## Return: `SupplementRetrievalResult`
 

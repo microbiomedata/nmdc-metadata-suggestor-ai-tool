@@ -3,9 +3,11 @@
 from nmdc_metadata_suggestor_ai_tool.file_kinds import (
     DEFAULT_USEFUL_KINDS,
     EXTENSION_KINDS,
+    KIND_PRIORITY,
     TEXT_LIKE_EXTENSIONS,
     classify_file,
     file_extension,
+    kind_rank,
 )
 from nmdc_metadata_suggestor_ai_tool.models.supplement import SupplementKind
 
@@ -32,6 +34,22 @@ def test_taxonomy_constants_are_consistent() -> None:
     for ext in TEXT_LIKE_EXTENSIONS:
         assert ext in EXTENSION_KINDS
     assert DEFAULT_USEFUL_KINDS == frozenset({SupplementKind.TABULAR, SupplementKind.DOCUMENT})
+
+
+def test_kind_priority_ranks_data_like_first() -> None:
+    # A cap that can only hold some files must spend it on the data-like ones.
+    assert kind_rank(SupplementKind.TABULAR) < kind_rank(SupplementKind.DOCUMENT)
+    for lesser in (SupplementKind.IMAGE, SupplementKind.MEDIA, SupplementKind.SEQUENCE):
+        assert kind_rank(SupplementKind.TABULAR) < kind_rank(lesser)
+        assert kind_rank(SupplementKind.DOCUMENT) < kind_rank(lesser)
+
+
+def test_kind_priority_covers_every_kind() -> None:
+    # A kind missing from KIND_PRIORITY would silently sort last; adding a new
+    # SupplementKind must mean placing it deliberately.
+    assert set(KIND_PRIORITY) == set(SupplementKind)
+    assert len(KIND_PRIORITY) == len(set(KIND_PRIORITY))
+    assert sorted(SupplementKind, key=kind_rank) == list(KIND_PRIORITY)
 
 
 def test_classify_supplement_alias_still_works() -> None:

@@ -22,6 +22,11 @@ samples and studies. Keep, in priority order:
 Skip (low value for metadata suggestion): figures/images, audio/video, raw
 sequence data (`.fasta`, `.fastq`, `.bam`, …), and nested archives.
 
+This is a ranking, not just a filter: when a record offers more files than the
+caps allow (default `max_files=10`), the budget goes to the tabular files first
+and only the leftovers go to documents — a record with 12 spreadsheets and 3 PDFs
+returns 10 spreadsheets, not whichever 10 the repository happened to list first.
+
 ## Performance first
 
 Supplements are a *nice-to-have*, not a blocker. Make **one** attempt per DOI. If

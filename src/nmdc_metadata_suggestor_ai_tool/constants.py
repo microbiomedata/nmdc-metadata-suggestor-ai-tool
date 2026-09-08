@@ -98,7 +98,9 @@ ZENODO_API = "https://zenodo.org/api/records"
 # Safety limits for untrusted XML payloads in DOI resolvers.
 MAX_EDI_METADATA_XML_CHARS = int(os.environ.get("NMDC_EDI_MAX_XML_CHARS", "2000000"))
 MAX_DATAONE_SOLR_XML_CHARS = int(os.environ.get("NMDC_DATAONE_SOLR_MAX_XML_CHARS", "2000000"))
-UNSAFE_XML_DECLARATION_PATTERN = re.compile(r"<!\s*(?:DOCTYPE|ENTITY)\b", re.IGNORECASE)
+# Europe PMC full text runs ~36KB to ~307KB across a sample of four articles
+# measured 2026-08-24, so this leaves roughly 6x headroom over the largest.
+MAX_EUROPEPMC_FULLTEXT_XML_CHARS = int(os.environ.get("NMDC_EUROPEPMC_MAX_XML_CHARS", "2000000"))
 
 
 # DOI prefixes that indicate the target provider for context retrieval.
@@ -173,3 +175,41 @@ EXCLUDED_SLOTS: frozenset[str] = frozenset(
         "collection_date_inc",
     }
 )
+
+# ---------------------------------------------------------------------------
+# Env triad / ENVO index
+# ---------------------------------------------------------------------------
+ENV_TRIAD_SLOTS: tuple[str, ...] = ("env_broad_scale", "env_local_scale", "env_medium")
+
+# oaklib adapter for ENVO. semantic-sql; oaklib downloads and caches the
+# ontology on first use. Override for a self-hosted or pinned build.
+ENVO_ADAPTER = os.environ.get("ENVO_ADAPTER", "sqlite:obo:envo")
+
+# The env triad slot patterns admit ENVO plus, on some slots, UBERON or PO.
+# Only ENVO terms can be checked against the ontology adapter.
+ENVO_PREFIX = "ENVO:"
+
+# MIxS anchor class per env triad slot, as recommended by the slot descriptions
+# in nmdc-submission-schema.
+ENV_TRIAD_ANCHORS: dict[str, str] = {
+    "env_broad_scale": "ENVO:00000428",  # biome
+    "env_local_scale": "ENVO:01000813",  # astronomical body part
+    "env_medium": "ENVO:00010483",  # environmental material
+}
+
+# Anchor membership is a hard gate only where the submission schema's own value
+# sets are anchor-clean. Every curated env_broad_scale and env_medium value sits
+# under its anchor; env_local_scale value sets carry 13-16 terms per package that
+# do not (aquifer, farm, fen, litter layer), so there it is advisory only.
+HARD_ANCHOR_SLOTS: frozenset[str] = frozenset({"env_broad_scale", "env_medium"})
+
+# Env triad values are patterned per (interface, slot) in nmdc-submission-schema,
+# and the allowed prefixes are not uniform: 28 slots are ENVO-only, the
+# host-associated local scale and medium also admit UBERON, and the
+# plant-associated / soil / water local scale and medium also admit PO. Validation
+# reads the real pattern from the schema; this is the ENVO-only default used when
+# the interface is unknown. See envo.get_slot_pattern.
+DEFAULT_ENV_TRIAD_VALUE_PATTERN = r"^([^\s-]{1,2}|[^\s-]+.+[^\s-]+) \[ENVO:\d{7,8}\]$"
+
+# Pulls the CURIE out of a value that has already matched its slot pattern.
+ENV_TRIAD_CURIE_PATTERN = re.compile(r"^(.+) \[([A-Za-z]+:\d+)\]$")

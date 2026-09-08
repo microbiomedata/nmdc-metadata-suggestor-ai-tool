@@ -7,6 +7,7 @@ Run with: uv run pytest -m integration tests/test_agentic.py
 import asyncio
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -20,9 +21,10 @@ FIXTURES = Path(__file__).parent / "fixtures"
 INTEGRATION_TIMEOUT = 180  # seconds
 
 
-def _load(filename: str) -> dict:
+def _load(filename: str) -> dict[str, Any]:
     with (FIXTURES / filename).open() as f:
-        return json.load(f)
+        data: dict[str, Any] = json.load(f)
+        return data
 
 
 def _make_conversation_manager(prompt: str) -> ConversationManager:
@@ -30,7 +32,7 @@ def _make_conversation_manager(prompt: str) -> ConversationManager:
     return ConversationManager(llm_client=client, system_prompt=prompt)
 
 
-def _assert_valid_output(result: object) -> LLMOutput:
+def _assert_valid_output(result: tuple[Any, Any] | None) -> LLMOutput:
     assert result is not None, "agentic() returned None"
     structured, session_id = result
     assert session_id is not None, "Expected a session_id to be returned"
