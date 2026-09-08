@@ -15,10 +15,10 @@ Unit tests cover the decision rules in ``.claude/skills/doi-copyright-check/SKIL
 Integration tests (``-m integration``, require GCP or PNNL credentials) run the
 full agentic pipeline against two fixture submissions:
 
-* ``submission_cc_by_publication.json`` — DOI 10.1038/s41564-020-00861-0 (CC BY 4.0).
+* ``submission_cc_by_publication.json`` — DOI 10.1038/s41587-020-0718-6 (CC BY 4.0).
   The agent should use the abstract as context and produce evidence-cited suggestions.
 
-* ``submission_restricted_publication.json`` — DOI 10.1126/science.aav2566 (all rights
+* ``submission_restricted_publication.json`` — DOI 10.1126/science.aap9516 (all rights
   reserved, no CC license).  The agent should still suggest fields from submission
   metadata alone, but must NOT cite the abstract as a source (it was excluded).
 """
@@ -26,6 +26,7 @@ full agentic pipeline against two fixture submissions:
 import asyncio
 import json
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
@@ -38,13 +39,13 @@ FIXTURES = Path(__file__).parent / "fixtures"
 INTEGRATION_TIMEOUT = 180  # seconds
 
 
-def _load(filename: str) -> dict:
+def _load(filename: str) -> dict[str, Any]:
     with (FIXTURES / filename).open() as f:
-        return json.load(f)
+        return cast(dict[str, Any], json.load(f))
 
 
-_DOI_ALLOWED = "10.1038/s41564-020-00861-0"
-_DOI_RESTRICTED = "10.1126/science.aav2566"
+_DOI_ALLOWED = "10.1038/s41587-020-0718-6"
+_DOI_RESTRICTED = "10.1126/science.aap9516"
 
 
 # ---------------------------------------------------------------------------
@@ -56,8 +57,8 @@ _DOI_RESTRICTED = "10.1126/science.aav2566"
 def cc_by_publication() -> dict:
     """Simulate metadata for a Nature Microbiology article published open-access CC BY 4.0.
 
-    Based on: 10.1038/s41564-020-00861-0
-    (Nayfach et al., "A genomic catalog of Earth's microbiomes", Nature Microbiology 2021)
+    Based on: 10.1038/s41587-020-0718-6
+    (Nayfach et al., "A genomic catalog of Earth's microbiomes", Nature Biotechnology 2021)
     License field as returned by CrossRef / OpenAlex.
     """
     return {
@@ -75,8 +76,9 @@ def cc_by_publication() -> dict:
 def all_rights_reserved_publication() -> dict:
     """Simulate metadata for a Science article with no open-access license.
 
-    Based on: 10.1126/science.aav2566
-    (typical paywalled Science publication — no CC license in CrossRef metadata)
+    Based on: 10.1126/science.aap9516
+    (Delgado-Baquerizo et al., "A global atlas of the dominant bacteria found in soil",
+    Science 2018 — all-rights-reserved, no CC license, but abstract accessible via CrossRef)
     """
     return {
         "doi": _DOI_RESTRICTED,
@@ -253,7 +255,7 @@ def test_agent_uses_abstract_context_for_cc_by_publication(
     """Agent should cite abstract evidence when the publication is CC BY 4.0.
 
     Fixture: submission_cc_by_publication.json
-    DOI:     10.1038/s41564-020-00861-0  (Nature Microbiology 2021, CC BY 4.0)
+    DOI:     10.1038/s41587-020-0718-6  (Nature Biotechnology 2021, CC BY 4.0)
 
     The full pipeline (nmdc-metadata-suggestor skill) fetches the abstract via
     doi-ingestion, passes it through doi-copyright-check (verdict=allowed), and
@@ -295,7 +297,7 @@ def test_agent_does_not_cite_abstract_for_restricted_publication(
     """Agent must not cite the abstract when the publication has no CC license.
 
     Fixture: submission_restricted_publication.json
-    DOI:     10.1126/science.aav2566  (Science 2017, all rights reserved)
+    DOI:     10.1126/science.aap9516  (Science 2018, all rights reserved)
 
     doi-copyright-check returns verdict=not_allowed, so the abstract is excluded
     from LLM context.  The agent may still suggest fields from the submission's

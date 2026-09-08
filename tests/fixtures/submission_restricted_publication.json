@@ -2,15 +2,15 @@
   "metadata_submission": {
     "packageName": ["soil"],
     "studyForm": {
-      "studyName": "Global Soil Microbiome Survey — Paywalled Reference Publication",
+      "studyName": "Global Atlas of Dominant Soil Bacteria",
       "piName": "Test Researcher",
       "piEmail": "test.researcher@example.org",
       "piOrcid": "0000-0000-0000-0002",
-      "description": "Soil metagenomes sampled across 189 globally distributed sites covering major biome types. This study characterizes the biogeographic drivers of soil microbial community composition and function.",
-      "notes": "Reference publication is behind a paywall (Science, AAAS). No open-access license.",
+      "description": "Soil samples collected from globally distributed sites across six continents to survey the dominant bacterial taxa in soil ecosystems. This study investigates which bacterial lineages consistently dominate soil communities worldwide and identifies ecological groupings with shared habitat preferences.",
+      "notes": "Reference publication is all-rights-reserved (Science, AAAS). No open-access license; abstract accessible via CrossRef but content cannot be used as AI context.",
       "publicationDois": [
         {
-          "value": "10.1126/science.aav2566",
+          "value": "10.1126/science.aap9516",
           "provider": "crossref"
         }
       ],
@@ -158,6 +158,6 @@
   "source_client": "submission_portal",
   "is_test_submission": true,
   "id": "fixture-restricted-0001",
-  "study_name": "Global Soil Microbiome Survey — Paywalled Reference Publication",
+  "study_name": "Global Atlas of Dominant Soil Bacteria",
   "templates": ["soil"]
 }

@@ -2,15 +2,15 @@
   "metadata_submission": {
     "packageName": ["soil"],
     "studyForm": {
-      "studyName": "Genomic Catalog of Earth's Microbiomes — Soil Biosample Study",
+      "studyName": "A Genomic Catalog of Earth's Microbiomes",
       "piName": "Test Researcher",
       "piEmail": "test.researcher@example.org",
       "piOrcid": "0000-0000-0000-0001",
-      "description":"",
+      "description": "This study presents a genomic catalog of Earth's microbiomes constructed from metagenome-assembled genomes (MAGs) recovered from publicly available metagenomes. Soil samples were collected from globally distributed sites spanning diverse biomes — tropical forest, Arctic tundra, temperate grassland, and arid shrubland — to characterize microbial community structure and functional potential across terrestrial ecosystems. DNA was extracted and subjected to shotgun metagenomic sequencing to recover draft-quality MAGs representing previously uncultivated microbial lineages.",
       "notes": "Samples stored at -80C prior to DNA extraction.",
       "publicationDois": [
         {
-          "value": "10.1038/s41564-020-00861-0",
+          "value": "10.1038/s41587-020-0718-6",
           "provider": "crossref"
         }
       ],
@@ -155,6 +155,6 @@
   "source_client": "submission_portal",
   "is_test_submission": true,
   "id": "fixture-cc-by-0001",
-  "study_name": "Genomic Catalog of Earth's Microbiomes — Soil Biosample Study",
+  "study_name": "A Genomic Catalog of Earth's Microbiomes",
   "templates": ["soil"]
 }
