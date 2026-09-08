@@ -117,7 +117,16 @@ def log_assistant_message(content: Any) -> None:
     if langfuse_client is None:
         return
     if isinstance(content, list):
-        text = " ".join(b.text for b in content if hasattr(b, "text"))
+        parts: list[str] = []
+        for block in content:
+            if getattr(block, "text", None):
+                parts.append(block.text)
+            elif hasattr(block, "name") and hasattr(block, "input"):
+                parts.append(f"[tool_use: {block.name} {block.input!r}]")
+            elif getattr(block, "thinking", None):
+                snippet = block.thinking[:200]
+                parts.append(f"[thinking: {snippet}]")
+        text = "\n".join(parts) or "[no output]"
     else:
         text = content
     langfuse_client.create_event(name="assistant_message", output=text)
