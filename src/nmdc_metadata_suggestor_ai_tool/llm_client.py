@@ -47,15 +47,6 @@ AGENT_SETTINGS = Path(__file__).resolve().parents[2] / ".claude" / "agent-settin
 
 DEFAULT_GCP_REGION = "us-east5"
 
-# Set CLAUDE_AGENT_BYPASS_PERMISSIONS=true to disable the SDK's permission guardrails.
-# Disabling allows Claude to run bash commands and WebSearch,
-# which improves preformance but increases security risks.
-# Defaults to "default" which requires explicit permissions for shell commands and WebSearch.
-AGENT_PERMISSION_MODE = (
-    "bypassPermissions"
-    if os.environ.get("CLAUDE_AGENT_BYPASS_PERMISSIONS", "") == "true"
-    else "default"
-)
 
 
 GEMINI_MODELS = [
@@ -522,7 +513,6 @@ class ConversationManager:
             setting_sources=["project"],
             settings=str(AGENT_SETTINGS) if AGENT_SETTINGS.is_file() else None,
             output_format={"type": "json_schema", "schema": LLMOutput.model_json_schema()},
-            permission_mode=cast(Any, AGENT_PERMISSION_MODE),
         )
 
         if message is None:
@@ -547,7 +537,6 @@ class ConversationManager:
                 if isinstance(event, SystemMessage) and event.subtype == "init":
                     session_id = event.data["session_id"]
                 elif isinstance(event, AssistantMessage):
-                    print(f"Assistant: {event.content}")
                     tool_payload = self.structured_output_from_tool_use(event) or tool_payload
                     log_assistant_message(event.content)
                 elif isinstance(event, ResultMessage):
@@ -575,8 +564,6 @@ class ConversationManager:
                         session_id = event.data["session_id"]
                     elif isinstance(event, AssistantMessage):
                         tool_payload = self.structured_output_from_tool_use(event) or tool_payload
-                    elif isinstance(event, AssistantMessage):
-                        print(f"Assistant: {event.content}")
                         log_assistant_message(event.content)
                     elif isinstance(event, ResultMessage):
                         health = self.run_health(event)
