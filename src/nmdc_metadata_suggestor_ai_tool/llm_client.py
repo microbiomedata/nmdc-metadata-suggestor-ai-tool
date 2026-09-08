@@ -48,7 +48,6 @@ AGENT_SETTINGS = Path(__file__).resolve().parents[2] / ".claude" / "agent-settin
 DEFAULT_GCP_REGION = "us-east5"
 
 
-
 GEMINI_MODELS = [
     "gemini-2.5-pro",
     "gemini-2.5-flash",
