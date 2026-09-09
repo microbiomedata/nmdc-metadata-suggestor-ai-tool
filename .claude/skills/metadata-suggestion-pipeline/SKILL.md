@@ -25,12 +25,15 @@ Use the **submission-parser** skill to extract structured fields (DOIs, descript
 
 ## Step 2 — Build study context
 
-Use the **build-study-context** skill with the parsed submission to:
-- Assemble base text (description, notes, study name, protocol info)
-- Fetch DOI abstracts
-- Download PDFs
+Use the **build-study-context** skill with the parsed submission. That skill handles all of the following — do not skip or short-circuit it:
 
-This yields `context_texts` (list of strings) and `pdf_paths` (list of temp file paths) to use as evidence.
+1. Assemble base text (description, notes, study name, protocol info)
+2. For each DOI: call **doi-ingestion**, then **doi-copyright-check** on the returned metadata
+   - `verdict == "allowed"` → include the abstract in `context_texts`
+   - `verdict == "not_allowed"` or `"uncertain"` → **exclude** the abstract; add the DOI to `skipped_dois`
+3. Download PDFs via **pdf-ingestion**
+
+This yields `context_texts` (list of strings — base text plus copyright-cleared abstracts) and `pdf_paths` to use as evidence in Step 4.
 
 ---
 
@@ -75,15 +78,21 @@ Return a JSON object matching `LLMOutput`:
   "metadata_fields": [
     {
       "id": null,
-      "field_name": "relevant_protocols",
-      "value": "https://doi.org/10.17504/protocols.io.xxx",
-      "reason": "Protocol DOI explicitly listed in multiOmicsForm.mbProtocols (protocol description)."
+      "field_name": "geo_loc_name",
+      "value": "USA: California",
+      "reason": "'collected from surface soils across California grassland sites' (abstract)."
     },
     {
       "id": null,
-      "field_name": "ecosystem_type",
-      "value": "",
-      "reason": "'peatland CO2, CH4 porewater production' (abstract) strongly implies a bog or fen ecosystem, but no exact NMDC term is explicitly named."
+      "field_name": "ecosystem_category",
+      "value": "Soil",
+      "reason": "'soil metagenomes from 189 globally distributed sites' (abstract)."
+    },
+    {
+      "id": null,
+      "field_name": "relevant_protocols",
+      "value": "https://doi.org/10.17504/protocols.io.xxx",
+      "reason": "Protocol DOI explicitly listed in multiOmicsForm.mbProtocols (submission data)."
     }
   ]
 }

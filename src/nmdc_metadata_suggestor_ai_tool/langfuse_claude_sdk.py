@@ -14,6 +14,7 @@ if langfuse_client is not None:
 from claude_agent_sdk import (  # noqa: E402
     AssistantMessage,
     ClaudeAgentOptions,
+    HookMatcher,
     ResultMessage,
     SystemMessage,
     query,
@@ -22,6 +23,7 @@ from claude_agent_sdk import (  # noqa: E402
 __all__ = [
     "AssistantMessage",
     "ClaudeAgentOptions",
+    "HookMatcher",
     "ResultMessage",
     "SystemMessage",
     "query",

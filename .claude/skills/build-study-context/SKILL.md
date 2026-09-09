@@ -46,8 +46,11 @@ result = get_doi_description_or_abstract(
 )
 ```
 
-- Add `result.context` to the evidence texts (label it with the DOI value)
-- Accumulate all `result.publication_urls` into a list
+Then apply the **doi-copyright-check** skill to the returned metadata:
+
+- If `verdict == "allowed"`: add `result.context` to the evidence texts (label it with the DOI value)
+- If `verdict == "not_allowed"` or `"uncertain"`: **exclude** the content; add the DOI to a `skipped_dois` list and log a warning
+- Accumulate all `result.publication_urls` into a list regardless of verdict (URLs themselves are not restricted content)
 
 ### 3 — Fetch PDF content
 
