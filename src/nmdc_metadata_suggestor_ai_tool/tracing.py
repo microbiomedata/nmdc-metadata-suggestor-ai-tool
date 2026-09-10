@@ -108,6 +108,30 @@ if not langfuse_enabled:
         return decorator
 
 
+def log_assistant_message(content: Any) -> None:
+    """Emit a Langfuse event for one AssistantMessage turn (no-op when tracing is off).
+
+    Accepts either a plain string or a list of content blocks (TextBlock etc.) as
+    returned by the Claude Agent SDK's AssistantMessage.content.
+    """
+    if langfuse_client is None:
+        return
+    if isinstance(content, list):
+        parts: list[str] = []
+        for block in content:
+            if getattr(block, "text", None):
+                parts.append(block.text)
+            elif hasattr(block, "name") and hasattr(block, "input"):
+                parts.append(f"[tool_use: {block.name} {block.input!r}]")
+            elif getattr(block, "thinking", None):
+                snippet = block.thinking[:200]
+                parts.append(f"[thinking: {snippet}]")
+        text = "\n".join(parts) or "[no output]"
+    else:
+        text = content
+    langfuse_client.create_event(name="assistant_message", output=text)
+
+
 def flush() -> None:
     """Flush pending Langfuse events (call before process exit in short-lived scripts)."""
     if langfuse_enabled and langfuse_client is not None:

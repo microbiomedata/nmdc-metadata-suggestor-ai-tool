@@ -15,10 +15,15 @@ from google.genai import types as genai_types
 from google.oauth2 import service_account
 from openai import OpenAI
 
+from nmdc_metadata_suggestor_ai_tool.agent_permissions import (
+    STRUCTURED_OUTPUT_TOOL,
+    pretool_permission_gate,
+)
 from nmdc_metadata_suggestor_ai_tool.envo import enforce_env_triad_values
 from nmdc_metadata_suggestor_ai_tool.langfuse_claude_sdk import (
     AssistantMessage,
     ClaudeAgentOptions,
+    HookMatcher,
     ResultMessage,
     SystemMessage,
     query,
@@ -27,6 +32,7 @@ from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
 from nmdc_metadata_suggestor_ai_tool.system_prompt import orchestrator_prompt
 from nmdc_metadata_suggestor_ai_tool.tracing import (
     langfuse_client,
+    log_assistant_message,
     observe,
     propagate_attributes,
 )
@@ -34,15 +40,6 @@ from nmdc_metadata_suggestor_ai_tool.tracing import (
 load_dotenv()
 
 logger = logging.getLogger(__name__)
-
-# The tool the agent calls to hand back its final answer.
-STRUCTURED_OUTPUT_TOOL = "StructuredOutput"
-
-# Restrictions that apply to the unattended agent but not to a person working in the repo:
-# no network fetches, no repo mutation, no dependency changes. Kept out of
-# .claude/settings.json deliberately -- that file governs every Claude Code session here, and
-# denying `git commit` there breaks ordinary development.
-AGENT_SETTINGS = Path(__file__).resolve().parents[2] / ".claude" / "agent-settings.json"
 
 DEFAULT_GCP_REGION = "us-east5"
 
@@ -498,18 +495,16 @@ class ConversationManager:
             if self.llm_client.access_provider == "gcp"
             else self.llm_client.model
         )
-        # set env variable to enable Claude Agent SDK to pick up GCP credentials
-        # Claude Agent SDK requires a Claude model, not a Gemini model, even on Vertex AI
         options = ClaudeAgentOptions(
             skills="all",
             model=model,
             system_prompt=orchestrator_prompt,
-            # Read .claude/settings.json. Without this the SDK runs under the default
-            # permission mode, where Bash needs interactive approval -- which a headless run
-            # cannot give, so every ontology lookup the skill asks for is denied and the
-            # agent answers from the prompt alone.
+            # bypassPermissions skips the SDK's built-in permission prompts (which would
+            # otherwise hang a headless run); the PreToolUse hook is the actual gate.
+            permission_mode="bypassPermissions",
+            hooks={"PreToolUse": [HookMatcher(hooks=[pretool_permission_gate])]},
+            # "project" is required for the SDK to discover skills in .claude/skills/.
             setting_sources=["project"],
-            settings=str(AGENT_SETTINGS) if AGENT_SETTINGS.is_file() else None,
             output_format={"type": "json_schema", "schema": LLMOutput.model_json_schema()},
         )
 
@@ -535,8 +530,8 @@ class ConversationManager:
                 if isinstance(event, SystemMessage) and event.subtype == "init":
                     session_id = event.data["session_id"]
                 elif isinstance(event, AssistantMessage):
-                    print(f"Assistant: {event.content}")
                     tool_payload = self.structured_output_from_tool_use(event) or tool_payload
+                    log_assistant_message(event.content)
                 elif isinstance(event, ResultMessage):
                     health = self.run_health(event)
                     result = self.finalize_result(event, tool_payload, interface_names)
@@ -562,6 +557,7 @@ class ConversationManager:
                         session_id = event.data["session_id"]
                     elif isinstance(event, AssistantMessage):
                         tool_payload = self.structured_output_from_tool_use(event) or tool_payload
+                        log_assistant_message(event.content)
                     elif isinstance(event, ResultMessage):
                         health = self.run_health(event)
                         result = self.finalize_result(event, tool_payload, interface_names)
