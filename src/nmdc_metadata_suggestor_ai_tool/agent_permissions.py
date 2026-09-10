@@ -7,7 +7,14 @@ or on Claude Code being installed at all. Wired into ``ClaudeAgentOptions`` as a
 """
 
 import re
-from typing import Any
+
+from nmdc_metadata_suggestor_ai_tool.langfuse_claude_sdk import (
+    AsyncHookJSONOutput,
+    HookContext,
+    HookInput,
+    PreToolUseHookInput,
+    SyncHookJSONOutput,
+)
 
 # The tool the agent calls to hand back its final answer.
 STRUCTURED_OUTPUT_TOOL = "StructuredOutput"
@@ -53,13 +60,16 @@ def _bash_matches(command: str, prefixes: tuple[str, ...]) -> bool:
 
 
 async def pretool_permission_gate(
-    input_data: dict[str, Any],
+    input_data: HookInput,
     tool_use_id: str | None,
-    context: Any,
-) -> dict[str, Any]:
+    context: HookContext,
+) -> AsyncHookJSONOutput | SyncHookJSONOutput:
     """PreToolUse hook: block disallowed tools/commands, allow everything else."""
-    tool_name = input_data.get("tool_name", "")
-    tool_input = input_data.get("tool_input") or {}
+    if input_data["hook_event_name"] != "PreToolUse":
+        return {}
+    pretool: PreToolUseHookInput = input_data  # type: ignore[assignment]
+    tool_name = pretool["tool_name"]
+    tool_input = pretool["tool_input"] or {}
 
     if tool_name == "Bash":
         command = (tool_input.get("command") or "").strip()

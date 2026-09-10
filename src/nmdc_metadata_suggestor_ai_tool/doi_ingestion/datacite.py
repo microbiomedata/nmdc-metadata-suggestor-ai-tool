@@ -52,7 +52,22 @@ def try_datacite(doi: str, errors: list[str] | None = None) -> ResolverContext |
         return None
 
     publisher_value = publisher if isinstance(publisher, str) else None
-    return ResolverContext(text=cleaned, raw_text=raw, kind=kind, source=publisher_value)
+    license_url = _extract_datacite_license(attrs)
+    return ResolverContext(
+        text=cleaned, raw_text=raw, kind=kind, source=publisher_value, license=license_url
+    )
+
+
+def _extract_datacite_license(attrs: object) -> str | None:
+    """Return the first rightsUri from DataCite attributes, or None."""
+    if not isinstance(attrs, dict):
+        return None
+    rights_list = attrs.get("rightsList")
+    if isinstance(rights_list, list) and rights_list:
+        first = rights_list[0]
+        if isinstance(first, dict):
+            return first.get("rightsUri") or None
+    return None
 
 
 def _pick_datacite_description(descriptions: list[object]) -> tuple[str, str] | None:

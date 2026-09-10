@@ -38,7 +38,11 @@ def try_openalex(doi: str, errors: list[str] | None = None) -> ResolverContext |
         inverted = data.get("abstract_inverted_index")
         if inverted:
             raw = json.dumps(inverted, ensure_ascii=False)
-            return ResolverContext(decode_inverted_abstract(inverted), raw, "inverted_index")
+            oa_loc = data.get("best_oa_location") or {}
+            license_val = oa_loc.get("license") if isinstance(oa_loc, dict) else None
+            return ResolverContext(
+                decode_inverted_abstract(inverted), raw, "inverted_index", license=license_val
+            )
         append_error(errors, "OpenAlex response contained no abstract_inverted_index")
         return None
     except (requests.RequestException, ValueError) as exc:

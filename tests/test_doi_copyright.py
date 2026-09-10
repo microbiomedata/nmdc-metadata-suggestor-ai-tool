@@ -243,6 +243,60 @@ def test_result_has_required_fields() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Wiring tests — check_doi_copyright called with SourceRetrievalResult.license
+# ---------------------------------------------------------------------------
+
+
+class TestCheckDoiCopyrightFromRetrievalResult:
+    """Verify check_doi_copyright works correctly when fed data from SourceRetrievalResult.
+
+    These tests exercise the path the skill now follows: no second API call,
+    just result.license (populated during ingestion) passed straight into
+    check_doi_copyright.
+    """
+
+    def test_cc_by_url_from_crossref_is_allowed(self) -> None:
+        """License URL as returned by Crossref → allowed."""
+        result = check_doi_copyright(
+            doi="10.1038/test",
+            license_string="https://creativecommons.org/licenses/by/4.0/",
+        )
+        assert result.verdict == "allowed"
+        assert result.license_found == "https://creativecommons.org/licenses/by/4.0/"
+
+    def test_cc_by_slug_from_openalex_is_allowed(self) -> None:
+        """Short slug as returned by OpenAlex best_oa_location.license → allowed."""
+        result = check_doi_copyright(
+            doi="10.1038/test",
+            license_string="cc-by",
+        )
+        assert result.verdict == "allowed"
+
+    def test_none_license_with_abstract_fallback_not_allowed(self) -> None:
+        """No license from source; abstract scanned but contains no CC notice → not_allowed."""
+        result = check_doi_copyright(
+            doi="10.1126/test",
+            license_string=None,
+            context_text="A study of soil microbial diversity.",
+        )
+        assert result.verdict == "not_allowed"
+        assert result.license_found is None
+
+    def test_none_license_no_abstract_uncertain(self) -> None:
+        """Both license and abstract absent → uncertain."""
+        result = check_doi_copyright(doi="10.1126/test", license_string=None)
+        assert result.verdict == "uncertain"
+
+    def test_rights_reserved_license_not_allowed(self) -> None:
+        """Non-CC license string (e.g. publisher all-rights-reserved URL) → not_allowed."""
+        result = check_doi_copyright(
+            doi="10.1126/test",
+            license_string="https://www.sciencemag.org/about/science-licenses-journal-article-reuse",
+        )
+        assert result.verdict == "not_allowed"
+
+
+# ---------------------------------------------------------------------------
 # Integration tests — full agentic pipeline, require LLM credentials
 # ---------------------------------------------------------------------------
 

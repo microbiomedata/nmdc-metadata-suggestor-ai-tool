@@ -752,3 +752,116 @@ def test_get_abstract_raw_vs_cleaned() -> None:
     elif result.context_type == "inverted_index":
         assert "{" in result.raw_context
         assert result.context != result.raw_context
+
+
+# ---------------------------------------------------------------------------
+# License field propagation
+# ---------------------------------------------------------------------------
+
+
+class TestLicenseField:
+    """SourceRetrievalResult.license is populated from source API responses."""
+
+    @responses.activate
+    def test_crossref_license_populated(self) -> None:
+        """Crossref license URL is surfaced on the result."""
+        doi = SAMPLE_DOI
+        responses.add(
+            responses.GET,
+            f"{CROSSREF_API_URL}/{doi}",
+            json={
+                "message": {
+                    "abstract": "An abstract.",
+                    "license": [{"URL": "https://creativecommons.org/licenses/by/4.0/"}],
+                }
+            },
+        )
+        result = get_doi_description_or_abstract(doi, sources=["crossref"])
+        assert result.license == "https://creativecommons.org/licenses/by/4.0/"
+
+    @responses.activate
+    def test_crossref_no_license_is_none(self) -> None:
+        """Crossref response without a license field → result.license is None."""
+        doi = SAMPLE_DOI
+        responses.add(
+            responses.GET,
+            f"{CROSSREF_API_URL}/{doi}",
+            json={"message": {"abstract": "An abstract."}},
+        )
+        result = get_doi_description_or_abstract(doi, sources=["crossref"])
+        assert result.license is None
+
+    @responses.activate
+    def test_datacite_license_populated(self) -> None:
+        """DataCite rightsUri is surfaced on the result."""
+        doi = SAMPLE_DOI
+        responses.add(
+            responses.GET,
+            f"{DATACITE_API_URL}/{doi}",
+            json={
+                "data": {
+                    "attributes": {
+                        "descriptions": [
+                            {"description": "A dataset.", "descriptionType": "Abstract"}
+                        ],
+                        "rightsList": [
+                            {"rightsUri": "https://creativecommons.org/licenses/by/4.0/"}
+                        ],
+                    }
+                }
+            },
+        )
+        result = get_doi_description_or_abstract(doi, sources=["datacite"])
+        assert result.license == "https://creativecommons.org/licenses/by/4.0/"
+
+    @responses.activate
+    def test_datacite_no_license_is_none(self) -> None:
+        """DataCite response without rightsList → result.license is None."""
+        doi = SAMPLE_DOI
+        responses.add(
+            responses.GET,
+            f"{DATACITE_API_URL}/{doi}",
+            json={
+                "data": {
+                    "attributes": {
+                        "descriptions": [
+                            {"description": "A dataset.", "descriptionType": "Abstract"}
+                        ],
+                    }
+                }
+            },
+        )
+        result = get_doi_description_or_abstract(doi, sources=["datacite"])
+        assert result.license is None
+
+    @responses.activate
+    def test_openalex_license_populated(self) -> None:
+        """OpenAlex best_oa_location.license is surfaced on the result."""
+        doi = SAMPLE_DOI
+        responses.add(
+            responses.GET,
+            f"{OPENALEX_API_URL}/https://doi.org/{doi}",
+            json={
+                "abstract_inverted_index": {"Hello": [0], "world": [1]},
+                "best_oa_location": {"license": "cc-by"},
+            },
+        )
+        result = get_doi_description_or_abstract(doi, sources=["openalex"])
+        assert result.license == "cc-by"
+
+    @responses.activate
+    def test_openalex_no_license_is_none(self) -> None:
+        """OpenAlex response without best_oa_location → result.license is None."""
+        doi = SAMPLE_DOI
+        responses.add(
+            responses.GET,
+            f"{OPENALEX_API_URL}/https://doi.org/{doi}",
+            json={"abstract_inverted_index": {"Hello": [0], "world": [1]}},
+        )
+        result = get_doi_description_or_abstract(doi, sources=["openalex"])
+        assert result.license is None
+
+    def test_defaults_license_is_none(self) -> None:
+        """SourceRetrievalResult default has license=None."""
+        r = SourceRetrievalResult(doi="10.1234/test")
+        assert r.license is None
