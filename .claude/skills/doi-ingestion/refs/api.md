@@ -39,6 +39,7 @@ get_doi_description_or_abstract(
 | `provider` | `str \| None` | Inferred repository/publisher (e.g. `"osti"`, `"ess-dive"`). |
 | `attempts` | `list[str]` | All sources that were tried. |
 | `source_errors` | `dict[str, str]` | Per-source error messages for failed attempts. |
+| `license` | `str \| None` | License URL or string from the source (e.g. `https://creativecommons.org/licenses/by/4.0/`). Populated by Crossref, DataCite, and OpenAlex. Pass to `check_doi_copyright`. |
 | `error` | `str \| None` | Top-level error if the overall request failed. |
 
 ---
