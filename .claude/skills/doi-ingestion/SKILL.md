@@ -5,9 +5,13 @@ description: Use this skill to fetch abstract or description text for a DOI usin
 
 # DOI Ingestion Skill
 
-Call `get_doi_description_or_abstract(doi, skip_classification, sources)` to fetch abstract or description text for a DOI.
+```python
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.main import get_doi_description_or_abstract
 
-Key return fields: `result.context` (abstract text), `result.publication_urls` (PDF/full-text URLs), `result.error`.
+result = get_doi_description_or_abstract(doi, skip_classification=True, sources=["crossref"])
+```
+
+Key return fields: `result.context` (abstract text), `result.license` (CC license URL for copyright check), `result.publication_urls` (PDF/full-text URLs), `result.error`.
 
 Pass `skip_classification=True` when the provider is already known (e.g. from submission metadata). Pass the provider string as the first element of `sources` to prioritize it.
 

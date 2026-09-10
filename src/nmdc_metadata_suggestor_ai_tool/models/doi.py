@@ -84,3 +84,9 @@ class SourceRetrievalResult(BaseModel):
         description="DOIs of the publication(s) associated with the context. "
         "ONLY FILL IF DIFFERENT FROM THE REQUESTED DOI.",
     )
+
+    license: str | None = Field(
+        default=None,
+        description="License URL or string returned by the DOI source"
+        "(e.g. Crossref, DataCite, OpenAlex).",
+    )

@@ -48,20 +48,23 @@ Evaluate the license string from the DOI metadata (typically in `result.context`
 
 ## Steps
 
-### 1 — Locate the license
+### 1 — Call `check_doi_copyright` with the data already in hand
 
-Check these locations in order:
+`SourceRetrievalResult` (returned by **doi-ingestion**) carries a `license` field populated by Crossref, DataCite, and OpenAlex during ingestion. Use it directly — do **not** make a second API call to fetch the license.
 
-1. A `license` or `rights` field in the DOI source metadata (DataCite, CrossRef, OpenAlex all return this).
-   - License values may be a URL (e.g., `https://creativecommons.org/licenses/by/4.0/`) rather than a plain string. Parse the URL path to extract the license type: `by` → CC BY, `by-sa` → CC BY-SA, `by-nd` → CC BY-ND, `by-nc` → CC BY-NC, etc. The version number is the last path segment (e.g., `/4.0/`).
-2. The abstract/description text itself — publishers often embed the CC notice in the full text (look for phrases like `"licensed under a Creative Commons"`, `"CC BY"`, `"http://creativecommons.org/licenses/"`).
-3. If neither is found, treat as **Uncertain**.
+```python
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_copyright import check_doi_copyright
 
-### 2 — Apply the decision table above
+result = check_doi_copyright(
+    doi=retrieval_result.doi,
+    license_string=retrieval_result.license,  # may be None if source didn't return one
+    context_text=retrieval_result.context,  # fallback: scan abstract for embedded CC notice
+)
+```
 
-Map the found license string to the Allowed/No/Uncertain verdict.
+`check_doi_copyright` handles all parsing, normalisation, and decision logic — you do not need to re-implement the table below in agent code.
 
-### 3 — Return a structured result
+### 2 — Return a structured result
 
 ```python
 {
