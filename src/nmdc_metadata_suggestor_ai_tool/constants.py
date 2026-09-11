@@ -49,6 +49,7 @@ OPENALEX_API_URL = "https://api.openalex.org/works"
 # OSTI
 OSTI_API_URL = "https://www.osti.gov/api/v1/records"
 OSTI_E2_API_URL = "https://www.osti.gov/elink2api/records"
+OSTI_AWARD_API_URL = "https://www.osti.gov/award-doi-service/api/v1/search"
 
 # Europe PMC
 EUROPEPMC_REST_URL = "https://www.ebi.ac.uk/europepmc/webservices/rest"

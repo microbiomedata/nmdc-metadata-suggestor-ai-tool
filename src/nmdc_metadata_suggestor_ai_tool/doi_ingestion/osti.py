@@ -1,8 +1,10 @@
 """
-A module to attempt to retrieve publication abstract and PDF bytes via a provided OSTI DOI.
+A module to attempt to retrieve publication's abstract and PDF bytes or an award's description
+ via a provided OSTI DOI or OSTI award DOI.
 
 This module provides direct API-based retrieval of OSTI DOIs abstracts
 and full-text PDFs links starting from OSTI, then calling Crossref and/or Europe PMC.
+It also provides direct API-based retrieval of OSTI award DOIs descriptions.
 """
 
 import requests
@@ -10,6 +12,7 @@ import requests
 from nmdc_metadata_suggestor_ai_tool.constants import (
     DEFAULT_TIMEOUT,
     OSTI_API_URL,
+    OSTI_AWARD_API_URL,
     OSTI_E2_API_URL,
     USER_AGENT,
 )
@@ -112,3 +115,59 @@ def query_osti_by_doi(osti_doi: str) -> list[dict]:
         )
         response.raise_for_status()
         return response.json()  # type: ignore
+
+
+def query_osti_by_award_doi(award_doi: str) -> list[dict]:
+    """
+    Query OSTI award API for a given award DOI and return the JSON response.
+    """
+    params = {
+        "award_doi": award_doi,
+    }
+    headers = {"User-Agent": USER_AGENT}
+    osti_url = f"{OSTI_AWARD_API_URL}"
+    response = request_with_retry(
+        "GET",
+        osti_url,
+        timeout=DEFAULT_TIMEOUT,
+        headers=headers,
+        params=params,
+    )
+    response.raise_for_status()
+    return response.json()  # type: ignore
+
+
+def try_osti_award(award_doi: str, errors: list[str] | None = None) -> ResolverContext | None:
+    """Return abstract/description context from OSTI award API if available."""
+    try:
+        data = query_osti_by_award_doi(award_doi=award_doi)
+    except requests.RequestException as exc:
+        append_error(errors, f"OSTI Award API request failed: {exc.__class__.__name__}")
+        return None
+    except ValueError:
+        append_error(errors, "OSTI Award API returned invalid JSON")
+        return None
+
+    if not data or len(data) == 0:
+        append_error(errors, f"No award found for award DOI: {award_doi}")
+        return None
+
+    description = None
+
+    # When querying an award DOI there should only be one record
+    raw_description = data[0].get("description")
+    if isinstance(raw_description, str):
+        description = clean_text(raw_description)
+    else:
+        append_error(errors, "No description found in OSTI Award record")
+
+    if not description:
+        append_error(errors, "OSTI Award record contained no description")
+        return None
+
+    return ResolverContext(
+        text=description,
+        raw_text=raw_description if isinstance(raw_description, str) else None,
+        kind="description",
+        source="osti_award",
+    )
