@@ -9,6 +9,11 @@ from pathlib import Path
 from typing import Any, cast
 
 import google.auth
+
+# Imported for its side effect: ``google.auth.transport.requests`` is a submodule
+# that ``import google.auth`` does not load. It happened to be present when other
+# dependencies imported it first, and was absent under a different import order.
+import google.auth.transport.requests
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types as genai_types

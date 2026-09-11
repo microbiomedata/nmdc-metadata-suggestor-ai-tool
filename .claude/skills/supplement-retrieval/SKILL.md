@@ -62,15 +62,21 @@ Call `retrieve_supplements(doi)`. For a publication DOI it resolves in layers an
 
 ```python
 from nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements import (
+    format_supplement_context,
     retrieve_supplements,
 )
 
 result = retrieve_supplements(doi="10.1038/s41564-020-00861-0", text=abstract_text)
 
+# Ready-made messages: an inventory of every kept file, then each inlined
+# csv/tsv/txt under its label. Empty when nothing was inlined.
+for message in format_supplement_context(result):
+    add_to_evidence(message)
+
+# Or walk the files yourself:
 for f in result.files:
-    label = f"Supplement {f.filename} [{f.source}]" + (f" — {f.caption}" if f.caption else "")
     if f.text:  # csv/tsv/txt inlined directly
-        add_to_evidence(f"{label}:\n{f.text}")
+        ...
     elif f.saved_path:  # xlsx/pdf/docx written to a temp file
         ...  # hand to a downstream reader if needed
 ```
