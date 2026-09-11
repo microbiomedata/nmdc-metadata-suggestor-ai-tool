@@ -1,5 +1,11 @@
 """Score env triad suggestions against reference triads.
 
+Nothing here decides whether a value is *good*; that is the ontology-aware
+scorer in ``nmdc-ai-eval``. This module handles what that scorer does not: the
+two dialects reference triads arrive in, joining references to samples, reading
+a pipeline output back by sample id, and comparing two runs by direction of
+change.
+
 Reference values arrive in two dialects. NMDC biosample records carry
 ``has_raw_value`` strings such as ``"agricultural soil [ENVO:00002259]"``. Author
 supplied supplement tables carry whatever the authors typed:
@@ -11,14 +17,14 @@ meet in one place and a label difference never masks a CURIE match.
 
 import re
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
+from typing import Any
 
 from nmdc_metadata_suggestor_ai_tool.constants import ENV_TRIAD_SLOTS
 from nmdc_metadata_suggestor_ai_tool.models.llm_output import (
     LLMOutput,
     MetadataFieldSuggestion,
-    TriadProvenance,
 )
 
 # "label [PREFIX:0000000]" or "label [PREFIX_0000000]"; the label may be empty.
@@ -162,73 +168,37 @@ def matches(term: TriadTerm | None, reference_terms: list[TriadTerm]) -> tuple[b
     return curie_match, label_match
 
 
-@dataclass
-class SlotScore:
-    """How one slot's suggestions fared against one reference."""
+def coverage(output: LLMOutput, sample_ids: Iterable[str]) -> dict[str, int]:
+    """How many samples got a triad back, and how many suggestions carry no usable id.
 
-    slot: str
-    n_samples: int = 0
-    n_suggested: int = 0
-    n_with_reference: int = 0
-    curie_matches: int = 0
-    label_matches: int = 0
-    values: Counter[str] = field(default_factory=Counter)
-    tiers: Counter[str] = field(default_factory=Counter)
-    outcomes: Counter[str] = field(default_factory=Counter)
-
-    @property
-    def curie_accuracy(self) -> float | None:
-        """Share of samples with a reference whose suggested CURIE matched it."""
-        if not self.n_with_reference:
-            return None
-        return self.curie_matches / self.n_with_reference
-
-    def as_dict(self) -> dict:
-        return {
-            "slot": self.slot,
-            "n_samples": self.n_samples,
-            "n_suggested": self.n_suggested,
-            "n_with_reference": self.n_with_reference,
-            "curie_matches": self.curie_matches,
-            "label_matches": self.label_matches,
-            "curie_accuracy": self.curie_accuracy,
-            "values": dict(self.values.most_common()),
-            "tiers": dict(self.tiers),
-            "outcomes": dict(self.outcomes),
-        }
-
-
-def score_output(
-    output: LLMOutput, reference: Reference, sample_ids: Iterable[str]
-) -> dict[str, SlotScore]:
-    """Score every triad slot of *output* against *reference* over *sample_ids*.
-
-    A sample counts toward ``n_with_reference`` only when the reference holds at
-    least one term with a CURIE for that slot, so a blank reference cell never
-    registers as a miss. Provenance tiers and outcomes are tallied from the
-    ``TriadProvenance`` the validation gate attached, when present.
+    The model sometimes drops the id field for a whole chunk, or folds a chunk
+    into one unlabeled triad. Those suggestions cannot be scored, and they are
+    counted here so a low score is not mistaken for a wrong answer.
     """
-    ids = list(sample_ids)
-    suggestions = triad_suggestions(output)
-    scores = {slot: SlotScore(slot=slot, n_samples=len(ids)) for slot in ENV_TRIAD_SLOTS}
-    for slot, score in scores.items():
-        for sample_id in ids:
-            suggestion = suggestions.get((sample_id, slot))
-            reference_terms = [t for t in reference.get(sample_id, {}).get(slot, []) if t.curie]
-            if reference_terms:
-                score.n_with_reference += 1
-            if suggestion is None:
-                continue
-            score.n_suggested += 1
-            term = suggested_term(suggestion)
-            score.values[term.value if term else str(suggestion.value)] += 1
-            if isinstance(suggestion.provenance, TriadProvenance):
-                score.tiers[suggestion.provenance.tier] += 1
-                score.outcomes[suggestion.provenance.outcome] += 1
-            curie_match, label_match = matches(term, reference_terms)
-            score.curie_matches += curie_match
-            score.label_matches += label_match
-    return scores
+    known = set(sample_ids)
+    labeled = {f.id for f in output.metadata_fields if f.id in known}
+    return {
+        "n_samples": len(known),
+        "samples_with_suggestions": len(labeled),
+        "suggestions_total": len(output.metadata_fields),
+        "suggestions_without_id": sum(1 for f in output.metadata_fields if not f.id),
+        "suggestions_with_unknown_id": sum(
+            1 for f in output.metadata_fields if f.id and f.id not in known
+        ),
+    }
+
+
+Scorer = Callable[[TriadTerm | None, list[TriadTerm]], float]
+
+
+def exact_curie_score(term: TriadTerm | None, reference_terms: list[TriadTerm]) -> float:
+    """1.0 when *term*'s CURIE equals any reference CURIE, else 0.0.
+
+    The default scorer for :func:`compare_outputs`. An ontology-aware scorer
+    (one that credits ancestors and descendants) can be passed in its place.
+    """
+    curie_match, _ = matches(term, reference_terms)
+    return 1.0 if curie_match else 0.0
 
 
 @dataclass
@@ -242,7 +212,7 @@ class ArmDelta:
     away_from_reference: int = 0
     transitions: Counter[str] = field(default_factory=Counter)
 
-    def as_dict(self) -> dict:
+    def as_dict(self) -> dict[str, Any]:
         return {
             "slot": self.slot,
             "n_compared": self.n_compared,
@@ -258,14 +228,15 @@ def compare_outputs(
     treatment: LLMOutput,
     reference: Reference,
     sample_ids: Iterable[str],
+    scorer: Scorer = exact_curie_score,
 ) -> dict[str, ArmDelta]:
     """Compare two runs sample by sample and count where the treatment moved.
 
     ``changed`` counts samples whose suggested CURIE differs between runs.
-    ``toward_reference`` counts changes where the treatment matches the
-    reference and the baseline did not; ``away_from_reference`` the reverse.
-    ``transitions`` records ``"baseline value -> treatment value"`` for every
-    change, so the direction of drift is visible and not just its size.
+    ``toward_reference`` counts changes where *scorer* rates the treatment's
+    term above the baseline's against the reference; ``away_from_reference``
+    the reverse. ``transitions`` records ``"baseline value -> treatment value"``
+    for every change, so the direction of drift is visible and not just its size.
     """
     ids = list(sample_ids)
     base = triad_suggestions(baseline)
@@ -289,10 +260,12 @@ def compare_outputs(
             after_value = after_term.value if after_term else str(after.value)
             delta.transitions[f"{before_value} -> {after_value}"] += 1
             reference_terms = [t for t in reference.get(sample_id, {}).get(slot, []) if t.curie]
-            before_hit, _ = matches(before_term, reference_terms)
-            after_hit, _ = matches(after_term, reference_terms)
-            if after_hit and not before_hit:
+            if not reference_terms:
+                continue
+            before_score = scorer(before_term, reference_terms)
+            after_score = scorer(after_term, reference_terms)
+            if after_score > before_score:
                 delta.toward_reference += 1
-            elif before_hit and not after_hit:
+            elif before_score > after_score:
                 delta.away_from_reference += 1
     return deltas

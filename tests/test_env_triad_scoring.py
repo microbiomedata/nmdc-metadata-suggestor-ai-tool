@@ -3,11 +3,13 @@
 from nmdc_metadata_suggestor_ai_tool.evaluation.env_triad_scoring import (
     TriadTerm,
     compare_outputs,
+    coverage,
+    exact_curie_score,
+    matches,
     parse_triad_value,
     reference_from_biosamples,
     reference_from_rows,
     rekey_reference,
-    score_output,
 )
 from nmdc_metadata_suggestor_ai_tool.models.llm_output import (
     LLMOutput,
@@ -94,51 +96,22 @@ def suggestion(
     )
 
 
-def test_score_output_counts_curie_and_label_matches_separately() -> None:
-    reference = reference_from_rows(
-        [
-            {
-                "sample_name": "s1",
-                "env_broad_scale": "Terrestrial Biome [ENVO_00000446]",
-                "env_medium": "agricultural soil [ENVO_00002259] | plant matter [ENVO_01001121]",
-            },
-            {
-                "sample_name": "s2",
-                "env_broad_scale": "",
-                "env_medium": "plant matter [ENVO_01001121]",
-            },
-        ]
-    )
+def test_coverage_counts_answered_unlabeled_and_unknown_ids() -> None:
     output = LLMOutput(
         metadata_fields=[
-            suggestion("s1", "env_broad_scale", "terrestrial biome [ENVO:00000446]"),
-            suggestion("s1", "env_medium", "plant matter [ENVO:01001121]"),
-            suggestion(
-                "s2", "env_broad_scale", "cropland biome [ENVO:01000245]", tier="envo_expansion"
-            ),
-            suggestion("s2", "env_medium", "leaf [PO:0025034]"),
+            suggestion("a", "env_medium", "leaf [PO:0025034]"),
+            suggestion("a", "env_broad_scale", "terrestrial biome [ENVO:00000446]"),
+            suggestion("", "env_medium", "leaf [PO:0025034]"),
+            suggestion("ghost", "env_medium", "leaf [PO:0025034]"),
         ]
     )
-    scores = score_output(output, reference, ["s1", "s2"])
-
-    broad = scores["env_broad_scale"]
-    assert broad.n_samples == 2
-    assert broad.n_suggested == 2
-    assert broad.n_with_reference == 1  # s2's reference cell is blank
-    assert broad.curie_matches == 1
-    assert broad.label_matches == 1  # case-insensitive
-    assert broad.curie_accuracy == 1.0
-    assert broad.tiers == {"submission_enum": 1, "envo_expansion": 1}
-
-    medium = scores["env_medium"]
-    assert medium.n_with_reference == 2
-    assert medium.curie_matches == 1  # s1 hit one of the two pipe-joined terms
-    assert medium.curie_accuracy == 0.5
-    assert medium.values["leaf [PO:0025034]"] == 1
-
-    local = scores["env_local_scale"]
-    assert local.n_suggested == 0
-    assert local.curie_accuracy is None
+    assert coverage(output, ["a", "b"]) == {
+        "n_samples": 2,
+        "samples_with_suggestions": 1,
+        "suggestions_total": 4,
+        "suggestions_without_id": 1,
+        "suggestions_with_unknown_id": 1,
+    }
 
 
 def test_compare_outputs_records_direction_of_change() -> None:
@@ -176,3 +149,29 @@ def test_compare_outputs_skips_samples_missing_from_either_arm() -> None:
     delta = compare_outputs(baseline, treatment, {}, ["a"])["env_medium"]
     assert delta.n_compared == 0
     assert delta.changed == 0
+
+
+def test_matches_is_case_insensitive_on_labels_and_exact_on_curies() -> None:
+    reference = parse_triad_value("Terrestrial Biome [ENVO_00000446]")
+    assert matches(TriadTerm("terrestrial biome", "ENVO:00000446"), reference) == (True, True)
+    assert matches(TriadTerm("terrestrial biome", "ENVO:00000447"), reference) == (False, True)
+    assert matches(None, reference) == (False, False)
+    assert exact_curie_score(TriadTerm("x", "ENVO:00000446"), reference) == 1.0
+
+
+def test_compare_outputs_accepts_a_graded_scorer() -> None:
+    """A scorer that credits partial agreement decides direction, not exact match."""
+    reference = reference_from_rows([{"sample_name": "a", "env_medium": "soil [ENVO:00001998]"}])
+    baseline = LLMOutput(metadata_fields=[suggestion("a", "env_medium", "water [ENVO:00002006]")])
+    treatment = LLMOutput(
+        metadata_fields=[suggestion("a", "env_medium", "agricultural soil [ENVO:00002259]")]
+    )
+    graded = {"ENVO:00002006": 0.0, "ENVO:00002259": 0.9}
+
+    def scorer(term: TriadTerm | None, _reference: list[TriadTerm]) -> float:
+        return graded[term.curie] if term else 0.0
+
+    exact = compare_outputs(baseline, treatment, reference, ["a"])["env_medium"]
+    assert (exact.changed, exact.toward_reference, exact.away_from_reference) == (1, 0, 0)
+    ontology = compare_outputs(baseline, treatment, reference, ["a"], scorer=scorer)["env_medium"]
+    assert (ontology.changed, ontology.toward_reference, ontology.away_from_reference) == (1, 1, 0)
