@@ -102,13 +102,14 @@ Each test case has:
 - **Edge cases**: old DOI format with parentheses, preprints, book chapters, video journals, protocol DOIs
 - **4 bogus DOIs**: nonexistent prefix, valid prefix with fake suffix, malformed string, empty string
 
-## tests/fixtures/phyllosphere_study.json and phyllosphere_biosamples.json
+## src/nmdc_metadata_suggestor_ai_tool/evaluation/data/phyllosphere_{study,biosamples}.json
 
 The test case for [issue #143](https://github.com/microbiomedata/nmdc-metadata-suggestor-ai-tool/issues/143):
 study `nmdc:sty-11-e4yb9z58`, "Seasonal activities of the phyllosphere microbiome of
-perennial crops", and its 192 biosamples. Used by `scripts/eval_phyllosphere_supplements.py`
-(`make eval-phyllosphere`) to measure whether supplement retrieval changes env triad
-suggestions.
+perennial crops", and its 192 biosamples. Loaded by `evaluation/phyllosphere.py`, which
+defines this test case, and run by `nmdc-ai-eval` (`just eval-supplement-triad`) to measure
+whether supplement retrieval changes env triad suggestions. The snapshot ships inside the
+package rather than under `tests/` because `nmdc-ai-eval` installs this package from git.
 
 ### Provenance
 
@@ -137,8 +138,9 @@ values pairs a label with a CURIE that belongs to a different term in ENVO:
 | `env_local_scale` | `phyllosphere biome [ENVO:01001442]` | `agriculture` |
 | `env_medium` | `plant-associated biome [ENVO:01001001]` | `plant-associated environment` |
 
-The evaluation scores against these as "what is currently in NMDC", so a zero there is
-expected: no valid suggestion can match a CURIE that is wrong for its label.
+The evaluation scores against these as "what is currently in NMDC". No valid suggestion can
+exactly match a CURIE that is wrong for its label, so only the ontology-distance part of the
+score can move there.
 
 The study's publication DOI `10.1038/s41467-023-36515-y` (PMC9950430) yields twelve
 supplementary files from Europe PMC. `41467_2023_36515_MOESM4_ESM.csv` (Supplementary
