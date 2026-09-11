@@ -9,7 +9,7 @@
 # Background: docs/makefile-phony.md.
 FILE_TARGETS =
 
-.PHONY: help all-install prod-install dev-install test test-integration lint check-phony format security check-deps clean validate-doi classify-doi classify-fixture get-abstract get-abstracts
+.PHONY: help all-install prod-install dev-install test test-integration lint check-phony format security check-deps clean validate-doi classify-doi classify-fixture get-abstract get-abstracts eval-phyllosphere
 
 help: ## Show this help message
 	@echo "Usage: make [target]"
@@ -81,3 +81,6 @@ get-abstract: ## Fetch abstract for a DOI (usage: make get-abstract DOI=10.1038/
 
 get-abstracts: ## Fetch abstracts for all publication DOIs in the fixture
 	$(DOI_CLI) get-abstracts
+
+eval-phyllosphere: ## Issue 143: env triad with vs. without supplements on the phyllosphere study (usage: make eval-phyllosphere [EVAL_ARGS="--limit 8"])
+	uv run python scripts/eval_phyllosphere_supplements.py $(EVAL_ARGS)

@@ -1,0 +1,87 @@
+{
+  "id": "nmdc:sty-11-e4yb9z58",
+  "name": "Seasonal activities of the phyllosphere microbiome of perennial crops",
+  "description": "Understanding the interactions between plants and microorganisms can inform microbiome management to enhance crop productivity and resilience to stress. Here, we apply a genome-centric approach to identify ecologically important leaf microbiome members on replicated plots of field-grown switchgrass and miscanthus, and to quantify their activities over two growing seasons for switchgrass. We use metagenome and metatranscriptome sequencing and curate 40 medium- and high-quality metagenome-assembled-genomes (MAGs). We find that classes represented by these MAGs (Actinomycetia, Alpha- and Gamma- Proteobacteria, and Bacteroidota) are active in the late season, and upregulate transcripts for short-chain dehydrogenase, molybdopterin oxidoreductase, and polyketide cyclase. Stress-associated pathways are expressed for most MAGs, suggesting engagement with the host environment. We also detect seasonally activated biosynthetic pathways for terpenes and various non-ribosomal peptide pathways that are poorly annotated. Our findings support that leaf-associated bacterial populations are seasonally dynamic and responsive to host cues.",
+  "study_category": "research_study",
+  "associated_dois": [
+    {
+      "doi_value": "doi:10.46936/10.25585/60000818",
+      "doi_category": "award_doi",
+      "doi_provider": "jgi",
+      "type": "nmdc:Doi"
+    },
+    {
+      "doi_value": "doi:10.1038/s41467-023-36515-y",
+      "doi_category": "publication_doi",
+      "type": "nmdc:Doi"
+    }
+  ],
+  "funding_sources": [
+    "The U.S. Department of Energy, Office of Science, Office of Biological and Environmental Research (BER) for the Great Lakes Bioenergy Research Center (DE-SC0018409 and DE-FC02-07ER64494).",
+    "National Science Foundation Long-term Ecological Research Program (DEB 1832042) at the Kellogg Biological Station.",
+    "Michigan State University AgBioResearch."
+  ],
+  "has_credit_associations": [
+    {
+      "applies_to_person": {
+        "name": "Adina Howe",
+        "orcid": "0000-0002-7705-343X",
+        "type": "nmdc:PersonValue"
+      },
+      "applied_roles": [
+        "Writing review and editing",
+        "Visualization",
+        "Writing original draft",
+        "Investigation",
+        "Formal Analysis",
+        "Data curation",
+        "Conceptualization",
+        "Validation",
+        "Supervision",
+        "Project administration",
+        "Methodology",
+        "Resources",
+        "Software",
+        "Principal Investigator",
+        "Funding acquisition"
+      ],
+      "type": "prov:Association"
+    },
+    {
+      "applied_roles": [
+        "Principal Investigator"
+      ],
+      "type": "prov:Association",
+      "applies_to_person": {
+        "name": "Ashley Shade",
+        "orcid": "orcid:0000-0002-7189-3067",
+        "email": "shade.ashley@gmail.com",
+        "profile_image_url": "https://portal.nersc.gov/project/m3408/submission_data/d32b5eb6-71e8-4c98-8a57-3e64d05718b4/pi_profile_image.png",
+        "type": "nmdc:PersonValue"
+      }
+    }
+  ],
+  "principal_investigator": {
+    "email": "shade.ashley@gmail.com",
+    "name": "Ashley Shade",
+    "orcid": "0000-0002-7189-3067",
+    "profile_image_url": "https://portal.nersc.gov/project/m3408/submission_data/d32b5eb6-71e8-4c98-8a57-3e64d05718b4/pi_profile_image.png",
+    "type": "nmdc:PersonValue"
+  },
+  "title": "Seasonal activities of the phyllosphere microbiome of perennial crops",
+  "websites": [],
+  "type": "nmdc:Study",
+  "jgi_portal_study_identifiers": [
+    "jgi.proposal:503249"
+  ],
+  "gold_study_identifiers": [
+    "gold:Gs0128851"
+  ],
+  "part_of": [
+    "nmdc:sty-11-y1kdd163"
+  ],
+  "provenance_metadata": {
+    "type": "nmdc:ProvenanceMetadata",
+    "mod_date": "2026-08-26T21:18:45Z"
+  }
+}
