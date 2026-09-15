@@ -101,3 +101,54 @@ Each test case has:
 - **3 NMDC collections**: study_set, biosample_set, material_processing_set
 - **Edge cases**: old DOI format with parentheses, preprints, book chapters, video journals, protocol DOIs
 - **4 bogus DOIs**: nonexistent prefix, valid prefix with fake suffix, malformed string, empty string
+
+## src/nmdc_metadata_suggestor_ai_tool/evaluation/data/phyllosphere_{study,biosamples}.json
+
+The test case for [issue #143](https://github.com/microbiomedata/nmdc-metadata-suggestor-ai-tool/issues/143):
+study `nmdc:sty-11-e4yb9z58`, "Seasonal activities of the phyllosphere microbiome of
+perennial crops", and its 192 biosamples. Loaded by `evaluation/phyllosphere.py`, which
+defines this test case, and run by `nmdc-ai-eval` (`just eval-supplement-triad`) to measure
+whether supplement retrieval changes env triad suggestions. The snapshot ships inside the
+package rather than under `tests/` because `nmdc-ai-eval` installs this package from git.
+
+### Provenance
+
+Fetched verbatim from the NMDC runtime API on **2026-09-11**:
+
+```bash
+curl -A "nmdc-metadata-suggestor" \
+  "https://api.microbiomedata.org/nmdcschema/study_set/nmdc:sty-11-e4yb9z58"
+curl -A "nmdc-metadata-suggestor" \
+  "https://api.microbiomedata.org/nmdcschema/biosample_set?filter=%7B%22associated_studies%22%3A%22nmdc%3Asty-11-e4yb9z58%22%7D&max_page_size=200"
+```
+
+The API returns HTTP 403 to requests with no `User-Agent` header (Python's `urllib`
+default), so send one. The biosample records are the API's `resources` list, unmodified;
+`provenance_metadata.mod_date` on every record was `2026-09-09`, so the triads reflect a
+curation pass from two days before the fetch.
+
+### What the records hold
+
+Every one of the 192 biosamples carries the same env triad, and every one of the three
+values pairs a label with a CURIE that belongs to a different term in ENVO:
+
+| Slot | Stored value | What the CURIE actually is |
+|---|---|---|
+| `env_broad_scale` | `agricultural biome [ENVO:01001442]` | `agriculture` |
+| `env_local_scale` | `phyllosphere biome [ENVO:01001442]` | `agriculture` |
+| `env_medium` | `plant-associated biome [ENVO:01001001]` | `plant-associated environment` |
+
+The evaluation scores against these as "what is currently in NMDC". No valid suggestion can
+exactly match a CURIE that is wrong for its label, so only the ontology-distance part of the
+score can move there.
+
+The study's publication DOI `10.1038/s41467-023-36515-y` (PMC9950430) yields twelve
+supplementary files from Europe PMC. `41467_2023_36515_MOESM4_ESM.csv` (Supplementary
+Data 1) has one row per biosample, keyed by `sample_name`, which equals the biosample
+`name`/`samp_name`, and gives the authors' own triad:
+`Terrestrial Biome [ENVO_00000446]` / `Area of cropland [ENVO_01000892]` /
+`agricultural soil [ENVO_00002259] | plant matter [ENVO_01001121]`. That table is the
+second reference. Note the underscored CURIEs, capitalised labels and the pipe-joined
+`env_medium`; `evaluation/env_triad_scoring.py` normalizes all three before comparing.
+The award DOI `10.46936/10.25585/60000818` resolves to a funding record with nothing to
+fetch.
