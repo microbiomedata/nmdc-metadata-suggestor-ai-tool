@@ -29,7 +29,10 @@ def build_column_context(
     column_data: dict[str, list[str]],
     mixs_extensions: list[str],
 ) -> str:
-    """Format uploaded file columns and user-selected extensions into a prompt-ready context block."""
+    """
+    Format uploaded file columns and user-selected extensions
+    into a prompt-ready context block.
+    """
     lines = ["The user has uploaded the following files with these columns:\n"]
     file_map = {f.file_id: f.display_name for f in source_files}
     for file_id, columns in column_data.items():

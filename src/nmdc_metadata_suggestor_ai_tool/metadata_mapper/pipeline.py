@@ -70,11 +70,7 @@ async def run_metadata_mapper_agentic(
     source_files, column_data = read_csv_files(csv_files)
     message = build_column_context(source_files, column_data, mixs_extensions)
 
-    model = (
-        DEFAULT_CLAUDE_MODEL
-        if llm_client.access_provider == "gcp"
-        else llm_client.model
-    )
+    model = DEFAULT_CLAUDE_MODEL if llm_client.access_provider == "gcp" else llm_client.model
 
     options = build_agent_options(
         model,
@@ -154,12 +150,15 @@ def _finalize_mapper_result(raw: Any) -> MetadataMapperOutput:
 
 if __name__ == "__main__":
     import asyncio
+
     _csv_path = Path(__file__).parent / "PRJEB13831_Phage_metadata.xlsx - Sheet1.csv"
     _source_file = SourceFile(file_id="phage-001", display_name=_csv_path.name)
     llm_client = LLMClient("gcp")
-    asyncio.run(run_metadata_mapper_agentic(
-        llm_client=llm_client,
-        csv_files=[(_source_file, _csv_path)],
-        mixs_extensions=["water"],
-        session_id=None,
-    ))
+    asyncio.run(
+        run_metadata_mapper_agentic(
+            llm_client=llm_client,
+            csv_files=[(_source_file, _csv_path)],
+            mixs_extensions=["water"],
+            session_id=None,
+        )
+    )

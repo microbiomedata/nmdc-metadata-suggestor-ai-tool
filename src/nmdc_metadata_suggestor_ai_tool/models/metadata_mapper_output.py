@@ -14,6 +14,7 @@ class SourceFile(BaseModel):
 
 class ValueConversion(BaseModel):
     """A transformation the AI recommends applying to raw column values."""
+
     # TODO - do we want to contrain the types of transformation?
     type: str = Field(
         description=(
@@ -47,7 +48,8 @@ class ColumnMapping(BaseModel):
     )
     nmdc_candidate_slots: list[str] = Field(
         default_factory=list,
-        description="Ranked NMDC slot suggestions, best match first. Empty when confidence='cant_place'.",
+        description="Ranked NMDC slot suggestions, best match first."
+        "Empty when confidence='cant_place'.",
     )
     confidence: Literal["high", "review", "cant_place"] = Field(
         description=(
@@ -61,6 +63,7 @@ class ColumnMapping(BaseModel):
         default=None,
         description="Value transformation required to conform to the NMDC slot, if any",
     )
+
     @model_validator(mode="after")
     def cant_place_if_no_env(self) -> "ColumnMapping":
         if self.mixs_extension is None and self.confidence != "cant_place":
