@@ -11,9 +11,9 @@ from typing import Any, cast
 import google.auth
 from dotenv import load_dotenv
 from google import genai
+from google.auth.transport.requests import Request
 from google.genai import types as genai_types
 from google.oauth2 import service_account
-from google.auth.transport.requests import Request
 from openai import OpenAI
 
 from nmdc_metadata_suggestor_ai_tool.agent_permissions import (
