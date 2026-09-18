@@ -7,6 +7,8 @@ and full-text PDFs links starting from OSTI, then calling Crossref and/or Europe
 It also provides direct API-based retrieval of OSTI award DOIs descriptions.
 """
 
+from typing import Any
+
 import requests
 
 from nmdc_metadata_suggestor_ai_tool.constants import (
@@ -117,7 +119,7 @@ def query_osti_by_doi(osti_doi: str) -> list[dict]:
         return response.json()  # type: ignore
 
 
-def query_osti_by_award_doi(award_doi: str) -> list[dict]:
+def query_osti_by_award_doi(award_doi: str) -> dict[str, Any]:
     """
     Query OSTI award API for a given award DOI and return the JSON response.
     """
