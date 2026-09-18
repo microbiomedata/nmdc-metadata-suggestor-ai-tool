@@ -148,14 +148,13 @@ def try_osti_award(award_doi: str, errors: list[str] | None = None) -> ResolverC
         append_error(errors, "OSTI Award API returned invalid JSON")
         return None
 
-    if not data or len(data) == 0:
+    documents = data.get("response", {}).get("docs", [])
+    if not documents:
         append_error(errors, f"No award found for award DOI: {award_doi}")
         return None
 
     description = None
-
-    # When querying an award DOI there should only be one record
-    raw_description = data[0].get("description")
+    raw_description = documents[0].get("award_description")
     if isinstance(raw_description, str):
         description = clean_text(raw_description)
     else:
