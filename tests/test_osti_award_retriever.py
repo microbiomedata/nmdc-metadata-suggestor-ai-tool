@@ -57,8 +57,7 @@ def test_try_osti_award_missing_description_returns_none() -> None:
     result = try_osti_award(award_doi, errors=errors)
 
     assert result is None
-    assert any("No description found" in error for error in errors)
-    assert any("contained no description" in error for error in errors)
+    assert errors == ["No description found in OSTI Award record"]
 
 
 @responses.activate
@@ -77,7 +76,40 @@ def test_try_osti_award_no_matching_docs_returns_none() -> None:
     result = try_osti_award(award_doi, errors=errors)
 
     assert result is None
-    assert errors == [f"No award found for award DOI: {award_doi}"]
+    assert errors == ["OSTI Award API response contains no award documents"]
+
+
+@responses.activate
+def test_try_osti_award_missing_response_returns_none() -> None:
+    """Return a structural error when the OSTI response envelope is missing."""
+    award_doi = "10.46936/expl.proj.2024.61472/60012919"
+
+    responses.add(responses.GET, OSTI_AWARD_API_URL, json={"responseHeader": {}}, status=200)
+
+    errors: list[str] = []
+    result = try_osti_award(award_doi, errors=errors)
+
+    assert result is None
+    assert errors == ["OSTI Award API response is missing response data"]
+
+
+@responses.activate
+def test_try_osti_award_missing_docs_returns_none() -> None:
+    """Return a structural error when the response envelope has no documents."""
+    award_doi = "10.46936/expl.proj.2024.61472/60012919"
+
+    responses.add(
+        responses.GET,
+        OSTI_AWARD_API_URL,
+        json={"response": {"numFound": 1}},
+        status=200,
+    )
+
+    errors: list[str] = []
+    result = try_osti_award(award_doi, errors=errors)
+
+    assert result is None
+    assert errors == ["OSTI Award API response contains no award documents"]
 
 
 @responses.activate

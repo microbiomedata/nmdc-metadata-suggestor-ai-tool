@@ -150,20 +150,26 @@ def try_osti_award(award_doi: str, errors: list[str] | None = None) -> ResolverC
         append_error(errors, "OSTI Award API returned invalid JSON")
         return None
 
-    documents = data.get("response", {}).get("docs", [])
-    if not documents:
-        append_error(errors, f"No award found for award DOI: {award_doi}")
+    response_data = data.get("response")
+    if not isinstance(response_data, dict):
+        append_error(errors, "OSTI Award API response is missing response data")
+        return None
+
+    documents = response_data.get("docs")
+    if not isinstance(documents, list) or not documents:
+        append_error(errors, "OSTI Award API response contains no award documents")
         return None
 
     description = None
-    raw_description = documents[0].get("award_description")
-    if isinstance(raw_description, str):
-        description = clean_text(raw_description)
-    else:
-        append_error(errors, "No description found in OSTI Award record")
+    first_document = documents[0]
+    if not isinstance(first_document, dict):
+        append_error(errors, "OSTI Award API response contains an invalid award document")
+        return None
 
+    raw_description = first_document.get("award_description")
+    description = clean_text(raw_description) if isinstance(raw_description, str) else None
     if not description:
-        append_error(errors, "OSTI Award record contained no description")
+        append_error(errors, "No description found in OSTI Award record")
         return None
 
     return ResolverContext(
