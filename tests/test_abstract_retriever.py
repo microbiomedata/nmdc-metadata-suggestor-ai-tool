@@ -13,6 +13,7 @@ from nmdc_metadata_suggestor_ai_tool.constants import (
     DATACITE_API_URL,
     DOI_RA_API,
     OPENALEX_API_URL,
+    OSTI_AWARD_API_URL,
     OSTI_E2_API_URL,
     PUBMED_EFETCH,
     PUBMED_ID_CONVERTER,
@@ -21,8 +22,12 @@ from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import (
     decode_inverted_abstract,
     strip_jats_xml,
 )
-from nmdc_metadata_suggestor_ai_tool.doi_ingestion.main import get_doi_description_or_abstract
-from nmdc_metadata_suggestor_ai_tool.models.doi import SourceRetrievalResult
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.main import (
+    _check_classification_gate,
+    default_source_order,
+    get_doi_description_or_abstract,
+)
+from nmdc_metadata_suggestor_ai_tool.models.doi import DoiClassification, SourceRetrievalResult
 
 integration = pytest.mark.integration
 
@@ -59,6 +64,54 @@ def _mock_classify_as_dataset(doi: str) -> None:
         responses.GET,
         f"https://api.crossref.org/works/{doi}",
         json={"message": {"type": "dataset", "publisher": "Test"}},
+    )
+
+
+def _mock_classify_as_award(doi: str) -> None:
+    """Mock RA + DataCite so classify_doi sees an award DOI."""
+    responses.add(
+        responses.GET,
+        f"{DOI_RA_API}/{doi}",
+        json=[{"DOI": doi, "RA": "DataCite"}],
+    )
+    responses.add(
+        responses.GET,
+        f"{DATACITE_API_URL}/{doi}",
+        json={
+            "data": {
+                "attributes": {
+                    "types": {
+                        "resourceType": "Award",
+                        "resourceTypeGeneral": "Award",
+                    },
+                    "publisher": "Environmental Molecular Sciences Laboratory",
+                }
+            }
+        },
+    )
+
+
+def _mock_classify_as_data_management_plan(doi: str) -> None:
+    """Mock RA + DataCite so classify_doi sees a data-management-plan DOI."""
+    responses.add(
+        responses.GET,
+        f"{DOI_RA_API}/{doi}",
+        json=[{"DOI": doi, "RA": "DataCite"}],
+    )
+    responses.add(
+        responses.GET,
+        f"{DATACITE_API_URL}/{doi}",
+        json={
+            "data": {
+                "attributes": {
+                    "types": {
+                        "resourceType": "Output Management Plan",
+                        "resourceTypeGeneral": "OutputManagementPlan",
+                    },
+                    "publisher": "Test",
+                }
+            }
+        },
     )
 
 
@@ -167,7 +220,53 @@ class TestGetAbstractClassificationGate:
         _mock_classify_as_dataset(doi)
         result = get_doi_description_or_abstract(doi)
         assert result.context is None
-        assert "not a publication" in result.error
+        assert "not a supported DOI type" in result.error
+
+    def test_award_category_is_allowed(self) -> None:
+        classification = DoiClassification(
+            doi="10.46936/expl.proj.2024.61472/60012919",
+            is_valid=True,
+            inferred_nmdc_category="award_doi",
+        )
+        assert _check_classification_gate(classification) is None
+
+    @responses.activate
+    def test_data_management_plan_doi_refused(self) -> None:
+        doi = "10.5281/zenodo.7654321"
+        _mock_classify_as_data_management_plan(doi)
+        result = get_doi_description_or_abstract(doi)
+        assert result.context is None
+        assert "data_management_plan_doi" in result.error
+        assert "not a supported DOI type" in result.error
+
+    def test_award_category_uses_osti_award_source(self) -> None:
+        classification = DoiClassification(
+            doi="10.46936/expl.proj.2024.61472/60012919",
+            is_valid=True,
+            inferred_nmdc_category="award_doi",
+        )
+        assert default_source_order("emsl", classification) == ["osti_award"]
+
+    @responses.activate
+    def test_award_doi_retrieves_description_from_osti(self) -> None:
+        doi = "10.46936/expl.proj.2024.61472/60012919"
+        _mock_classify_as_award(doi)
+        responses.add(
+            responses.GET,
+            OSTI_AWARD_API_URL,
+            json={
+                "response": {
+                    "numFound": 1,
+                    "docs": [{"award_doi": doi, "award_description": "Award context."}],
+                }
+            },
+        )
+
+        result = get_doi_description_or_abstract(doi)
+
+        assert result.context == "Award context."
+        assert result.source == "osti_award"
+        assert result.attempts == ["osti_award"]
 
     @responses.activate
     def test_datacite_software_refused(self) -> None:
