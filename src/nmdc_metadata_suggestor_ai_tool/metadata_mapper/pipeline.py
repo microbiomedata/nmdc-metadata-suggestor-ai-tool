@@ -1,6 +1,7 @@
 """Agentic entry point for the Metadata Mapper."""
 
 import logging
+from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
 
@@ -89,7 +90,7 @@ async def run_metadata_mapper_agentic(
     health: dict[str, Any] = {}
     tool_payload: dict[str, Any] | None = None
 
-    async def _process_events(events):
+    async def _process_events(events: AsyncIterator[Any]) -> None:
         nonlocal result, health, tool_payload, session_id
         async for event in events:
             if isinstance(event, SystemMessage) and event.subtype == "init":

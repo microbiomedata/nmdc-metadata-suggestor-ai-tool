@@ -48,7 +48,7 @@ def build_column_context(
     return "\n".join(lines)
 
 
-def validate_output(raw) -> MetadataMapperOutput:
+def validate_output(raw: str | MetadataMapperOutput) -> MetadataMapperOutput:
     """Parse and validate the LLM response into a MetadataMapperOutput."""
     from pydantic import ValidationError
 

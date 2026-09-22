@@ -6,7 +6,7 @@ import logging
 import os
 from collections import Counter
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 import google.auth
 from dotenv import load_dotenv
@@ -72,10 +72,10 @@ DEFAULT_MAX_TOKENS_BY_PROVIDER: dict[str, int] = {
 def build_agent_options(
     model: str,
     *,
-    skills: list[str] | str = "all",
+    skills: list[str] | Literal["all"] | None = "all",
     system_prompt: str,
     output_format: dict | None = None,
-    **kwargs,
+    **kwargs: Any,
 ) -> ClaudeAgentOptions:
     """Build a ``ClaudeAgentOptions`` with the project-standard permission policy.
 

@@ -1,6 +1,7 @@
 """Public API for applying column mappings to CSV row data."""
 
 import logging
+from collections.abc import Iterator
 from typing import Any
 
 from nmdc_metadata_suggestor_ai_tool.metadata_mapper.transformer import (
@@ -117,7 +118,7 @@ def _collect_mappings(
     return mappings
 
 
-def _iter_all_mappings(mapping_output: MetadataMapperOutput):
+def _iter_all_mappings(mapping_output: MetadataMapperOutput) -> Iterator[ColumnMapping]:
     yield from mapping_output.high_confidence
     yield from mapping_output.needs_review
 

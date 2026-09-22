@@ -27,19 +27,19 @@ transformer = ValueTransformer()
 
 
 class TestValueConversionValidator:
-    def test_expression_required_for_date_format(self):
+    def test_expression_required_for_date_format(self) -> None:
         with pytest.raises(ValidationError, match="expression is required"):
             ValueConversion(type="date_format", description="", expression=None)
 
-    def test_expression_required_for_unit(self):
+    def test_expression_required_for_unit(self) -> None:
         with pytest.raises(ValidationError, match="expression is required"):
             ValueConversion(type="unit", description="", expression=None)
 
-    def test_expression_required_for_custom(self):
+    def test_expression_required_for_custom(self) -> None:
         with pytest.raises(ValidationError, match="expression is required"):
             ValueConversion(type="custom", description="", expression=None)
 
-    def test_none_type_allows_null_expression(self):
+    def test_none_type_allows_null_expression(self) -> None:
         conv = ValueConversion(type="none", description="", expression=None)
         assert conv.expression is None
 
@@ -50,64 +50,64 @@ class TestValueConversionValidator:
 
 
 class TestDateFormat:
-    def test_parses_mdy(self):
+    def test_parses_mdy(self) -> None:
         conv = ValueConversion(type="date_format", description="", expression="%m/%d/%Y")
         assert transformer.transform("01/15/2023", conv) == "2023-01-15"
 
-    def test_parses_dmy(self):
+    def test_parses_dmy(self) -> None:
         conv = ValueConversion(type="date_format", description="", expression="%d-%b-%Y")
         assert transformer.transform("15-Jan-2023", conv) == "2023-01-15"
 
-    def test_invalid_value_raises(self):
+    def test_invalid_value_raises(self) -> None:
         conv = ValueConversion(type="date_format", description="", expression="%m/%d/%Y")
         with pytest.raises(TransformError):
             transformer.transform("not-a-date", conv)
 
 
 class TestUnit:
-    def test_feet_to_meters(self):
+    def test_feet_to_meters(self) -> None:
         conv = ValueConversion(type="unit", description="", expression="0.3048")
         result = transformer.transform("100", conv)
         assert float(result) == pytest.approx(30.48)
 
-    def test_value_with_label(self):
+    def test_value_with_label(self) -> None:
         conv = ValueConversion(type="unit", description="", expression="0.3048")
         result = transformer.transform("100 ft", conv)
         assert float(result) == pytest.approx(30.48)
 
-    def test_non_numeric_raises(self):
+    def test_non_numeric_raises(self) -> None:
         conv = ValueConversion(type="unit", description="", expression="0.3048")
         with pytest.raises(TransformError):
             transformer.transform("unknown", conv)
 
 
 class TestSplit:
-    def test_comma_split(self):
+    def test_comma_split(self) -> None:
         conv = ValueConversion(type="split", description="", expression=",")
         assert transformer.transform("a, b, c", conv) == "a; b; c"
 
-    def test_pipe_split(self):
+    def test_pipe_split(self) -> None:
         conv = ValueConversion(type="split", description="", expression="|")
         assert transformer.transform("x|y|z", conv) == "x; y; z"
 
 
 class TestNone:
-    def test_passthrough(self):
+    def test_passthrough(self) -> None:
         conv = ValueConversion(type="none", description="", expression=None)
         assert transformer.transform("unchanged", conv) == "unchanged"
 
-    def test_no_expression_passthrough(self):
+    def test_no_expression_passthrough(self) -> None:
         # type='none' with no expression is the only valid null-expression case.
         conv = ValueConversion(type="none", description="", expression=None)
         assert transformer.transform("unchanged", conv) == "unchanged"
 
 
 class TestCustom:
-    def test_simple_expression(self):
+    def test_simple_expression(self) -> None:
         conv = ValueConversion(type="custom", description="", expression="value.upper()")
         assert transformer.transform("hello", conv) == "HELLO"
 
-    def test_date_reformat(self):
+    def test_date_reformat(self) -> None:
         conv = ValueConversion(
             type="custom",
             description="",
@@ -115,11 +115,11 @@ class TestCustom:
         )
         assert transformer.transform("15/01/2023", conv) == "2023-01-15"
 
-    def test_numeric_result_coerced_to_str(self):
+    def test_numeric_result_coerced_to_str(self) -> None:
         conv = ValueConversion(type="custom", description="", expression="int(value) * 2")
         assert transformer.transform("5", conv) == "10"
 
-    def test_timeout_raises(self, monkeypatch):
+    def test_timeout_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import nmdc_metadata_suggestor_ai_tool.metadata_mapper.transformer as t_module
 
         monkeypatch.setattr(t_module, "_EXEC_TIMEOUT_S", 1)
@@ -132,7 +132,7 @@ class TestCustom:
         with pytest.raises(TransformError, match="timed out"):
             transformer.transform("x", conv)
 
-    def test_dangerous_import_blocked(self):
+    def test_dangerous_import_blocked(self) -> None:
         conv = ValueConversion(
             type="custom",
             description="",
@@ -156,7 +156,7 @@ def _make_output(mappings: list[ColumnMapping]) -> MetadataMapperOutput:
 
 
 class TestApplyMappings:
-    def test_simple_mapping_no_conversion(self):
+    def test_simple_mapping_no_conversion(self) -> None:
         mapping = ColumnMapping(
             source_column="sample_name",
             source_file_id="f1",
@@ -174,7 +174,7 @@ class TestApplyMappings:
         # Unmapped columns are preserved.
         assert result[0]["other"] == "val"
 
-    def test_unit_conversion_applied(self):
+    def test_unit_conversion_applied(self) -> None:
         conv = ValueConversion(type="unit", description="ft to m", expression="0.3048")
         mapping = ColumnMapping(
             source_column="depth_ft",
@@ -189,7 +189,7 @@ class TestApplyMappings:
         result = apply_mappings(_make_output([mapping]), rows)
         assert float(result[0]["depth"]) == pytest.approx(30.48)
 
-    def test_missing_source_column_skipped(self):
+    def test_missing_source_column_skipped(self) -> None:
         mapping = ColumnMapping(
             source_column="nonexistent",
             source_file_id="f1",
@@ -204,7 +204,7 @@ class TestApplyMappings:
         assert "depth" not in result[0]
         assert "_transform_errors" not in result[0]
 
-    def test_transform_error_captured_not_raised(self):
+    def test_transform_error_captured_not_raised(self) -> None:
         conv = ValueConversion(type="date_format", description="", expression="%m/%d/%Y")
         mapping = ColumnMapping(
             source_column="date_col",
@@ -220,7 +220,7 @@ class TestApplyMappings:
         assert result[0]["_transform_errors"]
         assert result[0]["collection_date"] == "not-a-date"
 
-    def test_source_file_id_filter(self):
+    def test_source_file_id_filter(self) -> None:
         mapping_f1 = ColumnMapping(
             source_column="col_a",
             source_file_id="f1",
@@ -249,7 +249,7 @@ class TestApplyMappings:
         assert "slot_a" in result[0]
         assert "slot_b" not in result[0]
 
-    def test_cant_place_mappings_ignored(self):
+    def test_cant_place_mappings_ignored(self) -> None:
         cant = ColumnMapping(
             source_column="mystery_col",
             source_file_id="f1",
@@ -268,7 +268,7 @@ class TestApplyMappings:
 
 
 class TestBuildConversionPreviews:
-    def test_populates_preview_from_real_rows(self):
+    def test_populates_preview_from_real_rows(self) -> None:
         conv = ValueConversion(type="unit", description="ft to m", expression="0.3048")
         mapping = ColumnMapping(
             source_column="depth_ft",
@@ -286,7 +286,7 @@ class TestBuildConversionPreviews:
         assert len(conv.preview) == 3
         assert conv.preview[0] == {"input": "100", "output": "30.48"}
 
-    def test_respects_n_limit(self):
+    def test_respects_n_limit(self) -> None:
         conv = ValueConversion(type="unit", description="", expression="0.3048")
         mapping = ColumnMapping(
             source_column="depth_ft",
@@ -303,7 +303,7 @@ class TestBuildConversionPreviews:
 
         assert len(conv.preview) == 2
 
-    def test_skips_empty_values(self):
+    def test_skips_empty_values(self) -> None:
         conv = ValueConversion(type="unit", description="", expression="0.3048")
         mapping = ColumnMapping(
             source_column="depth_ft",
@@ -321,7 +321,7 @@ class TestBuildConversionPreviews:
         assert len(conv.preview) == 1
         assert conv.preview[0]["input"] == "100"
 
-    def test_records_transform_errors_in_preview(self):
+    def test_records_transform_errors_in_preview(self) -> None:
         conv = ValueConversion(type="date_format", description="", expression="%m/%d/%Y")
         mapping = ColumnMapping(
             source_column="date_col",
@@ -339,7 +339,7 @@ class TestBuildConversionPreviews:
         assert conv.preview[0]["output"] is None
         assert "error" in conv.preview[0]
 
-    def test_none_type_skipped(self):
+    def test_none_type_skipped(self) -> None:
         conv = ValueConversion(type="none", description="", expression=None)
         mapping = ColumnMapping(
             source_column="col",
@@ -362,7 +362,7 @@ class TestBuildConversionPreviews:
 
 
 class TestCombineColumnsValidator:
-    def test_combine_requires_custom_type(self):
+    def test_combine_requires_custom_type(self) -> None:
         with pytest.raises(ValidationError, match="requires conversion.type='custom'"):
             ColumnMapping(
                 source_column="lat",
@@ -375,7 +375,7 @@ class TestCombineColumnsValidator:
                 conversion=ValueConversion(type="unit", description="", expression="1.0"),
             )
 
-    def test_combine_with_custom_is_valid(self):
+    def test_combine_with_custom_is_valid(self) -> None:
         mapping = ColumnMapping(
             source_column="lat",
             combine_columns=["lon"],
@@ -399,7 +399,7 @@ class TestCombineColumnsValidator:
 
 
 class TestTransformCombined:
-    def test_lat_lon_combine(self):
+    def test_lat_lon_combine(self) -> None:
         conv = ValueConversion(
             type="custom",
             description="",
@@ -408,7 +408,7 @@ class TestTransformCombined:
         result = transformer.transform_combined({"lat": "45.2", "lon": "-122.3"}, conv)
         assert result == "45.2 -122.3"
 
-    def test_full_name_combine(self):
+    def test_full_name_combine(self) -> None:
         conv = ValueConversion(
             type="custom",
             description="",
@@ -417,7 +417,7 @@ class TestTransformCombined:
         result = transformer.transform_combined({"first": "Jane", "last": "Smith"}, conv)
         assert result == "Jane Smith"
 
-    def test_numeric_result_coerced(self):
+    def test_numeric_result_coerced(self) -> None:
         conv = ValueConversion(
             type="custom",
             description="",
@@ -426,7 +426,7 @@ class TestTransformCombined:
         result = transformer.transform_combined({"a": "1.5", "b": "2.5"}, conv)
         assert result == "4.0"
 
-    def test_missing_key_raises(self):
+    def test_missing_key_raises(self) -> None:
         conv = ValueConversion(
             type="custom",
             description="",
@@ -458,14 +458,14 @@ class TestApplyMappingsCombine:
             ),
         )
 
-    def test_combined_columns_produce_slot(self):
+    def test_combined_columns_produce_slot(self) -> None:
         mapping = self._make_combine_mapping("lat", ["lon"], "lat_lon")
         output = _make_output([mapping])
         rows = [{"lat": "45.2", "lon": "-122.3", "other": "x"}]
         result = apply_mappings(output, rows)
         assert result[0]["lat_lon"] == "45.2 -122.3"
 
-    def test_combined_source_columns_removed(self):
+    def test_combined_source_columns_removed(self) -> None:
         mapping = self._make_combine_mapping("lat", ["lon"], "lat_lon")
         output = _make_output([mapping])
         rows = [{"lat": "45.2", "lon": "-122.3"}]
@@ -473,14 +473,14 @@ class TestApplyMappingsCombine:
         assert "lat" not in result[0]
         assert "lon" not in result[0]
 
-    def test_unmapped_column_preserved(self):
+    def test_unmapped_column_preserved(self) -> None:
         mapping = self._make_combine_mapping("lat", ["lon"], "lat_lon")
         output = _make_output([mapping])
         rows = [{"lat": "45.2", "lon": "-122.3", "other": "keep_me"}]
         result = apply_mappings(output, rows)
         assert result[0]["other"] == "keep_me"
 
-    def test_missing_combine_column_records_error(self):
+    def test_missing_combine_column_records_error(self) -> None:
         mapping = self._make_combine_mapping("lat", ["lon"], "lat_lon")
         output = _make_output([mapping])
         rows = [{"lat": "45.2"}]  # lon missing
@@ -495,7 +495,7 @@ class TestApplyMappingsCombine:
 
 
 class TestBuildConversionPreviewsCombine:
-    def test_combine_previews_from_real_rows(self):
+    def test_combine_previews_from_real_rows(self) -> None:
         conv = ValueConversion(
             type="custom",
             description="",
@@ -519,7 +519,7 @@ class TestBuildConversionPreviewsCombine:
         assert conv.preview[0]["output"] == "45.2 -122.3"
         assert isinstance(conv.preview[0]["input"], dict)
 
-    def test_combine_previews_skip_rows_with_missing_columns(self):
+    def test_combine_previews_skip_rows_with_missing_columns(self) -> None:
         conv = ValueConversion(
             type="custom",
             description="",

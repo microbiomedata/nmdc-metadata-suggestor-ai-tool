@@ -56,7 +56,7 @@ class ValueTransformer:
         logger.warning("Unknown conversion type %r; attempting custom execution.", conversion.type)
         return self._custom(value, conversion.expression)
 
-    def validate_preview(self, conversion: ValueConversion) -> list[dict[str, str]]:
+    def validate_preview(self, conversion: ValueConversion) -> list[dict[str, str | object]]:
         """Run the transformer against the agent-supplied preview pairs.
 
         Returns a list of result dicts with 'input', 'expected', 'actual', and
