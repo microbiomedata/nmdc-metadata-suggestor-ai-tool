@@ -40,12 +40,8 @@ def validate_mapper_output(
         _demote_mapping(mapping, error)
         invalid_mappings.append(mapping)
 
-    output.high_confidence = [
-        mapping for mapping in valid_mappings if mapping.confidence == "high"
-    ]
-    output.needs_review = [
-        mapping for mapping in valid_mappings if mapping.confidence == "review"
-    ]
+    output.high_confidence = [mapping for mapping in valid_mappings if mapping.confidence == "high"]
+    output.needs_review = [mapping for mapping in valid_mappings if mapping.confidence == "review"]
     output.cant_place.extend(invalid_mappings)
 
     # A cant_place mapping should never carry candidate slots, even if the
@@ -149,9 +145,7 @@ def _mapping_error(
 
     schema = builder.get_interface_schema(interface_name)
     interface_slots = {slot.name for slot in schema.slots}
-    invalid_slots = [
-        slot for slot in mapping.nmdc_candidate_slots if slot not in interface_slots
-    ]
+    invalid_slots = [slot for slot in mapping.nmdc_candidate_slots if slot not in interface_slots]
     if invalid_slots:
         return f"candidate slot(s) {invalid_slots!r} are not in {interface_name}"
     return None

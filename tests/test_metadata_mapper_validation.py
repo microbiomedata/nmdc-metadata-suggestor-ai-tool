@@ -78,23 +78,26 @@ def test_mapper_finalizer_runs_schema_validation() -> None:
 
 @pytest.mark.asyncio
 async def test_metadata_mapper_hook_returns_schema_errors_to_agent() -> None:
-    hook_input = cast(PostToolUseHookInput, {
-        "hook_event_name": "PostToolUse",
-        "tool_name": "StructuredOutput",
-        "tool_input": {},
-        "tool_response": {
-            "high_confidence": [
-                {
-                    "source_column": "value",
-                    "source_file_id": "file-1",
-                    "mixs_extension": "Soil",
-                    "nmdc_candidate_slots": ["not_a_schema_slot"],
-                    "confidence": "high",
-                    "reason": "model suggestion",
-                }
-            ]
+    hook_input = cast(
+        PostToolUseHookInput,
+        {
+            "hook_event_name": "PostToolUse",
+            "tool_name": "StructuredOutput",
+            "tool_input": {},
+            "tool_response": {
+                "high_confidence": [
+                    {
+                        "source_column": "value",
+                        "source_file_id": "file-1",
+                        "mixs_extension": "Soil",
+                        "nmdc_candidate_slots": ["not_a_schema_slot"],
+                        "confidence": "high",
+                        "reason": "model suggestion",
+                    }
+                ]
+            },
         },
-    })
+    )
 
     result = await metadata_mapper_validation_hook(
         hook_input,
@@ -112,23 +115,26 @@ async def test_metadata_mapper_hook_returns_schema_errors_to_agent() -> None:
 async def test_metadata_mapper_hook_accepts_valid_output() -> None:
     builder = SchemaContextBuilder()
     slot = builder.get_interface_schema("SoilInterface").slots[0].name
-    hook_input = cast(PostToolUseHookInput, {
-        "hook_event_name": "PostToolUse",
-        "tool_name": "StructuredOutput",
-        "tool_input": {},
-        "tool_response": {
-            "high_confidence": [
-                {
-                    "source_column": "value",
-                    "source_file_id": "file-1",
-                    "mixs_extension": "Soil",
-                    "nmdc_candidate_slots": [slot],
-                    "confidence": "high",
-                    "reason": "model suggestion",
-                }
-            ]
+    hook_input = cast(
+        PostToolUseHookInput,
+        {
+            "hook_event_name": "PostToolUse",
+            "tool_name": "StructuredOutput",
+            "tool_input": {},
+            "tool_response": {
+                "high_confidence": [
+                    {
+                        "source_column": "value",
+                        "source_file_id": "file-1",
+                        "mixs_extension": "Soil",
+                        "nmdc_candidate_slots": [slot],
+                        "confidence": "high",
+                        "reason": "model suggestion",
+                    }
+                ]
+            },
         },
-    })
+    )
 
     assert (
         await metadata_mapper_validation_hook(
