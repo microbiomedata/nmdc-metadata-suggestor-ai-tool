@@ -24,6 +24,7 @@ from nmdc_metadata_suggestor_ai_tool.envo import enforce_env_triad_values
 from nmdc_metadata_suggestor_ai_tool.langfuse_claude_sdk import (
     AssistantMessage,
     ClaudeAgentOptions,
+    HookEvent,
     HookMatcher,
     ResultMessage,
     SystemMessage,
@@ -75,7 +76,7 @@ def build_agent_options(
     skills: list[str] | Literal["all"] | None = "all",
     system_prompt: str,
     output_format: dict | None = None,
-    hooks: dict | None = None,
+    hooks: dict[HookEvent, list[HookMatcher]] | None = None,
     **kwargs: Any,
 ) -> ClaudeAgentOptions:
     """Build a ``ClaudeAgentOptions`` with the project-standard permission policy.
@@ -84,7 +85,9 @@ def build_agent_options(
     in any pipeline; override ``skills``, ``system_prompt``, and ``output_format``
     as needed.
     """
-    configured_hooks = {"PreToolUse": [HookMatcher(hooks=[pretool_permission_gate])]}
+    configured_hooks: dict[HookEvent, list[HookMatcher]] = {
+        "PreToolUse": [HookMatcher(hooks=[pretool_permission_gate])]
+    }
     if hooks:
         for event_name, matchers in hooks.items():
             configured_hooks.setdefault(event_name, []).extend(matchers)

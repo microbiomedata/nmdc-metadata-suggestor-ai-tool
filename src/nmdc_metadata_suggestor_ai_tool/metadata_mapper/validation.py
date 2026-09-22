@@ -4,7 +4,6 @@ import json
 from typing import Any
 
 from nmdc_metadata_suggestor_ai_tool.langfuse_claude_sdk import (
-    AsyncHookJSONOutput,
     HookContext,
     HookInput,
     PostToolUseHookInput,
@@ -58,11 +57,11 @@ def validate_mapper_output(
     return output
 
 
-def metadata_mapper_validation_hook(
+async def metadata_mapper_validation_hook(
     input_data: HookInput,
     tool_use_id: str | None,
     context: HookContext,
-) -> AsyncHookJSONOutput | SyncHookJSONOutput:
+) -> SyncHookJSONOutput:
     """Return schema errors to the mapper agent after StructuredOutput calls.
 
     Post-tool hooks cannot reject a completed tool call, so invalid output is

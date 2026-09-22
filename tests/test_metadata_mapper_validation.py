@@ -1,5 +1,13 @@
 """Tests for schema validation of metadata mapper output."""
 
+from typing import Any, cast
+
+import pytest
+
+from nmdc_metadata_suggestor_ai_tool.langfuse_claude_sdk import (
+    HookContext,
+    PostToolUseHookInput,
+)
 from nmdc_metadata_suggestor_ai_tool.metadata_mapper.pipeline import _finalize_mapper_result
 from nmdc_metadata_suggestor_ai_tool.metadata_mapper.validation import (
     metadata_mapper_validation_hook,
@@ -68,8 +76,9 @@ def test_mapper_finalizer_runs_schema_validation() -> None:
     assert len(result.cant_place) == 1
 
 
-def test_metadata_mapper_hook_returns_schema_errors_to_agent() -> None:
-    hook_input = {
+@pytest.mark.asyncio
+async def test_metadata_mapper_hook_returns_schema_errors_to_agent() -> None:
+    hook_input = cast(PostToolUseHookInput, {
         "hook_event_name": "PostToolUse",
         "tool_name": "StructuredOutput",
         "tool_input": {},
@@ -85,19 +94,25 @@ def test_metadata_mapper_hook_returns_schema_errors_to_agent() -> None:
                 }
             ]
         },
-    }
+    })
 
-    result = metadata_mapper_validation_hook(hook_input, None, {})
+    result = await metadata_mapper_validation_hook(
+        hook_input,
+        None,
+        cast(HookContext, {"signal": None}),
+    )
+    hook_output = cast(dict[str, Any], result["hookSpecificOutput"])
 
     assert "hookSpecificOutput" in result
-    assert "not in SoilInterface" in result["hookSpecificOutput"]["additionalContext"]
-    assert "call StructuredOutput again" in result["hookSpecificOutput"]["additionalContext"]
+    assert "not in SoilInterface" in hook_output["additionalContext"]
+    assert "call StructuredOutput again" in hook_output["additionalContext"]
 
 
-def test_metadata_mapper_hook_accepts_valid_output() -> None:
+@pytest.mark.asyncio
+async def test_metadata_mapper_hook_accepts_valid_output() -> None:
     builder = SchemaContextBuilder()
     slot = builder.get_interface_schema("SoilInterface").slots[0].name
-    hook_input = {
+    hook_input = cast(PostToolUseHookInput, {
         "hook_event_name": "PostToolUse",
         "tool_name": "StructuredOutput",
         "tool_input": {},
@@ -113,6 +128,13 @@ def test_metadata_mapper_hook_accepts_valid_output() -> None:
                 }
             ]
         },
-    }
+    })
 
-    assert metadata_mapper_validation_hook(hook_input, None, {}) == {}
+    assert (
+        await metadata_mapper_validation_hook(
+            hook_input,
+            None,
+            cast(HookContext, {"signal": None}),
+        )
+        == {}
+    )
