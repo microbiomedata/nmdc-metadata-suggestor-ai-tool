@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.15' and sys_platform == 'win32'",
@@ -894,8 +894,8 @@ name = "httpcore2"
 version = "2.12.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "h11" },
-    { name = "truststore" },
+    { name = "h11", marker = "sys_platform != 'emscripten'" },
+    { name = "truststore", marker = "sys_platform != 'emscripten'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/be/ad/f4f0e57345f1870f3e8cb624e058d7eca6e5a27d33bcc3311d9b618734cd/httpcore2-2.12.0.tar.gz", hash = "sha256:9293522bba0aa7c4c8e9e3f040c16575bd8868e155a77fa30c7a9085a5eae648", size = 67548, upload-time = "2026-08-18T13:22:08.211Z" }
 wheels = [
@@ -1775,6 +1775,7 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "python-multipart" },
     { name = "requests" },
+    { name = "restrictedpython" },
     { name = "starlette" },
 ]
 
@@ -1810,6 +1811,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "python-multipart", specifier = ">=0.0.30" },
     { name = "requests", specifier = ">=2.31.0" },
+    { name = "restrictedpython", specifier = ">=7.0" },
     { name = "starlette", specifier = ">=1.2.0" },
 ]
 
@@ -2996,6 +2998,15 @@ wheels = [
 ]
 
 [[package]]
+name = "restrictedpython"
+version = "8.5"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/7c/3b/8e41f7cfabbb30b1013ebc7484303d6c87da2906ec432d69dea11d2f7d75/restrictedpython-8.5.tar.gz", hash = "sha256:4ed1269dbe3caa88db650d1af325198a952aeb1451eca05df0cfa65db4466215", size = 455879, upload-time = "2026-08-19T07:02:10.934Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/58/57/16ce3c721f5a33317e4110575d5c9976c0c45f7fd96ca2e0adeab06e6026/restrictedpython-8.5-py3-none-any.whl", hash = "sha256:6c70e0a3af13e830d37225788cdc8ab5804a8df4b500c135086eaef34b5c01e0", size = 30962, upload-time = "2026-08-19T07:02:09.553Z" },
+]
+
+[[package]]
 name = "rfc3339-validator"
 version = "0.1.4"
 source = { registry = "https://pypi.org/simple" }
@@ -3598,8 +3609,8 @@ name = "uvicorn"
 version = "0.48.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "click" },
-    { name = "h11" },
+    { name = "click", marker = "sys_platform != 'emscripten'" },
+    { name = "h11", marker = "sys_platform != 'emscripten'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/e6/bf/f6544ba992ddb9a6077343a576f9844f7f8f06ab819aefd00206e9255f18/uvicorn-0.48.0.tar.gz", hash = "sha256:a5504207195d08c2511bf9125ede5ac4a4b71725d519e758d01dcf0bc2d31c37", size = 91074, upload-time = "2026-05-24T12:08:41.925Z" }
 wheels = [

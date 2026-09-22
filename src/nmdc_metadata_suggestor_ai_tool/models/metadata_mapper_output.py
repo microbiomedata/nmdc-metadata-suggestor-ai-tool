@@ -19,18 +19,50 @@ class ValueConversion(BaseModel):
     type: str = Field(
         description=(
             "Category of transformation. Known values: 'unit', 'date_format', 'split', 'none'. "
+            "Use 'custom' when no known type fits — the expression field must contain a Python "
+            "function body that accepts a single string argument 'value' and returns a string. "
             "Other values are permitted as the LLM may identify novel conversion types."
         )
     )
     description: str = Field(description="Human-readable summary, e.g. 'MM/DD/YYYY → ISO 8601'")
     expression: str | None = Field(
         default=None,
-        description="Machine-readable rule, e.g. a Python strptime format string or scale factor",
+        description=(
+            "REQUIRED when type is not 'none'. Machine-readable rule the executor will run. "
+            "date_format: Python strptime format string for the SOURCE values, e.g. '%m/%d/%Y'. "
+            "unit: decimal scale factor string, e.g. '0.3048' for feet→meters. "
+            "split: delimiter string, e.g. ', '. "
+            "custom: single Python expression where 'value' is the input string, "
+            "e.g. \"str(round((float(value) - 32) * 5 / 9, 2))\" for Fahrenheit→Celsius. "
+            "Never null when type is not 'none'."
+        ),
     )
+    # NOT populated by the LLM — excluded from the output JSON schema so the agent
+    # never fills it. Populated after Phase 1 by build_conversion_previews() in
+    # metadata_mapper/apply.py, which samples real CSV rows through ValueTransformer
+    # so previews always reflect actual transformer output.
     preview: list[dict[str, str]] = Field(
         default_factory=list,
-        description="Sample input→output pairs, e.g. [{'input': '1024 ft', 'output': '312.12 m'}]",
+        exclude=True,
+        description="Sample input→output pairs drawn from real data. Set by build_conversion_previews(), not the LLM.",
     )
+    requires_approval: bool = Field(
+        default=False,
+        description=(
+            "True when the transformation uses LLM-generated code (type='custom') "
+            "and must be reviewed by the user before being applied to data."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def expression_required_when_active(self) -> "ValueConversion":
+        if self.type.lower() != "none" and self.expression is None:
+            raise ValueError(
+                f"ValueConversion.expression is required when type='{self.type}'. "
+                "Provide the machine-readable rule (strptime format, scale factor, "
+                "delimiter, or Python expression)."
+            )
+        return self
 
 
 class ColumnMapping(BaseModel):
