@@ -21,6 +21,8 @@ Layout -- one module per source, over a shared core:
 * :mod:`~...supplements.related_dois` -- the data deposits a publication links to.
 * :mod:`~...supplements.retrieve` -- :func:`retrieve_supplements`, which routes by
   DOI type and merges every contributing source under one shared budget.
+* :mod:`~...supplements.context` -- :func:`format_supplement_context`, which turns
+  a result's inlined files into LLM messages.
 
 For publisher-hosted supplements behind Cloudflare/JS challenges, prefer the
 agentic ``web_fetch`` path documented in the ``supplement-retrieval`` skill.
@@ -30,6 +32,10 @@ from nmdc_metadata_suggestor_ai_tool.file_kinds import (
     DEFAULT_USEFUL_KINDS,
     KIND_PRIORITY,
     kind_rank,
+)
+from nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements.context import (
+    describe_supplement,
+    format_supplement_context,
 )
 from nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements.dryad import (
     is_dryad_doi,
@@ -64,10 +70,12 @@ __all__ = [
     "KIND_PRIORITY",
     "SupplementCaps",
     "classify_supplement",
+    "describe_supplement",
     "extract_accessions_from_text",
     "extract_dataset_dois_from_text",
     "find_related_data_dois",
     "find_supplement_source_europepmc",
+    "format_supplement_context",
     "is_dryad_doi",
     "kind_rank",
     "parse_supplement_captions",
