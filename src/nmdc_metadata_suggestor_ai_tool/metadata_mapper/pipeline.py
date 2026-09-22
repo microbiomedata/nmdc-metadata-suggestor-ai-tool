@@ -7,6 +7,7 @@ from typing import Any
 
 from nmdc_metadata_suggestor_ai_tool.langfuse_claude_sdk import (
     AssistantMessage,
+    HookMatcher,
     ResultMessage,
     SystemMessage,
     query,
@@ -24,6 +25,11 @@ from nmdc_metadata_suggestor_ai_tool.metadata_mapper.system_prompt import (
 from nmdc_metadata_suggestor_ai_tool.metadata_mapper.utils import (
     build_column_context,
     read_csv_files,
+)
+from nmdc_metadata_suggestor_ai_tool.metadata_mapper.validation import (
+    STRUCTURED_OUTPUT_TOOL,
+    metadata_mapper_validation_hook,
+    validate_mapper_output,
 )
 from nmdc_metadata_suggestor_ai_tool.models.metadata_mapper_output import (
     MetadataMapperOutput,
@@ -78,6 +84,14 @@ async def run_metadata_mapper_agentic(
         skills=MAPPER_SKILLS,
         system_prompt=metadata_mapper_system_prompt,
         output_format={"type": "json_schema", "schema": MetadataMapperOutput.model_json_schema()},
+        hooks={
+            "PostToolUse": [
+                HookMatcher(
+                    matcher=STRUCTURED_OUTPUT_TOOL,
+                    hooks=[metadata_mapper_validation_hook],
+                )
+            ]
+        },
     )
 
     if langfuse_client is not None:
@@ -136,13 +150,13 @@ def _finalize_mapper_result(raw: Any) -> MetadataMapperOutput:
         logger.warning("Unexpected structured output type %s; returning empty result.", type(raw))
         return MetadataMapperOutput()
     try:
-        return MetadataMapperOutput.model_validate(raw)
+        return validate_mapper_output(MetadataMapperOutput.model_validate(raw))
     except Exception:
         pass
     for v in raw.values():
         if isinstance(v, dict):
             try:
-                return MetadataMapperOutput.model_validate(v)
+                return validate_mapper_output(MetadataMapperOutput.model_validate(v))
             except Exception:
                 continue
     logger.warning("Could not parse MetadataMapperOutput from structured output; returning empty.")

@@ -75,6 +75,7 @@ def build_agent_options(
     skills: list[str] | Literal["all"] | None = "all",
     system_prompt: str,
     output_format: dict | None = None,
+    hooks: dict | None = None,
     **kwargs: Any,
 ) -> ClaudeAgentOptions:
     """Build a ``ClaudeAgentOptions`` with the project-standard permission policy.
@@ -83,12 +84,17 @@ def build_agent_options(
     in any pipeline; override ``skills``, ``system_prompt``, and ``output_format``
     as needed.
     """
+    configured_hooks = {"PreToolUse": [HookMatcher(hooks=[pretool_permission_gate])]}
+    if hooks:
+        for event_name, matchers in hooks.items():
+            configured_hooks.setdefault(event_name, []).extend(matchers)
+
     return ClaudeAgentOptions(
         skills=skills,
         model=model,
         system_prompt=system_prompt,
         permission_mode="bypassPermissions",
-        hooks={"PreToolUse": [HookMatcher(hooks=[pretool_permission_gate])]},
+        hooks=configured_hooks,
         setting_sources=["project"],
         output_format=output_format,
         **kwargs,
