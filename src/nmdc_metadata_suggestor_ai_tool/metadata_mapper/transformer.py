@@ -28,6 +28,17 @@ class ValueTransformer:
     LLM-generated code inside a RestrictedPython sandbox with a timeout.
     """
 
+    def transform_combined(self, values: dict[str, str], conversion: ValueConversion) -> str:
+        """Apply a custom expression to a dict of column values.
+
+        Used when ColumnMapping.combine_columns is non-empty. The expression
+        receives a ``values`` dict keyed by column name rather than a single
+        ``value`` string. Always runs through the sandbox.
+        """
+        if not conversion.expression:
+            raise TransformError("combine transform requires a non-null expression")
+        return self._custom_combined(values, conversion.expression)
+
     def transform(self, value: str, conversion: ValueConversion) -> str:
         """Return the transformed value, or raise TransformError on failure."""
         t = conversion.type.lower()
@@ -170,6 +181,51 @@ class ValueTransformer:
             )
         if "value" not in result_container:
             raise TransformError(f"custom transform produced no result for value {value!r}")
+
+        raw_result = result_container["value"]
+        if not isinstance(raw_result, str):
+            return str(raw_result)
+        return raw_result
+
+    def _custom_combined(self, values: dict[str, str], expression: str) -> str:
+        """Execute a combine expression with a 'values' dict in the sandbox."""
+        result_container: dict[str, Any] = {}
+
+        def _run() -> None:
+            try:
+                source = (
+                    f"def transform(values):\n"
+                    f"    return {expression}\n"
+                    f"result = transform(input_values)"
+                )
+                code = compile_restricted(source, filename="<combine_transform>", mode="exec")
+                globs = {
+                    **safe_globals,
+                    "input_values": values,
+                    "_getiter_": default_guarded_getiter,
+                    "_getitem_": lambda obj, key: obj[key],
+                    "_iter_unpack_sequence_": guarded_iter_unpack_sequence,
+                }
+                globs["__builtins__"] = safe_globals["__builtins__"]
+                exec(code, globs)  # noqa: S102
+                result_container["value"] = globs["result"]
+            except Exception as exc:  # noqa: BLE001
+                result_container["error"] = exc
+
+        thread = threading.Thread(target=_run, daemon=True)
+        thread.start()
+        thread.join(timeout=_EXEC_TIMEOUT_S)
+
+        if thread.is_alive():
+            raise TransformError(
+                f"combine transform timed out after {_EXEC_TIMEOUT_S}s for values {values!r}"
+            )
+        if "error" in result_container:
+            raise TransformError(
+                f"combine transform failed for values {values!r}: {result_container['error']}"
+            )
+        if "value" not in result_container:
+            raise TransformError(f"combine transform produced no result for values {values!r}")
 
         raw_result = result_container["value"]
         if not isinstance(raw_result, str):

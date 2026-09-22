@@ -51,7 +51,29 @@ the source unit to the NMDC target unit.
   Examples:
     Fahrenheit to Celsius: expression: "str(round((float(value) - 32) * 5 / 9, 2))"
     DMY to YMD: expression: "'-'.join(value.split('/')[::-1])"
-  Set requires_approval: true for all custom expressions.
 
 **none** — no transformation needed; leave `expression` null.
+
+## Combining multiple columns into one slot
+
+When a single NMDC slot requires values from more than one source column (e.g.
+`lat_lon` from separate `latitude` and `longitude` columns), set:
+
+- `source_column`: the primary column (the "anchor")
+- `combine_columns`: list of the additional column names to merge in
+- `conversion.type`: always `"custom"`
+- `conversion.expression`: a Python expression where `values` is a dict keyed
+  by column name, e.g.:
+
+    lat_lon from latitude + longitude:
+      expression: "f\"{values['latitude']} {values['longitude']}\""
+
+    full_name from first_name + last_name:
+      expression: "f\"{values['first_name']} {values['last_name']}\""
+
+    depth range from depth_min + depth_max:
+      expression: "f\"{values['depth_min']}-{values['depth_max']} m\""
+
+Only use combine_columns when the NMDC slot genuinely requires multiple source
+values merged together. Do not use it merely because two columns are related.
 """

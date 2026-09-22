@@ -33,7 +33,7 @@ class ValueConversion(BaseModel):
             "unit: decimal scale factor string, e.g. '0.3048' for feet→meters. "
             "split: delimiter string, e.g. ', '. "
             "custom: single Python expression where 'value' is the input string, "
-            "e.g. \"str(round((float(value) - 32) * 5 / 9, 2))\" for Fahrenheit→Celsius. "
+            'e.g. "str(round((float(value) - 32) * 5 / 9, 2))" for Fahrenheit→Celsius. '
             "Never null when type is not 'none'."
         ),
     )
@@ -44,14 +44,8 @@ class ValueConversion(BaseModel):
     preview: list[dict[str, str]] = Field(
         default_factory=list,
         exclude=True,
-        description="Sample input→output pairs drawn from real data. Set by build_conversion_previews(), not the LLM.",
-    )
-    requires_approval: bool = Field(
-        default=False,
-        description=(
-            "True when the transformation uses LLM-generated code (type='custom') "
-            "and must be reviewed by the user before being applied to data."
-        ),
+        description="Sample input→output pairs drawn from real data."
+        "Set by build_conversion_previews(), not the LLM.",
     )
 
     @model_validator(mode="after")
@@ -69,6 +63,15 @@ class ColumnMapping(BaseModel):
     """AI's suggested mapping for one user column to one NMDC slot."""
 
     source_column: str = Field(description="Column name from the uploaded file")
+    combine_columns: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Additional source columns to merge with source_column into a single slot value. "
+            "When non-empty, the conversion expression receives a dict named 'values' keyed by "
+            "column name rather than a single 'value' string. Always requires type='custom' "
+            "on the conversion."
+        ),
+    )
     source_file_id: str = Field(description="FK → SourceFile.file_id")
     mixs_extension: str | None = Field(
         default=None,
@@ -100,6 +103,14 @@ class ColumnMapping(BaseModel):
     def cant_place_if_no_env(self) -> "ColumnMapping":
         if self.mixs_extension is None and self.confidence != "cant_place":
             raise ValueError("mixs_extension=None requires confidence='cant_place'")
+        return self
+
+    @model_validator(mode="after")
+    def combine_requires_custom(self) -> "ColumnMapping":
+        if self.combine_columns and self.conversion and self.conversion.type != "custom":
+            raise ValueError(
+                f"combine_columns requires conversion.type='custom', got '{self.conversion.type}'"
+            )
         return self
 
 

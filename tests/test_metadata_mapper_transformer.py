@@ -3,8 +3,14 @@
 import pytest
 from pydantic import ValidationError
 
-from nmdc_metadata_suggestor_ai_tool.metadata_mapper.apply import apply_mappings, build_conversion_previews
-from nmdc_metadata_suggestor_ai_tool.metadata_mapper.transformer import TransformError, ValueTransformer
+from nmdc_metadata_suggestor_ai_tool.metadata_mapper.apply import (
+    apply_mappings,
+    build_conversion_previews,
+)
+from nmdc_metadata_suggestor_ai_tool.metadata_mapper.transformer import (
+    TransformError,
+    ValueTransformer,
+)
 from nmdc_metadata_suggestor_ai_tool.models.metadata_mapper_output import (
     ColumnMapping,
     MetadataMapperOutput,
@@ -98,7 +104,7 @@ class TestNone:
 
 class TestCustom:
     def test_simple_expression(self):
-        conv = ValueConversion(type="custom", description="", expression="value.upper()", requires_approval=True)
+        conv = ValueConversion(type="custom", description="", expression="value.upper()")
         assert transformer.transform("hello", conv) == "HELLO"
 
     def test_date_reformat(self):
@@ -106,12 +112,11 @@ class TestCustom:
             type="custom",
             description="",
             expression="'-'.join(value.split('/')[::-1])",
-            requires_approval=True,
         )
         assert transformer.transform("15/01/2023", conv) == "2023-01-15"
 
     def test_numeric_result_coerced_to_str(self):
-        conv = ValueConversion(type="custom", description="", expression="int(value) * 2", requires_approval=True)
+        conv = ValueConversion(type="custom", description="", expression="int(value) * 2")
         assert transformer.transform("5", conv) == "10"
 
     def test_timeout_raises(self, monkeypatch):
@@ -123,7 +128,6 @@ class TestCustom:
             type="custom",
             description="",
             expression="str(sorted(range(10 ** 9))[0])",
-            requires_approval=True,
         )
         with pytest.raises(TransformError, match="timed out"):
             transformer.transform("x", conv)
@@ -133,12 +137,9 @@ class TestCustom:
             type="custom",
             description="",
             expression="__import__('os').getcwd()",
-            requires_approval=True,
         )
         with pytest.raises(TransformError):
             transformer.transform("x", conv)
-
-
 
 
 # ------------------------------------------------------------------
@@ -237,7 +238,10 @@ class TestApplyMappings:
             reason="",
         )
         output = MetadataMapperOutput(
-            source_files=[SourceFile(file_id="f1", display_name="a.csv"), SourceFile(file_id="f2", display_name="b.csv")],
+            source_files=[
+                SourceFile(file_id="f1", display_name="a.csv"),
+                SourceFile(file_id="f2", display_name="b.csv"),
+            ],
             high_confidence=[mapping_f1, mapping_f2],
         )
         rows = [{"col_a": "val_a", "col_b": "val_b"}]
@@ -350,3 +354,190 @@ class TestBuildConversionPreviews:
         build_conversion_previews(output, [{"col": "val"}])
 
         assert conv.preview == []
+
+
+# ------------------------------------------------------------------
+# combine_columns — model validator
+# ------------------------------------------------------------------
+
+
+class TestCombineColumnsValidator:
+    def test_combine_requires_custom_type(self):
+        with pytest.raises(ValidationError, match="requires conversion.type='custom'"):
+            ColumnMapping(
+                source_column="lat",
+                combine_columns=["lon"],
+                source_file_id="f1",
+                mixs_extension="Soil",
+                nmdc_candidate_slots=["lat_lon"],
+                confidence="high",
+                reason="",
+                conversion=ValueConversion(type="unit", description="", expression="1.0"),
+            )
+
+    def test_combine_with_custom_is_valid(self):
+        mapping = ColumnMapping(
+            source_column="lat",
+            combine_columns=["lon"],
+            source_file_id="f1",
+            mixs_extension="Soil",
+            nmdc_candidate_slots=["lat_lon"],
+            confidence="high",
+            reason="",
+            conversion=ValueConversion(
+                type="custom",
+                description="combine lat lon",
+                expression="f\"{values['lat']} {values['lon']}\"",
+            ),
+        )
+        assert mapping.combine_columns == ["lon"]
+
+
+# ------------------------------------------------------------------
+# ValueTransformer.transform_combined
+# ------------------------------------------------------------------
+
+
+class TestTransformCombined:
+    def test_lat_lon_combine(self):
+        conv = ValueConversion(
+            type="custom",
+            description="",
+            expression="f\"{values['lat']} {values['lon']}\"",
+        )
+        result = transformer.transform_combined({"lat": "45.2", "lon": "-122.3"}, conv)
+        assert result == "45.2 -122.3"
+
+    def test_full_name_combine(self):
+        conv = ValueConversion(
+            type="custom",
+            description="",
+            expression="f\"{values['first']} {values['last']}\"",
+        )
+        result = transformer.transform_combined({"first": "Jane", "last": "Smith"}, conv)
+        assert result == "Jane Smith"
+
+    def test_numeric_result_coerced(self):
+        conv = ValueConversion(
+            type="custom",
+            description="",
+            expression="str(float(values['a']) + float(values['b']))",
+        )
+        result = transformer.transform_combined({"a": "1.5", "b": "2.5"}, conv)
+        assert result == "4.0"
+
+    def test_missing_key_raises(self):
+        conv = ValueConversion(
+            type="custom",
+            description="",
+            expression="f\"{values['lat']} {values['lon']}\"",
+        )
+        with pytest.raises(TransformError):
+            transformer.transform_combined({"lat": "45.2"}, conv)
+
+
+# ------------------------------------------------------------------
+# apply_mappings — combine_columns integration
+# ------------------------------------------------------------------
+
+
+class TestApplyMappingsCombine:
+    def _make_combine_mapping(self, primary: str, others: list[str], slot: str) -> ColumnMapping:
+        return ColumnMapping(
+            source_column=primary,
+            combine_columns=others,
+            source_file_id="f1",
+            mixs_extension="Soil",
+            nmdc_candidate_slots=[slot],
+            confidence="high",
+            reason="",
+            conversion=ValueConversion(
+                type="custom",
+                description="combine",
+                expression="f\"{values['" + primary + "']} {values['" + others[0] + "']}\"",
+            ),
+        )
+
+    def test_combined_columns_produce_slot(self):
+        mapping = self._make_combine_mapping("lat", ["lon"], "lat_lon")
+        output = _make_output([mapping])
+        rows = [{"lat": "45.2", "lon": "-122.3", "other": "x"}]
+        result = apply_mappings(output, rows)
+        assert result[0]["lat_lon"] == "45.2 -122.3"
+
+    def test_combined_source_columns_removed(self):
+        mapping = self._make_combine_mapping("lat", ["lon"], "lat_lon")
+        output = _make_output([mapping])
+        rows = [{"lat": "45.2", "lon": "-122.3"}]
+        result = apply_mappings(output, rows)
+        assert "lat" not in result[0]
+        assert "lon" not in result[0]
+
+    def test_unmapped_column_preserved(self):
+        mapping = self._make_combine_mapping("lat", ["lon"], "lat_lon")
+        output = _make_output([mapping])
+        rows = [{"lat": "45.2", "lon": "-122.3", "other": "keep_me"}]
+        result = apply_mappings(output, rows)
+        assert result[0]["other"] == "keep_me"
+
+    def test_missing_combine_column_records_error(self):
+        mapping = self._make_combine_mapping("lat", ["lon"], "lat_lon")
+        output = _make_output([mapping])
+        rows = [{"lat": "45.2"}]  # lon missing
+        result = apply_mappings(output, rows)
+        assert "_transform_errors" in result[0]
+        assert "lat_lon" not in result[0]
+
+
+# ------------------------------------------------------------------
+# build_conversion_previews — combine path
+# ------------------------------------------------------------------
+
+
+class TestBuildConversionPreviewsCombine:
+    def test_combine_previews_from_real_rows(self):
+        conv = ValueConversion(
+            type="custom",
+            description="",
+            expression="f\"{values['lat']} {values['lon']}\"",
+        )
+        mapping = ColumnMapping(
+            source_column="lat",
+            combine_columns=["lon"],
+            source_file_id="f1",
+            mixs_extension="Soil",
+            nmdc_candidate_slots=["lat_lon"],
+            confidence="high",
+            reason="",
+            conversion=conv,
+        )
+        output = _make_output([mapping])
+        rows = [{"lat": "45.2", "lon": "-122.3"}, {"lat": "34.0", "lon": "-118.2"}]
+        build_conversion_previews(output, rows, n=2)
+
+        assert len(conv.preview) == 2
+        assert conv.preview[0]["output"] == "45.2 -122.3"
+        assert isinstance(conv.preview[0]["input"], dict)
+
+    def test_combine_previews_skip_rows_with_missing_columns(self):
+        conv = ValueConversion(
+            type="custom",
+            description="",
+            expression="f\"{values['lat']} {values['lon']}\"",
+        )
+        mapping = ColumnMapping(
+            source_column="lat",
+            combine_columns=["lon"],
+            source_file_id="f1",
+            mixs_extension="Soil",
+            nmdc_candidate_slots=["lat_lon"],
+            confidence="high",
+            reason="",
+            conversion=conv,
+        )
+        output = _make_output([mapping])
+        rows = [{"lat": "45.2"}, {"lat": "34.0", "lon": "-118.2"}]
+        build_conversion_previews(output, rows, n=3)
+
+        assert len(conv.preview) == 1
+        assert conv.preview[0]["output"] == "34.0 -118.2"

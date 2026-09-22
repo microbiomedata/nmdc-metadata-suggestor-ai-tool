@@ -29,10 +29,6 @@ def apply_mappings(
     - New keys for each mapped slot (``<slot_name>``) with the transformed value
     - A ``_transform_errors`` list of any per-cell errors that did not halt processing
 
-    Mappings with ``conversion.requires_approval=True`` that have not been explicitly
-    approved are skipped — pass only approved mappings in ``mapping_output`` or pre-filter
-    them before calling this function.
-
     Parameters
     ----------
     mapping_output:
@@ -58,9 +54,10 @@ def build_conversion_previews(
 ) -> MetadataMapperOutput:
     """Populate ValueConversion.preview from real CSV rows for every mapped column.
 
-    Samples up to ``n`` non-empty values per column, runs them through
-    ValueTransformer, and writes the input→output pairs onto the conversion in
-    place. Errors are recorded as {"input": raw, "output": null, "error": msg}.
+    For single-column mappings, samples up to ``n`` non-empty values and runs
+    them through ValueTransformer. For combine mappings, samples rows where all
+    combine columns are present. Errors are recorded as
+    {"input": ..., "output": null, "error": msg}.
 
     Call this right after Phase 1 (run_metadata_mapper_agentic) and before
     storing the job or sending the output to the UI.
@@ -69,19 +66,32 @@ def build_conversion_previews(
         if not mapping.conversion or mapping.conversion.type == "none":
             continue
 
-        samples = [
-            str(row[mapping.source_column])
-            for row in csv_rows
-            if mapping.source_column in row and row[mapping.source_column] not in ("", None)
-        ][:n]
-
         pairs: list[dict[str, Any]] = []
-        for raw in samples:
-            try:
-                out = _transformer.transform(raw, mapping.conversion)
-                pairs.append({"input": raw, "output": out})
-            except TransformError as exc:
-                pairs.append({"input": raw, "output": None, "error": str(exc)})
+
+        if mapping.combine_columns:
+            all_cols = [mapping.source_column, *mapping.combine_columns]
+            sample_rows = [
+                row for row in csv_rows if all(row.get(c) not in ("", None) for c in all_cols)
+            ][:n]
+            for row in sample_rows:
+                values = {c: str(row[c]) for c in all_cols}
+                try:
+                    out = _transformer.transform_combined(values, mapping.conversion)
+                    pairs.append({"input": values, "output": out})
+                except TransformError as exc:
+                    pairs.append({"input": values, "output": None, "error": str(exc)})
+        else:
+            samples = [
+                str(row[mapping.source_column])
+                for row in csv_rows
+                if mapping.source_column in row and row[mapping.source_column] not in ("", None)
+            ][:n]
+            for raw in samples:
+                try:
+                    out = _transformer.transform(raw, mapping.conversion)
+                    pairs.append({"input": raw, "output": out})
+                except TransformError as exc:
+                    pairs.append({"input": raw, "output": None, "error": str(exc)})
 
         mapping.conversion.preview = pairs
 
@@ -116,34 +126,56 @@ def _apply_row(
     row: dict[str, Any],
     mappings: list[ColumnMapping],
 ) -> dict[str, Any]:
-    # Build a set of source columns that have a mapping so we can drop them
-    # from the output — their value moves to the NMDC slot key instead.
-    mapped_source_columns = {m.source_column for m in mappings if m.nmdc_candidate_slots}
+    # All source columns that are consumed by a mapping (single or combine).
+    # These are dropped from the output — their values move to the slot key.
+    consumed: set[str] = set()
+    for m in mappings:
+        if m.nmdc_candidate_slots:
+            consumed.add(m.source_column)
+            consumed.update(m.combine_columns)
 
     # Start with columns that have no mapping (cant_place or not in this file).
-    out: dict[str, Any] = {k: v for k, v in row.items() if k not in mapped_source_columns}
+    out: dict[str, Any] = {k: v for k, v in row.items() if k not in consumed}
     errors: list[str] = []
 
     for mapping in mappings:
+        slot = mapping.nmdc_candidate_slots[0]
+
+        if mapping.combine_columns:
+            all_cols = [mapping.source_column, *mapping.combine_columns]
+            absent = [c for c in all_cols if c not in row]
+            empty = [c for c in all_cols if c in row and row.get(c) in (None, "")]
+            if absent:
+                errors.append(f"{slot}: combine columns not in CSV: {absent}")
+                continue
+            if empty:
+                errors.append(f"{slot}: combine columns have no value in this row: {empty}")
+                continue
+            values = {c: str(row[c]) for c in all_cols}
+            if mapping.conversion:
+                try:
+                    out[slot] = _transformer.transform_combined(values, mapping.conversion)
+                except TransformError as exc:
+                    errors.append(f"{slot}: {exc}")
+                    out[slot] = str(values)
+            else:
+                out[slot] = str(values)
+            continue
+
         raw = row.get(mapping.source_column)
         if raw is None:
             continue
-
-        slot = mapping.nmdc_candidate_slots[0]
         raw_str = str(raw)
 
         if mapping.conversion and mapping.conversion.type != "none":
             try:
-                transformed = _transformer.transform(raw_str, mapping.conversion)
+                out[slot] = _transformer.transform(raw_str, mapping.conversion)
             except TransformError as exc:
                 errors.append(f"{mapping.source_column}: {exc}")
                 # On error keep the raw value under the slot key so nothing is lost.
                 out[slot] = raw_str
-                continue
         else:
-            transformed = raw_str
-
-        out[slot] = transformed
+            out[slot] = raw_str
 
     if errors:
         out.setdefault("_transform_errors", [])

@@ -29,11 +29,7 @@ from nmdc_metadata_suggestor_ai_tool.models.metadata_mapper_output import (
     SourceFile,
 )
 
-PHAGE_CSV = (
-    Path(__file__).parent.parent
-    / "tests/fixtures"
-    / "PRJEB13831_Phage_metadata.csv"
-)
+PHAGE_CSV = Path(__file__).parent.parent / "tests/fixtures" / "PRJEB13831_Phage_metadata.csv"
 FILE_ID = "phage-001"
 MIXS_EXTENSIONS = ["water"]
 INTEGRATION_TIMEOUT = 240  # seconds — mapper agent can be slow
@@ -63,7 +59,9 @@ def test_phase1_mapper_returns_valid_output(requires_credentials: None) -> None:
         )
     )
 
-    assert isinstance(result, MetadataMapperOutput), f"Expected MetadataMapperOutput, got {type(result)}"
+    assert isinstance(result, MetadataMapperOutput), (
+        f"Expected MetadataMapperOutput, got {type(result)}"
+    )
     assert session_id is not None, "Expected a session_id"
 
     total_mapped = len(result.high_confidence) + len(result.needs_review) + len(result.cant_place)
@@ -89,13 +87,6 @@ def test_phase1_mapper_returns_valid_output(requires_credentials: None) -> None:
         assert not mapping.nmdc_candidate_slots, (
             f"cant_place mapping '{mapping.source_column}' unexpectedly has candidate slots"
         )
-
-    # Any custom conversion must have requires_approval=True.
-    for mapping in result.high_confidence + result.needs_review:
-        if mapping.conversion and mapping.conversion.type == "custom":
-            assert mapping.conversion.requires_approval, (
-                f"Custom conversion on '{mapping.source_column}' missing requires_approval=True"
-            )
 
 
 # ---------------------------------------------------------------------------
@@ -158,24 +149,18 @@ def test_phase2_apply_mappings_produces_slot_keys() -> None:
     }
     for row in transformed:
         for col in mapped_source_columns:
-            assert col not in row, (
-                f"Source column '{col}' should have been renamed to its slot key"
-            )
+            assert col not in row, f"Source column '{col}' should have been renamed to its slot key"
 
     # Unmapped (cant_place) columns must still be present.
     cant_place_columns = {
-        m.source_column
-        for m in mapping_output.cant_place
-        if m.source_file_id == FILE_ID
+        m.source_column for m in mapping_output.cant_place if m.source_file_id == FILE_ID
     }
     for i, row in enumerate(transformed):
         for col in cant_place_columns:
             if col in csv_rows[i]:
-                assert col in row, (
-                    f"Unmapped column '{col}' missing from transformed row {i}"
-                )
+                assert col in row, f"Unmapped column '{col}' missing from transformed row {i}"
 
-test_phase2_apply_mappings_produces_slot_keys()
+
 # ---------------------------------------------------------------------------
 # Phase 2 — transform error handling
 # ---------------------------------------------------------------------------
@@ -208,6 +193,4 @@ def test_phase2_transform_errors_do_not_raise(requires_credentials: None) -> Non
             for i, r in enumerate(transformed)
             if r.get("_transform_errors")
         }
-        pytest.xfail(
-            f"Transform errors encountered (non-fatal): {error_summary}"
-        )
+        pytest.xfail(f"Transform errors encountered (non-fatal): {error_summary}")
