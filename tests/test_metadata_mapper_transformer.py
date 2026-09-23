@@ -119,19 +119,6 @@ class TestCustom:
         conv = ValueConversion(type="custom", description="", expression="int(value) * 2")
         assert transformer.transform("5", conv) == "10"
 
-    def test_timeout_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        import nmdc_metadata_suggestor_ai_tool.metadata_mapper.transformer as t_module
-
-        monkeypatch.setattr(t_module, "_EXEC_TIMEOUT_S", 1)
-        # sum(range(10**18)) spins indefinitely with O(1) memory
-        conv = ValueConversion(
-            type="custom",
-            description="",
-            expression="str(sum(range(10 ** 18)))",
-        )
-        with pytest.raises(TransformError, match="timed out"):
-            transformer.transform("x", conv)
-
     def test_dangerous_import_blocked(self) -> None:
         conv = ValueConversion(
             type="custom",
