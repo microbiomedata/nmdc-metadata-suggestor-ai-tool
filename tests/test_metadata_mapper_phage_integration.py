@@ -95,7 +95,7 @@ def test_phase1_mapper_returns_valid_output(requires_credentials: None) -> None:
 
 
 @pytest.mark.timeout(INTEGRATION_TIMEOUT)
-def test_phase2_apply_mappings_produces_slot_keys() -> None:
+def test_phase2_apply_mappings_produces_slot_keys(requires_credentials: None) -> None:
     """Phase 2: previews built from real data, then apply_mappings renames columns to slots."""
     source_file = SourceFile(file_id=FILE_ID, display_name=PHAGE_CSV.name)
     client = LLMClient(access_provider="gcp")

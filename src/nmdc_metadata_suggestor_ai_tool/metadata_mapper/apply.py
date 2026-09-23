@@ -1,4 +1,4 @@
-"""Public API for applying column mappings to CSV row data."""
+"""Functions for applying column mappings to CSV row data."""
 
 import logging
 from collections.abc import Iterator
@@ -15,7 +15,7 @@ from nmdc_metadata_suggestor_ai_tool.models.metadata_mapper_output import (
 
 logger = logging.getLogger(__name__)
 
-_transformer = ValueTransformer()
+transformer = ValueTransformer()
 
 
 def apply_mappings(
@@ -77,7 +77,7 @@ def build_conversion_previews(
             for row in sample_rows:
                 values = {c: str(row[c]) for c in all_cols}
                 try:
-                    out = _transformer.transform_combined(values, mapping.conversion)
+                    out = transformer.transform_combined(values, mapping.conversion)
                     pairs.append({"input": values, "output": out})
                 except TransformError as exc:
                     pairs.append({"input": values, "output": None, "error": str(exc)})
@@ -89,7 +89,7 @@ def build_conversion_previews(
             ][:n]
             for raw in samples:
                 try:
-                    out = _transformer.transform(raw, mapping.conversion)
+                    out = transformer.transform(raw, mapping.conversion)
                     pairs.append({"input": raw, "output": out})
                 except TransformError as exc:
                     pairs.append({"input": raw, "output": None, "error": str(exc)})
@@ -155,7 +155,7 @@ def _apply_row(
             values = {c: str(row[c]) for c in all_cols}
             if mapping.conversion:
                 try:
-                    out[slot] = _transformer.transform_combined(values, mapping.conversion)
+                    out[slot] = transformer.transform_combined(values, mapping.conversion)
                 except TransformError as exc:
                     errors.append(f"{slot}: {exc}")
                     out[slot] = str(values)
@@ -170,7 +170,7 @@ def _apply_row(
 
         if mapping.conversion and mapping.conversion.type != "none":
             try:
-                out[slot] = _transformer.transform(raw_str, mapping.conversion)
+                out[slot] = transformer.transform(raw_str, mapping.conversion)
             except TransformError as exc:
                 errors.append(f"{mapping.source_column}: {exc}")
                 # On error keep the raw value under the slot key so nothing is lost.
