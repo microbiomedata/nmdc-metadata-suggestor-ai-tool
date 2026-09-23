@@ -123,11 +123,11 @@ class TestCustom:
         import nmdc_metadata_suggestor_ai_tool.metadata_mapper.transformer as t_module
 
         monkeypatch.setattr(t_module, "_EXEC_TIMEOUT_S", 1)
-        # sorted(range(10**9)) allocates ~8 GB and runs for many seconds — times out.
+        # sum(range(10**18)) spins indefinitely with O(1) memory
         conv = ValueConversion(
             type="custom",
             description="",
-            expression="str(sorted(range(10 ** 9))[0])",
+            expression="str(sum(range(10 ** 18)))",
         )
         with pytest.raises(TransformError, match="timed out"):
             transformer.transform("x", conv)
