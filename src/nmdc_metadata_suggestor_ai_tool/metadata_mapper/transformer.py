@@ -1,5 +1,6 @@
 """Value transformation execution for mapped columns."""
 
+import json
 import logging
 import threading
 from datetime import datetime
@@ -50,6 +51,8 @@ class ValueTransformer:
             return self._unit(value, conversion.expression)
         if t == "split":
             return self._split(value, conversion.expression)
+        if t == "enum_map":
+            return self._enum_map(value, conversion.expression)
         if t == "custom":
             return self._custom(value, conversion.expression)
         # Unknown but non-custom type — attempt custom path as best effort.
@@ -87,10 +90,6 @@ class ValueTransformer:
                     }
                 )
         return results
-
-    # ------------------------------------------------------------------
-    # Known-type handlers
-    # ------------------------------------------------------------------
 
     def _date_format(self, value: str, expression: str) -> str:
         """Parse with the given strptime format and return ISO 8601."""
@@ -131,9 +130,29 @@ class ValueTransformer:
                 f"split: could not split {value!r} on {expression!r}: {exc}"
             ) from exc
 
-    # ------------------------------------------------------------------
-    # Custom (LLM-generated) handler
-    # ------------------------------------------------------------------
+    def _enum_map(self, value: str, expression: str) -> str:
+        """Map a source value to a canonical NMDC permissible value.
+
+        expression must be a JSON object whose keys are source values and values
+        are the target permissible values. Unrecognised source values raise TransformError
+        so the caller can record the problem without silently writing a bad value.
+        """
+        try:
+            mapping = json.loads(expression)
+        except json.JSONDecodeError as exc:
+            raise TransformError(
+                f"enum_map: expression is not valid JSON: {expression!r}: {exc}"
+            ) from exc
+        if not isinstance(mapping, dict):
+            raise TransformError(
+                f"enum_map: expression must be a JSON object, got {type(mapping).__name__}"
+            )
+        if value not in mapping:
+            known = list(mapping.keys())
+            raise TransformError(
+                f"enum_map: source value {value!r} has no mapping; known keys: {known!r}"
+            )
+        return str(mapping[value])
 
     def _custom(self, value: str, expression: str) -> str:
         """Execute LLM-generated expression inside a RestrictedPython sandbox.

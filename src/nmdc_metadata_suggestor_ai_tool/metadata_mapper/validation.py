@@ -33,7 +33,7 @@ def validate_mapper_output(
     invalid_mappings: list[ColumnMapping] = []
 
     for mapping in output.high_confidence + output.needs_review:
-        error = _mapping_error(mapping, builder, interfaces)
+        error = _mapping_error(mapping, builder, interfaces, mutate=True)
         if error is None:
             valid_mappings.append(mapping)
             continue
@@ -131,7 +131,14 @@ def _mapping_error(
     mapping: ColumnMapping,
     builder: SchemaContextBuilder,
     interfaces: dict[str, str],
+    mutate: bool = False,
 ) -> str | None:
+    """Return an error string if the mapping is invalid, else None.
+
+    When ``mutate=True`` (only called from ``validate_mapper_output``), invalid
+    secondary slots are trimmed from ``mapping.nmdc_candidate_slots`` in-place so
+    the mapping can survive with its primary slot intact.
+    """
     if not mapping.nmdc_candidate_slots:
         return None
 
@@ -144,10 +151,26 @@ def _mapping_error(
         return f"unknown NMDC interface for MIxS extension {extension!r}"
 
     schema = builder.get_interface_schema(interface_name)
-    interface_slots = {slot.name for slot in schema.slots}
-    invalid_slots = [slot for slot in mapping.nmdc_candidate_slots if slot not in interface_slots]
-    if invalid_slots:
-        return f"candidate slot(s) {invalid_slots!r} are not in {interface_name}"
+    slot_by_name = {slot.name: slot for slot in schema.slots}
+
+    valid = [s for s in mapping.nmdc_candidate_slots if s in slot_by_name]
+    invalid = [s for s in mapping.nmdc_candidate_slots if s not in slot_by_name]
+
+    if not valid:
+        return f"candidate slot(s) {invalid!r} are not in {interface_name}"
+
+    if invalid and mutate:
+        mapping.nmdc_candidate_slots = valid
+
+    best_slot = slot_by_name[valid[0]]
+    if best_slot.enum_values and (mapping.conversion is None or mapping.conversion.type == "none"):
+        allowed = ", ".join(ev.text for ev in best_slot.enum_values[:10])
+        suffix = "…" if (best_slot.enum_total_count or 0) > 10 else ""
+        return (
+            f"slot '{best_slot.name}' only accepts [{allowed}{suffix}]; "
+            "provide an 'enum_map' conversion that maps each source value to one of these"
+        )
+
     return None
 
 

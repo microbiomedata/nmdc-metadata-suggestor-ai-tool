@@ -12,16 +12,45 @@ from nmdc_metadata_suggestor_ai_tool.models.metadata_mapper_output import (
     ColumnMapping,
     MetadataMapperOutput,
 )
+from nmdc_metadata_suggestor_ai_tool.schema_context import SchemaContextBuilder
 
 logger = logging.getLogger(__name__)
 
 transformer = ValueTransformer()
+
+# slot name → frozenset of permissible values (empty index = no enum checking)
+_EnumIndex = dict[str, frozenset[str]]
+
+
+def _build_enum_index(
+    mappings: list[ColumnMapping],
+    builder: SchemaContextBuilder,
+) -> _EnumIndex:
+    all_interfaces = {n.casefold(): n for n in builder.list_interfaces()}
+    index: _EnumIndex = {}
+    seen: set[str] = set()
+    for mapping in mappings:
+        ext = mapping.mixs_extension or ""
+        ikey = ext if ext.casefold().endswith("interface") else f"{ext}Interface"
+        iname = all_interfaces.get(ikey.casefold())
+        if iname is None or iname in seen:
+            continue
+        seen.add(iname)
+        try:
+            schema = builder.get_interface_schema(iname)
+        except ValueError:
+            continue
+        for slot in schema.slots:
+            if slot.enum_values and slot.name not in index:
+                index[slot.name] = frozenset(ev.text for ev in slot.enum_values)
+    return index
 
 
 def apply_mappings(
     mapping_output: MetadataMapperOutput,
     csv_rows: list[dict[str, Any]],
     source_file_id: str | None = None,
+    schema_builder: SchemaContextBuilder | None = None,
 ) -> list[dict[str, Any]]:
     """Apply approved column mappings to a list of CSV row dicts.
 
@@ -39,13 +68,18 @@ def apply_mappings(
     source_file_id:
         When provided, only mappings whose source_file_id matches are applied.
         Useful when multiple files were mapped together.
+    schema_builder:
+        When provided, transformed values for enum-constrained slots are checked
+        against permissible values. Violations are recorded in ``_transform_errors``
+        and the raw value is preserved under the slot key.
 
     Returns
     -------
     Transformed row dicts with new slot keys added alongside original columns.
     """
     active_mappings = _collect_mappings(mapping_output, source_file_id)
-    return [_apply_row(row, active_mappings) for row in csv_rows]
+    enum_index = _build_enum_index(active_mappings, schema_builder) if schema_builder else {}
+    return [_apply_row(row, active_mappings, enum_index) for row in csv_rows]
 
 
 def build_conversion_previews(
@@ -126,6 +160,7 @@ def _iter_all_mappings(mapping_output: MetadataMapperOutput) -> Iterator[ColumnM
 def _apply_row(
     row: dict[str, Any],
     mappings: list[ColumnMapping],
+    enum_index: _EnumIndex | None = None,
 ) -> dict[str, Any]:
     # All source columns that are consumed by a mapping (single or combine).
     # These are dropped from the output — their values move to the slot key.
@@ -161,6 +196,11 @@ def _apply_row(
                     out[slot] = str(values)
             else:
                 out[slot] = str(values)
+            if enum_index and slot in enum_index and out[slot] not in enum_index[slot]:
+                errors.append(
+                    f"{slot}: value {out[slot]!r} is not a permissible value; "
+                    f"expected one of {sorted(enum_index[slot])!r}"
+                )
             continue
 
         raw = row.get(mapping.source_column)
@@ -177,6 +217,12 @@ def _apply_row(
                 out[slot] = raw_str
         else:
             out[slot] = raw_str
+
+        if enum_index and slot in enum_index and out[slot] not in enum_index[slot]:
+            errors.append(
+                f"{slot}: value {out[slot]!r} is not a permissible value; "
+                f"expected one of {sorted(enum_index[slot])!r}"
+            )
 
     if errors:
         out.setdefault("_transform_errors", [])

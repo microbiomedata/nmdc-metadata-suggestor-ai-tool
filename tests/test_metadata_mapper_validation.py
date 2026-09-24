@@ -31,7 +31,7 @@ def _mapping(extension: str, slot: str) -> ColumnMapping:
     )
 
 
-def test_validate_mapper_output_demotes_unknown_slot() -> None:
+def test_validate_mapper_output_demotes_when_all_slots_invalid() -> None:
     output = MetadataMapperOutput(high_confidence=[_mapping("Soil", "not_a_schema_slot")])
 
     validated = validate_mapper_output(output)
@@ -54,6 +54,59 @@ def test_validate_mapper_output_demotes_slot_from_wrong_interface() -> None:
     assert not validated.high_confidence
     assert validated.cant_place[0].nmdc_candidate_slots == []
     assert "not in WaterInterface" in validated.cant_place[0].reason
+
+
+def test_validate_mapper_output_requires_enum_map_for_enum_slot() -> None:
+    # biotic_relationship is enum-constrained in SoilInterface
+    output = MetadataMapperOutput(high_confidence=[_mapping("Soil", "biotic_relationship")])
+    validated = validate_mapper_output(output)
+
+    assert not validated.high_confidence
+    assert validated.cant_place[0].nmdc_candidate_slots == []
+    assert "enum_map" in validated.cant_place[0].reason
+
+
+def test_validate_mapper_output_accepts_enum_slot_with_enum_map_conversion() -> None:
+    from nmdc_metadata_suggestor_ai_tool.models.metadata_mapper_output import ValueConversion
+
+    mapping = ColumnMapping(
+        source_column="value",
+        source_file_id="file-1",
+        mixs_extension="Soil",
+        nmdc_candidate_slots=["biotic_relationship"],
+        confidence="high",
+        reason="model suggestion",
+        conversion=ValueConversion(
+            type="enum_map",
+            description="map to permissible values",
+            expression='{"free living": "free living"}',
+        ),
+    )
+    output = MetadataMapperOutput(high_confidence=[mapping])
+    validated = validate_mapper_output(output)
+
+    assert len(validated.high_confidence) == 1
+    assert not validated.cant_place
+
+
+def test_validate_mapper_output_drops_invalid_secondary_slots() -> None:
+    builder = SchemaContextBuilder()
+    valid_slot = builder.get_interface_schema("SoilInterface").slots[0].name
+    mapping = ColumnMapping(
+        source_column="value",
+        source_file_id="file-1",
+        mixs_extension="Soil",
+        nmdc_candidate_slots=[valid_slot, "not_a_schema_slot"],
+        confidence="high",
+        reason="model suggestion",
+    )
+    output = MetadataMapperOutput(high_confidence=[mapping])
+
+    validated = validate_mapper_output(output, builder)
+
+    assert len(validated.high_confidence) == 1
+    assert validated.high_confidence[0].nmdc_candidate_slots == [valid_slot]
+    assert not validated.cant_place
 
 
 def test_mapper_finalizer_runs_schema_validation() -> None:

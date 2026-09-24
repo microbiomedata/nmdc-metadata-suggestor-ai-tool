@@ -102,6 +102,51 @@ class TestNone:
         assert transformer.transform("unchanged", conv) == "unchanged"
 
 
+class TestEnumMap:
+    def test_maps_known_value(self) -> None:
+        conv = ValueConversion(
+            type="enum_map",
+            description="",
+            expression='{"Soil Sample": "soil", "SOIL": "soil"}',
+        )
+        assert transformer.transform("Soil Sample", conv) == "soil"
+
+    def test_maps_second_key(self) -> None:
+        conv = ValueConversion(
+            type="enum_map",
+            description="",
+            expression='{"Soil Sample": "soil", "SOIL": "soil"}',
+        )
+        assert transformer.transform("SOIL", conv) == "soil"
+
+    def test_unknown_value_raises(self) -> None:
+        conv = ValueConversion(
+            type="enum_map",
+            description="",
+            expression='{"soil": "soil"}',
+        )
+        with pytest.raises(TransformError, match="has no mapping"):
+            transformer.transform("unknown_type", conv)
+
+    def test_invalid_json_raises(self) -> None:
+        conv = ValueConversion(
+            type="enum_map",
+            description="",
+            expression="not json",
+        )
+        with pytest.raises(TransformError, match="not valid JSON"):
+            transformer.transform("x", conv)
+
+    def test_non_object_json_raises(self) -> None:
+        conv = ValueConversion(
+            type="enum_map",
+            description="",
+            expression='["soil", "water"]',
+        )
+        with pytest.raises(TransformError, match="must be a JSON object"):
+            transformer.transform("soil", conv)
+
+
 class TestCustom:
     def test_simple_expression(self) -> None:
         conv = ValueConversion(type="custom", description="", expression="value.upper()")

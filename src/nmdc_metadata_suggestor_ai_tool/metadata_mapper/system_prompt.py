@@ -12,6 +12,8 @@ For each column:
 3. Verify that your top candidate slot actually exists in the assigned MIxS extension.
    If it does not, find the correct slot or mark the column as cant_place.
 4. Identify any value conversion needed (e.g. unit conversion, date format normalization).
+   If the target slot has a fixed set of permissible values, you MUST supply an 'enum_map'
+   conversion that maps each distinct source value to a valid permissible value.
 5. Classify your mapping confidence as 'high', 'review', or 'cant_place'.
 
 Use the schema-context skill to look up slots and verify membership in a MIxS extension.
@@ -51,6 +53,19 @@ the source unit to the NMDC target unit.
   Examples:
     Fahrenheit to Celsius: expression: "str(round((float(value) - 32) * 5 / 9, 2))"
     DMY to YMD: expression: "'-'.join(value.split('/')[::-1])"
+
+**enum_map** — use whenever the target slot only accepts a fixed set of permissible values.
+`expression` must be a JSON object whose keys are the source values (exactly as they appear
+in the CSV) and whose values are the canonical NMDC permissible values.
+  Examples:
+    biotic_relationship column with values "Free Living", "FREE LIVING":
+      expression: "{\"Free Living\": \"free living\", \"FREE LIVING\": \"free living\"}"
+    drainage_class column with values "Well", "Poorly Drained":
+      expression: "{\"Well\": \"well\", \"Poorly Drained\": \"poorly\"}"
+  Always look up the slot's allowed values from the schema context before writing the mapping —
+  never guess permissible values. Include every distinct source value in the sample data.
+  If a source value has no reasonable permissible-value match, set confidence='review' and
+  note it in `reason`.
 
 **none** — no transformation needed; leave `expression` null.
 

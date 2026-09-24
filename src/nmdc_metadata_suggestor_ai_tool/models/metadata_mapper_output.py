@@ -15,13 +15,18 @@ class SourceFile(BaseModel):
 class ValueConversion(BaseModel):
     """A transformation the AI recommends applying to raw column values."""
 
-    # TODO - do we want to contrain the types of transformation?
     type: str = Field(
         description=(
-            "Category of transformation. Known values: 'unit', 'date_format', 'split', 'none'. "
-            "Use 'custom' when no known type fits — the expression field must contain a Python "
-            "function body that accepts a single string argument 'value' and returns a string. "
-            "Other values are permitted as the LLM may identify novel conversion types."
+            "Category of transformation. Known values: "
+            "'unit' — multiply by a numeric scale factor; "
+            "'date_format' — reformat a date string; "
+            "'split' — split on a delimiter and rejoin with '; '; "
+            "'enum_map' — map source values to NMDC permissible values using a JSON object "
+            "(expression must be a JSON object whose keys are source values and values are the "
+            'canonical NMDC permissible values, e.g. \'{"Soil": "soil", "SOIL": "soil"}\'); '
+            "'none' — pass through unchanged; "
+            "'custom' — arbitrary Python expression where 'value' is the input string. "
+            "Use 'enum_map' whenever the target slot has a fixed set of permissible values."
         )
     )
     description: str = Field(description="Human-readable summary, e.g. 'MM/DD/YYYY → ISO 8601'")
