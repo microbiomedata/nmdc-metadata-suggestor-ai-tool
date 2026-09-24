@@ -16,6 +16,7 @@ from claude_agent_sdk import (  # noqa: E402
     ClaudeAgentOptions,
     HookInput,
     HookMatcher,
+    PostToolUseHookInput,
     ResultMessage,
     SystemMessage,
     query,
@@ -23,6 +24,7 @@ from claude_agent_sdk import (  # noqa: E402
 from claude_agent_sdk.types import (  # noqa: E402
     AsyncHookJSONOutput,
     HookContext,
+    HookEvent,
     PreToolUseHookInput,
     SyncHookJSONOutput,
 )
@@ -32,8 +34,10 @@ __all__ = [
     "AsyncHookJSONOutput",
     "ClaudeAgentOptions",
     "HookContext",
+    "HookEvent",
     "HookInput",
     "HookMatcher",
+    "PostToolUseHookInput",
     "PreToolUseHookInput",
     "ResultMessage",
     "SyncHookJSONOutput",
