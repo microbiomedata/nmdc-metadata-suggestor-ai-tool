@@ -160,7 +160,6 @@ def try_osti_award(award_doi: str, errors: list[str] | None = None) -> ResolverC
         append_error(errors, "OSTI Award API response contains no award documents")
         return None
 
-    description = None
     first_document = documents[0]
     if not isinstance(first_document, dict):
         append_error(errors, "OSTI Award API response contains an invalid award document")
@@ -168,13 +167,24 @@ def try_osti_award(award_doi: str, errors: list[str] | None = None) -> ResolverC
 
     raw_description = first_document.get("award_description")
     description = clean_text(raw_description) if isinstance(raw_description, str) else None
-    if not description:
-        append_error(errors, "No description found in OSTI Award record")
-        return None
+    if description:
+        return ResolverContext(
+            text=description,
+            raw_text=raw_description if isinstance(raw_description, str) else None,
+            kind="description",
+            source="osti_award",
+        )
 
-    return ResolverContext(
-        text=description,
-        raw_text=raw_description if isinstance(raw_description, str) else None,
-        kind="description",
-        source="osti_award",
-    )
+    # No description found; fall back to using the title as the body text.
+    raw_title = first_document.get("award_title")
+    title = clean_text(raw_title) if isinstance(raw_title, str) else None
+    if title:
+        return ResolverContext(
+            text=title,
+            raw_text=raw_title if isinstance(raw_title, str) else None,
+            kind="description",
+            source="osti_award",
+        )
+
+    append_error(errors, "No description or title found in OSTI Award record")
+    return None
