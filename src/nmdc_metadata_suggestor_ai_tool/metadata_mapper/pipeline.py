@@ -2,6 +2,7 @@
 
 import logging
 from collections.abc import AsyncIterator
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -89,7 +90,9 @@ async def run_metadata_mapper_agentic(
             "PostToolUse": [
                 HookMatcher(
                     matcher=STRUCTURED_OUTPUT_TOOL,
-                    hooks=[metadata_mapper_validation_hook],
+                    # partial pre-fills column_data, since the SDK only passes
+                    # (input_data, tool_use_id, context) to hooks.
+                    hooks=[partial(metadata_mapper_validation_hook, column_data=column_data)],
                 )
             ]
         },

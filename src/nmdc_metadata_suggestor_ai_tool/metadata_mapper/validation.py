@@ -9,6 +9,10 @@ from nmdc_metadata_suggestor_ai_tool.langfuse_claude_sdk import (
     PostToolUseHookInput,
     SyncHookJSONOutput,
 )
+from nmdc_metadata_suggestor_ai_tool.metadata_mapper.transformer import (
+    TransformError,
+    ValueTransformer,
+)
 from nmdc_metadata_suggestor_ai_tool.models.metadata_mapper_output import (
     ColumnMapping,
     MetadataMapperOutput,
@@ -57,12 +61,14 @@ async def metadata_mapper_validation_hook(
     input_data: HookInput,
     tool_use_id: str | None,
     context: HookContext,
+    column_data: dict[str, dict[str, list[str]]] | None = None,
 ) -> SyncHookJSONOutput:
-    """Return schema errors to the mapper agent after StructuredOutput calls.
+    """Return schema and transform errors to the mapper agent after StructuredOutput calls.
 
     Post-tool hooks cannot reject a completed tool call, so invalid output is
     returned as additional context. The agent can then correct its JSON and call
-    StructuredOutput again.
+    StructuredOutput again. Bind ``column_data`` with functools.partial to also
+    dry-run each conversion against the sample values.
     """
     if input_data["hook_event_name"] != "PostToolUse":
         return {}
@@ -74,7 +80,7 @@ async def metadata_mapper_validation_hook(
     if output is None:
         return {}
 
-    errors = mapper_output_schema_errors(output)
+    errors = mapper_output_schema_errors(output, column_data=column_data)
     if not errors:
         return {}
 
@@ -94,6 +100,7 @@ async def metadata_mapper_validation_hook(
 def mapper_output_schema_errors(
     output: MetadataMapperOutput,
     schema_builder: SchemaContextBuilder | None = None,
+    column_data: dict[str, dict[str, list[str]]] | None = None,
 ) -> list[str]:
     """Return actionable schema errors without mutating the mapper output."""
     builder = schema_builder or SchemaContextBuilder()
@@ -103,6 +110,28 @@ def mapper_output_schema_errors(
         error = validate_mapping(mapping, builder, interfaces)
         if error is not None:
             errors.append(f"{mapping.source_column}: {error}")
+        if column_data:
+            for sample_error in conversion_sample_errors(mapping, column_data):
+                errors.append(f"{mapping.source_column}: {sample_error}")
+    return errors
+
+
+def conversion_sample_errors(
+    mapping: ColumnMapping,
+    column_data: dict[str, dict[str, list[str]]],
+) -> list[str]:
+    """Dry-run the mapping's conversion on its column's sample values; return any failures."""
+    conversion = mapping.conversion
+    if conversion is None or conversion.type == "none":
+        return []
+    samples = column_data.get(mapping.source_file_id or "", {}).get(mapping.source_column, [])
+    transformer = ValueTransformer()
+    errors: list[str] = []
+    for value in samples:
+        try:
+            transformer.transform(value, conversion)
+        except TransformError as exc:
+            errors.append(f"'{conversion.type}' conversion failed on sample {value!r}: {exc}")
     return errors
 
 

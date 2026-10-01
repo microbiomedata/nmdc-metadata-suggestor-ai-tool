@@ -197,3 +197,60 @@ async def test_metadata_mapper_hook_accepts_valid_output() -> None:
         )
         == {}
     )
+
+
+def _enum_map_hook_input(expression: str) -> PostToolUseHookInput:
+    return cast(
+        PostToolUseHookInput,
+        {
+            "hook_event_name": "PostToolUse",
+            "tool_name": "StructuredOutput",
+            "tool_input": {},
+            "tool_response": {
+                "high_confidence": [
+                    {
+                        "source_column": "value",
+                        "source_file_id": "file-1",
+                        "mixs_extension": "Soil",
+                        "nmdc_candidate_slots": ["biotic_relationship"],
+                        "confidence": "high",
+                        "reason": "model suggestion",
+                        "conversion": {
+                            "type": "enum_map",
+                            "description": "map to permissible values",
+                            "expression": expression,
+                        },
+                    }
+                ]
+            },
+        },
+    )
+
+
+SAMPLES = {"file-1": {"value": ["free living", "Parasite"]}}
+
+
+@pytest.mark.asyncio
+async def test_metadata_mapper_hook_reports_conversion_failure_on_sample() -> None:
+    result = await metadata_mapper_validation_hook(
+        _enum_map_hook_input('{"free living": "free living"}'),
+        None,
+        cast(HookContext, {"signal": None}),
+        column_data=SAMPLES,
+    )
+    context = cast(dict[str, Any], result["hookSpecificOutput"])["additionalContext"]
+
+    assert "failed on sample 'Parasite'" in context
+    assert context.count("failed on sample") == 1
+
+
+@pytest.mark.asyncio
+async def test_metadata_mapper_hook_accepts_conversion_covering_all_samples() -> None:
+    result = await metadata_mapper_validation_hook(
+        _enum_map_hook_input('{"free living": "free living", "Parasite": "parasite"}'),
+        None,
+        cast(HookContext, {"signal": None}),
+        column_data=SAMPLES,
+    )
+
+    assert result == {}
