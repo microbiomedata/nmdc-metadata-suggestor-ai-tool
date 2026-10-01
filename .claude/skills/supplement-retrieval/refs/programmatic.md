@@ -5,6 +5,8 @@
 ```python
 from nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements import (
     retrieve_supplements,  # orchestrator: routes + merges by DOI type
+    format_supplement_context,  # result -> LLM messages (inlined text files + inventory)
+    describe_supplement,  # one-line label: filename, source, kind, caption
     retrieve_supplements_from_europepmc,  # Europe PMC supplementaryFiles ZIP
     retrieve_supplements_from_dryad,  # Dryad dataset DOI files (via Zenodo mirror)
     retrieve_supplements_from_zenodo,  # Zenodo record files (by DOI/concept DOI)
@@ -54,6 +56,7 @@ publication_ingestion/supplements/
   figshare.py       # Figshare articles/collections
   related_dois.py   # relation metadata + text/accession mining
   retrieve.py       # retrieve_supplements: routing, shared budget, merge
+  context.py        # format_supplement_context: result -> LLM messages
 ```
 
 ## `retrieve_supplements(doi, ...)`
@@ -150,6 +153,21 @@ accessions = extract_accessions_from_text(text)  # PRJNA…/SRR…/GSE… (not f
 `is-documented-by`) and that resolve to a fetchable repo (Dryad/Zenodo/Figshare).
 `retrieve_supplements` calls both automatically for publication DOIs; use them
 directly if you want to inspect or filter the links first.
+
+## Feeding supplements to the model
+
+```python
+messages = format_supplement_context(result)  # [] when nothing was inlined
+for message in messages:
+    conversation_manager.add_message(text=message)
+```
+
+The first message inventories every kept file and says which are included and
+which were only saved to disk (xlsx/pdf/docx need a reader of their own). Each
+following message is one inlined csv/tsv/txt, headed by its
+`describe_supplement` label so the model can cite it. `max_chars=` truncates each
+file on top of the retriever's own `SUPPLEMENT_MAX_TEXT_CHARS` cap. The env
+triad pipeline accepts these as `study_context=` entries.
 
 ## Temp-file cleanup
 
