@@ -161,19 +161,3 @@ def _finalize_mapper_result(raw: Any) -> MetadataMapperOutput:
                 continue
     logger.warning("Could not parse MetadataMapperOutput from structured output; returning empty.")
     return MetadataMapperOutput()
-
-
-if __name__ == "__main__":
-    import asyncio
-
-    _csv_path = Path(__file__).parent / "PRJEB13831_Phage_metadata.xlsx - Sheet1.csv"
-    _source_file = SourceFile(file_id="phage-001", display_name=_csv_path.name)
-    llm_client = LLMClient("gcp")
-    asyncio.run(
-        run_metadata_mapper_agentic(
-            llm_client=llm_client,
-            csv_files=[(_source_file, _csv_path)],
-            mixs_extensions=["water"],
-            session_id=None,
-        )
-    )
