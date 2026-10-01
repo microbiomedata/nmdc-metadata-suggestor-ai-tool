@@ -47,6 +47,7 @@ logger = logging.getLogger(__name__)
 # Skills the mapper agent is allowed to use.
 MAPPER_SKILLS = [
     "schema-context",
+    "csv-column-inspector",
 ]
 
 
