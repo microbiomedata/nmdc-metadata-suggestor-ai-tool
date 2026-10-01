@@ -55,9 +55,7 @@ class ValueTransformer:
             return self.enum_map(value, conversion.expression)
         if t == "custom":
             return self.custom(value, conversion.expression)
-        # Unknown but non-custom type — attempt custom path as best effort.
-        logger.warning("Unknown conversion type %r; attempting custom execution.", conversion.type)
-        return self.custom(value, conversion.expression)
+        raise TransformError(f"Unknown conversion type {conversion.type!r}")
 
     def validate_preview(self, conversion: ValueConversion) -> list[dict[str, str | object]]:
         """Run the transformer against the agent-supplied preview pairs.

@@ -15,9 +15,9 @@ class SourceFile(BaseModel):
 class ValueConversion(BaseModel):
     """A transformation the AI recommends applying to raw column values."""
 
-    type: str = Field(
+    type: Literal["unit", "date_format", "split", "enum_map", "none", "custom"] = Field(
         description=(
-            "Category of transformation. Known values: "
+            "Category of transformation. "
             "'unit' — multiply by a numeric scale factor; "
             "'date_format' — reformat a date string; "
             "'split' — split on a delimiter and rejoin with '; '; "
