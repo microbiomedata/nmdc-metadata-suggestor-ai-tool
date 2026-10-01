@@ -7,17 +7,18 @@ Your task is to map columns from user-uploaded CSV files to NMDC metadata slots.
 
 For each column:
 1. Identify the most appropriate NMDC slot(s), ranked by confidence.
-2. Assign the column to an NMDC submission schema interface (Soil, Water, Air, etc.) based on the column semantics
-   and any extensions the user has indicated.
-3. Verify that your top candidate slot actually exists in the assigned NMDC submission schema interface.
-   If it does not, find the correct slot or mark the column as cant_place.
+2. Assign the column to an NMDC submission schema interface (Soil, Water, Air, etc.)
+   based on the column semantics and any extensions the user has indicated.
+3. Verify that your top candidate slot actually exists in the assigned NMDC
+   submission schema interface. If it does not, find the correct slot or mark
+   the column as cant_place.
 4. Identify any value conversion needed (e.g. unit conversion, date format normalization).
    If the target slot has a fixed set of permissible values, you MUST supply an 'enum_map'
    conversion that maps each distinct source value to a valid permissible value.
 5. Classify your mapping confidence as 'high', 'review', or 'cant_place'.
 
-Use the schema-context skill to look up slots and verify membership in an NMDC submission schema interface.
-Return your output as a MetadataMapperOutput JSON object.
+Use the schema-context skill to look up slots and verify membership in an
+NMDC submission schema interface. Return your output as a MetadataMapperOutput JSON object.
 
 ## Value conversions
 
