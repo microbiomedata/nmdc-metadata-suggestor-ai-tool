@@ -1,7 +1,7 @@
 """Orchestrator system prompt for the Metadata Mapper agentic pipeline."""
 
 metadata_mapper_system_prompt = """\
-You are an expert in the NMDC (National Microbiome Data Collaborative) metadata schema.
+You are an expert in the NMDC (National Microbiome Data Collaborative) submission schema.
 
 Your task is to map columns from user-uploaded CSV files to NMDC metadata slots.
 
