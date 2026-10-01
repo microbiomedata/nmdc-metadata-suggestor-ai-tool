@@ -33,7 +33,7 @@ def validate_mapper_output(
     invalid_mappings: list[ColumnMapping] = []
 
     for mapping in output.high_confidence + output.needs_review:
-        error = _mapping_error(mapping, builder, interfaces, mutate=True)
+        error = validate_mapping(mapping, builder, interfaces, mutate=True)
         if error is None:
             valid_mappings.append(mapping)
             continue
@@ -100,7 +100,7 @@ def mapper_output_schema_errors(
     interfaces = {name.casefold(): name for name in builder.list_interfaces()}
     errors: list[str] = []
     for mapping in output.high_confidence + output.needs_review:
-        error = _mapping_error(mapping, builder, interfaces)
+        error = validate_mapping(mapping, builder, interfaces)
         if error is not None:
             errors.append(f"{mapping.source_column}: {error}")
     return errors
@@ -127,7 +127,7 @@ def _parse_mapper_output(raw: Any) -> MetadataMapperOutput | None:
     return None
 
 
-def _mapping_error(
+def validate_mapping(
     mapping: ColumnMapping,
     builder: SchemaContextBuilder,
     interfaces: dict[str, str],
