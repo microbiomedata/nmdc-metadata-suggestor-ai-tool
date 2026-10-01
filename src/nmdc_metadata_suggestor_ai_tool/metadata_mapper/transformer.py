@@ -38,7 +38,7 @@ class ValueTransformer:
         """
         if not conversion.expression:
             raise TransformError("combine transform requires a non-null expression")
-        return self._custom_combined(values, conversion.expression)
+        return self.custom_combined(values, conversion.expression)
 
     def transform(self, value: str, conversion: ValueConversion) -> str:
         """Return the transformed value, or raise TransformError on failure."""
@@ -46,18 +46,18 @@ class ValueTransformer:
         if t == "none" or conversion.expression is None:
             return value
         if t == "date_format":
-            return self._date_format(value, conversion.expression)
+            return self.date_format(value, conversion.expression)
         if t == "unit":
-            return self._unit(value, conversion.expression)
+            return self.unit(value, conversion.expression)
         if t == "split":
-            return self._split(value, conversion.expression)
+            return self.split(value, conversion.expression)
         if t == "enum_map":
-            return self._enum_map(value, conversion.expression)
+            return self.enum_map(value, conversion.expression)
         if t == "custom":
-            return self._custom(value, conversion.expression)
+            return self.custom(value, conversion.expression)
         # Unknown but non-custom type — attempt custom path as best effort.
         logger.warning("Unknown conversion type %r; attempting custom execution.", conversion.type)
-        return self._custom(value, conversion.expression)
+        return self.custom(value, conversion.expression)
 
     def validate_preview(self, conversion: ValueConversion) -> list[dict[str, str | object]]:
         """Run the transformer against the agent-supplied preview pairs.
@@ -91,7 +91,7 @@ class ValueTransformer:
                 )
         return results
 
-    def _date_format(self, value: str, expression: str) -> str:
+    def date_format(self, value: str, expression: str) -> str:
         """Parse with the given strptime format and return ISO 8601."""
         try:
             dt = datetime.strptime(value.strip(), expression)
@@ -101,7 +101,7 @@ class ValueTransformer:
                 f"date_format: could not parse {value!r} with format {expression!r}: {exc}"
             ) from exc
 
-    def _unit(self, value: str, expression: str) -> str:
+    def unit(self, value: str, expression: str) -> str:
         """Apply a numeric scale factor.
 
         expression should be a float-parseable string, e.g. '0.3048' for ft→m.
@@ -117,7 +117,7 @@ class ValueTransformer:
                 f"unit: could not apply scale {expression!r} to {value!r}: {exc}"
             ) from exc
 
-    def _split(self, value: str, expression: str) -> str:
+    def split(self, value: str, expression: str) -> str:
         """Split on expression and return all parts joined by '; '.
 
         expression is the delimiter string, e.g. ',' or ' | '.
@@ -130,7 +130,7 @@ class ValueTransformer:
                 f"split: could not split {value!r} on {expression!r}: {exc}"
             ) from exc
 
-    def _enum_map(self, value: str, expression: str) -> str:
+    def enum_map(self, value: str, expression: str) -> str:
         """Map a source value to a canonical NMDC permissible value.
 
         expression must be a JSON object whose keys are source values and values
@@ -154,7 +154,7 @@ class ValueTransformer:
             )
         return str(mapping[value])
 
-    def _custom(self, value: str, expression: str) -> str:
+    def custom(self, value: str, expression: str) -> str:
         """Execute LLM-generated expression inside a RestrictedPython sandbox.
 
         The expression is a Python expression string where ``value`` is bound
@@ -188,12 +188,13 @@ class ValueTransformer:
 
         thread = threading.Thread(target=_run, daemon=True)
         thread.start()
-        thread.join(timeout=_EXEC_TIMEOUT_S)
-
-        if thread.is_alive():
-            raise TransformError(
-                f"custom transform timed out after {_EXEC_TIMEOUT_S}s for value {value!r}"
-            )
+        try:
+            thread.join(timeout=_EXEC_TIMEOUT_S)
+        finally:
+            if thread.is_alive():
+                raise TransformError(
+                    f"custom transform timed out after {_EXEC_TIMEOUT_S}s for value {value!r}"
+                )
         if "error" in result_container:
             raise TransformError(
                 f"custom transform failed for value {value!r}: {result_container['error']}"
@@ -206,7 +207,7 @@ class ValueTransformer:
             return str(raw_result)
         return raw_result
 
-    def _custom_combined(self, values: dict[str, str], expression: str) -> str:
+    def custom_combined(self, values: dict[str, str], expression: str) -> str:
         """Execute a combine expression with a 'values' dict in the sandbox."""
         result_container: dict[str, Any] = {}
 
@@ -233,12 +234,13 @@ class ValueTransformer:
 
         thread = threading.Thread(target=_run, daemon=True)
         thread.start()
-        thread.join(timeout=_EXEC_TIMEOUT_S)
-
-        if thread.is_alive():
-            raise TransformError(
-                f"combine transform timed out after {_EXEC_TIMEOUT_S}s for values {values!r}"
-            )
+        try:
+            thread.join(timeout=_EXEC_TIMEOUT_S)
+        finally:
+            if thread.is_alive():
+                raise TransformError(
+                    f"combine transform timed out after {_EXEC_TIMEOUT_S}s for values {values!r}"
+                )
         if "error" in result_container:
             raise TransformError(
                 f"combine transform failed for values {values!r}: {result_container['error']}"
