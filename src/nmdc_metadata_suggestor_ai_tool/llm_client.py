@@ -6,7 +6,7 @@ import logging
 import os
 from collections import Counter
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 import google.auth
 from dotenv import load_dotenv
@@ -24,6 +24,7 @@ from nmdc_metadata_suggestor_ai_tool.envo import enforce_env_triad_values
 from nmdc_metadata_suggestor_ai_tool.langfuse_claude_sdk import (
     AssistantMessage,
     ClaudeAgentOptions,
+    HookEvent,
     HookMatcher,
     ResultMessage,
     SystemMessage,
@@ -67,6 +68,40 @@ DEFAULT_MAX_TOKENS_BY_PROVIDER: dict[str, int] = {
     "cborg": 128000,
     "gcp": 65535,
 }
+
+
+def build_agent_options(
+    model: str,
+    *,
+    skills: list[str] | Literal["all"] | None = "all",
+    system_prompt: str,
+    output_format: dict | None = None,
+    hooks: dict[HookEvent, list[HookMatcher]] | None = None,
+    **kwargs: Any,
+) -> ClaudeAgentOptions:
+    """Build a ``ClaudeAgentOptions`` with the project-standard permission policy.
+
+    This is the single source of truth for agent configuration. Import and call it
+    in any pipeline; override ``skills``, ``system_prompt``, and ``output_format``
+    as needed.
+    """
+    configured_hooks: dict[HookEvent, list[HookMatcher]] = {
+        "PreToolUse": [HookMatcher(hooks=[pretool_permission_gate])]
+    }
+    if hooks:
+        for event_name, matchers in hooks.items():
+            configured_hooks.setdefault(event_name, []).extend(matchers)
+
+    return ClaudeAgentOptions(
+        skills=skills,
+        model=model,
+        system_prompt=system_prompt,
+        permission_mode="bypassPermissions",
+        hooks=configured_hooks,
+        setting_sources=["project"],
+        output_format=output_format,
+        **kwargs,
+    )
 
 
 class LLMClient:
@@ -172,6 +207,56 @@ class LLMClient:
                 "Check IAM permissions and Google Cloud authentication setup."
             )
         return credentials
+
+
+def unwrap_structured_output(raw: Any) -> LLMOutput:
+    """Extract LLMOutput from whatever wrapper shape Claude produced."""
+    if not isinstance(raw, dict):
+        raise ValueError(f"structured_output is not a dict: {type(raw)}")
+    try:
+        return LLMOutput.model_validate(raw)
+    except Exception:
+        for v in raw.values():
+            if isinstance(v, dict):
+                try:
+                    return LLMOutput.model_validate(v)
+                except Exception:
+                    continue
+    raise ValueError(f"Could not extract LLMOutput from structured_output: {raw}")
+
+
+def structured_output_from_tool_use(event: AssistantMessage) -> dict[str, Any] | None:
+    """Return the payload the agent passed to the StructuredOutput tool, if it called it.
+
+    ``ResultMessage.structured_output`` can come back empty on a run where the agent did
+    call the tool with a complete answer, so the tool call is the only surviving copy of
+    it. What is stable about that call is the tool name and the payload shape, not the
+    name of the argument the payload arrives under::
+
+        ToolUseBlock(
+            name="StructuredOutput",
+            input={<key varies>: '{"metadata_fields": [...]}'},  # dict or JSON string
+        )
+
+    So this searches the values rather than reading a known key, and requires
+    ``metadata_fields`` so an empty wrapper is not recovered as an answer.
+    """
+    for block in event.content or []:
+        if getattr(block, "name", None) != STRUCTURED_OUTPUT_TOOL:
+            continue
+        payload = getattr(block, "input", None)
+        if not isinstance(payload, dict):
+            continue
+        for candidate in (*payload.values(), payload):
+            parsed: Any = candidate
+            if isinstance(parsed, str):
+                try:
+                    parsed = json.loads(parsed)
+                except json.JSONDecodeError:
+                    continue
+            if isinstance(parsed, dict) and parsed.get("metadata_fields"):
+                return parsed
+    return None
 
 
 class ConversationManager:
@@ -343,53 +428,11 @@ class ConversationManager:
 
     @staticmethod
     def unwrap_structured_output(raw: Any) -> LLMOutput:
-        """Extract LLMOutput from whatever wrapper shape Claude produced."""
-        if not isinstance(raw, dict):
-            raise ValueError(f"structured_output is not a dict: {type(raw)}")
-        try:
-            return LLMOutput.model_validate(raw)
-        except Exception:
-            for v in raw.values():
-                if isinstance(v, dict):
-                    try:
-                        return LLMOutput.model_validate(v)
-                    except Exception:
-                        continue
-        raise ValueError(f"Could not extract LLMOutput from structured_output: {raw}")
+        return unwrap_structured_output(raw)
 
     @staticmethod
     def structured_output_from_tool_use(event: AssistantMessage) -> dict[str, Any] | None:
-        """The payload the agent passed to the StructuredOutput tool, if it called it.
-
-        ``ResultMessage.structured_output`` can come back empty on a run where the agent did
-        call the tool with a complete answer, so the tool call is the only surviving copy of
-        it. What is stable about that call is the tool name and the payload shape, not the
-        name of the argument the payload arrives under::
-
-            ToolUseBlock(
-                name="StructuredOutput",
-                input={<key varies>: '{"metadata_fields": [...]}'},  # dict or JSON string
-            )
-
-        So this searches the values rather than reading a known key, and requires
-        ``metadata_fields`` so an empty wrapper is not recovered as an answer.
-        """
-        for block in event.content or []:
-            if getattr(block, "name", None) != STRUCTURED_OUTPUT_TOOL:
-                continue
-            payload = getattr(block, "input", None)
-            if not isinstance(payload, dict):
-                continue
-            for candidate in (*payload.values(), payload):
-                parsed: Any = candidate
-                if isinstance(parsed, str):
-                    try:
-                        parsed = json.loads(parsed)
-                    except json.JSONDecodeError:
-                        continue
-                if isinstance(parsed, dict) and parsed.get("metadata_fields"):
-                    return parsed
-        return None
+        return structured_output_from_tool_use(event)
 
     @staticmethod
     def run_health(event: ResultMessage) -> dict[str, Any]:
@@ -496,16 +539,9 @@ class ConversationManager:
             if self.llm_client.access_provider == "gcp"
             else self.llm_client.model
         )
-        options = ClaudeAgentOptions(
-            skills="all",
-            model=model,
+        options = build_agent_options(
+            model,
             system_prompt=orchestrator_prompt,
-            # bypassPermissions skips the SDK's built-in permission prompts (which would
-            # otherwise hang a headless run); the PreToolUse hook is the actual gate.
-            permission_mode="bypassPermissions",
-            hooks={"PreToolUse": [HookMatcher(hooks=[pretool_permission_gate])]},
-            # "project" is required for the SDK to discover skills in .claude/skills/.
-            setting_sources=["project"],
             output_format={"type": "json_schema", "schema": LLMOutput.model_json_schema()},
         )
 

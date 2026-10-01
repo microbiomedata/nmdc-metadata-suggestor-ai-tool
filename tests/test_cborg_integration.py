@@ -18,6 +18,7 @@ with ``CBORG_TEST_MODEL`` to exercise another CBORG-served model explicitly.
 import json
 import os
 from pathlib import Path
+from typing import Any
 
 import pytest
 from openai import OpenAI
@@ -31,7 +32,7 @@ INTEGRATION_MAX_TOKENS = 8192
 CBORG_MODEL = os.environ.get("CBORG_TEST_MODEL", DEFAULT_GEMINI_MODEL)
 
 
-def _load_fixture(filename: str) -> dict:
+def _load_fixture(filename: str) -> Any:
     with (FIXTURES_DIR / filename).open() as f:
         return json.load(f)
 
