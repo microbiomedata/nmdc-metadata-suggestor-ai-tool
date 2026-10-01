@@ -117,7 +117,7 @@ async def run_metadata_mapper_agentic(
                 raw = event.structured_output or tool_payload
                 result = _finalize_mapper_result(raw)
                 result.source_files = source_files
-                result.model = llm_client.model
+                result.model = model
                 result.access_provider = llm_client.access_provider
 
     if session_id is None:
