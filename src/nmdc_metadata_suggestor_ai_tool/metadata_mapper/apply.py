@@ -204,7 +204,8 @@ def _apply_row(
             continue
 
         raw = row.get(mapping.source_column)
-        if raw is None:
+        # Skip missing and blank cells so sparse columns don't flood _transform_errors.
+        if raw is None or str(raw).strip() == "":
             continue
         raw_str = str(raw)
 
