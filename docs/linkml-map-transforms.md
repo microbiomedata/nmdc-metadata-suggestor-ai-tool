@@ -18,16 +18,40 @@ upload ─► headers ─► TransformLibrary.find_match ─┬─ no match ─�
 approved MetadataMapperOutput ─► compile_transform ─► TransformLibrary.save
 ```
 
+## Files
+
+A saved transform is a folder of ordinary linkml-map files, so it runs with the linkml-map CLI as
+well as from Python:
+
+| File | What it is |
+|---|---|
+| `source_schema.yaml` | LinkML schema induced from the CSV headers: one class, `Row`, one string slot per column, named exactly as the header is spelled, so the CLI can read the raw CSV |
+| `transform.yaml` | linkml-map `TransformationSpecification`. One class derivation per submission schema interface the mappings use (`WaterInterface`, `SoilInterface`, ...), each `populated_from: Row`. `target_schema` points at the nmdc-submission-schema package (name, version, file) |
+| `mapper.yaml` | The approved mappings with confidence and reasons, plus the source columns and extensions |
+
+```bash
+linkml-map map-data -T transform.yaml -s source_schema.yaml \
+  --functions src/nmdc_metadata_suggestor_ai_tool/metadata_mapper/transform_functions.py Row.csv
+```
+
+The CLI takes the source class from the input file's name, so the CSV has to be called `Row.csv`.
+Worked examples for three input shapes, with expected output, are in
+[examples/linkml-map/](../examples/linkml-map/README.md).
+
+The target schema is referenced, not loaded at run time. Slot names are checked against it
+before a transform is built, by the mapper's own validation step (`validate_mapper_output`).
+
 ## Pieces
 
 All in `metadata_mapper/transform_spec.py` unless noted.
 
 | Function | What it does |
 |---|---|
-| `compile_transform` | Approved `MetadataMapperOutput` + the file's headers → `ReusableTransform` (`models/reusable_transform.py`): the approved mappings plus a linkml-map `TransformationSpecification` |
+| `compile_transform` | Approved `MetadataMapperOutput` + the file's headers → `ReusableTransform` (`models/reusable_transform.py`): the approved mappings, the induced source schema, and the spec |
 | `run_transform` | Runs a `ReusableTransform` over CSV rows through linkml-map's `ObjectTransformer` |
-| `match_transform`, `TransformLibrary` | Score saved transforms against a new file's headers (case, spacing, `_`/`-` ignored); a directory of `<name>.yaml` files |
-| `rebase_transform` | Re-keys a saved transform to the new file's header spellings |
+| `match_transform`, `TransformLibrary` | Score saved transforms against a new file's headers (case, spacing, `_`/`-` ignored); a directory of transform folders |
+| `write_transform_files`, `read_transform_files` | Save and load one transform folder |
+| `rebase_transform` | Rebuilds a saved transform for a new file's header spellings, including column names inside combine expressions |
 | `mapper_output_from_transform` | Rebuilds mapper output for the columns a transform covers, and lists the ones it doesn't |
 | `build_prior_transform_context` | Prompt text; used by `run_metadata_mapper_agentic(..., prior_transform=match)` |
 
@@ -38,13 +62,19 @@ no `strptime`. The mapper's conversion types map onto it like this:
 
 | Mapper `conversion.type` | linkml-map slot derivation |
 |---|---|
-| `none` | `populated_from: <column>` |
+| `none` | `populated_from: <header>` |
 | `enum_map` | `populated_from` + `value_mappings` (native linkml-map) |
-| `date_format` | `expr: iso_date(<column>, '%m/%d/%Y')` |
-| `unit` | `expr: scale(<column>, '0.3048')` |
-| `split` | `expr: split_join(<column>, ',')` |
-| `custom` | `expr: sandboxed(<column>, '<python expression>')` |
-| `combine_columns` | `expr: sandboxed_combined({"Lat": lat, "Lon": lon}, '<python expression>')` |
+| `date_format` | `expr: iso_date(slot('src_<column>'), '%m/%d/%Y')` |
+| `unit` | `expr: scale(slot('src_<column>'), '0.3048')` |
+| `split` | `expr: split_join(slot('src_<column>'), ',')` |
+| `custom` | `expr: sandboxed(slot('src_<column>'), '<python expression>')` |
+| `combine_columns` | `expr: sandboxed_combined({"Lat": slot('src_lat'), "Lon": slot('src_lon')}, '<python expression>')` |
+
+Expressions can only name identifiers, and headers like `Depth (ft)` are not. So each column an
+expression needs is first copied into a hidden slot (`src_depth_ft: {populated_from: "Depth
+(ft)", hide: true}`), declared before the slot that reads it with `slot('src_depth_ft')`.
+Hidden slots are left out of the output. Every `populated_from` carries `missing_values: ['']`,
+so blank cells are dropped rather than written as empty strings.
 
 The helpers live in `metadata_mapper/transform_functions.py` and are registered as linkml-map
 extension functions. Each one calls the existing `ValueTransformer`, so:
@@ -59,9 +89,8 @@ A bad cell does not stop the row: the helper records the error under `_transform
 the raw value, as `apply_mappings` does. linkml-map's `value_mappings` returns nothing on a miss
 rather than failing, so `run_transform` checks for that and reports it the same way.
 
-CSV headers are not always valid identifiers (`Depth (ft)`, `class`), so each transform carries
-a `column_slots` table from header to a safe slot name in a source schema induced from the
-headers.
+Headers containing `.` are refused for now: linkml-map reads a dot in `populated_from` as
+`table.column`.
 
 ## Eval
 
@@ -103,5 +132,8 @@ Output goes to `evaluation-results/transform-reuse/<timestamp>/` (gitignored).
   are stored and who approves them is open.
 - **Enum checks.** `apply_mappings` can check values against permissible values with a
   `schema_builder`; `run_transform` does not yet.
-- **linkml-map CLI.** The helper module is tagged for `linkml-map map-data --functions`, but no
-  command yet writes out the schema + spec pair that CLI would need.
+- **CLI error reporting.** The CLI runs the saved files, but it does not report bad cells: a
+  value that fails to convert keeps its raw form, and one missing from an enum map is dropped.
+  `run_transform` reports both under `_transform_errors`.
+- **Readability.** A combine expression nested inside a linkml-map `expr` comes out with doubled
+  quotes in YAML. Valid, but hard to read; promoting such expressions to named helpers would fix it.
