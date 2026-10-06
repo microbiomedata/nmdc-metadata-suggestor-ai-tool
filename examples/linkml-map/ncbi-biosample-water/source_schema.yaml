@@ -1,0 +1,34 @@
+id: https://w3id.org/nmdc/metadata-mapper/source/ncbi-biosample-water
+name: ncbi-biosample-water_source
+description: Induced from CSV headers by the NMDC Metadata Mapper.
+prefixes:
+  linkml: https://w3id.org/linkml/
+imports:
+- linkml:types
+default_range: string
+slots:
+  '*sample_name': {}
+  sample_title: {}
+  collection_date: {}
+  geo_loc_name: {}
+  lat_lon: {}
+  depth: {}
+  env_broad_scale: {}
+  env_local_scale: {}
+  env_medium: {}
+  temp: {}
+  isolation_source: {}
+classes:
+  Row:
+    slots:
+    - '*sample_name'
+    - sample_title
+    - collection_date
+    - geo_loc_name
+    - lat_lon
+    - depth
+    - env_broad_scale
+    - env_local_scale
+    - env_medium
+    - temp
+    - isolation_source

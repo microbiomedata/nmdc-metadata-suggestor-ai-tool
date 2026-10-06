@@ -1,0 +1,80 @@
+# Hand-written for illustration, not mapper agent output. Synthetic rows in the shape of an
+# NCBI BioSample MIxS water package export: most columns already are MIxS slot names, so most
+# mappings copy values straight across.
+description: NCBI BioSample MIxS water package export (synthetic example)
+mixs_extensions: [water]
+created: 2026-10-06
+mappings:
+  - source_column: "*sample_name"
+    mixs_extension: Water
+    nmdc_candidate_slots: [samp_name]
+    confidence: high
+    reason: NCBI's required sample name; the asterisk marks it mandatory in the template
+  - source_column: collection_date
+    mixs_extension: Water
+    nmdc_candidate_slots: [collection_date]
+    confidence: high
+    reason: Already ISO 8601
+  - source_column: geo_loc_name
+    mixs_extension: Water
+    nmdc_candidate_slots: [geo_loc_name]
+    confidence: high
+    reason: "Already 'country: region'"
+  - source_column: lat_lon
+    mixs_extension: Water
+    nmdc_candidate_slots: [lat_lon]
+    confidence: high
+    reason: NCBI writes hemispheres as letters; NMDC wants signed decimal degrees
+    conversion:
+      type: custom
+      description: "'41.68 N 83.25 W' → '41.68 -83.25'"
+      expression: "' '.join(str(float(n) * (-1 if d in 'SW' else 1)) for n, d in zip(value.split()[0::2], value.split()[1::2]))"
+  - source_column: depth
+    mixs_extension: Water
+    nmdc_candidate_slots: [depth]
+    confidence: review
+    reason: Unit not stated in the column; NCBI's template asks for meters
+  - source_column: env_broad_scale
+    mixs_extension: Water
+    nmdc_candidate_slots: [env_broad_scale]
+    confidence: high
+    reason: >-
+      Same slot, already 'label [CURIE]'. The slot takes a fixed list, so even values that
+      already fit need an enum_map; that is what lets them be checked.
+    conversion:
+      type: enum_map
+      description: values already on the permissible list
+      expression: '{"freshwater lake biome [ENVO:01000252]": "freshwater lake biome [ENVO:01000252]"}'
+  - source_column: env_local_scale
+    mixs_extension: Water
+    nmdc_candidate_slots: [env_local_scale]
+    confidence: high
+    reason: >-
+      Same slot, already 'label [CURIE]'. The slot takes a fixed list, so even values that
+      already fit need an enum_map; that is what lets them be checked.
+    conversion:
+      type: enum_map
+      description: values already on the permissible list
+      expression: '{"lake [ENVO:00000020]": "lake [ENVO:00000020]"}'
+  - source_column: env_medium
+    mixs_extension: Water
+    nmdc_candidate_slots: [env_medium]
+    confidence: high
+    reason: >-
+      Same slot, already 'label [CURIE]'. The slot takes a fixed list, so even values that
+      already fit need an enum_map; that is what lets them be checked.
+    conversion:
+      type: enum_map
+      description: values already on the permissible list
+      expression: '{"lake water [ENVO:04000007]": "lake water [ENVO:04000007]"}'
+  - source_column: temp
+    mixs_extension: Water
+    nmdc_candidate_slots: [temp]
+    confidence: high
+    reason: Water temperature, Celsius per the NCBI template
+  - source_column: sample_title
+    confidence: cant_place
+    reason: A free-text title; NMDC has no matching submission slot
+  - source_column: isolation_source
+    confidence: cant_place
+    reason: Collection method in free text; no direct slot

@@ -9,7 +9,7 @@
 # Background: docs/makefile-phony.md.
 FILE_TARGETS =
 
-.PHONY: help all-install prod-install dev-install test test-integration lint check-phony format security check-deps clean validate-doi classify-doi classify-fixture get-abstract get-abstracts eval-transform-reuse
+.PHONY: help all-install prod-install dev-install test test-integration lint check-phony format security check-deps clean validate-doi classify-doi classify-fixture get-abstract get-abstracts eval-transform-reuse transform-examples
 
 help: ## Show this help message
 	@echo "Usage: make [target]"
@@ -84,3 +84,6 @@ get-abstracts: ## Fetch abstracts for all publication DOIs in the fixture
 
 eval-transform-reuse: ## Prototype eval for issue 177: mapper with vs without a saved linkml-map transform (usage: make eval-transform-reuse [ARGS="--reps 3"])
 	uv run python -m nmdc_metadata_suggestor_ai_tool.evaluation.transform_reuse $(ARGS)
+
+transform-examples: ## Rebuild the generated files in examples/linkml-map/ from each Row.csv and approved_mappings.yaml
+	uv run python -m nmdc_metadata_suggestor_ai_tool.evaluation.transform_examples

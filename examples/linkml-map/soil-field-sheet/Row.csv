@@ -1,0 +1,5 @@
+Sample ID,Date Collected,Depth (ft),Latitude,Longitude,pH,Drainage,Soil Temp (F),Crop,Collector Notes
+PLOT-A1,4/12/2023,0.5,40.3412,-76.4123,6.2,Well drained,54,corn,dry topsoil
+PLOT-A2,4/12/2023,1.0,40.3415,-76.4120,6.4,Well drained,52,corn,
+PLOT-B1,4/13/2023,0.5,40.3501,-76.4199,5.8,Poorly drained,49,soybean,standing water nearby
+PLOT-B2,4/13/2023,,40.3504,-76.4195,5.9,Somewhat poorly drained,,soybean,depth not recorded
