@@ -1,0 +1,71 @@
+name: Transform reuse eval (issue 177 prototype)
+
+# Runs the mapper agent on Vertex, so every run costs money. It runs only when started by hand,
+# or on a push to the prototype branch whose head commit message contains "[run-eval]".
+# workflow_dispatch only appears in the Actions tab once this file is on the default branch;
+# until then, use the push trigger. Drop the push trigger before merging.
+on:
+  workflow_dispatch:
+    inputs:
+      reps:
+        description: "Agent runs per arm (2+ also measures cold-run noise)"
+        default: "2"
+      perturb_headers:
+        description: "Respell the later file's headers to exercise shape matching"
+        type: boolean
+        default: false
+  push:
+    branches: [177-linkml-map-transforms]
+
+jobs:
+  eval:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[run-eval]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run eval
+        env:
+          # The mapper agent runs Claude through the Claude Code CLI bundled with
+          # claude-agent-sdk; these three route it to Vertex.
+          CLAUDE_CODE_USE_VERTEX: "1"
+          ANTHROPIC_VERTEX_PROJECT_ID: ${{ steps.auth.outputs.project_id }}
+          CLOUD_ML_REGION: us-east5
+          VERTEX_PROJECT_ID: ${{ steps.auth.outputs.project_id }}
+          GCP_REGION: us-east5
+          REPS: ${{ inputs.reps || '1' }}
+          PERTURB: ${{ inputs.perturb_headers && '--perturb-headers' || '' }}
+        run: |
+          uv run python -m nmdc_metadata_suggestor_ai_tool.evaluation.transform_reuse \
+            --provider gcp --reps "$REPS" $PERTURB
+          cat evaluation-results/transform-reuse/*/report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: transform-reuse-eval
+          path: evaluation-results/
+          if-no-files-found: warn

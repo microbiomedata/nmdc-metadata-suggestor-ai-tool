@@ -1,0 +1,24 @@
+- samp_name: CAN.22c
+  collection_date: '2016-01-26'
+  geo_loc_name: 'Canada: Ottawa'
+  source_mat_id: SAMEA4527610
+- samp_name: CHN.64
+  collection_date: '2016-01-28'
+  geo_loc_name: 'China: Guangzhou LieDe'
+  source_mat_id: SAMEA4527612
+- samp_name: COL.2
+  collection_date: '2016-01-27'
+  geo_loc_name: 'Colombia: Mosquera'
+  source_mat_id: SAMEA4527614
+- samp_name: ECU.14
+  collection_date: '2016-02-01'
+  geo_loc_name: 'Ecuador: Quito'
+  source_mat_id: SAMEA4527620
+- samp_name: GHA.4
+  collection_date: '2016-01-30'
+  geo_loc_name: 'Ghana: Changli'
+  source_mat_id: SAMEA4527626
+- samp_name: ITA.30
+  collection_date: '2016-02-02'
+  geo_loc_name: 'Italy: Rome'
+  source_mat_id: SAMEA4527635
