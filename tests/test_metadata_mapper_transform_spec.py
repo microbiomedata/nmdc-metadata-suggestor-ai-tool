@@ -9,9 +9,9 @@ import pytest
 from nmdc_metadata_suggestor_ai_tool.metadata_mapper.apply import apply_mappings
 from nmdc_metadata_suggestor_ai_tool.metadata_mapper.transform_spec import (
     TransformLibrary,
-    build_column_slots,
     build_prior_transform_context,
     compile_transform,
+    hidden_slot_names,
     mapper_output_from_transform,
     match_transform,
     normalize_header,
@@ -158,31 +158,64 @@ def slot_values(row: dict, slots: set[str]) -> dict:
 
 
 class TestCompile:
-    def test_headers_become_identifiers(self) -> None:
-        slots = build_column_slots(["Depth (ft)", "class", "1st", "a b", "a-b"])
+    def test_hidden_slots_are_identifiers(self) -> None:
+        slots = hidden_slot_names(["Depth (ft)", "class", "1st", "a b", "a-b"])
         assert slots == {
-            "Depth (ft)": "depth_ft",
-            "class": "col_class",
-            "1st": "col_1st",
-            "a b": "a_b",
-            "a-b": "a_b_2",
+            "Depth (ft)": "src_depth_ft",
+            "class": "src_col_class",
+            "1st": "src_col_1st",
+            "a b": "src_a_b",
+            "a-b": "src_a_b_2",
         }
+
+    def test_source_schema_keeps_header_spelling(self, mapper_output: MetadataMapperOutput) -> None:
+        t = compile_transform(mapper_output, HEADERS, "demo", source_file_id=FILE_ID)
+        assert list(t.source_schema["slots"]) == HEADERS
+        assert t.source_schema["classes"]["Row"]["slots"] == HEADERS
 
     def test_spec_uses_linkml_map_idioms(self, mapper_output: MetadataMapperOutput) -> None:
         t = compile_transform(mapper_output, HEADERS, "demo", source_file_id=FILE_ID)
-        derivations = t.spec["class_derivations"]["Biosample"]["slot_derivations"]
-        assert derivations["samp_name"]["populated_from"] == "col_class"
+        assert list(t.spec["class_derivations"]) == ["WaterInterface"]
+        assert t.spec["target_schema"]["name"] == "nmdc_submission_schema"
+        assert t.spec["source_schema"]["source_file"] == "source_schema.yaml"
+        derivations = t.spec["class_derivations"]["WaterInterface"]["slot_derivations"]
+        assert derivations["samp_name"]["populated_from"] == "class"
         assert derivations["biotic_relationship"]["value_mappings"] == {
             "Free Living": {"value": "free living"}
         }
-        assert derivations["collection_date"]["expr"] == "iso_date(sample_date, '%m/%d/%Y')"
-        assert derivations["depth"]["expr"] == "scale(depth_ft, '0.3048')"
+        assert derivations["src_sample_date"] == {
+            "populated_from": "Sample Date",
+            "missing_values": [""],
+            "hide": True,
+        }
+        assert (
+            derivations["collection_date"]["expr"]
+            == "iso_date(slot('src_sample_date'), '%m/%d/%Y')"
+        )
+        assert derivations["depth"]["expr"] == "scale(slot('src_depth_ft'), '0.3048')"
+        # Hidden copies come before the slots that read them.
+        names = list(derivations)
+        assert names.index("src_depth_ft") < names.index("depth")
         assert "notes" not in {m.source_column for m in t.mappings}
+
+    def test_one_class_derivation_per_interface(self, mapper_output: MetadataMapperOutput) -> None:
+        mapper_output.high_confidence[0].mixs_extension = "Soil"
+        t = compile_transform(mapper_output, HEADERS, "demo", source_file_id=FILE_ID)
+        assert set(t.spec["class_derivations"]) == {"SoilInterface", "WaterInterface"}
+        first = run_transform(t, ROWS)[0]
+        assert first["collection_date"] == "2016-01-26"
+        assert first["depth"] == "3.048"
 
     def test_other_files_are_left_out(self, mapper_output: MetadataMapperOutput) -> None:
         mapper_output.high_confidence[0].source_file_id = "other"
         t = compile_transform(mapper_output, HEADERS, "demo", source_file_id=FILE_ID)
-        assert "collection_date" not in t.spec["class_derivations"]["Biosample"]["slot_derivations"]
+        derivations = t.spec["class_derivations"]["WaterInterface"]["slot_derivations"]
+        assert "collection_date" not in derivations
+
+    def test_dotted_column_names_are_refused(self, mapper_output: MetadataMapperOutput) -> None:
+        mapper_output.high_confidence[-1].source_column = "class.id"
+        with pytest.raises(ValueError, match="containing '.'"):
+            compile_transform(mapper_output, [*HEADERS, "class.id"], "demo")
 
 
 class TestRun:
@@ -220,7 +253,12 @@ class TestRun:
     def test_library_round_trip(self, mapper_output: MetadataMapperOutput, tmp_path: Path) -> None:
         library = TransformLibrary(tmp_path)
         t = compile_transform(mapper_output, HEADERS, "demo", source_file_id=FILE_ID)
-        library.save(t)
+        folder = library.save(t)
+        assert sorted(p.name for p in folder.iterdir()) == [
+            "mapper.yaml",
+            "source_schema.yaml",
+            "transform.yaml",
+        ]
         loaded = library.load("demo")
         assert loaded == t
         assert run_transform(loaded, ROWS) == run_transform(t, ROWS)
@@ -249,7 +287,17 @@ class TestMatching:
         t = compile_transform(mapper_output, HEADERS, "demo", source_file_id=FILE_ID)
         upper_rows = [{k.upper(): v for k, v in row.items()} for row in ROWS]
         rebased = rebase_transform(t, list(upper_rows[0]))
-        assert run_transform(rebased, upper_rows) == run_transform(t, ROWS)
+        assert list(rebased.source_schema["slots"]) == list(upper_rows[0])
+        # The combine expression is respelled along with the columns it reads.
+        lat_lon = next(m for m in rebased.mappings if m.combine_columns)
+        assert lat_lon.conversion is not None
+        assert lat_lon.conversion.expression == "f\"{values['LAT']} {values['LON']}\""
+        for new, old in zip(
+            run_transform(rebased, upper_rows), run_transform(t, ROWS), strict=True
+        ):
+            # Error messages name columns as each file spells them; compare everything else.
+            assert len(new.pop("_transform_errors", [])) == len(old.pop("_transform_errors", []))
+            assert new == old
 
     def test_mapper_output_from_transform(self, mapper_output: MetadataMapperOutput) -> None:
         t = compile_transform(mapper_output, HEADERS, "demo", source_file_id=FILE_ID)

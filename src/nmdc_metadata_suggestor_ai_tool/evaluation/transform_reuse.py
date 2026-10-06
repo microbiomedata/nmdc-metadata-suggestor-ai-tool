@@ -25,7 +25,7 @@ Usage:
     uv run python -m nmdc_metadata_suggestor_ai_tool.evaluation.transform_reuse
     uv run python -m nmdc_metadata_suggestor_ai_tool.evaluation.transform_reuse --reps 3
     uv run python -m nmdc_metadata_suggestor_ai_tool.evaluation.transform_reuse \\
-        --transform evaluation-results/transform-reuse/<run>/learned_transform.yaml
+        --transform evaluation-results/transform-reuse/<run>/learned_transform
 
 Results go to ``evaluation-results/transform-reuse/<timestamp>/``: the split files, the learned
 transform, every arm's mapper output and transformed rows, ``results.yaml`` with all metrics,
@@ -65,6 +65,7 @@ from nmdc_metadata_suggestor_ai_tool.metadata_mapper import (
     run_metadata_mapper_agentic,
     run_transform,
 )
+from nmdc_metadata_suggestor_ai_tool.metadata_mapper.transform_spec import read_transform_files
 from nmdc_metadata_suggestor_ai_tool.models.metadata_mapper_output import (
     MetadataMapperOutput,
     SourceFile,
@@ -256,7 +257,7 @@ def main() -> None:
     parser.add_argument("--model", default=None)
     parser.add_argument("--reps", type=int, default=1, help="agent runs per arm")
     parser.add_argument(
-        "--transform", type=Path, default=None, help="saved transform YAML; skips learning"
+        "--transform", type=Path, default=None, help="saved transform folder; skips learning"
     )
     parser.add_argument(
         "--perturb-headers",
@@ -275,7 +276,7 @@ def main() -> None:
 
     # Learn the transform from the earlier file, or load a saved one.
     if args.transform:
-        transform = ReusableTransform.model_validate(yaml.safe_load(args.transform.read_text()))
+        transform = read_transform_files(args.transform)
     else:
         logger.info("learning transform from %s", earlier.name)
         earlier_headers, _ = read_rows(earlier)
@@ -338,7 +339,7 @@ def main() -> None:
             "model": reference.model,
             "reps": args.reps,
             "perturb_headers": args.perturb_headers,
-            "transform": str(args.transform or out / "learned_transform.yaml"),
+            "transform": str(args.transform or out / "learned_transform"),
             "rows": {"earlier": len(read_rows(earlier)[1]), "later": len(later_rows)},
         },
         "transform": {

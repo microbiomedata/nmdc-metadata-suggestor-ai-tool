@@ -164,5 +164,5 @@ def test_runner_end_to_end_with_stub_agent(
     assert results["transform_only"]["parity_with_apply_mappings"] is True
     assert results["transform_only"]["covered"] == 3
     assert results["consistency"]["cold"]["pairs"] == 1
-    assert (run_dir / "learned_transform.yaml").exists()
+    assert (run_dir / "learned_transform" / "transform.yaml").exists()
     assert "| with_transform |" in (run_dir / "report.md").read_text()

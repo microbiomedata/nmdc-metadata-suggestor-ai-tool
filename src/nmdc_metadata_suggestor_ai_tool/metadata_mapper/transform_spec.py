@@ -1,9 +1,24 @@
 """Compile approved Metadata Mapper output into reusable linkml-map transforms.
 
 The mapper agent decides, per column, which NMDC slot it maps to and how its values must be
-converted. Once a reviewer approves that, this module turns it into a linkml-map
-TransformationSpecification (a ``ReusableTransform``) that can be saved and run again,
-deterministically, on any later file with the same shape.
+converted. Once a reviewer approves that, this module turns it into ordinary linkml-map files
+(a ``ReusableTransform``) that can be saved and run again, deterministically, on any later file
+with the same shape:
+
+- ``source_schema.yaml``: a LinkML schema induced from the CSV headers. One class, ``Row``,
+  with one string slot per column, named exactly as the header is spelled.
+- ``transform.yaml``: a linkml-map TransformationSpecification. One class derivation per NMDC
+  submission schema interface the mappings use (``WaterInterface``, ``SoilInterface``, ...),
+  with ``target_schema`` pointing at the nmdc-submission-schema package.
+- ``mapper.yaml``: the approved mappings, with confidence and reasons.
+
+The pair runs with the linkml-map CLI as well as from Python (``run_transform``)::
+
+    linkml-map map-data -T transform.yaml -s source_schema.yaml \\
+        --functions <package>/metadata_mapper/transform_functions.py Row.csv
+
+(the CLI takes the source class from the input file's stem, so the CSV must be named
+``Row.csv``).
 
 Pieces:
 
@@ -19,8 +34,10 @@ import copy
 import json
 import keyword
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date
+from importlib.metadata import version
 from pathlib import Path
 from typing import Any
 
@@ -41,12 +58,22 @@ from nmdc_metadata_suggestor_ai_tool.models.metadata_mapper_output import (
     SourceFile,
 )
 from nmdc_metadata_suggestor_ai_tool.models.reusable_transform import ReusableTransform
+from nmdc_metadata_suggestor_ai_tool.schema_context import SchemaContextBuilder
 
 SOURCE_CLASS = "Row"
-TARGET_CLASS = "Biosample"
+
+# Hidden working slots that copy a raw column into an identifier an expression can use.
+HIDDEN_PREFIX = "src_"
+
+TARGET_SCHEMA_NAME = "nmdc_submission_schema"
+TARGET_SCHEMA_FILE = "nmdc_submission_schema/schema/nmdc_submission_schema.yaml"
 
 # Fraction of a saved transform's columns a new file must share before it counts as a match.
 DEFAULT_MIN_OVERLAP = 0.8
+
+SOURCE_SCHEMA_FILE = "source_schema.yaml"
+SPEC_FILE = "transform.yaml"
+MAPPER_FILE = "mapper.yaml"
 
 
 def normalize_header(header: str) -> str:
@@ -57,8 +84,8 @@ def normalize_header(header: str) -> str:
     return " ".join(re.sub(r"[\W_]+", " ", header).split()).casefold()
 
 
-def header_to_slot_name(header: str, taken: set[str]) -> str:
-    """Turn a CSV header into a unique, valid identifier for the induced source schema."""
+def header_to_identifier(header: str, taken: set[str]) -> str:
+    """A unique, valid identifier for a header, for use in linkml-map expressions."""
     name = re.sub(r"\W+", "_", header.strip()).strip("_").lower() or "column"
     if name[0].isdigit() or keyword.iskeyword(name):
         name = f"col_{name}"
@@ -69,38 +96,74 @@ def header_to_slot_name(header: str, taken: set[str]) -> str:
     return candidate
 
 
-def build_column_slots(headers: list[str]) -> dict[str, str]:
+def hidden_slot_names(headers: list[str]) -> dict[str, str]:
+    """Header → name of the hidden working slot that carries it into expressions."""
     taken: set[str] = set()
-    return {h: header_to_slot_name(h, taken) for h in headers}
+    return {h: HIDDEN_PREFIX + header_to_identifier(h, taken) for h in headers}
 
 
-def induce_source_schema(name: str, column_slots: dict[str, str]) -> dict[str, Any]:
-    """A flat LinkML schema with one string slot per CSV column, for linkml-map to bind to."""
-    slots = {
-        slot: {"title": header} if header != slot else {} for header, slot in column_slots.items()
-    }
+def induce_source_schema(name: str, headers: list[str]) -> dict[str, Any]:
+    """A flat LinkML schema with one string slot per CSV column, named as the header is.
+
+    Slot names keep the header's exact spelling (spaces, parentheses and all) so the linkml-map
+    CLI can read the raw CSV. Expressions cannot use such names, which is what the hidden
+    working slots in the spec are for.
+    """
     return {
         "id": f"https://w3id.org/nmdc/metadata-mapper/source/{name}",
         "name": f"{name}_source",
+        "description": "Induced from CSV headers by the NMDC Metadata Mapper.",
         "prefixes": {"linkml": "https://w3id.org/linkml/"},
         "imports": ["linkml:types"],
         "default_range": "string",
-        "slots": slots,
-        "classes": {SOURCE_CLASS: {"slots": list(slots)}},
+        "slots": {h: {} for h in headers},
+        "classes": {SOURCE_CLASS: {"slots": list(headers)}},
     }
 
 
-def slot_derivation(mapping: ColumnMapping, column_slots: dict[str, str]) -> dict[str, Any]:
+def target_schema_reference(builder: SchemaContextBuilder) -> dict[str, Any]:
+    schema = builder.sv.schema
+    return {
+        "name": TARGET_SCHEMA_NAME,
+        "version": schema.version or version("nmdc-submission-schema"),
+        "schema_uri": schema.id,
+        "source_file": TARGET_SCHEMA_FILE,
+    }
+
+
+def interface_for(extension: str | None, interfaces: dict[str, str]) -> str:
+    """Submission schema interface class for a mapper ``mixs_extension`` (``Water`` →
+    ``WaterInterface``)."""
+    ext = (extension or "").strip()
+    key = ext if ext.casefold().endswith("interface") else f"{ext}Interface"
+    key = key.replace("-", "").replace("_", "").replace(" ", "")
+    return interfaces.get(key.casefold(), key)
+
+
+def columns_of(mapping: ColumnMapping) -> list[str]:
+    return [mapping.source_column, *mapping.combine_columns]
+
+
+def needs_expression(mapping: ColumnMapping) -> bool:
+    if mapping.combine_columns:
+        return True
+    kind = mapping.conversion.type.lower() if mapping.conversion else "none"
+    return (
+        kind not in ("none", "enum_map")
+        and mapping.conversion is not None
+        and bool(mapping.conversion.expression)
+    )
+
+
+def slot_derivation(mapping: ColumnMapping, hidden: dict[str, str]) -> dict[str, Any]:
     """Translate one ColumnMapping's conversion into a linkml-map slot derivation."""
-    source = column_slots[mapping.source_column]
     conversion = mapping.conversion
     derivation: dict[str, Any] = {}
     if mapping.reason:
         derivation["description"] = mapping.reason
 
     if mapping.combine_columns:
-        columns = [mapping.source_column, *mapping.combine_columns]
-        values = ", ".join(f"{json.dumps(c)}: {column_slots[c]}" for c in columns)
+        values = ", ".join(f"{json.dumps(c)}: slot({hidden[c]!r})" for c in columns_of(mapping))
         expression = conversion.expression if conversion else None
         derivation["expr"] = f"sandboxed_combined({{{values}}}, {expression!r})"
         return derivation
@@ -108,23 +171,90 @@ def slot_derivation(mapping: ColumnMapping, column_slots: dict[str, str]) -> dic
     kind = conversion.type.lower() if conversion else "none"
     expression = conversion.expression if conversion else None
     if kind == "none" or expression is None:
-        derivation["populated_from"] = source
-    elif kind == "enum_map":
-        derivation["populated_from"] = source
+        derivation["populated_from"] = mapping.source_column
+        derivation["missing_values"] = [""]
+        return derivation
+    if kind == "enum_map":
+        derivation["populated_from"] = mapping.source_column
+        derivation["missing_values"] = [""]
         derivation["value_mappings"] = {
             str(k): {"value": str(v)} for k, v in json.loads(expression).items()
         }
-    elif kind == "date_format":
-        derivation["expr"] = f"iso_date({source}, {expression!r})"
-    elif kind == "unit":
-        derivation["expr"] = f"scale({source}, {expression!r})"
-    elif kind == "split":
-        derivation["expr"] = f"split_join({source}, {expression!r})"
-    elif kind == "custom":
-        derivation["expr"] = f"sandboxed({source}, {expression!r})"
-    else:
+        return derivation
+
+    helper = {
+        "date_format": "iso_date",
+        "unit": "scale",
+        "split": "split_join",
+        "custom": "sandboxed",
+    }.get(kind)
+    if helper is None:
         raise ValueError(f"No linkml-map translation for conversion type {kind!r}")
+    derivation["expr"] = f"{helper}(slot({hidden[mapping.source_column]!r}), {expression!r})"
     return derivation
+
+
+def build_transform(
+    name: str,
+    mappings: list[ColumnMapping],
+    source_columns: list[str],
+    mixs_extensions: list[str] | None = None,
+    description: str = "",
+    schema_builder: SchemaContextBuilder | None = None,
+) -> ReusableTransform:
+    """Build the linkml-map source schema and spec for a list of approved mappings."""
+    for m in mappings:
+        dotted = [c for c in columns_of(m) if "." in c]
+        if dotted:
+            # linkml-map reads a dot in populated_from as table.column (a join).
+            raise ValueError(f"Column names containing '.' are not supported yet: {dotted}")
+
+    builder = schema_builder or SchemaContextBuilder()
+    interfaces = {i.casefold(): i for i in builder.list_interfaces()}
+    used = [c for m in mappings if needs_expression(m) for c in columns_of(m)]
+    hidden = hidden_slot_names(source_columns)
+
+    class_derivations: dict[str, Any] = {}
+    for m in mappings:
+        target = interface_for(m.mixs_extension, interfaces)
+        derivations = class_derivations.setdefault(
+            target, {"populated_from": SOURCE_CLASS, "slot_derivations": {}}
+        )["slot_derivations"]
+        # Hidden copies first: derivations run in declaration order, and slot() reads
+        # only what has already been derived.
+        for column in columns_of(m):
+            if column in used and hidden[column] not in derivations:
+                derivations[hidden[column]] = {
+                    "populated_from": column,
+                    "missing_values": [""],
+                    "hide": True,
+                }
+        derivations[m.nmdc_candidate_slots[0]] = slot_derivation(m, hidden)
+
+    extensions = mixs_extensions or sorted({m.mixs_extension for m in mappings if m.mixs_extension})
+    spec: dict[str, Any] = {
+        "id": f"https://w3id.org/nmdc/metadata-mapper/transform/{name}",
+        "title": name,
+    }
+    if description:
+        spec["description"] = description
+    spec["source_schema"] = {
+        "name": f"{name}_source",
+        "schema_uri": f"https://w3id.org/nmdc/metadata-mapper/source/{name}",
+        "source_file": SOURCE_SCHEMA_FILE,
+    }
+    spec["target_schema"] = target_schema_reference(builder)
+    spec["class_derivations"] = class_derivations
+    return ReusableTransform(
+        name=name,
+        description=description,
+        source_columns=source_columns,
+        mixs_extensions=extensions,
+        mappings=mappings,
+        source_schema=induce_source_schema(name, source_columns),
+        spec=spec,
+        created=date.today().isoformat(),
+    )
 
 
 def compile_transform(
@@ -134,6 +264,7 @@ def compile_transform(
     source_file_id: str | None = None,
     mixs_extensions: list[str] | None = None,
     description: str = "",
+    schema_builder: SchemaContextBuilder | None = None,
 ) -> ReusableTransform:
     """Compile the approved mappings for one file into a ReusableTransform.
 
@@ -141,44 +272,22 @@ def compile_transform(
     that have a candidate slot, mapped to their first candidate. Pass ``source_file_id`` when
     the output covers more than one file.
     """
-    column_slots = build_column_slots(source_columns)
+    present = set(source_columns)
     mappings = [
         m
         for m in mapper_output.high_confidence + mapper_output.needs_review
         if m.nmdc_candidate_slots
         and (source_file_id is None or m.source_file_id == source_file_id)
-        and all(c in column_slots for c in [m.source_column, *m.combine_columns])
+        and all(c in present for c in columns_of(m))
     ]
-    derivations = {m.nmdc_candidate_slots[0]: slot_derivation(m, column_slots) for m in mappings}
-    extensions = mixs_extensions or sorted({m.mixs_extension for m in mappings if m.mixs_extension})
-    spec = {
-        "id": f"https://w3id.org/nmdc/metadata-mapper/transform/{name}",
-        "title": name,
-        "description": description or None,
-        "source_schema": {
-            "name": f"{name}_source",
-            "schema_uri": induce_source_schema(name, column_slots)["id"],
-        },
-        "class_derivations": {
-            TARGET_CLASS: {"populated_from": SOURCE_CLASS, "slot_derivations": derivations}
-        },
-    }
-    return ReusableTransform(
-        name=name,
-        description=description,
-        source_columns=source_columns,
-        column_slots=column_slots,
-        mixs_extensions=extensions,
-        mappings=mappings,
-        spec={k: v for k, v in spec.items() if v is not None},
-        created=date.today().isoformat(),
+    return build_transform(
+        name, mappings, source_columns, mixs_extensions, description, schema_builder
     )
 
 
 def build_object_transformer(transform: ReusableTransform) -> ObjectTransformer:
-    source_schema = induce_source_schema(transform.name, transform.column_slots)
     transformer = ObjectTransformer(extension_functions=dict(TRANSFORM_FUNCTIONS))
-    transformer.source_schemaview = SchemaView(yaml.safe_dump(source_schema))
+    transformer.source_schemaview = SchemaView(yaml.safe_dump(transform.source_schema))
     # linkml-map normalizes the dict it is given in place; keep the saved spec untouched.
     transformer.create_transformer_specification(copy.deepcopy(transform.spec))
     return transformer
@@ -190,33 +299,39 @@ def run_transform(
 ) -> list[dict[str, Any]]:
     """Run a ReusableTransform over CSV rows through linkml-map.
 
-    Each output row holds only the mapped NMDC slots, plus ``_transform_errors`` when a cell
-    failed to convert or an enum value had no mapping. Blank cells are left out, as
-    ``apply_mappings`` does. Columns the transform does not know are ignored.
+    Rows must be keyed by ``transform.source_columns`` (see ``rebase_transform`` for a file
+    that spells them differently). Each output row merges every interface's mapped slots, plus
+    ``_transform_errors`` when a cell failed to convert or an enum value had no mapping. Blank
+    cells are left out, as ``apply_mappings`` does.
     """
     transformer = build_object_transformer(transform)
-    derivations = transform.spec["class_derivations"][TARGET_CLASS]["slot_derivations"]
+    class_derivations = transformer.specification.class_derivations
     results = []
     for row in csv_rows:
         source = {
-            slot: (None if is_blank(row.get(header)) else str(row[header]))
-            for header, slot in transform.column_slots.items()
+            h: (None if is_blank(row.get(h)) else str(row[h])) for h in transform.source_columns
         }
+        mapped: dict[str, Any] = {}
         with collect_transform_errors() as errors:
-            mapped = transformer.map_object(source, source_type=SOURCE_CLASS)
+            for class_derivation in class_derivations:
+                mapped.update(
+                    transformer.map_object(
+                        source, source_type=SOURCE_CLASS, class_derivation=class_derivation
+                    )
+                )
         # value_mappings returns None on a miss rather than raising, so a source value the
         # enum map does not cover would vanish silently. Surface it, and keep the raw value.
-        for slot, derivation in derivations.items():
-            populated_from = derivation.get("populated_from")
-            if derivation.get("value_mappings") and mapped.get(slot) is None:
-                raw = source.get(populated_from)
-                if raw is not None:
-                    known = list(derivation["value_mappings"])
-                    errors.append(
-                        f"{slot}: enum_map: source value {raw!r} has no mapping; "
-                        f"known keys: {known!r}"
-                    )
-                    mapped[slot] = raw
+        for derivations in transform.spec["class_derivations"].values():
+            for slot, derivation in derivations["slot_derivations"].items():
+                if derivation.get("value_mappings") and mapped.get(slot) is None:
+                    raw = source.get(derivation["populated_from"])
+                    if raw is not None:
+                        known = list(derivation["value_mappings"])
+                        errors.append(
+                            f"{slot}: enum_map: source value {raw!r} has no mapping; "
+                            f"known keys: {known!r}"
+                        )
+                        mapped[slot] = raw
         out = {k: v for k, v in mapped.items() if v is not None}
         if errors:
             out["_transform_errors"] = errors
@@ -269,63 +384,102 @@ def match_transform(
     return max(matches, key=lambda m: (m.overlap, m.jaccard))
 
 
-def rebase_transform(transform: ReusableTransform, headers: list[str]) -> ReusableTransform:
-    """Re-key a saved transform to a new file's header spellings so it can run on that file.
+def rebase_transform(
+    transform: ReusableTransform,
+    headers: list[str],
+    schema_builder: SchemaContextBuilder | None = None,
+) -> ReusableTransform:
+    """Rebuild a saved transform against a new file's header spellings so it can run on it.
 
-    Matching ignores case and whitespace, so ``Sample ID`` and ``sample id`` match; the
-    transform's own column names must still be swapped for the file's before running.
+    Matching ignores case and punctuation, so ``Sample ID`` and ``sample_id`` match, but the
+    schema and spec name columns exactly, so they are rebuilt from the re-keyed mappings.
     """
     by_normal = {normalize_header(h): h for h in headers}
-    renamed = {
-        by_normal.get(normalize_header(h), h): slot for h, slot in transform.column_slots.items()
-    }
+
+    def respell(column: str) -> str:
+        return by_normal.get(normalize_header(column), column)
+
     mappings = []
     for m in transform.mappings:
         m = m.model_copy(deep=True)
-        m.source_column = by_normal.get(normalize_header(m.source_column), m.source_column)
-        m.combine_columns = [by_normal.get(normalize_header(c), c) for c in m.combine_columns]
+        if m.combine_columns and m.conversion and m.conversion.expression:
+            # Combine expressions index ``values`` by column name, so respell those too.
+            m.conversion.expression = respell_values_keys(m.conversion.expression, respell)
+        m.source_column = respell(m.source_column)
+        m.combine_columns = [respell(c) for c in m.combine_columns]
         mappings.append(m)
-    return transform.model_copy(
-        update={
-            "column_slots": renamed,
-            "source_columns": [
-                by_normal.get(normalize_header(h), h) for h in transform.source_columns
-            ],
-            "mappings": mappings,
-        }
+    rebuilt = build_transform(
+        transform.name,
+        mappings,
+        [respell(h) for h in transform.source_columns],
+        transform.mixs_extensions,
+        transform.description,
+        schema_builder,
+    )
+    return rebuilt.model_copy(update={"created": transform.created})
+
+
+def respell_values_keys(expression: str, respell: Callable[[str], str]) -> str:
+    """Rewrite ``values['Col']`` / ``values["Col"]`` in a combine expression via ``respell``."""
+    return re.sub(
+        r"""values\[(['"])(.*?)\1\]""",
+        lambda m: f"values[{m.group(1)}{respell(m.group(2))}{m.group(1)}]",
+        expression,
     )
 
 
 class TransformLibrary:
-    """A directory of saved transforms, one ``<name>.yaml`` per transform."""
+    """A directory of saved transforms, one folder of linkml-map files per transform::
+
+    <directory>/<name>/source_schema.yaml
+    <directory>/<name>/transform.yaml
+    <directory>/<name>/mapper.yaml
+    """
 
     def __init__(self, directory: Path) -> None:
         self.directory = Path(directory)
 
     def path_for(self, name: str) -> Path:
-        return self.directory / f"{name}.yaml"
+        return self.directory / name
 
     def save(self, transform: ReusableTransform) -> Path:
-        self.directory.mkdir(parents=True, exist_ok=True)
-        path = self.path_for(transform.name)
-        path.write_text(yaml.safe_dump(transform.model_dump(mode="json"), sort_keys=False))
-        return path
+        return write_transform_files(transform, self.path_for(transform.name))
 
     def load(self, name: str) -> ReusableTransform:
-        return ReusableTransform.model_validate(yaml.safe_load(self.path_for(name).read_text()))
+        return read_transform_files(self.path_for(name))
 
     def load_all(self) -> list[ReusableTransform]:
         if not self.directory.is_dir():
             return []
         return [
-            ReusableTransform.model_validate(yaml.safe_load(p.read_text()))
-            for p in sorted(self.directory.glob("*.yaml"))
+            read_transform_files(p.parent) for p in sorted(self.directory.glob(f"*/{SPEC_FILE}"))
         ]
 
     def find_match(
         self, headers: list[str], min_overlap: float = DEFAULT_MIN_OVERLAP
     ) -> TransformMatch | None:
         return match_transform(headers, self.load_all(), min_overlap)
+
+
+def dump_yaml(data: Any) -> str:
+    return yaml.safe_dump(data, sort_keys=False, allow_unicode=True, width=100)
+
+
+def write_transform_files(transform: ReusableTransform, directory: Path) -> Path:
+    """Write a transform as source_schema.yaml, transform.yaml and mapper.yaml."""
+    directory.mkdir(parents=True, exist_ok=True)
+    data = transform.model_dump(mode="json")
+    (directory / SOURCE_SCHEMA_FILE).write_text(dump_yaml(data.pop("source_schema")))
+    (directory / SPEC_FILE).write_text(dump_yaml(data.pop("spec")))
+    (directory / MAPPER_FILE).write_text(dump_yaml(data))
+    return directory
+
+
+def read_transform_files(directory: Path) -> ReusableTransform:
+    data = yaml.safe_load((directory / MAPPER_FILE).read_text())
+    data["source_schema"] = yaml.safe_load((directory / SOURCE_SCHEMA_FILE).read_text())
+    data["spec"] = yaml.safe_load((directory / SPEC_FILE).read_text())
+    return ReusableTransform.model_validate(data)
 
 
 # ------------------------------------------------------------------
