@@ -7,6 +7,7 @@ recovers that tool call only recognized LLMOutput's ``metadata_fields``.
 
 import asyncio
 import json
+import logging
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
@@ -122,3 +123,18 @@ def test_answer_survives_empty_result_message(
     output = run_with_fake_agent(monkeypatch, tmp_path, events)
     assert [m.source_column for m in output.high_confidence] == ["Sample ID"]
     assert [m.source_column for m in output.cant_place] == ["notes"]
+
+
+def test_empty_run_is_logged(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    events = [
+        SystemMessage(subtype="init", data={"session_id": "s1"}),
+        result_event(structured_output=None),
+    ]
+    with caplog.at_level(logging.WARNING, logger=pipeline.logger.name):
+        output = run_with_fake_agent(monkeypatch, tmp_path, events)
+    assert not (output.high_confidence or output.needs_review or output.cant_place)
+    messages = " | ".join(r.getMessage() for r in caplog.records)
+    assert "no structured output" in messages
+    assert "returned no mappings (turns=3, cost=0.5" in messages
