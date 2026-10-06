@@ -23,6 +23,10 @@ from nmdc_metadata_suggestor_ai_tool.llm_client import (
 from nmdc_metadata_suggestor_ai_tool.metadata_mapper.system_prompt import (
     metadata_mapper_system_prompt,
 )
+from nmdc_metadata_suggestor_ai_tool.metadata_mapper.transform_spec import (
+    TransformMatch,
+    build_prior_transform_context,
+)
 from nmdc_metadata_suggestor_ai_tool.metadata_mapper.utils import (
     build_column_context,
     read_csv_files,
@@ -58,6 +62,7 @@ async def run_metadata_mapper_agentic(
     csv_files: list[tuple[SourceFile, Path]],
     mixs_extensions: list[str],
     session_id: str | None = None,
+    prior_transform: TransformMatch | None = None,
 ) -> tuple[MetadataMapperOutput, str | None]:
     """Map columns from user-uploaded CSV files to NMDC metadata slots via the agentic path.
 
@@ -71,6 +76,10 @@ async def run_metadata_mapper_agentic(
         MIxS extensions the user selected during setup (e.g. ["Soil", "Air"]).
     session_id:
         Optional session ID to resume a previous conversation.
+    prior_transform:
+        A saved transform that matches the file's shape (see ``TransformLibrary.find_match``).
+        Its approved mappings go into the prompt so the agent can reuse them instead of
+        working every column out again.
 
     Returns
     -------
@@ -78,6 +87,8 @@ async def run_metadata_mapper_agentic(
     """
     source_files, column_data = read_csv_files(csv_files)
     message = build_column_context(source_files, column_data, mixs_extensions)
+    if prior_transform is not None:
+        message += "\n" + build_prior_transform_context(prior_transform)
 
     model = DEFAULT_CLAUDE_MODEL if llm_client.access_provider == "gcp" else llm_client.model
 
@@ -101,7 +112,11 @@ async def run_metadata_mapper_agentic(
     if langfuse_client is not None:
         langfuse_client.update_current_span(
             input=message,
-            metadata={"model": model, "mixs_extensions": mixs_extensions},
+            metadata={
+                "model": model,
+                "mixs_extensions": mixs_extensions,
+                "prior_transform": prior_transform.transform.name if prior_transform else None,
+            },
         )
 
     result: MetadataMapperOutput | None = None
