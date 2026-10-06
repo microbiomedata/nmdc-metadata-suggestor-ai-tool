@@ -225,7 +225,10 @@ def unwrap_structured_output(raw: Any) -> LLMOutput:
     raise ValueError(f"Could not extract LLMOutput from structured_output: {raw}")
 
 
-def structured_output_from_tool_use(event: AssistantMessage) -> dict[str, Any] | None:
+def structured_output_from_tool_use(
+    event: AssistantMessage,
+    required_keys: tuple[str, ...] = ("metadata_fields",),
+) -> dict[str, Any] | None:
     """Return the payload the agent passed to the StructuredOutput tool, if it called it.
 
     ``ResultMessage.structured_output`` can come back empty on a run where the agent did
@@ -238,8 +241,12 @@ def structured_output_from_tool_use(event: AssistantMessage) -> dict[str, Any] |
             input={<key varies>: '{"metadata_fields": [...]}'},  # dict or JSON string
         )
 
-    So this searches the values rather than reading a known key, and requires
-    ``metadata_fields`` so an empty wrapper is not recovered as an answer.
+    So this searches the values rather than reading a known key, and requires at least one
+    of ``required_keys`` to be non-empty so an empty wrapper is not recovered as an answer.
+    The default fits ``LLMOutput``; other output models pass their own top-level fields
+    (the Metadata Mapper passes ``high_confidence``, ``needs_review`` and ``cant_place``).
+    Before this parameter existed the check was hard-wired to ``metadata_fields``, so every
+    Metadata Mapper answer was dropped here.
     """
     for block in event.content or []:
         if getattr(block, "name", None) != STRUCTURED_OUTPUT_TOOL:
@@ -254,7 +261,7 @@ def structured_output_from_tool_use(event: AssistantMessage) -> dict[str, Any] |
                     parsed = json.loads(parsed)
                 except json.JSONDecodeError:
                     continue
-            if isinstance(parsed, dict) and parsed.get("metadata_fields"):
+            if isinstance(parsed, dict) and any(parsed.get(key) for key in required_keys):
                 return parsed
     return None
 
