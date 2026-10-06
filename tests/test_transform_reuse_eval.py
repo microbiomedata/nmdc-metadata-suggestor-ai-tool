@@ -166,3 +166,61 @@ def test_runner_end_to_end_with_stub_agent(
     assert results["consistency"]["cold"]["pairs"] == 1
     assert (run_dir / "learned_transform" / "transform.yaml").exists()
     assert "| with_transform |" in (run_dir / "report.md").read_text()
+
+
+def test_empty_learning_run_stops_before_the_arms(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[str] = []
+
+    def empty_agent(
+        client: object,
+        path: Path,
+        file_id: str,
+        extensions: list[str],
+        transform: ReusableTransform | None = None,
+    ) -> tuple[MetadataMapperOutput, float]:
+        calls.append(file_id)
+        return MetadataMapperOutput(run_health={"num_turns": 14, "total_cost_usd": 2.0}), 1.0
+
+    monkeypatch.setattr(transform_reuse, "run_agent", empty_agent)
+    monkeypatch.setattr(transform_reuse, "LLMClient", lambda **kwargs: None)
+    monkeypatch.setattr(sys, "argv", ["transform_reuse", "--out-dir", str(tmp_path)])
+
+    with pytest.raises(SystemExit, match="placed no columns"):
+        transform_reuse.main()
+
+    assert calls == ["earlier"]
+    (run_dir,) = tmp_path.iterdir()
+    results = yaml.safe_load((run_dir / "results.yaml").read_text())
+    assert results["agent_runs"][0]["run_health"]["total_cost_usd"] == 2.0
+
+
+def test_empty_arm_is_flagged_in_report(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def agent_with_empty_arm(
+        client: object,
+        path: Path,
+        file_id: str,
+        extensions: list[str],
+        transform: ReusableTransform | None = None,
+    ) -> tuple[MetadataMapperOutput, float]:
+        if transform is not None:
+            return MetadataMapperOutput(run_health={"num_turns": 11}), 1.0
+        return stub_agent(client, path, file_id, extensions, transform)
+
+    monkeypatch.setattr(transform_reuse, "run_agent", agent_with_empty_arm)
+    monkeypatch.setattr(transform_reuse, "LLMClient", lambda **kwargs: None)
+    monkeypatch.setattr(sys, "argv", ["transform_reuse", "--out-dir", str(tmp_path)])
+
+    transform_reuse.main()
+
+    (run_dir,) = tmp_path.iterdir()
+    results = yaml.safe_load((run_dir / "results.yaml").read_text())
+    assert [(r["arm"], r["empty_output"]) for r in results["agent_runs"]] == [
+        ("learn", False),
+        ("cold", False),
+        ("with_transform", True),
+    ]
+    report = (run_dir / "report.md").read_text()
+    assert "1 of 3 agent runs returned no mappings (with_transform rep 1)" in report
+    assert "| learn |" in report

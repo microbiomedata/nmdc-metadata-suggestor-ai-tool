@@ -136,6 +136,24 @@ def dump(path: Path, data: Any) -> None:
     path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True))
 
 
+def is_empty(output: MetadataMapperOutput) -> bool:
+    """No mappings at all. Never a real answer: every column should land in one of the lists."""
+    return not (output.high_confidence or output.needs_review or output.cant_place)
+
+
+def agent_run_record(
+    arm: str, rep: int | None, output: MetadataMapperOutput, wall_s: float
+) -> dict[str, Any]:
+    return {
+        "arm": arm,
+        "rep": rep,
+        "wall_seconds": round(wall_s, 1),
+        "empty_output": is_empty(output),
+        "confidence": confidence_counts(output),
+        "run_health": dict(output.run_health),
+    }
+
+
 def score_arm(
     name: str,
     output: MetadataMapperOutput,
@@ -148,6 +166,7 @@ def score_arm(
     return {
         "arm": name,
         "wall_seconds": round(wall_s, 1) if wall_s is not None else None,
+        "empty_output": is_empty(output),
         "cost": run_cost(output),
         "confidence": confidence_counts(output),
         "transform_errors": count_transform_errors(rows),
@@ -221,6 +240,35 @@ def write_report(path: Path, results: dict[str, Any]) -> None:
         f"({results['transform']['mappings']} mappings, "
         f"{results['transform']['overlap_with_later']:.0%} column overlap with `later`)",
         "",
+    ]
+    runs = results["agent_runs"]
+    empty = [r for r in runs if r["empty_output"]]
+    if empty:
+        names = ", ".join(f"{r['arm']}" + (f" rep {r['rep']}" if r["rep"] else "") for r in empty)
+        lines += [
+            f"> **{len(empty)} of {len(runs)} agent runs returned no mappings ({names}).** "
+            "Numbers involving them are not meaningful.",
+            "",
+        ]
+    lines += [
+        "## Agent runs",
+        "",
+        "| arm | rep | wall s | turns | cost $ | mappings (high/review/can't place) | "
+        "terminal reason | error |",
+        "|---|---|---|---|---|---|---|---|",
+    ]
+    for r in runs:
+        health, conf = r["run_health"], r["confidence"]
+        lines.append(
+            f"| {r['arm']} | {r['rep'] or ''} | {r['wall_seconds']} | "
+            f"{health.get('num_turns', '')} | {health.get('total_cost_usd', '')} | "
+            f"{conf['high']}/{conf['review']}/{conf['cant_place']} | "
+            f"{health.get('terminal_reason') or ''} | {health.get('is_error', '')} |"
+        )
+    lines += [
+        "",
+        "## Arms",
+        "",
         "Agreement is against cold run 1 on `later`, not against a gold mapping. Cold rep 1 "
         "agrees with itself by definition, so its row is excluded from the cold agreement "
         "means below; read `with_transform` against the cold noise floor.",
@@ -275,13 +323,26 @@ def main() -> None:
     client = LLMClient(access_provider=args.provider, model=args.model)
 
     # Learn the transform from the earlier file, or load a saved one.
+    agent_runs: list[dict[str, Any]] = []
     if args.transform:
         transform = read_transform_files(args.transform)
     else:
         logger.info("learning transform from %s", earlier.name)
         earlier_headers, _ = read_rows(earlier)
-        learned, _ = run_agent(client, earlier, "earlier", args.extensions)
+        learned, learn_wall = run_agent(client, earlier, "earlier", args.extensions)
         dump(out / "earlier_mapper_output.yaml", learned.model_dump(mode="json"))
+        agent_runs.append(agent_run_record("learn", None, learned, learn_wall))
+        if not (learned.high_confidence or learned.needs_review):
+            # Every arm after this compares against a transform with nothing in it; stop
+            # rather than spend on agent runs whose numbers would mean nothing.
+            dump(
+                out / "results.yaml",
+                {"aborted": "learning run placed no columns", "agent_runs": agent_runs},
+            )
+            raise SystemExit(
+                f"Learning run placed no columns ({confidence_counts(learned)}; run health "
+                f"{learned.run_health}). Not running the arms. See {out}."
+            )
         transform = compile_transform(
             learned,
             earlier_headers,
@@ -300,6 +361,7 @@ def main() -> None:
         for arm, prior in (("cold", None), ("with_transform", transform)):
             logger.info("rep %d: %s", rep, arm)
             output, wall = run_agent(client, later, "later", args.extensions, prior)
+            agent_runs.append(agent_run_record(arm, rep, output, wall))
             outputs[arm].append(output)
             walls[arm].append(wall)
             dump(out / f"{arm}_rep{rep}_mapper_output.yaml", output.model_dump(mode="json"))
@@ -349,6 +411,7 @@ def main() -> None:
             "new_columns": match.new_columns,
         },
         "reference_cost": run_cost(reference),
+        "agent_runs": agent_runs,
         "summary": summarize(
             [
                 {"arm": "cold", "wall_seconds": walls["cold"][0], "cost": run_cost(reference)},
