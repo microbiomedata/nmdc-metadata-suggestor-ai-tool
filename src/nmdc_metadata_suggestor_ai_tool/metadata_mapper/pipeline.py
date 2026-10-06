@@ -123,6 +123,7 @@ async def run_metadata_mapper_agentic(
                 result.source_files = source_files
                 result.model = model
                 result.access_provider = llm_client.access_provider
+                result.run_health = health
 
     if session_id is None:
         await _process_events(query(prompt=message, options=options))
