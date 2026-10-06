@@ -158,7 +158,20 @@ async def run_metadata_mapper_agentic(
             metadata={"model": model, "session_id": session_id, **health},
         )
 
-    return result or MetadataMapperOutput(), session_id
+    result = result or MetadataMapperOutput()
+    if not (result.high_confidence or result.needs_review or result.cant_place):
+        # An empty result is never a real answer: every uploaded column should land in one
+        # of the three lists. Say so instead of handing back an empty output quietly.
+        logger.warning(
+            "Mapper run returned no mappings (turns=%s, cost=%s, terminal_reason=%s, "
+            "is_error=%s, permission_denials=%s).",
+            health.get("num_turns"),
+            health.get("total_cost_usd"),
+            health.get("terminal_reason"),
+            health.get("is_error"),
+            health.get("permission_denials"),
+        )
+    return result, session_id
 
 
 def _finalize_mapper_result(raw: Any) -> MetadataMapperOutput:
@@ -168,6 +181,10 @@ def _finalize_mapper_result(raw: Any) -> MetadataMapperOutput:
     direct validation first, then iterate values to handle nested wrapper shapes.
     """
     if raw is None:
+        logger.warning(
+            "Mapper run ended with no structured output: ResultMessage.structured_output was "
+            "empty and no StructuredOutput tool call carried a mapper answer."
+        )
         return MetadataMapperOutput()
     if isinstance(raw, MetadataMapperOutput):
         return raw
