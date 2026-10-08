@@ -209,10 +209,10 @@ For more details on contributing, visit [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Release Instructions
 Should only be done by maintainers of this repo.
-1. Increment the version in [pyproject.toml](pyproject.toml). This repo follows semmantic versioning - MAJOR.MINOR.PATCH.
+1. Increment the version in [pyproject.toml](pyproject.toml). This repo follows semantic versioning - MAJOR.MINOR.PATCH.
 2. Run `uv sync` to sync the new version in the lock file.
-3. Once this is merged into main, create a new release in GitHub. Use "v<<version>version>" syntax and auto generate the notes. 
-4. Publish the release and GHA will handle pushing to PyPi. 
+3. Once this is merged into main, create a new release in GitHub. Use "v<<version>version>" syntax and auto generate the notes.
+4. Publish the release and GHA will handle pushing to PyPI.
 
 ## License
 
