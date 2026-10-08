@@ -45,6 +45,9 @@ from nmdc_metadata_suggestor_ai_tool.tracing import (
 
 logger = logging.getLogger(__name__)
 
+# Top-level MetadataMapperOutput fields; a recovered StructuredOutput payload must fill one.
+MAPPER_OUTPUT_KEYS = ("high_confidence", "needs_review", "cant_place")
+
 # Skills the mapper agent is allowed to use.
 MAPPER_SKILLS = [
     "schema-context",
@@ -114,7 +117,9 @@ async def run_metadata_mapper_agentic(
             if isinstance(event, SystemMessage) and event.subtype == "init":
                 session_id = event.data["session_id"]
             elif isinstance(event, AssistantMessage):
-                tool_payload = structured_output_from_tool_use(event) or tool_payload
+                tool_payload = (
+                    structured_output_from_tool_use(event, MAPPER_OUTPUT_KEYS) or tool_payload
+                )
                 log_assistant_message(event.content)
             elif isinstance(event, ResultMessage):
                 health = ConversationManager.run_health(event)
@@ -137,7 +142,20 @@ async def run_metadata_mapper_agentic(
             metadata={"model": model, "session_id": session_id, **health},
         )
 
-    return result or MetadataMapperOutput(), session_id
+    result = result or MetadataMapperOutput()
+    if not (result.high_confidence or result.needs_review or result.cant_place):
+        # An empty result is never a real answer: every uploaded column should land in one
+        # of the three lists. Say so instead of handing back an empty output quietly.
+        logger.warning(
+            "Mapper run returned no mappings (turns=%s, cost=%s, terminal_reason=%s, "
+            "is_error=%s, permission_denials=%s).",
+            health.get("num_turns"),
+            health.get("total_cost_usd"),
+            health.get("terminal_reason"),
+            health.get("is_error"),
+            health.get("permission_denials"),
+        )
+    return result, session_id
 
 
 def _finalize_mapper_result(raw: Any) -> MetadataMapperOutput:
@@ -147,6 +165,10 @@ def _finalize_mapper_result(raw: Any) -> MetadataMapperOutput:
     direct validation first, then iterate values to handle nested wrapper shapes.
     """
     if raw is None:
+        logger.warning(
+            "Mapper run ended with no structured output: ResultMessage.structured_output was "
+            "empty and no StructuredOutput tool call carried a mapper answer."
+        )
         return MetadataMapperOutput()
     if isinstance(raw, MetadataMapperOutput):
         return raw
