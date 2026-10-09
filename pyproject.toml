@@ -29,8 +29,8 @@ dependencies = [
     "python-multipart>=0.0.30",
     "starlette>=1.2.0",
     "langfuse==4.15.1",
-    "opentelemetry-sdk==1.44.0",
-    "openinference-instrumentation-claude-agent-sdk==0.1.16",
+    "opentelemetry-sdk==1.45.0",
+    "openinference-instrumentation-claude-agent-sdk==0.1.20",
     # ENVO lookups for the env triad. Ships the semantic-sql adapter used by
     # envo.py; the ontology itself is fetched and cached on first use.
     "oaklib>=0.7,<0.8",
