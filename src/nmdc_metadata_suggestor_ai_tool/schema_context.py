@@ -282,9 +282,7 @@ class SchemaContextBuilder:
             lines.extend(format_slot(slot))
         return "\n".join(lines)
 
-    @observe(
-        name="env_triad_schema_context", as_type="span", capture_output=False
-    )
+    @observe(name="env_triad_schema_context", as_type="span", capture_output=False)
     def format_env_triad_context(self, class_names: list[str]) -> str:
         """Convenience method to format context specifically for the env triad slots."""
         env_triad_slots = ["env_broad_scale", "env_local_scale", "env_medium"]
