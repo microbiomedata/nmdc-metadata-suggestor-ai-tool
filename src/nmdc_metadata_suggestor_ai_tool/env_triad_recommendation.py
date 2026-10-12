@@ -10,6 +10,7 @@ from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
 from nmdc_metadata_suggestor_ai_tool.publication_ingestion.download_pdf import remove_temp_files
 from nmdc_metadata_suggestor_ai_tool.schema_context import SchemaContextBuilder
 from nmdc_metadata_suggestor_ai_tool.system_prompt import env_triad_prompt
+from nmdc_metadata_suggestor_ai_tool.tracing import langfuse_client, observe
 from nmdc_metadata_suggestor_ai_tool.utils.build_submission_context import build_submission_context
 from nmdc_metadata_suggestor_ai_tool.utils.submission_parser import (
     MixsExtensions,
@@ -20,6 +21,7 @@ from nmdc_metadata_suggestor_ai_tool.utils.utils import chunk_samples, validate_
 logger = logging.getLogger(__name__)
 
 
+@observe(name="envo_expansion_context", as_type="span", capture_output=False)
 def build_envo_expansion_context(interface_names: list[str] | None) -> str:
     """Assemble the tier-2 ENVO candidate context for the given interfaces.
 
@@ -52,6 +54,7 @@ def build_envo_expansion_context(interface_names: list[str] | None) -> str:
     return "\n".join(sections)
 
 
+@observe(name="env_triad_recommendation", as_type="span", capture_input=False, capture_output=False)
 def get_env_triad_recommendation(
     llm_client: LLMClient,
     samples: list[dict],
@@ -175,4 +178,20 @@ def get_env_triad_recommendation(
     if errors:
         logger.error(f"Errors occurred in chunks: {errors}")
 
-    return enforce_env_triad_values(aggregated, interface_names)
+    result = enforce_env_triad_values(aggregated, interface_names)
+    if langfuse_client is not None:
+        langfuse_client.update_current_span(
+            output=result,
+            level="ERROR" if errors and not result.metadata_fields else None,
+            metadata={
+                "access_provider": llm_client.access_provider,
+                "model": llm_client.model,
+                "interface_names": interface_names,
+                "num_samples": len(samples),
+                "chunk_size": chunk_size,
+                "num_chunks": -(-len(samples) // chunk_size),
+                "chunk_errors": errors,
+                "has_submission_object": submission_object is not None,
+            },
+        )
+    return result

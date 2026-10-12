@@ -24,6 +24,7 @@ from nmdc_metadata_suggestor_ai_tool.models.schema import (
     InterfaceSchemaClass,
     SlotInfo,
 )
+from nmdc_metadata_suggestor_ai_tool.tracing import observe
 
 
 @functools.lru_cache(maxsize=1)
@@ -265,6 +266,8 @@ class SchemaContextBuilder:
 
         return "\n".join(lines)
 
+    # Output is off on these: the formatted schema is already in the generation input.
+    @observe(name="schema_context", as_type="span", capture_output=False)
     def format_multi_interface_context(self, class_names: list[str]) -> str:
         """Format multiple interfaces separated by dividers."""
         sections = [self.format_interface_context(name) for name in class_names]
@@ -279,6 +282,9 @@ class SchemaContextBuilder:
             lines.extend(format_slot(slot))
         return "\n".join(lines)
 
+    @observe(
+        name="env_triad_schema_context", as_type="span", capture_output=False
+    )
     def format_env_triad_context(self, class_names: list[str]) -> str:
         """Convenience method to format context specifically for the env triad slots."""
         env_triad_slots = ["env_broad_scale", "env_local_scale", "env_medium"]

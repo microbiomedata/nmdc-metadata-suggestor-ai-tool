@@ -271,6 +271,34 @@ class ConversationManager:
         # set the system prompt in the constructor so it can be parameterized in the future
         self.system_prompt = system_prompt
 
+    def traceable_messages(self) -> list[Any]:
+        """Return the queued messages with PDF bytes replaced by placeholders.
+
+        The raw messages carry base64/binary PDFs, which would bloat every trace and
+        ship whole publications to Langfuse.
+        """
+        traced: list[Any] = []
+        for message in self.messages:
+            if isinstance(message, genai_types.Part):
+                mime = getattr(message.inline_data, "mime_type", None)
+                traced.append(f"[{mime or 'binary'} attachment]")
+            elif isinstance(message, dict) and isinstance(message.get("content"), list):
+                traced.append(
+                    {
+                        "role": message.get("role"),
+                        "content": [
+                            f"[{part.get('type')}: {part.get('filename')}]"
+                            if isinstance(part, dict) and "file_data" in part
+                            else part
+                            for part in message["content"]
+                        ],
+                    }
+                )
+            else:
+                traced.append(message)
+        return traced
+
+    @observe(name="generate", as_type="generation", capture_input=False, capture_output=False)
     def generate(
         self,
         *,
@@ -306,6 +334,14 @@ class ConversationManager:
             else DEFAULT_MAX_TOKENS_BY_PROVIDER[self.llm_client.access_provider]
         )
 
+        if langfuse_client is not None:
+            langfuse_client.update_current_generation(
+                input={"system": self.system_prompt, "messages": self.traceable_messages()},
+                model=self.llm_client.model,
+                model_parameters={"max_tokens": resolved_max_tokens},
+                metadata={"access_provider": self.llm_client.access_provider},
+            )
+
         if self.llm_client.access_provider == "gcp":
             return self._generate_gcp(
                 max_tokens=resolved_max_tokens,
@@ -333,6 +369,23 @@ class ConversationManager:
             max_output_tokens=max_tokens,
             text_format=LLMOutput,
         )
+        if langfuse_client is not None:
+            usage = getattr(response, "usage", None)
+            usage_details = None
+            if usage:
+                # input_tokens already includes cached tokens; split them out so each
+                # usage key maps to one price in the Langfuse model definition.
+                details = getattr(usage, "input_tokens_details", None)
+                cached = getattr(details, "cached_tokens", None) or 0
+                usage_details = {
+                    "input": usage.input_tokens - cached,
+                    "cache_read_input_tokens": cached,
+                    # output_tokens already includes reasoning tokens.
+                    "output": usage.output_tokens,
+                }
+            langfuse_client.update_current_generation(
+                output=response.output_parsed, usage_details=usage_details
+            )
         return response.output_parsed
 
     def _generate_gcp(
@@ -356,6 +409,22 @@ class ConversationManager:
             contents=self.messages,
             config=config,
         )
+        if langfuse_client is not None:
+            usage = getattr(response, "usage_metadata", None)
+            usage_details = None
+            if usage:
+                # prompt_token_count includes cached tokens, and thinking tokens are
+                # billed at the output rate, so fold them into output.
+                cached = usage.cached_content_token_count or 0
+                usage_details = {
+                    "input": (usage.prompt_token_count or 0) - cached,
+                    "cache_read_input_tokens": cached,
+                    "output": (usage.candidates_token_count or 0)
+                    + (usage.thoughts_token_count or 0),
+                }
+            langfuse_client.update_current_generation(
+                output=response.text, usage_details=usage_details
+            )
         if response.text is None:
             raise RuntimeError(
                 f"GCP model returned an empty text response. Response object: {response}"
