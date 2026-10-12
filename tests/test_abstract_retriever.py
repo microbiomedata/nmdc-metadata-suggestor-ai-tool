@@ -220,6 +220,7 @@ class TestGetAbstractClassificationGate:
         _mock_classify_as_dataset(doi)
         result = get_doi_description_or_abstract(doi)
         assert result.context is None
+        assert result.error is not None
         assert "not a supported DOI type" in result.error
 
     def test_award_category_is_allowed(self) -> None:
@@ -236,6 +237,7 @@ class TestGetAbstractClassificationGate:
         _mock_classify_as_data_management_plan(doi)
         result = get_doi_description_or_abstract(doi)
         assert result.context is None
+        assert result.error is not None
         assert "data_management_plan_doi" in result.error
         assert "not a supported DOI type" in result.error
 
