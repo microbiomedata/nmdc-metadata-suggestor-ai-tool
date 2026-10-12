@@ -275,8 +275,8 @@ class TestGetAbstractClassificationGate:
         _mock_classify_as_datacite_software(doi)
         result = get_doi_description_or_abstract(doi)
         assert result.context is None
-        assert "Software" in result.error
-        assert "not a publication type" in result.error
+        assert result.error is not None and "Software" in result.error
+        assert result.error is not None and "not a publication type" in result.error
 
     @responses.activate
     def test_crossref_component_refused(self) -> None:
@@ -285,8 +285,8 @@ class TestGetAbstractClassificationGate:
         _mock_classify_as_crossref_component(doi)
         result = get_doi_description_or_abstract(doi)
         assert result.context is None
-        assert "component" in result.error
-        assert "not a publication type" in result.error
+        assert result.error is not None and "component" in result.error
+        assert result.error is not None and "not a publication type" in result.error
 
     @responses.activate
     def test_skip_classification_bypasses_gate(self) -> None:
@@ -351,6 +351,7 @@ class TestGetAbstractWaterfall:
         assert result.source == "osti"
         assert result.publication_urls is not None
         assert str(result.publication_urls[0]) == pdf_url
+        assert result.publication_dois is not None
         assert result.publication_dois[0] == publication_dois
 
     @responses.activate
@@ -629,6 +630,7 @@ class TestContentFormatClassification:
         assert result.context == "Hello world"
         import json
 
+        assert result.raw_context is not None
         assert json.loads(result.raw_context) == inverted
 
 
@@ -834,7 +836,7 @@ def test_get_abstract_real_dataset_doi() -> None:
     result = get_doi_description_or_abstract("10.15485/1729719")
     assert result.context is None
     assert result.error is not None
-    assert "not a publication" in result.error
+    assert result.error is not None and "not a publication" in result.error
 
 
 @integration

@@ -92,6 +92,7 @@ def test_extract_slot_enum_values_for_llm_context() -> None:
     builder = SchemaContextBuilder()
     schema = builder.get_interface_schema("SoilInterface")
     env_medium = next(s for s in schema.slots if s.name == "env_medium")
+    assert env_medium.enum_values is not None
     assert len(env_medium.enum_values) > 0
     terms = [
         f"- {ev.text}: {ev.description}" if ev.description else f"- {ev.text}"

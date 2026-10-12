@@ -7,6 +7,7 @@ to confirm that the VertexAI endpoint is reachable and produces valid output.
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -22,10 +23,11 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 INTEGRATION_TIMEOUT = 120  # seconds
 
 
-def _load_fixture(filename: str) -> dict:
+def _load_fixture(filename: str) -> dict[str, Any]:
     """Load a JSON fixture by filename."""
     with (FIXTURES_DIR / filename).open() as f:
-        return json.load(f)
+        data: dict[str, Any] = json.load(f)
+        return data
 
 
 @pytest.mark.timeout(INTEGRATION_TIMEOUT)

@@ -5,7 +5,11 @@ logger = logging.getLogger(__name__)
 
 
 class MixsExtensions(Enum):
-    """Map NMDC interface names to submission portal form sections."""
+    """Map NMDC interface names to submission portal form sections.
+
+    Values are the portal's own template keys, from HARMONIZER_TEMPLATES in
+    nmdc-server (web/src/views/SubmissionPortal/types.ts).
+    """
 
     BuiltEnvInterface = "built environment"
     AirInterface = "air"
@@ -16,8 +20,11 @@ class MixsExtensions(Enum):
     BiofilmInterface = "microbial mat_biofilm"
     HcrCoresInterface = "hydrocarbon resources-cores"
     HcrFluidsSwabsInterface = "hydrocarbon resources-fluids_swabs"
-    MiscEnvsInterface = "miscellaneous natural or artifical environment"
+    MiscEnvsInterface = "miscellaneous natural or artificial environment"
     PlantAssociatedInterface = "plant-associated"
+    # In the submission schema (and so in the ETL path) but not yet a portal
+    # template; keyed to its wastewater_sludge_data sample slot.
+    WastewaterSludgeInterface = "wastewater_sludge"
 
     @staticmethod
     def map_to_interface_name(mixs_extensions_strings: list[str]) -> list[str]:
@@ -29,20 +36,28 @@ class MixsExtensions(Enum):
         for ext in mixs_extensions_strings:
             if not ext:
                 continue
+            normalized = MIXS_EXTENSION_ALIASES.get(ext, ext)
             try:
                 # If ext is a value like "soil"
-                mixs_extensions.append(MixsExtensions(ext).name)
+                mixs_extensions.append(MixsExtensions(normalized).name)
                 continue
             except ValueError:
                 pass
 
             try:
                 # If ext is a name like "SoilInterface"
-                mixs_extensions.append(MixsExtensions[ext].name)
+                mixs_extensions.append(MixsExtensions[normalized].name)
             except KeyError:
                 logger.warning(f"Unrecognized MIxS extension '{ext}' in submission data.")
 
         return mixs_extensions
+
+
+# Spellings that have appeared in submission data but are not the portal's
+# current template key.
+MIXS_EXTENSION_ALIASES: dict[str, str] = {
+    "miscellaneous natural or artifical environment": MixsExtensions.MiscEnvsInterface.value,
+}
 
 
 def make_unique_doi_list(entries: list[dict]) -> list[dict]:

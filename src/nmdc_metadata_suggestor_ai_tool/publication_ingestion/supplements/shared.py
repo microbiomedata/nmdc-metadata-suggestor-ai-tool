@@ -16,7 +16,11 @@ import zipfile
 from collections.abc import Callable, Iterable
 from typing import Any, NamedTuple
 
-from nmdc_metadata_suggestor_ai_tool.constants import DEFAULT_TIMEOUT, USER_AGENT
+from nmdc_metadata_suggestor_ai_tool.constants import (
+    DEFAULT_TIMEOUT,
+    MAX_EUROPEPMC_FULLTEXT_XML_CHARS,
+    USER_AGENT,
+)
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import (
     normalize_doi,
     request_with_retry,
@@ -181,7 +185,7 @@ def parse_supplement_captions(xml_text: str | bytes) -> dict[str, str]:
         the shared untrusted-XML guards or does not parse.
     """
     captions: dict[str, str] = {}
-    root, _reason = parse_untrusted_xml(xml_text)
+    root, _reason = parse_untrusted_xml(xml_text, max_chars=MAX_EUROPEPMC_FULLTEXT_XML_CHARS)
     if root is None:
         return captions
 

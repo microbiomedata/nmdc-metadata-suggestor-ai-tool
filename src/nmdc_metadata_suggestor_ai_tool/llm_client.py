@@ -1,7 +1,10 @@
 """Unified LLM client for OpenAI-compatible providers and Vertex AI."""
 
 import base64
+import json
+import logging
 import os
+from collections import Counter
 from pathlib import Path
 from typing import Any, cast
 
@@ -12,6 +15,7 @@ from google.genai import types as genai_types
 from google.oauth2 import service_account
 from openai import OpenAI
 
+from nmdc_metadata_suggestor_ai_tool.envo import enforce_env_triad_values
 from nmdc_metadata_suggestor_ai_tool.langfuse_claude_sdk import (
     AssistantMessage,
     ClaudeAgentOptions,
@@ -28,6 +32,17 @@ from nmdc_metadata_suggestor_ai_tool.tracing import (
 )
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
+
+# The tool the agent calls to hand back its final answer.
+STRUCTURED_OUTPUT_TOOL = "StructuredOutput"
+
+# Restrictions that apply to the unattended agent but not to a person working in the repo:
+# no network fetches, no repo mutation, no dependency changes. Kept out of
+# .claude/settings.json deliberately -- that file governs every Claude Code session here, and
+# denying `git commit` there breaks ordinary development.
+AGENT_SETTINGS = Path(__file__).resolve().parents[2] / ".claude" / "agent-settings.json"
 
 DEFAULT_GCP_REGION = "us-east5"
 
@@ -48,7 +63,7 @@ PNNL_GPT_MODELS = [
 ]
 
 DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
-DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-5@20250929"
+DEFAULT_CLAUDE_MODEL = "claude-opus-4-6"
 DEFAULT_MAX_TOKENS_BY_PROVIDER: dict[str, int] = {
     "pnnl": 128000,
     "cborg": 128000,
@@ -344,9 +359,125 @@ class ConversationManager:
                         continue
         raise ValueError(f"Could not extract LLMOutput from structured_output: {raw}")
 
+    @staticmethod
+    def structured_output_from_tool_use(event: AssistantMessage) -> dict[str, Any] | None:
+        """The payload the agent passed to the StructuredOutput tool, if it called it.
+
+        ``ResultMessage.structured_output`` can come back empty on a run where the agent did
+        call the tool with a complete answer, so the tool call is the only surviving copy of
+        it. What is stable about that call is the tool name and the payload shape, not the
+        name of the argument the payload arrives under::
+
+            ToolUseBlock(
+                name="StructuredOutput",
+                input={<key varies>: '{"metadata_fields": [...]}'},  # dict or JSON string
+            )
+
+        So this searches the values rather than reading a known key, and requires
+        ``metadata_fields`` so an empty wrapper is not recovered as an answer.
+        """
+        for block in event.content or []:
+            if getattr(block, "name", None) != STRUCTURED_OUTPUT_TOOL:
+                continue
+            payload = getattr(block, "input", None)
+            if not isinstance(payload, dict):
+                continue
+            for candidate in (*payload.values(), payload):
+                parsed: Any = candidate
+                if isinstance(parsed, str):
+                    try:
+                        parsed = json.loads(parsed)
+                    except json.JSONDecodeError:
+                        continue
+                if isinstance(parsed, dict) and parsed.get("metadata_fields"):
+                    return parsed
+        return None
+
+    @staticmethod
+    def run_health(event: ResultMessage) -> dict[str, Any]:
+        """Surface how the run actually went, rather than only what it returned.
+
+        A headless run cannot approve tool use, so it can be blocked on every call and still
+        finish. Those denials were previously invisible.
+        """
+        denials = event.permission_denials or []
+        health: dict[str, Any] = {
+            "num_turns": event.num_turns,
+            "permission_denials": len(denials),
+            "terminal_reason": event.terminal_reason,
+            "stop_reason": event.stop_reason,
+            "is_error": event.is_error,
+        }
+        # Vertex bills per token, so cost is the thing to watch on every run. ResultMessage
+        # carries it and we were dropping it, which left no way to see what a run spent.
+        health["total_cost_usd"] = event.total_cost_usd
+        health["duration_ms"] = event.duration_ms
+        usage_by_model = event.model_usage or {}
+        if usage_by_model:
+            # canonicalModel is whatever actually served the request -- more trustworthy than
+            # llm_client.model, which on the gcp path defaults to a Gemini id and so has been
+            # mislabelling these traces.
+            health["models_used"] = sorted(
+                u.get("canonicalModel") or name for name, u in usage_by_model.items()
+            )
+            for key, field in (
+                ("input_tokens", "inputTokens"),
+                ("output_tokens", "outputTokens"),
+                ("cache_read_tokens", "cacheReadInputTokens"),
+                ("cache_write_tokens", "cacheCreationInputTokens"),
+            ):
+                health[key] = sum(u.get(field) or 0 for u in usage_by_model.values())
+        if event.total_cost_usd is not None:
+            logger.info(
+                f"Agent run cost ${event.total_cost_usd:.4f} over {event.num_turns} turn(s) "
+                f"on {', '.join(health.get('models_used') or ['unknown model'])}."
+            )
+        if denials:
+            by_tool = Counter(d.get("tool_name", "?") for d in denials if isinstance(d, dict))
+            health["permission_denials_by_tool"] = dict(by_tool)
+            logger.warning(
+                f"Agent run blocked on {len(denials)} tool permission denial(s): {dict(by_tool)}. "
+                "Headless runs cannot approve tools; grant them in settings."
+            )
+        if event.is_error or event.errors:
+            health["errors"] = event.errors
+            logger.error(f"Agent run errored ({event.terminal_reason}): {event.errors}")
+        return health
+
+    def finalize_result(
+        self,
+        event: ResultMessage,
+        tool_payload: dict[str, Any] | None,
+        interface_names: list[str] | None = None,
+    ) -> Any:
+        """Build the validated LLMOutput from whichever source actually carried it."""
+        output = None
+        if isinstance(event.structured_output, dict):
+            try:
+                output = self.unwrap_structured_output(event.structured_output)
+            except ValueError:
+                output = None
+        if (output is None or not output.metadata_fields) and tool_payload is not None:
+            recovered = self.unwrap_structured_output(tool_payload)
+            if recovered.metadata_fields:
+                logger.warning(
+                    f"ResultMessage carried no metadata_fields; recovered "
+                    f"{len(recovered.metadata_fields)} from the {STRUCTURED_OUTPUT_TOOL} call."
+                )
+                output = recovered
+        if output is None:
+            raise ValueError(
+                f"No usable structured output: got {type(event.structured_output)} from "
+                f"ResultMessage and no {STRUCTURED_OUTPUT_TOOL} tool call."
+            )
+        return enforce_env_triad_values(output, interface_names)
+
     @observe(name="agentic", as_type="span", capture_input=False, capture_output=False)
     async def agentic(
-        self, session_id: str | None = None, message: str | None = None
+        self,
+        session_id: str | None = None,
+        message: str | None = None,
+        interface_names: list[str] | None = None,
     ) -> tuple[Any, str | None]:
         """
         Agentic interaction, session handling, and skill/tool usage via Claude Agent SDK
@@ -356,6 +487,10 @@ class ConversationManager:
         ----------
         session_id: Optional session ID to resume a previous conversation.
         If None, starts a new session.
+        interface_names: The MIxS extension(s) the samples belong to, passed on to the
+        validation gate. Leaving this None does not make the gate stricter -- it makes
+        the tier weaker, because a value then counts as submission_enum if any
+        extension's value set holds it rather than this submission's own.
 
         """
         model = (
@@ -369,6 +504,12 @@ class ConversationManager:
             skills="all",
             model=model,
             system_prompt=orchestrator_prompt,
+            # Read .claude/settings.json. Without this the SDK runs under the default
+            # permission mode, where Bash needs interactive approval -- which a headless run
+            # cannot give, so every ontology lookup the skill asks for is denied and the
+            # agent answers from the prompt alone.
+            setting_sources=["project"],
+            settings=str(AGENT_SETTINGS) if AGENT_SETTINGS.is_file() else None,
             output_format={"type": "json_schema", "schema": LLMOutput.model_json_schema()},
         )
 
@@ -382,6 +523,8 @@ class ConversationManager:
             )
 
         result: Any = None
+        health: dict[str, Any] = {}
+        tool_payload: dict[str, Any] | None = None
         if session_id is None:
             # Session ID is unknown until the first init event, so we tag
             # the outer span via metadata after the loop completes.
@@ -393,12 +536,18 @@ class ConversationManager:
                     session_id = event.data["session_id"]
                 elif isinstance(event, AssistantMessage):
                     print(f"Assistant: {event.content}")
+                    tool_payload = self.structured_output_from_tool_use(event) or tool_payload
                 elif isinstance(event, ResultMessage):
-                    result = self.unwrap_structured_output(event.structured_output)
+                    health = self.run_health(event)
+                    result = self.finalize_result(event, tool_payload, interface_names)
             if langfuse_client is not None:
                 langfuse_client.update_current_span(
                     output=result,
-                    metadata={"model": model, "session_id": session_id},
+                    metadata={
+                        "model": model,
+                        "session_id": session_id,
+                        **health,
+                    },
                 )
         else:
             options.resume = session_id
@@ -411,8 +560,11 @@ class ConversationManager:
                 ):
                     if isinstance(event, SystemMessage) and event.subtype == "init":
                         session_id = event.data["session_id"]
+                    elif isinstance(event, AssistantMessage):
+                        tool_payload = self.structured_output_from_tool_use(event) or tool_payload
                     elif isinstance(event, ResultMessage):
-                        result = self.unwrap_structured_output(event.structured_output)
+                        health = self.run_health(event)
+                        result = self.finalize_result(event, tool_payload, interface_names)
             if langfuse_client is not None:
-                langfuse_client.update_current_span(output=result)
+                langfuse_client.update_current_span(output=result, metadata=health)
         return result, session_id

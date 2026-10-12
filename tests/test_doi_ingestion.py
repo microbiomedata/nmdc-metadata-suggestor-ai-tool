@@ -136,7 +136,9 @@ XML_PAYLOAD_FIXTURES = _load_xml_payload_fixtures()
 def _load_json_payload_fixtures() -> dict[str, Any]:
     """Load reusable JSON payload fixtures used by resolver tests."""
     with open(JSON_PAYLOAD_FIXTURE_PATH) as f:
-        return json.load(f)["payloads"]
+        data: dict[str, Any] = json.load(f)
+        payloads: dict[str, Any] = data["payloads"]
+        return payloads
 
 
 def _replace_payload_placeholders(value: Any, replacements: dict[str, str]) -> Any:

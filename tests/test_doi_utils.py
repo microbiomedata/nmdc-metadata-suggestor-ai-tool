@@ -6,6 +6,7 @@ Unit tests mock HTTP with ``responses``; integration tests hit real APIs.
 
 import json
 from pathlib import Path
+from typing import Any
 from unittest.mock import Mock
 
 import pytest
@@ -34,7 +35,9 @@ integration = pytest.mark.integration
 def test_cases() -> list[dict[str, object]]:
     """Load the curated DOI test cases."""
     with open(FIXTURE_PATH) as f:
-        return json.load(f)["test_cases"]
+        data: dict[str, Any] = json.load(f)
+        cases: list[dict[str, object]] = data["test_cases"]
+        return cases
 
 
 # ---------------------------------------------------------------------------
