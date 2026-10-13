@@ -45,6 +45,8 @@ from nmdc_metadata_suggestor_ai_tool.tracing import (
 
 logger = logging.getLogger(__name__)
 
+EMPTY_RESULT_MESSAGE = "Metadata mapper returned no mappings"
+
 # Skills the mapper agent is allowed to use.
 MAPPER_SKILLS = [
     "schema-context",
@@ -107,9 +109,11 @@ async def run_metadata_mapper_agentic(
     result: MetadataMapperOutput | None = None
     health: dict[str, Any] = {}
     tool_payload: dict[str, Any] | None = None
+    # Where the answer came from: ResultMessage, the StructuredOutput tool call, or nowhere.
+    output_source = "none"
 
     async def _process_events(events: AsyncIterator[Any]) -> None:
-        nonlocal result, health, tool_payload, session_id
+        nonlocal result, health, tool_payload, session_id, output_source
         async for event in events:
             if isinstance(event, SystemMessage) and event.subtype == "init":
                 session_id = event.data["session_id"]
@@ -120,6 +124,10 @@ async def run_metadata_mapper_agentic(
                 log_assistant_message(event.content)
             elif isinstance(event, ResultMessage):
                 health = ConversationManager.run_health(event)
+                if event.structured_output:
+                    output_source = "result_message"
+                elif tool_payload:
+                    output_source = "tool_use_fallback"
                 raw = event.structured_output or tool_payload
                 result = _finalize_mapper_result(raw)
                 result.source_files = source_files
@@ -133,24 +141,27 @@ async def run_metadata_mapper_agentic(
         with propagate_attributes(session_id=session_id):
             await _process_events(query(prompt=message, options=options))
 
+    result = result or MetadataMapperOutput()
+    # An empty result is never a real answer: every uploaded column should land in one of
+    # the three lists. Flag it on the span, where it can be filtered and counted, and in the
+    # log. The full run health is in the span metadata, and run_health already logs cost,
+    # turns and permission denials, so the warning does not restate them.
+    empty = not (result.high_confidence or result.needs_review or result.cant_place)
     if langfuse_client is not None:
         langfuse_client.update_current_span(
             output=result,
-            metadata={"model": model, "session_id": session_id, **health},
+            level="WARNING" if empty else "DEFAULT",
+            status_message=EMPTY_RESULT_MESSAGE if empty else None,
+            metadata={
+                "model": model,
+                "session_id": session_id,
+                "output_source": output_source,
+                **health,
+            },
         )
-
-    result = result or MetadataMapperOutput()
-    if not (result.high_confidence or result.needs_review or result.cant_place):
-        # An empty result is never a real answer: every uploaded column should land in one
-        # of the three lists. Say so instead of handing back an empty output quietly.
+    if empty:
         logger.warning(
-            "Mapper run returned no mappings (turns=%s, cost=%s, terminal_reason=%s, "
-            "is_error=%s, permission_denials=%s).",
-            health.get("num_turns"),
-            health.get("total_cost_usd"),
-            health.get("terminal_reason"),
-            health.get("is_error"),
-            health.get("permission_denials"),
+            "%s (output_source=%s, session_id=%s).", EMPTY_RESULT_MESSAGE, output_source, session_id
         )
     return result, session_id
 

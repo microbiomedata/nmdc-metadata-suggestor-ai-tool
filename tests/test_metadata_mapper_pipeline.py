@@ -159,4 +159,4 @@ def test_empty_run_is_logged(
     assert not (output.high_confidence or output.needs_review or output.cant_place)
     messages = " | ".join(r.getMessage() for r in caplog.records)
     assert "no structured output" in messages
-    assert "returned no mappings (turns=3, cost=0.5" in messages
+    assert "returned no mappings (output_source=none, session_id=s1)" in messages
