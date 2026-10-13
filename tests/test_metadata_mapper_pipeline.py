@@ -97,9 +97,10 @@ class TestFallbackKeys:
         event = tool_call_event({"metadata_fields": [{"id": "x"}]})
         assert structured_output_from_tool_use(event) is not None
 
-    def test_default_drops_mapper_answer(self) -> None:
-        # The behavior that lost the eval's answers; kept as the default for LLMOutput callers.
-        assert structured_output_from_tool_use(tool_call_event(MAPPER_ANSWER)) is None
+    def test_llm_output_callers_ignore_mapper_payloads(self) -> None:
+        # A recommendation pipeline run must not pick up a Metadata Mapper answer as its own.
+        event = tool_call_event(MAPPER_ANSWER)
+        assert structured_output_from_tool_use(event, LLMOutput) is None
 
     def test_mapper_keys_recover_mapper_answer(self) -> None:
         recovered = structured_output_from_tool_use(
