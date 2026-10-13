@@ -173,10 +173,6 @@ def _finalize_mapper_result(raw: Any) -> MetadataMapperOutput:
     direct validation first, then iterate values to handle nested wrapper shapes.
     """
     if raw is None:
-        logger.warning(
-            "Mapper run ended with no structured output: ResultMessage.structured_output was "
-            "empty and no StructuredOutput tool call carried a mapper answer."
-        )
         return MetadataMapperOutput()
     if isinstance(raw, MetadataMapperOutput):
         return raw

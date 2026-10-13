@@ -157,6 +157,6 @@ def test_empty_run_is_logged(
     with caplog.at_level(logging.WARNING, logger=pipeline.logger.name):
         output = run_with_fake_agent(monkeypatch, tmp_path, events)
     assert not (output.high_confidence or output.needs_review or output.cant_place)
-    messages = " | ".join(r.getMessage() for r in caplog.records)
-    assert "no structured output" in messages
-    assert "returned no mappings (output_source=none, session_id=s1)" in messages
+    messages = [r.getMessage() for r in caplog.records if r.name == pipeline.logger.name]
+    # One warning per empty run: _finalize_mapper_result no longer adds its own.
+    assert messages == ["Metadata mapper returned no mappings (output_source=none, session_id=s1)."]
