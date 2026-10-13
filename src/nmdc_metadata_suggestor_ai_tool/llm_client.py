@@ -245,8 +245,6 @@ def structured_output_from_tool_use(
     of ``required_keys`` to be non-empty so an empty wrapper is not recovered as an answer.
     The default fits ``LLMOutput``; other output models pass their own top-level fields
     (the Metadata Mapper passes ``high_confidence``, ``needs_review`` and ``cant_place``).
-    Before this parameter existed the check was hard-wired to ``metadata_fields``, so every
-    Metadata Mapper answer was dropped here.
     """
     for block in event.content or []:
         if getattr(block, "name", None) != STRUCTURED_OUTPUT_TOOL:
