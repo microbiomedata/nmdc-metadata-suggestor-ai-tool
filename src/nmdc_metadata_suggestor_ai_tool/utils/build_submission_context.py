@@ -4,10 +4,12 @@ from nmdc_metadata_suggestor_ai_tool.doi_ingestion.main import get_doi_descripti
 from nmdc_metadata_suggestor_ai_tool.publication_ingestion.download_pdf import (
     download_pdf_to_tempfile,
 )
+from nmdc_metadata_suggestor_ai_tool.tracing import observe
 
 logger = logging.getLogger(__name__)
 
 
+@observe(name="build_submission_context", as_type="span")
 def build_submission_context(parsed_submission_object: dict) -> tuple[list[str], list[str] | None]:
     """
     Build the submission context for the LLM conversation.

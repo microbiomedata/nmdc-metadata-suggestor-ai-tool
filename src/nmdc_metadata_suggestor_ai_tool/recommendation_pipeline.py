@@ -5,6 +5,7 @@ from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
 from nmdc_metadata_suggestor_ai_tool.publication_ingestion.download_pdf import remove_temp_files
 from nmdc_metadata_suggestor_ai_tool.schema_context import SchemaContextBuilder
 from nmdc_metadata_suggestor_ai_tool.system_prompt import system_prompt
+from nmdc_metadata_suggestor_ai_tool.tracing import langfuse_client, observe
 from nmdc_metadata_suggestor_ai_tool.utils.build_submission_context import build_submission_context
 from nmdc_metadata_suggestor_ai_tool.utils.submission_parser import (
     MixsExtensions,
@@ -15,6 +16,7 @@ from nmdc_metadata_suggestor_ai_tool.utils.utils import validate_output
 logger = logging.getLogger(__name__)
 
 
+@observe(name="recommendation_pipeline", as_type="span", capture_input=False, capture_output=False)
 def run_recommendation_pipeline(
     submission_object: dict,
     llm_client: LLMClient,
@@ -75,4 +77,15 @@ def run_recommendation_pipeline(
 
     if pdf_files:
         remove_temp_files(pdf_files)
+
+    if langfuse_client is not None:
+        langfuse_client.update_current_span(
+            output=validated_output,
+            metadata={
+                "access_provider": llm_client.access_provider,
+                "model": llm_client.model,
+                "mixs_extensions": mixs_extensions,
+                "num_pdfs": len(pdf_files or []),
+            },
+        )
     return validated_output

@@ -32,6 +32,7 @@ from nmdc_metadata_suggestor_ai_tool.doi_ingestion.pubmed import try_pubmed
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.zenodo import try_zenodo
 from nmdc_metadata_suggestor_ai_tool.models.doi import DoiClassification, SourceRetrievalResult
 from nmdc_metadata_suggestor_ai_tool.models.resolver_context import ResolverContext
+from nmdc_metadata_suggestor_ai_tool.tracing import observe
 
 SourceErrors = dict[str, str]
 Fetcher = Callable[[str, str | None, list[str], SourceErrors], SourceRetrievalResult | None]
@@ -69,6 +70,7 @@ NON_PUBLICATION_RESOURCE_TYPE_GENERAL = {
 NON_PUBLICATION_CROSSREF_TYPES = {"component"}
 
 
+@observe(name="doi_lookup", as_type="tool")
 def get_doi_description_or_abstract(
     doi: str, sources: list[str] | None = None, skip_classification: bool = False
 ) -> SourceRetrievalResult:
