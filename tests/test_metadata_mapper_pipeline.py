@@ -11,6 +11,7 @@ import logging
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -76,7 +77,7 @@ def result_event(structured_output: Any) -> ResultMessage:
     )
 
 
-class TestFallbackKeys:
+class TestFallbackOutputModel:
     def test_answer_fields_come_from_the_model(self) -> None:
         assert answer_fields(LLMOutput) == ("metadata_fields",)
         assert answer_fields(MetadataMapperOutput) == (
@@ -102,7 +103,7 @@ class TestFallbackKeys:
         event = tool_call_event(MAPPER_ANSWER)
         assert structured_output_from_tool_use(event, LLMOutput) is None
 
-    def test_mapper_keys_recover_mapper_answer(self) -> None:
+    def test_mapper_model_recovers_mapper_answer(self) -> None:
         recovered = structured_output_from_tool_use(
             tool_call_event(MAPPER_ANSWER), MetadataMapperOutput
         )
@@ -111,6 +112,19 @@ class TestFallbackKeys:
     def test_empty_wrapper_is_not_an_answer(self) -> None:
         empty: dict[str, list[Any]] = {"high_confidence": [], "needs_review": [], "cant_place": []}
         assert structured_output_from_tool_use(tool_call_event(empty), MetadataMapperOutput) is None
+
+
+@pytest.fixture
+def span_client(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+    """Stand-in Langfuse client that records every span update."""
+    client = MagicMock()
+    monkeypatch.setattr(pipeline, "langfuse_client", client)
+    return client
+
+
+def final_span_update(span_client: MagicMock) -> dict[str, Any]:
+    """Keyword arguments of the last update_current_span call: the end-of-run one."""
+    return dict(span_client.update_current_span.call_args_list[-1].kwargs)
 
 
 def run_with_fake_agent(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, events: list[Any]) -> Any:
@@ -135,7 +149,7 @@ def run_with_fake_agent(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, events:
 
 
 def test_answer_survives_empty_result_message(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, span_client: MagicMock
 ) -> None:
     events = [
         SystemMessage(subtype="init", data={"session_id": "s1"}),
@@ -146,9 +160,17 @@ def test_answer_survives_empty_result_message(
     assert [m.source_column for m in output.high_confidence] == ["Sample ID"]
     assert [m.source_column for m in output.cant_place] == ["notes"]
 
+    span = final_span_update(span_client)
+    assert span["level"] == "DEFAULT"
+    assert span["status_message"] is None
+    assert span["metadata"]["output_source"] == "tool_use_fallback"
 
-def test_empty_run_is_logged(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
+
+def test_empty_run_is_reported_on_span_and_log(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    span_client: MagicMock,
 ) -> None:
     events = [
         SystemMessage(subtype="init", data={"session_id": "s1"}),
@@ -157,6 +179,28 @@ def test_empty_run_is_logged(
     with caplog.at_level(logging.WARNING, logger=pipeline.logger.name):
         output = run_with_fake_agent(monkeypatch, tmp_path, events)
     assert not (output.high_confidence or output.needs_review or output.cant_place)
+
+    span = final_span_update(span_client)
+    assert span["level"] == "WARNING"
+    assert span["status_message"] == "Metadata mapper returned no mappings"
+    assert span["metadata"]["output_source"] == "none"
+    assert span["metadata"]["num_turns"] == 3
+    # The span records the empty output, not None.
+    assert span["output"] == output
+
     messages = [r.getMessage() for r in caplog.records if r.name == pipeline.logger.name]
     # One warning per empty run: _finalize_mapper_result no longer adds its own.
     assert messages == ["Metadata mapper returned no mappings (output_source=none, session_id=s1)."]
+
+
+def test_run_without_result_message_records_empty_output(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, span_client: MagicMock
+) -> None:
+    # No ResultMessage at all: before, the span was updated before the result was settled
+    # and recorded output=None.
+    events = [SystemMessage(subtype="init", data={"session_id": "s1"})]
+    output = run_with_fake_agent(monkeypatch, tmp_path, events)
+    span = final_span_update(span_client)
+    assert span["output"] == output
+    assert span["output"] is not None
+    assert span["level"] == "WARNING"
