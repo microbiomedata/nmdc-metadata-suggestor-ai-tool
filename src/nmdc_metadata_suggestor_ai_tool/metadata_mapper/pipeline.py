@@ -45,9 +45,6 @@ from nmdc_metadata_suggestor_ai_tool.tracing import (
 
 logger = logging.getLogger(__name__)
 
-# Top-level MetadataMapperOutput fields; a recovered StructuredOutput payload must fill one.
-MAPPER_OUTPUT_KEYS = ("high_confidence", "needs_review", "cant_place")
-
 # Skills the mapper agent is allowed to use.
 MAPPER_SKILLS = [
     "schema-context",
@@ -118,7 +115,7 @@ async def run_metadata_mapper_agentic(
                 session_id = event.data["session_id"]
             elif isinstance(event, AssistantMessage):
                 tool_payload = (
-                    structured_output_from_tool_use(event, MAPPER_OUTPUT_KEYS) or tool_payload
+                    structured_output_from_tool_use(event, MetadataMapperOutput) or tool_payload
                 )
                 log_assistant_message(event.content)
             elif isinstance(event, ResultMessage):

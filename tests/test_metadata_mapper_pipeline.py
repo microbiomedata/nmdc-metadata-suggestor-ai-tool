@@ -19,13 +19,18 @@ from nmdc_metadata_suggestor_ai_tool.langfuse_claude_sdk import (
     ResultMessage,
     SystemMessage,
 )
-from nmdc_metadata_suggestor_ai_tool.llm_client import LLMClient, structured_output_from_tool_use
-from nmdc_metadata_suggestor_ai_tool.metadata_mapper import pipeline
-from nmdc_metadata_suggestor_ai_tool.metadata_mapper.pipeline import (
-    MAPPER_OUTPUT_KEYS,
-    run_metadata_mapper_agentic,
+from nmdc_metadata_suggestor_ai_tool.llm_client import (
+    LLMClient,
+    answer_fields,
+    structured_output_from_tool_use,
 )
-from nmdc_metadata_suggestor_ai_tool.models.metadata_mapper_output import SourceFile
+from nmdc_metadata_suggestor_ai_tool.metadata_mapper import pipeline
+from nmdc_metadata_suggestor_ai_tool.metadata_mapper.pipeline import run_metadata_mapper_agentic
+from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
+from nmdc_metadata_suggestor_ai_tool.models.metadata_mapper_output import (
+    MetadataMapperOutput,
+    SourceFile,
+)
 
 MAPPER_ANSWER = {
     "source_files": [],
@@ -72,6 +77,22 @@ def result_event(structured_output: Any) -> ResultMessage:
 
 
 class TestFallbackKeys:
+    def test_answer_fields_come_from_the_model(self) -> None:
+        assert answer_fields(LLMOutput) == ("metadata_fields",)
+        assert answer_fields(MetadataMapperOutput) == (
+            "source_files",
+            "high_confidence",
+            "needs_review",
+            "cant_place",
+        )
+
+    def test_shared_scalar_fields_do_not_make_an_answer(self) -> None:
+        # Both models have ``model``; a payload with only that is not an answer to either.
+        only_model = {"model": "claude-test", "high_confidence": [], "metadata_fields": []}
+        event = tool_call_event(only_model)
+        assert structured_output_from_tool_use(event, MetadataMapperOutput) is None
+        assert structured_output_from_tool_use(event, LLMOutput) is None
+
     def test_default_still_recovers_llm_output(self) -> None:
         event = tool_call_event({"metadata_fields": [{"id": "x"}]})
         assert structured_output_from_tool_use(event) is not None
@@ -82,13 +103,13 @@ class TestFallbackKeys:
 
     def test_mapper_keys_recover_mapper_answer(self) -> None:
         recovered = structured_output_from_tool_use(
-            tool_call_event(MAPPER_ANSWER), MAPPER_OUTPUT_KEYS
+            tool_call_event(MAPPER_ANSWER), MetadataMapperOutput
         )
         assert recovered == MAPPER_ANSWER
 
     def test_empty_wrapper_is_not_an_answer(self) -> None:
         empty: dict[str, list[Any]] = {"high_confidence": [], "needs_review": [], "cant_place": []}
-        assert structured_output_from_tool_use(tool_call_event(empty), MAPPER_OUTPUT_KEYS) is None
+        assert structured_output_from_tool_use(tool_call_event(empty), MetadataMapperOutput) is None
 
 
 def run_with_fake_agent(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, events: list[Any]) -> Any:
