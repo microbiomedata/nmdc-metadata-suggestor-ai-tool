@@ -1,0 +1,53 @@
+id: https://w3id.org/nmdc/metadata-mapper/transform/phage-wastewater
+title: phage-wastewater
+description: Wastewater metagenome surveillance sheet, PRJEB13831 (first 6 rows)
+source_schema:
+  name: phage-wastewater_source
+  schema_uri: https://w3id.org/nmdc/metadata-mapper/source/phage-wastewater
+  source_file: source_schema.yaml
+target_schema:
+  name: nmdc_submission_schema
+  version: 11.23.1
+  schema_uri: https://example.com/nmdc_submission_schema
+  source_file: nmdc_submission_schema/schema/nmdc_submission_schema.yaml
+class_derivations:
+  WaterInterface:
+    populated_from: Row
+    slot_derivations:
+      src_specimen_collector_sample_id:
+        populated_from: specimen_collector_sample_id
+        missing_values:
+        - ''
+        hide: true
+      samp_name:
+        description: The collector's sample ID; some values carry a trailing space
+        expr: sandboxed(slot('src_specimen_collector_sample_id'), 'value.strip()')
+      src_sample_collection_start_date:
+        populated_from: sample_collection_start_date
+        missing_values:
+        - ''
+        hide: true
+      collection_date:
+        description: US month/day/year; no end date is given, so the start date stands
+        expr: iso_date(slot('src_sample_collection_start_date'), '%m/%d/%Y')
+      src_geo_loc_name_country:
+        populated_from: geo_loc_name_country
+        missing_values:
+        - ''
+        hide: true
+      src_geo_loc_name_state_province_territory:
+        populated_from: geo_loc_name_state_province_territory
+        missing_values:
+        - ''
+        hide: true
+      geo_loc_name:
+        description: 'Country and region in two columns; NMDC wants ''country: region'''
+        expr: 'sandboxed_combined({"geo_loc_name_country": slot(''src_geo_loc_name_country''), "geo_loc_name_state_province_territory":
+          slot(''src_geo_loc_name_state_province_territory'')}, "values[''geo_loc_name_country''].strip()
+          + '': '' + values[''geo_loc_name_state_province_territory''].strip()")'
+      source_mat_id:
+        description: An INSDC BioSample accession; source_mat_id is the nearest submission slot, but NMDC
+          may prefer to record it as an external identifier
+        populated_from: biosample_accession
+        missing_values:
+        - ''

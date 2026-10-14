@@ -1,8 +1,9 @@
 """Pydantic models for the Metadata Mapper AI output."""
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
+from pydantic.json_schema import SkipJsonSchema
 
 
 class SourceFile(BaseModel):
@@ -140,3 +141,7 @@ class MetadataMapperOutput(BaseModel):
     )
     model: str | None = Field(default=None, description="LLM model used")
     access_provider: str | None = Field(default=None, description="LLM access provider")
+    # NOT populated by the LLM — hidden from the agent's output schema and from serialized
+    # output. Set by run_metadata_mapper_agentic from ConversationManager.run_health (turns,
+    # tokens, cost, duration) so callers can compare runs.
+    run_health: SkipJsonSchema[dict[str, Any]] = Field(default_factory=dict, exclude=True)

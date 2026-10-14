@@ -1,0 +1,77 @@
+id: https://w3id.org/nmdc/metadata-mapper/transform/ncbi-biosample-water
+title: ncbi-biosample-water
+description: NCBI BioSample MIxS water package export (synthetic example)
+source_schema:
+  name: ncbi-biosample-water_source
+  schema_uri: https://w3id.org/nmdc/metadata-mapper/source/ncbi-biosample-water
+  source_file: source_schema.yaml
+target_schema:
+  name: nmdc_submission_schema
+  version: 11.23.1
+  schema_uri: https://example.com/nmdc_submission_schema
+  source_file: nmdc_submission_schema/schema/nmdc_submission_schema.yaml
+class_derivations:
+  WaterInterface:
+    populated_from: Row
+    slot_derivations:
+      samp_name:
+        description: NCBI's required sample name; the asterisk marks it mandatory in the template
+        populated_from: '*sample_name'
+        missing_values:
+        - ''
+      collection_date:
+        description: Already ISO 8601
+        populated_from: collection_date
+        missing_values:
+        - ''
+      geo_loc_name:
+        description: 'Already ''country: region'''
+        populated_from: geo_loc_name
+        missing_values:
+        - ''
+      src_lat_lon:
+        populated_from: lat_lon
+        missing_values:
+        - ''
+        hide: true
+      lat_lon:
+        description: NCBI writes hemispheres as letters; NMDC wants signed decimal degrees
+        expr: sandboxed(slot('src_lat_lon'), "' '.join(str(float(n) * (-1 if d in 'SW' else 1)) for n,
+          d in zip(value.split()[0::2], value.split()[1::2]))")
+      env_broad_scale:
+        description: Same slot, already 'label [CURIE]'. The slot takes a fixed list, so even values that
+          already fit need an enum_map; that is what lets them be checked.
+        populated_from: env_broad_scale
+        missing_values:
+        - ''
+        value_mappings:
+          freshwater lake biome [ENVO:01000252]:
+            value: freshwater lake biome [ENVO:01000252]
+      env_local_scale:
+        description: Same slot, already 'label [CURIE]'. The slot takes a fixed list, so even values that
+          already fit need an enum_map; that is what lets them be checked.
+        populated_from: env_local_scale
+        missing_values:
+        - ''
+        value_mappings:
+          lake [ENVO:00000020]:
+            value: lake [ENVO:00000020]
+      env_medium:
+        description: Same slot, already 'label [CURIE]'. The slot takes a fixed list, so even values that
+          already fit need an enum_map; that is what lets them be checked.
+        populated_from: env_medium
+        missing_values:
+        - ''
+        value_mappings:
+          lake water [ENVO:04000007]:
+            value: lake water [ENVO:04000007]
+      temp:
+        description: Water temperature, Celsius per the NCBI template
+        populated_from: temp
+        missing_values:
+        - ''
+      depth:
+        description: Unit not stated in the column; NCBI's template asks for meters
+        populated_from: depth
+        missing_values:
+        - ''

@@ -1,0 +1,76 @@
+id: https://w3id.org/nmdc/metadata-mapper/transform/soil-field-sheet
+title: soil-field-sheet
+description: Field spreadsheet from a soil sampling campaign (synthetic example)
+source_schema:
+  name: soil-field-sheet_source
+  schema_uri: https://w3id.org/nmdc/metadata-mapper/source/soil-field-sheet
+  source_file: source_schema.yaml
+target_schema:
+  name: nmdc_submission_schema
+  version: 11.23.1
+  schema_uri: https://example.com/nmdc_submission_schema
+  source_file: nmdc_submission_schema/schema/nmdc_submission_schema.yaml
+class_derivations:
+  SoilInterface:
+    populated_from: Row
+    slot_derivations:
+      samp_name:
+        description: The lab's sample identifier
+        populated_from: Sample ID
+        missing_values:
+        - ''
+      src_date_collected:
+        populated_from: Date Collected
+        missing_values:
+        - ''
+        hide: true
+      collection_date:
+        description: US month/day/year
+        expr: iso_date(slot('src_date_collected'), '%m/%d/%Y')
+      src_depth_ft:
+        populated_from: Depth (ft)
+        missing_values:
+        - ''
+        hide: true
+      depth:
+        description: Depth in feet; NMDC uses meters
+        expr: scale(slot('src_depth_ft'), '0.3048')
+      src_latitude:
+        populated_from: Latitude
+        missing_values:
+        - ''
+        hide: true
+      src_longitude:
+        populated_from: Longitude
+        missing_values:
+        - ''
+        hide: true
+      lat_lon:
+        description: Decimal degrees in two columns; NMDC wants 'lat lon' in one
+        expr: 'sandboxed_combined({"Latitude": slot(''src_latitude''), "Longitude": slot(''src_longitude'')},
+          ''f"{values[\''Latitude\'']} {values[\''Longitude\'']}"'')'
+      ph:
+        description: Soil pH, unitless
+        populated_from: pH
+        missing_values:
+        - ''
+      drainage_class:
+        description: Drainage class with the lab's wording; NMDC has a fixed list
+        populated_from: Drainage
+        missing_values:
+        - ''
+        value_mappings:
+          Well drained:
+            value: well
+          Poorly drained:
+            value: poorly
+          Somewhat poorly drained:
+            value: somewhat poorly
+      src_soil_temp_f:
+        populated_from: Soil Temp (F)
+        missing_values:
+        - ''
+        hide: true
+      temp:
+        description: Fahrenheit; converted to Celsius. Confirm it is soil, not air, temperature
+        expr: sandboxed(slot('src_soil_temp_f'), 'str(round((float(value) - 32) * 5 / 9, 1))')

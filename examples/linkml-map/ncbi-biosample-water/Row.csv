@@ -1,0 +1,4 @@
+*sample_name,sample_title,collection_date,geo_loc_name,lat_lon,depth,env_broad_scale,env_local_scale,env_medium,temp,isolation_source
+LE-2019-01,Lake Erie surface water 1,2019-07-14,USA: Lake Erie,41.68 N 83.25 W,1,freshwater lake biome [ENVO:01000252],lake [ENVO:00000020],lake water [ENVO:04000007],24.1,surface grab
+LE-2019-02,Lake Erie surface water 2,2019-07-14,USA: Lake Erie,41.70 N 83.19 W,1,freshwater lake biome [ENVO:01000252],lake [ENVO:00000020],lake water [ENVO:04000007],23.8,surface grab
+LE-2019-03,Lake Erie bottom water,2019-07-15,USA: Lake Erie,41.75 N 83.05 W,8,freshwater lake biome [ENVO:01000252],lake [ENVO:00000020],lake water [ENVO:04000007],,Niskin bottle

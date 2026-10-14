@@ -1,0 +1,26 @@
+- samp_name: PLOT-A1
+  collection_date: '2023-04-12'
+  depth: '0.1524'
+  lat_lon: 40.3412 -76.4123
+  ph: '6.2'
+  drainage_class: well
+  temp: '12.2'
+- samp_name: PLOT-A2
+  collection_date: '2023-04-12'
+  depth: '0.3048'
+  lat_lon: 40.3415 -76.4120
+  ph: '6.4'
+  drainage_class: well
+  temp: '11.1'
+- samp_name: PLOT-B1
+  collection_date: '2023-04-13'
+  depth: '0.1524'
+  lat_lon: 40.3501 -76.4199
+  ph: '5.8'
+  drainage_class: poorly
+  temp: '9.4'
+- samp_name: PLOT-B2
+  collection_date: '2023-04-13'
+  lat_lon: 40.3504 -76.4195
+  ph: '5.9'
+  drainage_class: somewhat poorly

@@ -1,0 +1,68 @@
+# Hand-written for illustration, not mapper agent output. Synthetic rows in the shape of a
+# lab's own field spreadsheet: free-form headers, US units, and every conversion type.
+description: Field spreadsheet from a soil sampling campaign (synthetic example)
+mixs_extensions: [soil]
+created: 2026-10-06
+mappings:
+  - source_column: Sample ID
+    mixs_extension: Soil
+    nmdc_candidate_slots: [samp_name]
+    confidence: high
+    reason: The lab's sample identifier
+  - source_column: Date Collected
+    mixs_extension: Soil
+    nmdc_candidate_slots: [collection_date]
+    confidence: high
+    reason: US month/day/year
+    conversion:
+      type: date_format
+      description: M/D/YYYY → ISO 8601
+      expression: "%m/%d/%Y"
+  - source_column: Depth (ft)
+    mixs_extension: Soil
+    nmdc_candidate_slots: [depth]
+    confidence: high
+    reason: Depth in feet; NMDC uses meters
+    conversion:
+      type: unit
+      description: feet → meters
+      expression: "0.3048"
+  - source_column: Latitude
+    combine_columns: [Longitude]
+    mixs_extension: Soil
+    nmdc_candidate_slots: [lat_lon]
+    confidence: high
+    reason: Decimal degrees in two columns; NMDC wants 'lat lon' in one
+    conversion:
+      type: custom
+      description: join latitude and longitude
+      expression: "f\"{values['Latitude']} {values['Longitude']}\""
+  - source_column: pH
+    mixs_extension: Soil
+    nmdc_candidate_slots: [ph]
+    confidence: high
+    reason: Soil pH, unitless
+  - source_column: Drainage
+    mixs_extension: Soil
+    nmdc_candidate_slots: [drainage_class]
+    confidence: high
+    reason: Drainage class with the lab's wording; NMDC has a fixed list
+    conversion:
+      type: enum_map
+      description: lab wording → NMDC permissible values
+      expression: '{"Well drained": "well", "Poorly drained": "poorly", "Somewhat poorly drained": "somewhat poorly"}'
+  - source_column: Soil Temp (F)
+    mixs_extension: Soil
+    nmdc_candidate_slots: [temp]
+    confidence: review
+    reason: Fahrenheit; converted to Celsius. Confirm it is soil, not air, temperature
+    conversion:
+      type: custom
+      description: Fahrenheit → Celsius
+      expression: "str(round((float(value) - 32) * 5 / 9, 1))"
+  - source_column: Crop
+    confidence: cant_place
+    reason: Current crop; cur_vegetation is close but takes a controlled term
+  - source_column: Collector Notes
+    confidence: cant_place
+    reason: Free text

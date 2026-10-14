@@ -1,0 +1,26 @@
+- samp_name: LE-2019-01
+  collection_date: '2019-07-14'
+  geo_loc_name: 'USA: Lake Erie'
+  lat_lon: 41.68 -83.25
+  env_broad_scale: freshwater lake biome [ENVO:01000252]
+  env_local_scale: lake [ENVO:00000020]
+  env_medium: lake water [ENVO:04000007]
+  temp: '24.1'
+  depth: '1'
+- samp_name: LE-2019-02
+  collection_date: '2019-07-14'
+  geo_loc_name: 'USA: Lake Erie'
+  lat_lon: 41.7 -83.19
+  env_broad_scale: freshwater lake biome [ENVO:01000252]
+  env_local_scale: lake [ENVO:00000020]
+  env_medium: lake water [ENVO:04000007]
+  temp: '23.8'
+  depth: '1'
+- samp_name: LE-2019-03
+  collection_date: '2019-07-15'
+  geo_loc_name: 'USA: Lake Erie'
+  lat_lon: 41.75 -83.05
+  env_broad_scale: freshwater lake biome [ENVO:01000252]
+  env_local_scale: lake [ENVO:00000020]
+  env_medium: lake water [ENVO:04000007]
+  depth: '8'

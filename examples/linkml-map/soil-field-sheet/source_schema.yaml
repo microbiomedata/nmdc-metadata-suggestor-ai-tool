@@ -1,0 +1,32 @@
+id: https://w3id.org/nmdc/metadata-mapper/source/soil-field-sheet
+name: soil-field-sheet_source
+description: Induced from CSV headers by the NMDC Metadata Mapper.
+prefixes:
+  linkml: https://w3id.org/linkml/
+imports:
+- linkml:types
+default_range: string
+slots:
+  Sample ID: {}
+  Date Collected: {}
+  Depth (ft): {}
+  Latitude: {}
+  Longitude: {}
+  pH: {}
+  Drainage: {}
+  Soil Temp (F): {}
+  Crop: {}
+  Collector Notes: {}
+classes:
+  Row:
+    slots:
+    - Sample ID
+    - Date Collected
+    - Depth (ft)
+    - Latitude
+    - Longitude
+    - pH
+    - Drainage
+    - Soil Temp (F)
+    - Crop
+    - Collector Notes
