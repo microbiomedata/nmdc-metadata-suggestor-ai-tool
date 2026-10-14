@@ -111,7 +111,7 @@ async def run_metadata_mapper_agentic(
     output_source = "none"
 
     async def _process_events(events: AsyncIterator[Any]) -> None:
-        nonlocal result, health, tool_payload, session_id, output_source
+        nonlocal result, health, tool_payload, session_id
         async for event in events:
             if isinstance(event, SystemMessage) and event.subtype == "init":
                 session_id = event.data["session_id"]
