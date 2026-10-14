@@ -107,8 +107,6 @@ async def run_metadata_mapper_agentic(
     result: MetadataMapperOutput | None = None
     health: dict[str, Any] = {}
     tool_payload: dict[str, Any] | None = None
-    # Where the answer came from: ResultMessage, the StructuredOutput tool call, or nowhere.
-    output_source = "none"
 
     async def _process_events(events: AsyncIterator[Any]) -> None:
         nonlocal result, health, tool_payload, session_id
