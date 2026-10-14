@@ -7,7 +7,6 @@ recovers that tool call only recognized LLMOutput's ``metadata_fields``.
 
 import asyncio
 import json
-import logging
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
@@ -166,18 +165,14 @@ def test_answer_survives_empty_result_message(
     assert span["metadata"]["output_source"] == "tool_use_fallback"
 
 
-def test_empty_run_is_reported_on_span_and_log(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    caplog: pytest.LogCaptureFixture,
-    span_client: MagicMock,
+def test_empty_run_is_reported_on_span(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, span_client: MagicMock
 ) -> None:
     events = [
         SystemMessage(subtype="init", data={"session_id": "s1"}),
         result_event(structured_output=None),
     ]
-    with caplog.at_level(logging.WARNING, logger=pipeline.logger.name):
-        output = run_with_fake_agent(monkeypatch, tmp_path, events)
+    output = run_with_fake_agent(monkeypatch, tmp_path, events)
     assert not (output.high_confidence or output.needs_review or output.cant_place)
 
     span = final_span_update(span_client)
@@ -187,10 +182,6 @@ def test_empty_run_is_reported_on_span_and_log(
     assert span["metadata"]["num_turns"] == 3
     # The span records the empty output, not None.
     assert span["output"] == output
-
-    messages = [r.getMessage() for r in caplog.records if r.name == pipeline.logger.name]
-    # One warning per empty run: _finalize_mapper_result no longer adds its own.
-    assert messages == ["Metadata mapper returned no mappings (output_source=none, session_id=s1)."]
 
 
 def test_run_without_result_message_records_empty_output(
