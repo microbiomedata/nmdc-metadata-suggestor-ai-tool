@@ -147,7 +147,7 @@ async def run_metadata_mapper_agentic(
         langfuse_client.update_current_span(
             output=result,
             level="WARNING" if empty else "DEFAULT",
-            status_message=EMPTY_RESULT_MESSAGE if empty else None,
+            status_message="Metadata mapper returned no mappings" if empty else None,
             metadata={
                 "model": model,
                 "session_id": session_id,
