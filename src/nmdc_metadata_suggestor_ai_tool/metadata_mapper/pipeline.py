@@ -159,10 +159,6 @@ async def run_metadata_mapper_agentic(
                 **health,
             },
         )
-    if empty:
-        logger.warning(
-            "%s (output_source=%s, session_id=%s).", EMPTY_RESULT_MESSAGE, output_source, session_id
-        )
     return result, session_id
 
 
