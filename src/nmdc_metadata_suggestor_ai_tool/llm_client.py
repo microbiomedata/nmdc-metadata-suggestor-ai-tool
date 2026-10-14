@@ -6,7 +6,7 @@ import logging
 import os
 from collections import Counter
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, Literal, cast, get_origin
 
 import google.auth
 from dotenv import load_dotenv
@@ -15,6 +15,7 @@ from google.auth.transport.requests import Request
 from google.genai import types as genai_types
 from google.oauth2 import service_account
 from openai import OpenAI
+from pydantic import BaseModel
 
 from nmdc_metadata_suggestor_ai_tool.agent_permissions import (
     STRUCTURED_OUTPUT_TOOL,
@@ -225,7 +226,23 @@ def unwrap_structured_output(raw: Any) -> LLMOutput:
     raise ValueError(f"Could not extract LLMOutput from structured_output: {raw}")
 
 
-def structured_output_from_tool_use(event: AssistantMessage) -> dict[str, Any] | None:
+def answer_fields(output_model: type[BaseModel]) -> tuple[str, ...]:
+    """The list-valued fields of an output model: the ones that carry the agent's answer.
+
+    Scalar fields such as ``model`` and ``access_provider`` are left out. Several output
+    models share them, and an otherwise empty payload can carry them.
+    """
+    return tuple(
+        name
+        for name, field in output_model.model_fields.items()
+        if get_origin(field.annotation) is list
+    )
+
+
+def structured_output_from_tool_use(
+    event: AssistantMessage,
+    output_model: type[BaseModel] = LLMOutput,
+) -> dict[str, Any] | None:
     """Return the payload the agent passed to the StructuredOutput tool, if it called it.
 
     ``ResultMessage.structured_output`` can come back empty on a run where the agent did
@@ -238,9 +255,11 @@ def structured_output_from_tool_use(event: AssistantMessage) -> dict[str, Any] |
             input={<key varies>: '{"metadata_fields": [...]}'},  # dict or JSON string
         )
 
-    So this searches the values rather than reading a known key, and requires
-    ``metadata_fields`` so an empty wrapper is not recovered as an answer.
+    So this searches the values rather than reading a known key. A payload counts only if
+    one of ``output_model``'s answer fields (see ``answer_fields``) is non-empty, so an empty
+    wrapper, or a payload meant for a different output model, is not recovered.
     """
+    required = answer_fields(output_model)
     for block in event.content or []:
         if getattr(block, "name", None) != STRUCTURED_OUTPUT_TOOL:
             continue
@@ -254,7 +273,7 @@ def structured_output_from_tool_use(event: AssistantMessage) -> dict[str, Any] |
                     parsed = json.loads(parsed)
                 except json.JSONDecodeError:
                     continue
-            if isinstance(parsed, dict) and parsed.get("metadata_fields"):
+            if isinstance(parsed, dict) and any(parsed.get(key) for key in required):
                 return parsed
     return None
 
