@@ -86,7 +86,7 @@ def query_osti_by_doi(osti_doi: str) -> list[dict]:
     params = {
         "doi": osti_doi,
     }
-    headers = {"User-Agent": USER_AGENT}
+    headers = {"User-Agent": USER_AGENT, "Accept": "application/json"}
     try:
         osti_url = f"{OSTI_E2_API_URL}"
         response = request_with_retry(
