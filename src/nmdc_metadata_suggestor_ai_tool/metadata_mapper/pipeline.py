@@ -142,10 +142,8 @@ async def run_metadata_mapper_agentic(
             await _process_events(query(prompt=message, options=options))
 
     result = result or MetadataMapperOutput()
-    # An empty result is never a real answer: every uploaded column should land in one of
-    # the three lists. Flag it on the span, where it can be filtered and counted, and in the
-    # log. The full run health is in the span metadata, and run_health already logs cost,
-    # turns and permission denials, so the warning does not restate them.
+ # Every column must land in one of the three lists; empty is always wrong.
+# Flag it on the Langfuse span
     empty = not (result.high_confidence or result.needs_review or result.cant_place)
     if langfuse_client is not None:
         langfuse_client.update_current_span(
