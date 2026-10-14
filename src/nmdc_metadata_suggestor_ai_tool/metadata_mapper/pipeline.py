@@ -45,8 +45,6 @@ from nmdc_metadata_suggestor_ai_tool.tracing import (
 
 logger = logging.getLogger(__name__)
 
-EMPTY_RESULT_MESSAGE = "Metadata mapper returned no mappings"
-
 # Skills the mapper agent is allowed to use.
 MAPPER_SKILLS = [
     "schema-context",
