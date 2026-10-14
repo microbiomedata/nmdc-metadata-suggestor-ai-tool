@@ -84,7 +84,7 @@ class TestFallbackOutputModel:
             "source_files",
             "high_confidence",
             "needs_review",
-            "cant_place"
+            "cant_place",
         }
 
     def test_shared_scalar_fields_do_not_make_an_answer(self) -> None:
