@@ -137,6 +137,7 @@ async def run_metadata_mapper_agentic(
  # Every column must land in one of the three lists; empty is always wrong.
 # Flag it on the Langfuse span
     empty = not (result.high_confidence or result.needs_review or result.cant_place)
+    output_source = "tool_use_fallback" if tool_payload else "none"
     if langfuse_client is not None:
         langfuse_client.update_current_span(
             output=result,
