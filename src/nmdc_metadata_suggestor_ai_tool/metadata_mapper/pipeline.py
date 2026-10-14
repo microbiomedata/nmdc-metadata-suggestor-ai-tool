@@ -122,10 +122,6 @@ async def run_metadata_mapper_agentic(
                 log_assistant_message(event.content)
             elif isinstance(event, ResultMessage):
                 health = ConversationManager.run_health(event)
-                if event.structured_output:
-                    output_source = "result_message"
-                elif tool_payload:
-                    output_source = "tool_use_fallback"
                 raw = event.structured_output or tool_payload
                 result = _finalize_mapper_result(raw)
                 result.source_files = source_files
