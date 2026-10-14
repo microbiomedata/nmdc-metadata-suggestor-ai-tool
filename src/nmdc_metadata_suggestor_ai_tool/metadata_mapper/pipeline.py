@@ -107,9 +107,10 @@ async def run_metadata_mapper_agentic(
     result: MetadataMapperOutput | None = None
     health: dict[str, Any] = {}
     tool_payload: dict[str, Any] | None = None
+    result_message_output: Any = None
 
     async def _process_events(events: AsyncIterator[Any]) -> None:
-        nonlocal result, health, tool_payload, session_id
+        nonlocal result, health, tool_payload, session_id, result_message_output
         async for event in events:
             if isinstance(event, SystemMessage) and event.subtype == "init":
                 session_id = event.data["session_id"]
@@ -120,7 +121,8 @@ async def run_metadata_mapper_agentic(
                 log_assistant_message(event.content)
             elif isinstance(event, ResultMessage):
                 health = ConversationManager.run_health(event)
-                raw = event.structured_output or tool_payload
+                result_message_output = event.structured_output
+                raw = result_message_output or tool_payload
                 result = _finalize_mapper_result(raw)
                 result.source_files = source_files
                 result.model = model
@@ -137,7 +139,15 @@ async def run_metadata_mapper_agentic(
     # Every column must land in one of the three lists; empty is always wrong.
     # Flag it on the Langfuse span
     empty = not (result.high_confidence or result.needs_review or result.cant_place)
-    output_source = "tool_use_fallback" if tool_payload else "none"
+    # tool_payload is set on healthy runs too (the agent always answers through the tool),
+    # so check ResultMessage first: only an answer it lacked was saved by the fallback.
+    output_source = (
+        "result_message"
+        if result_message_output
+        else "tool_use_fallback"
+        if tool_payload
+        else "none"
+    )
     if langfuse_client is not None:
         langfuse_client.update_current_span(
             output=result,

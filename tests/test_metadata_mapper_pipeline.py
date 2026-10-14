@@ -165,6 +165,22 @@ def test_answer_survives_empty_result_message(
     assert span["metadata"]["output_source"] == "tool_use_fallback"
 
 
+def test_normal_run_reports_result_message_as_source(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, span_client: MagicMock
+) -> None:
+    # A healthy run answers through the StructuredOutput tool and ResultMessage carries the
+    # answer too. That is not the fallback saving the run, so it must not be reported as one.
+    events = [
+        SystemMessage(subtype="init", data={"session_id": "s1"}),
+        tool_call_event(MAPPER_ANSWER),
+        result_event(structured_output=MAPPER_ANSWER),
+    ]
+    run_with_fake_agent(monkeypatch, tmp_path, events)
+    span = final_span_update(span_client)
+    assert span["metadata"]["output_source"] == "result_message"
+    assert span["level"] == "DEFAULT"
+
+
 def test_empty_run_is_reported_on_span(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, span_client: MagicMock
 ) -> None:
