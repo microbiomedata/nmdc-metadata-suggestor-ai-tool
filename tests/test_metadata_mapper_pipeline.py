@@ -80,12 +80,12 @@ def result_event(structured_output: Any) -> ResultMessage:
 class TestFallbackOutputModel:
     def test_answer_fields_come_from_the_model(self) -> None:
         assert answer_fields(LLMOutput) == ("metadata_fields",)
-        assert answer_fields(MetadataMapperOutput) == (
+        assert set(answer_fields(MetadataMapperOutput)) == {
             "source_files",
             "high_confidence",
             "needs_review",
-            "cant_place",
-        )
+            "cant_place"
+        }
 
     def test_shared_scalar_fields_do_not_make_an_answer(self) -> None:
         # Both models have ``model``; a payload with only that is not an answer to either.
