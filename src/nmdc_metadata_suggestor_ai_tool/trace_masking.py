@@ -58,10 +58,13 @@ PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     (
         "uri_password",
         re.compile(
-            r"\b[a-z][a-z0-9+.-]{1,20}://[^\s:/@'\"\\]{1,64}:(?P<value>[^\s@/'\"\\]{1,128})@"
+            # The authority ends at ? or #, and RFC 3986 allows ' in a password.
+            r"\b[a-z][a-z0-9+.-]{1,20}://[^\s:/@'\"\\?#]{1,64}:(?P<value>[^\s@/\"\\?#]{1,128})@"
         ),
     ),
-    ("mc_alias", re.compile(r"\bmc\s+alias\s+set\s+\S+\s+\S+\s+(?P<access>\S+)\s+(?P<value>\S+)")),
+    # Everything after the URL, to the end of the logical line: a quoted key with a space
+    # or a backslash-newline would shift the arguments if they were matched one by one.
+    ("mc_alias", re.compile(r"\bmc\s+alias\s+set\s+\S+\s+\S+\s+(?P<value>(?:\\\n|[^\n])+)")),
     ("anthropic_or_openai_key", re.compile(r"\bsk-[A-Za-z0-9_-]{20,}")),
     ("aws_access_key", re.compile(r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b")),
     (
@@ -88,6 +91,9 @@ _LOCATION = re.compile(r"^(?:https?://|/|~/|\./)")
 
 
 def _is_placeholder(value: str) -> bool:
+    words = [w for w in value.split() if w != "\\"]
+    if len(words) > 1:
+        return all(_is_placeholder(w) for w in words)
     return (
         bool(_PLACEHOLDER.match(value) or _LOCATION.match(value))
         or value.startswith(_MASK_PREFIX)
@@ -100,7 +106,7 @@ def mask_text(text: str) -> str:
     for name, pattern in PATTERNS:
 
         def replace(match: re.Match[str], name: str = name) -> str:
-            groups = [g for g in ("access", "value") if g in match.re.groupindex and match.group(g)]
+            groups = [g for g in ("value",) if g in match.re.groupindex and match.group(g)]
             if not groups:
                 return f"{_MASK_PREFIX}{name}]"
             out, last = [], match.start()

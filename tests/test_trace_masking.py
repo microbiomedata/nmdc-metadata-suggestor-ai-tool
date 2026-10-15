@@ -58,6 +58,23 @@ def _secret_cases() -> list[tuple[str, str, str]]:
             secret,
         )
     )
+    secret = _rand(30)
+    cases.append(
+        (
+            "mc alias quoted key with a space",
+            f'mc alias set b https://m.example.org "AK {_rand(8, upper)}" {secret}',
+            secret,
+        )
+    )
+    secret = _rand(30)
+    cases.append(
+        (
+            "mc alias backslash-newline",
+            f"mc alias set b https://m.example.org \\\n  {_rand(20, upper)} {secret}",
+            secret,
+        )
+    )
+    add("quoted uri password", "postgres://u:'{}'@db.example.org/x", _rand(16))
     return cases
 
 
@@ -84,6 +101,8 @@ def test_secret_is_masked(case: str, text: str, secret: str) -> None:
         '"_token_uri": "https://oauth2.googleapis.com/token"',
         '"credentials_file": "/home/user/.config/gcloud/application_default_credentials.json"',
         '"max_tokens": "settings.max_tokens"',
+        "https://example.org:8080?contact=reader@example.net",
+        "https://example.org:8080#section@x",
     ],
 )
 def test_benign_text_is_unchanged(text: str) -> None:
