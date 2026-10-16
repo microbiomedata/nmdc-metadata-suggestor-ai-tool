@@ -27,7 +27,7 @@ from nmdc_metadata_suggestor_ai_tool.doi_ingestion.jgi import try_jgi
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.kbase import try_kbase
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.massive import try_massive
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.openalex import try_openalex
-from nmdc_metadata_suggestor_ai_tool.doi_ingestion.osti import try_osti
+from nmdc_metadata_suggestor_ai_tool.doi_ingestion.osti import try_osti, try_osti_award
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.pubmed import try_pubmed
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.zenodo import try_zenodo
 from nmdc_metadata_suggestor_ai_tool.models.doi import DoiClassification, SourceRetrievalResult
@@ -211,11 +211,13 @@ def _classification_is_publication(classification: DoiClassification | None) -> 
 
 
 def _check_classification_gate(c: DoiClassification) -> str | None:
-    """Refuse non-publication DOIs for publication abstract retrieval flow."""
-    if c.inferred_nmdc_category and c.inferred_nmdc_category != "publication_doi":
+    """Refuse unsupported non-publication/award DOIs."""
+    allowed_categories = {"publication_doi", "award_doi"}
+
+    if c.inferred_nmdc_category and c.inferred_nmdc_category not in allowed_categories:
         return (
-            f"DOI is a {c.inferred_nmdc_category}, not a publication. "
-            "Abstract retrieval is only supported for publication DOIs."
+            f"DOI is a {c.inferred_nmdc_category}, not a supported DOI type. "
+            "Only publication and award DOIs are supported."
         )
 
     if c.resource_type_general and c.resource_type_general in NON_PUBLICATION_RESOURCE_TYPE_GENERAL:
@@ -235,6 +237,10 @@ def default_source_order(
     classification: DoiClassification | None = None,
 ) -> list[str]:
     """Return default source order based on DOI type and provider signal."""
+
+    if classification and classification.inferred_nmdc_category == "award_doi":
+        return ["osti_award"]
+
     is_publication = _classification_is_publication(classification)
 
     if is_publication is True:
@@ -455,6 +461,15 @@ def _fetch_osti(
     return _fetch_resolver_context(doi, provider, "osti", attempts, source_errors, try_osti)
 
 
+def _fetch_osti_award(
+    doi: str, provider: str | None, attempts: list[str], source_errors: SourceErrors
+) -> SourceRetrievalResult | None:
+    """Fetch and wrap context from OSTI Award API."""
+    return _fetch_resolver_context(
+        doi, provider, "osti_award", attempts, source_errors, try_osti_award
+    )
+
+
 _SOURCE_FETCHERS: dict[str, Fetcher] = {
     "edi": _fetch_edi,
     "emsl": _fetch_emsl,
@@ -471,6 +486,7 @@ _SOURCE_FETCHERS: dict[str, Fetcher] = {
     "openalex": _fetch_openalex,
     "pubmed": _fetch_pubmed,
     "osti": _fetch_osti,
+    "osti_award": _fetch_osti_award,
 }
 
 _PROVIDER_API_SOURCES = {
@@ -484,4 +500,5 @@ _PROVIDER_API_SOURCES = {
     "cyverse",
     "zenodo",
     "osti",
+    "osti_award",
 }
