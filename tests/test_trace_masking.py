@@ -8,11 +8,19 @@ import secrets
 import string
 
 import pytest
+from langfuse.types import MaskOtelSpansParams, OtelSpanData, OtelSpanIdentifier
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from nmdc_metadata_suggestor_ai_tool.trace_masking import mask, mask_otel_spans, mask_text
+from nmdc_metadata_suggestor_ai_tool import trace_masking
+from nmdc_metadata_suggestor_ai_tool.trace_masking import (
+    GITLEAKS_RULES,
+    load_gitleaks_patterns,
+    mask,
+    mask_otel_spans,
+    mask_text,
+)
 
 
 def _rand(n: int, alphabet: str = string.ascii_letters + string.digits) -> str:
@@ -22,6 +30,8 @@ def _rand(n: int, alphabet: str = string.ascii_letters + string.digits) -> str:
 def _secret_cases() -> list[tuple[str, str, str]]:
     """(case, text, the secret that must not survive)."""
     upper = string.ascii_uppercase + string.digits
+    # AWS access key ids use base32 after the prefix; the gitleaks rule accepts only that.
+    base32 = string.ascii_uppercase + "234567"
     cases = []
 
     def add(case: str, template: str, value: str) -> None:
@@ -34,7 +44,7 @@ def _secret_cases() -> list[tuple[str, str, str]]:
     add("authorization header", "Authorization: Bearer {}", _rand(40))
     add("curl header", "curl -H 'Authorization: Bearer {}' https://example.org", _rand(40))
     add("bare anthropic key", "key was sk-ant-api03-{} ok", _rand(80))
-    add("bare aws key", "id AKIA{} here", _rand(16, upper))
+    add("bare aws key", "id AKIA{} here", _rand(16, base32))
     add("bare github token", "ghp_{}", _rand(36))
     add("bare jwt", "eyJ{}.eyJ{}.{}".format(_rand(20), _rand(20), "{}"), _rand(30))
     add("google access token", '{{"_credentials": {{"token": "ya29.c.{}"}}}}', _rand(200))
@@ -78,9 +88,10 @@ def _secret_cases() -> list[tuple[str, str, str]]:
     return cases
 
 
-@pytest.mark.parametrize(
-    ("case", "text", "secret"), _secret_cases(), ids=lambda v: v if " " in str(v) else ""
-)
+_CASES = _secret_cases()
+
+
+@pytest.mark.parametrize(("case", "text", "secret"), _CASES, ids=[c[0] for c in _CASES])
 def test_secret_is_masked(case: str, text: str, secret: str) -> None:
     masked = mask_text(text)
     assert secret not in masked, case
@@ -120,7 +131,14 @@ def test_mask_walks_nested_data() -> None:
 
 def _export_one_span(attributes: dict[str, str], hook):  # type: ignore[no-untyped-def]
     """Send one span through Langfuse's exporter wrapper and return what reached the exporter."""
-    from langfuse._client.span_exporter import LangfuseTransformingSpanExporter
+    # LangfuseTransformingSpanExporter is private; this was written against langfuse==4.15.1.
+    # If the import fails after a Langfuse bump, find where the exporter moved before
+    # relaxing the test: the negative control below depends on it. The hook logic itself
+    # is also covered by test_hook_patches_only_changed_attributes, which uses public types.
+    try:
+        from langfuse._client.span_exporter import LangfuseTransformingSpanExporter
+    except ImportError:
+        pytest.skip("LangfuseTransformingSpanExporter not found; check after a Langfuse upgrade")
 
     sink = InMemorySpanExporter()
     provider = TracerProvider()
@@ -157,3 +175,92 @@ def test_negative_control_without_hook_the_secret_is_exported() -> None:
     value = "sk-" + _rand(40)
     exported = _export_one_span({"output.value": f"ANTHROPIC_AUTH_TOKEN={value}"}, None)
     assert value in exported["output.value"]
+
+
+def _span(attributes: dict) -> tuple[OtelSpanIdentifier, OtelSpanData]:  # type: ignore[type-arg]
+    identifier = OtelSpanIdentifier(trace_id="t1", span_id="s1")
+    data = OtelSpanData(
+        trace_id="t1",
+        span_id="s1",
+        parent_span_id=None,
+        name="Bash",
+        instrumentation_scope_name=None,
+        instrumentation_scope_version=None,
+        attributes=attributes,
+        resource_attributes={},
+    )
+    return identifier, data
+
+
+def test_hook_patches_only_changed_attributes() -> None:
+    """The mask_otel_spans logic, through Langfuse's public types only."""
+    value = "sk-" + _rand(40)
+    identifier, span = _span(
+        {
+            "output.value": f"ANTHROPIC_AUTH_TOKEN={value}",
+            "input.args": ["cat", f"key {value}"],
+            "tool.name": "Bash",
+            "exit_code": 0,
+        }
+    )
+    result = mask_otel_spans(params=MaskOtelSpansParams(spans={identifier: span}))
+    assert result is not None
+    patch = result.span_patches[identifier]
+    assert patch is not None
+    assert set(patch.set_attributes) == {"output.value", "input.args"}
+    assert value not in str(patch.set_attributes)
+
+
+def test_hook_returns_none_when_nothing_to_mask() -> None:
+    identifier, span = _span({"tool.name": "Bash", "output.value": "3 files"})
+    assert mask_otel_spans(params=MaskOtelSpansParams(spans={identifier: span})) is None
+
+
+def test_every_listed_gitleaks_rule_loads() -> None:
+    names = [name for name, _ in load_gitleaks_patterns()]
+    assert names == list(GITLEAKS_RULES)
+
+
+def test_a_rule_missing_from_the_bundled_file_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(trace_masking, "GITLEAKS_RULES", (*GITLEAKS_RULES, "no-such-rule"))
+    with pytest.raises(ValueError, match="no-such-rule"):
+        load_gitleaks_patterns()
+
+
+@pytest.mark.parametrize(
+    ("rule", "token"),
+    [
+        (
+            "anthropic-api-key",
+            "sk-ant-api03-" + _rand(93, string.ascii_letters + string.digits + "_-") + "AA",
+        ),
+        (
+            "slack-bot-token",
+            "xoxb-" + _rand(12, string.digits) + "-" + _rand(12, string.digits) + "-" + _rand(24),
+        ),
+        ("gcp-api-key", "AIza" + _rand(35)),
+        ("github-fine-grained-pat", "github_pat_" + _rand(82)),
+    ],
+    ids=["anthropic-api-key", "slack-bot-token", "gcp-api-key", "github-fine-grained-pat"],
+)
+def test_gitleaks_rule_catches_its_token(rule: str, token: str) -> None:
+    """Each token is masked under the gitleaks rule's own name, not by a custom pattern."""
+    masked = mask_text(f'"key": "{token}" ok')
+    assert token not in masked
+    assert f"[REDACTED:{rule}]" in masked
+    # gitleaks rules also match the delimiter after the token; it must survive.
+    assert masked.endswith('" ok')
+
+
+@pytest.mark.parametrize(
+    ("text", "why"),
+    [
+        ("password = abc1234", "shorter than 8 characters"),
+        ("pin_token = 123456789012", "all digits"),
+        ('password = "my secret phrase"', "quoted value with spaces, first part short"),
+    ],
+    ids=["short", "all-digit", "quoted-with-spaces"],
+)
+def test_known_gaps_are_not_masked(text: str, why: str) -> None:
+    """The gaps listed in the module docstring. If one starts failing, update the docstring."""
+    assert mask_text(text) == text, why

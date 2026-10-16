@@ -1,27 +1,67 @@
-"""Mask credentials in everything the suggester sends to Langfuse.
+"""Mask credential-shaped values before traces reach Langfuse.
 
-Two Langfuse hooks are wired up in ``tracing.py``:
+Two hooks are registered in ``tracing.py``:
 
-* ``mask`` covers data set through the Langfuse SDK (``@observe``, ``create_event``).
-* ``mask_otel_spans`` covers spans from other OpenTelemetry instrumentations. The
-  Claude Agent SDK instrumentor records tool inputs and outputs this way, which is
-  how a ``cat`` of a settings file sent an API key to Langfuse on 2026-08-20.
+* ``mask``: applied to all data sent through the Langfuse SDK (``@observe``, ``create_event``).
+* ``mask_otel_spans``: applied to spans from the Claude Agent SDK instrumentor, which
+  ``mask`` never sees.
 
-The patterns follow the BERIL filters compared on 2026-10-14 (langfuse-retro-load's
-``redaction.py``, the BERIL live hook, and Workbench's ``scrub()``), plus the two
-shapes all three missed: passwords in connection URLs and the keys in
-``mc alias set``. Email addresses are not masked, because submission metadata carries
-contact emails the suggester is meant to read.
+Known token formats come from the rule file of a pinned gitleaks release
+(``GITLEAKS_VERSION``), bundled unmodified as ``gitleaks.toml`` with its MIT license in
+``gitleaks.LICENSE``. Gitleaks is feature complete and takes security patches only, so
+bump the version only when a patch changes a rule listed in ``GITLEAKS_RULES``.
 
-A masked value becomes ``[REDACTED:<pattern name>]``. Placeholders such as
-``<your-key>``, ``${API_KEY}`` or ``YOUR-ACCESS-KEY-HERE`` are left alone.
+Custom patterns cover what those rules do not: private keys cut off before their END
+line, ``Authorization`` headers, passwords in connection URLs, the arguments to
+``mc alias set``, ``sk-`` keys without a vendor marker (CBORG and other LiteLLM gateway
+keys), Google OAuth access tokens (``ya29.``), and values assigned to credential-named
+keys.
+
+A masked value becomes ``[REDACTED:<pattern name>]``. Placeholders such as ``<your-key>``,
+``${API_KEY}`` or ``YOUR-ACCESS-KEY-HERE`` are left alone. Emails are not masked, because
+submission metadata carries contact emails the suggester is meant to read.
+
+Known gaps, all intentional. For values assigned to a credential-named key
+(``keyed_value``):
+
+* values shorter than 8 characters are not masked;
+* all-digit values are not masked (they are counts and ids far more often than secrets);
+* a quoted value containing spaces is masked only up to its first space, and not at all
+  when that first part is shorter than 8 characters.
 """
 
 import re
-from collections.abc import Callable
+import tomllib
+from importlib.resources import files
 from typing import Any
 
 from langfuse.types import MaskOtelSpansParams, MaskOtelSpansResult, OtelSpanPatch
+
+GITLEAKS_VERSION = "v8.30.1"  # https://github.com/gitleaks/gitleaks/releases/tag/v8.30.1
+
+# Rule ids taken from gitleaks.toml. Every id must exist there and compile in Python;
+# load_gitleaks_patterns raises otherwise, so a version bump cannot drop one silently.
+GITLEAKS_RULES = (
+    "anthropic-api-key",
+    "anthropic-admin-api-key",
+    "openai-api-key",
+    "aws-access-token",
+    "github-pat",
+    "github-fine-grained-pat",
+    "github-oauth",
+    "github-app-token",
+    "github-refresh-token",
+    "slack-bot-token",
+    "slack-user-token",
+    "slack-app-token",
+    "slack-legacy-token",
+    "slack-legacy-bot-token",
+    "slack-legacy-workspace-token",
+    "slack-config-access-token",
+    "slack-config-refresh-token",
+    "gcp-api-key",
+    "jwt",
+)
 
 _PLACEHOLDER = re.compile(
     r"""^(?:<[^<>]*>|\$\{?\w+\}?|\*{3,}|x{4,}|\.{3}|your[-_\w]*|changeme|example\w*
@@ -37,10 +77,35 @@ _CREDENTIAL_NAME = (
 
 # Quotes around a key or value may be escaped once or twice, because tool output often
 # arrives as JSON inside JSON.
-#
-# (name, pattern). Group "value" is the part that gets replaced; without it, the
-# whole match is. Order matters: earlier patterns run first, and later ones skip
-# text that is already masked.
+_KEYED_VALUE = re.compile(
+    r"\b"
+    + _CREDENTIAL_NAME
+    + r"""
+    (?:\\{0,2}["'\]])*           # closing quote or bracket of the key, maybe escaped
+    \s* (?: : | = | := ) \s*     # assignment
+    (?:\\{0,2}["'])?             # opening quote of the value, maybe escaped
+    (?P<value>[^\s"'\\,;}\])(]{8,})   # the value: 8+ chars up to a space, quote or delimiter
+    (?![\w./+=-]*\()             # not a function call, such as os.environ.get(
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
+
+def load_gitleaks_patterns() -> list[tuple[str, re.Pattern[str]]]:
+    """Compile the ``GITLEAKS_RULES`` rules from the bundled gitleaks.toml, in that order."""
+    text = files(__package__).joinpath("gitleaks.toml").read_text(encoding="utf-8")
+    by_id = {rule["id"]: rule for rule in tomllib.loads(text).get("rules", [])}
+    missing = [rule_id for rule_id in GITLEAKS_RULES if rule_id not in by_id]
+    if missing:
+        raise ValueError(f"gitleaks {GITLEAKS_VERSION} has no rule {missing}")
+    # A Go-only construct raises re.error here rather than being skipped.
+    return [(rule_id, re.compile(by_id[rule_id]["regex"])) for rule_id in GITLEAKS_RULES]
+
+
+# (name, pattern). Group "value", or else group 1, is the part that gets replaced (gitleaks
+# rules capture the token in group 1 and also match the delimiter after it); with neither,
+# the whole match is. Order matters: earlier patterns run first, and later ones skip text
+# that is already masked.
 PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     (
         "private_key",
@@ -65,22 +130,10 @@ PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     # Everything after the URL, to the end of the logical line: a quoted key with a space
     # or a backslash-newline would shift the arguments if they were matched one by one.
     ("mc_alias", re.compile(r"\bmc\s+alias\s+set\s+\S+\s+\S+\s+(?P<value>(?:\\\n|[^\n])+)")),
-    ("anthropic_or_openai_key", re.compile(r"\bsk-[A-Za-z0-9_-]{20,}")),
-    ("aws_access_key", re.compile(r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b")),
-    (
-        "github_token",
-        re.compile(r"\b(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{40,})\b"),
-    ),
-    ("slack_token", re.compile(r"\bxox[abprs]-[A-Za-z0-9-]{10,}")),
-    ("google_api_key", re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b")),
+    *load_gitleaks_patterns(),
+    ("sk_key", re.compile(r"\bsk-[A-Za-z0-9_-]{20,}")),
     ("google_oauth_token", re.compile(r"\bya29\.[A-Za-z0-9._-]{20,}")),
-    ("jwt", re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}")),
-    (
-        "keyed_value",
-        re.compile(
-            rf"""(?i)\b{_CREDENTIAL_NAME}(?:\\{{0,2}}[\"'\]])*\s*(?::|=|:=)\s*(?:\\{{0,2}}[\"'])?(?P<value>[^\s\"'\\,;}}\])(]{{8,}})(?![\w./+=-]*\()"""
-        ),
-    ),
+    ("keyed_value", _KEYED_VALUE),
 ]
 
 _MASK_PREFIX = "[REDACTED:"
@@ -101,23 +154,29 @@ def _is_placeholder(value: str) -> bool:
     )
 
 
+def _secret_group(match: re.Match[str]) -> str | int | None:
+    if "value" in match.re.groupindex:
+        return "value" if match.group("value") else None
+    return 1 if match.re.groups and match.group(1) else None
+
+
 def mask_text(text: str) -> str:
     """Return ``text`` with every credential-shaped value replaced."""
     for name, pattern in PATTERNS:
 
-        def replace(match: re.Match[str], name: str = name) -> str:
-            groups = [g for g in ("value",) if g in match.re.groupindex and match.group(g)]
-            if not groups:
-                return f"{_MASK_PREFIX}{name}]"
-            out, last = [], match.start()
-            for group in groups:
-                start, end = match.span(group)
-                out.append(match.string[last:start])
-                value = match.group(group)
-                out.append(value if _is_placeholder(value) else f"{_MASK_PREFIX}{name}]")
-                last = end
-            out.append(match.string[last : match.end()])
-            return "".join(out)
+        def replace(match: re.Match[str], _name: str = name) -> str:
+            group = _secret_group(match)
+            if group is None:
+                return f"{_MASK_PREFIX}{_name}]"
+            value = match.group(group)
+            if _is_placeholder(value):
+                return match.group(0)
+            start, end = match.span(group)
+            return (
+                match.string[match.start() : start]
+                + f"{_MASK_PREFIX}{_name}]"
+                + match.string[end : match.end()]
+            )
 
         text = pattern.sub(replace, text)
     return text
@@ -144,7 +203,7 @@ def mask_otel_spans(*, params: MaskOtelSpansParams) -> MaskOtelSpansResult | Non
     for identifier, span in params.spans.items():
         changed: dict[str, Any] = {}
         for key, value in span.attributes.items():
-            masked = _mask_attribute(value, mask_text)
+            masked = mask_attribute(value)
             if masked is not None:
                 changed[key] = masked
         if changed:
@@ -152,12 +211,12 @@ def mask_otel_spans(*, params: MaskOtelSpansParams) -> MaskOtelSpansResult | Non
     return MaskOtelSpansResult(span_patches=patches) if patches else None
 
 
-def _mask_attribute(value: Any, masker: Callable[[str], str]) -> Any:
+def mask_attribute(value: Any) -> Any:
     """The masked attribute value, or None when nothing changed."""
     if isinstance(value, str):
-        masked = masker(value)
+        masked = mask_text(value)
         return masked if masked != value else None
     if isinstance(value, list | tuple) and value and all(isinstance(v, str) for v in value):
-        masked_seq = tuple(masker(v) for v in value)
+        masked_seq = tuple(mask_text(v) for v in value)
         return masked_seq if masked_seq != tuple(value) else None
     return None
