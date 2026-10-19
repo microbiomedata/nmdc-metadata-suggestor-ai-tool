@@ -1,6 +1,8 @@
 import logging
 from enum import Enum
 
+from nmdc_metadata_suggestor_ai_tool.tracing import observe
+
 logger = logging.getLogger(__name__)
 
 
@@ -77,6 +79,9 @@ def make_unique_doi_list(entries: list[dict]) -> list[dict]:
     return deduped_entries
 
 
+# The raw submission object is large and holds every sample row; the parsed
+# fields are the part worth seeing.
+@observe(name="parse_submission", as_type="span", capture_input=False)
 def get_submission_fields(submission_object: dict) -> dict:
     """
     Extract relevant fields from the submission object for metadata recommendation.

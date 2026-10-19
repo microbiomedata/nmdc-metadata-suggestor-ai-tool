@@ -14,15 +14,33 @@ if langfuse_client is not None:
 from claude_agent_sdk import (  # noqa: E402
     AssistantMessage,
     ClaudeAgentOptions,
+    HookInput,
+    HookMatcher,
+    PostToolUseHookInput,
     ResultMessage,
     SystemMessage,
     query,
 )
+from claude_agent_sdk.types import (  # noqa: E402
+    AsyncHookJSONOutput,
+    HookContext,
+    HookEvent,
+    PreToolUseHookInput,
+    SyncHookJSONOutput,
+)
 
 __all__ = [
     "AssistantMessage",
+    "AsyncHookJSONOutput",
     "ClaudeAgentOptions",
+    "HookContext",
+    "HookEvent",
+    "HookInput",
+    "HookMatcher",
+    "PostToolUseHookInput",
+    "PreToolUseHookInput",
     "ResultMessage",
+    "SyncHookJSONOutput",
     "SystemMessage",
     "query",
 ]

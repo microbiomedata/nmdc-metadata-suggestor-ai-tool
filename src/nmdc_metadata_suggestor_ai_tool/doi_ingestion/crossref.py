@@ -43,7 +43,10 @@ def try_crossref_context(doi: str, errors: list[str] | None = None) -> ResolverC
 
     publisher = message.get("publisher") if isinstance(message, dict) else None
     publisher_value = publisher if isinstance(publisher, str) else None
-    return ResolverContext(text=cleaned, raw_text=raw, kind=fmt, source=publisher_value)
+    license_url = _extract_crossref_license(message)
+    return ResolverContext(
+        text=cleaned, raw_text=raw, kind=fmt, source=publisher_value, license=license_url
+    )
 
 
 def try_crossref_abstract(doi: str, errors: list[str] | None = None) -> ResolverContext | None:
@@ -69,7 +72,20 @@ def try_crossref_abstract(doi: str, errors: list[str] | None = None) -> Resolver
         return None
 
     cleaned, raw, fmt = parsed
-    return ResolverContext(text=cleaned, raw_text=raw, kind=fmt)
+    license_url = _extract_crossref_license(message)
+    return ResolverContext(text=cleaned, raw_text=raw, kind=fmt, license=license_url)
+
+
+def _extract_crossref_license(message: object) -> str | None:
+    """Return the first license URL from a Crossref message, or None."""
+    if not isinstance(message, dict):
+        return None
+    licenses = message.get("license")
+    if isinstance(licenses, list) and licenses:
+        first = licenses[0]
+        if isinstance(first, dict):
+            return first.get("URL") or None
+    return None
 
 
 def _extract_crossref_abstract(message: object) -> tuple[str, str, str] | None:

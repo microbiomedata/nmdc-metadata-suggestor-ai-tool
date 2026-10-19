@@ -6,19 +6,27 @@ import logging
 import os
 from collections import Counter
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast, get_origin
 
 import google.auth
 from dotenv import load_dotenv
 from google import genai
+from google.auth.transport.requests import Request
 from google.genai import types as genai_types
 from google.oauth2 import service_account
 from openai import OpenAI
+from pydantic import BaseModel
 
+from nmdc_metadata_suggestor_ai_tool.agent_permissions import (
+    STRUCTURED_OUTPUT_TOOL,
+    pretool_permission_gate,
+)
 from nmdc_metadata_suggestor_ai_tool.envo import enforce_env_triad_values
 from nmdc_metadata_suggestor_ai_tool.langfuse_claude_sdk import (
     AssistantMessage,
     ClaudeAgentOptions,
+    HookEvent,
+    HookMatcher,
     ResultMessage,
     SystemMessage,
     query,
@@ -27,6 +35,7 @@ from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
 from nmdc_metadata_suggestor_ai_tool.system_prompt import orchestrator_prompt
 from nmdc_metadata_suggestor_ai_tool.tracing import (
     langfuse_client,
+    log_assistant_message,
     observe,
     propagate_attributes,
 )
@@ -34,15 +43,6 @@ from nmdc_metadata_suggestor_ai_tool.tracing import (
 load_dotenv()
 
 logger = logging.getLogger(__name__)
-
-# The tool the agent calls to hand back its final answer.
-STRUCTURED_OUTPUT_TOOL = "StructuredOutput"
-
-# Restrictions that apply to the unattended agent but not to a person working in the repo:
-# no network fetches, no repo mutation, no dependency changes. Kept out of
-# .claude/settings.json deliberately -- that file governs every Claude Code session here, and
-# denying `git commit` there breaks ordinary development.
-AGENT_SETTINGS = Path(__file__).resolve().parents[2] / ".claude" / "agent-settings.json"
 
 DEFAULT_GCP_REGION = "us-east5"
 
@@ -69,6 +69,40 @@ DEFAULT_MAX_TOKENS_BY_PROVIDER: dict[str, int] = {
     "cborg": 128000,
     "gcp": 65535,
 }
+
+
+def build_agent_options(
+    model: str,
+    *,
+    skills: list[str] | Literal["all"] | None = "all",
+    system_prompt: str,
+    output_format: dict | None = None,
+    hooks: dict[HookEvent, list[HookMatcher]] | None = None,
+    **kwargs: Any,
+) -> ClaudeAgentOptions:
+    """Build a ``ClaudeAgentOptions`` with the project-standard permission policy.
+
+    This is the single source of truth for agent configuration. Import and call it
+    in any pipeline; override ``skills``, ``system_prompt``, and ``output_format``
+    as needed.
+    """
+    configured_hooks: dict[HookEvent, list[HookMatcher]] = {
+        "PreToolUse": [HookMatcher(hooks=[pretool_permission_gate])]
+    }
+    if hooks:
+        for event_name, matchers in hooks.items():
+            configured_hooks.setdefault(event_name, []).extend(matchers)
+
+    return ClaudeAgentOptions(
+        skills=skills,
+        model=model,
+        system_prompt=system_prompt,
+        permission_mode="bypassPermissions",
+        hooks=configured_hooks,
+        setting_sources=["project"],
+        output_format=output_format,
+        **kwargs,
+    )
 
 
 class LLMClient:
@@ -167,13 +201,81 @@ class LLMClient:
             if not self.project:
                 self.project = inferred_project
 
-        credentials.refresh(google.auth.transport.requests.Request())
+        credentials.refresh(Request())
         if credentials.token is None:
             raise RuntimeError(
                 "Failed to obtain OAuth token for Vertex AI. "
                 "Check IAM permissions and Google Cloud authentication setup."
             )
         return credentials
+
+
+def unwrap_structured_output(raw: Any) -> LLMOutput:
+    """Extract LLMOutput from whatever wrapper shape Claude produced."""
+    if not isinstance(raw, dict):
+        raise ValueError(f"structured_output is not a dict: {type(raw)}")
+    try:
+        return LLMOutput.model_validate(raw)
+    except Exception:
+        for v in raw.values():
+            if isinstance(v, dict):
+                try:
+                    return LLMOutput.model_validate(v)
+                except Exception:
+                    continue
+    raise ValueError(f"Could not extract LLMOutput from structured_output: {raw}")
+
+
+def answer_fields(output_model: type[BaseModel]) -> tuple[str, ...]:
+    """The list-valued fields of an output model: the ones that carry the agent's answer.
+
+    Scalar fields such as ``model`` and ``access_provider`` are left out. Several output
+    models share them, and an otherwise empty payload can carry them.
+    """
+    return tuple(
+        name
+        for name, field in output_model.model_fields.items()
+        if get_origin(field.annotation) is list
+    )
+
+
+def structured_output_from_tool_use(
+    event: AssistantMessage,
+    output_model: type[BaseModel] = LLMOutput,
+) -> dict[str, Any] | None:
+    """Return the payload the agent passed to the StructuredOutput tool, if it called it.
+
+    ``ResultMessage.structured_output`` can come back empty on a run where the agent did
+    call the tool with a complete answer, so the tool call is the only surviving copy of
+    it. What is stable about that call is the tool name and the payload shape, not the
+    name of the argument the payload arrives under::
+
+        ToolUseBlock(
+            name="StructuredOutput",
+            input={<key varies>: '{"metadata_fields": [...]}'},  # dict or JSON string
+        )
+
+    So this searches the values rather than reading a known key. A payload counts only if
+    one of ``output_model``'s answer fields (see ``answer_fields``) is non-empty, so an empty
+    wrapper, or a payload meant for a different output model, is not recovered.
+    """
+    required = answer_fields(output_model)
+    for block in event.content or []:
+        if getattr(block, "name", None) != STRUCTURED_OUTPUT_TOOL:
+            continue
+        payload = getattr(block, "input", None)
+        if not isinstance(payload, dict):
+            continue
+        for candidate in (*payload.values(), payload):
+            parsed: Any = candidate
+            if isinstance(parsed, str):
+                try:
+                    parsed = json.loads(parsed)
+                except json.JSONDecodeError:
+                    continue
+            if isinstance(parsed, dict) and any(parsed.get(key) for key in required):
+                return parsed
+    return None
 
 
 class ConversationManager:
@@ -188,6 +290,34 @@ class ConversationManager:
         # set the system prompt in the constructor so it can be parameterized in the future
         self.system_prompt = system_prompt
 
+    def traceable_messages(self) -> list[Any]:
+        """Return the queued messages with PDF bytes replaced by placeholders.
+
+        The raw messages carry base64/binary PDFs, which would bloat every trace and
+        ship whole publications to Langfuse.
+        """
+        traced: list[Any] = []
+        for message in self.messages:
+            if isinstance(message, genai_types.Part):
+                mime = getattr(message.inline_data, "mime_type", None)
+                traced.append(f"[{mime or 'binary'} attachment]")
+            elif isinstance(message, dict) and isinstance(message.get("content"), list):
+                traced.append(
+                    {
+                        "role": message.get("role"),
+                        "content": [
+                            f"[{part.get('type')}: {part.get('filename')}]"
+                            if isinstance(part, dict) and "file_data" in part
+                            else part
+                            for part in message["content"]
+                        ],
+                    }
+                )
+            else:
+                traced.append(message)
+        return traced
+
+    @observe(name="generate", as_type="generation", capture_input=False, capture_output=False)
     def generate(
         self,
         *,
@@ -223,6 +353,14 @@ class ConversationManager:
             else DEFAULT_MAX_TOKENS_BY_PROVIDER[self.llm_client.access_provider]
         )
 
+        if langfuse_client is not None:
+            langfuse_client.update_current_generation(
+                input={"system": self.system_prompt, "messages": self.traceable_messages()},
+                model=self.llm_client.model,
+                model_parameters={"max_tokens": resolved_max_tokens},
+                metadata={"access_provider": self.llm_client.access_provider},
+            )
+
         if self.llm_client.access_provider == "gcp":
             return self._generate_gcp(
                 max_tokens=resolved_max_tokens,
@@ -250,6 +388,23 @@ class ConversationManager:
             max_output_tokens=max_tokens,
             text_format=LLMOutput,
         )
+        if langfuse_client is not None:
+            usage = getattr(response, "usage", None)
+            usage_details = None
+            if usage:
+                # input_tokens already includes cached tokens; split them out so each
+                # usage key maps to one price in the Langfuse model definition.
+                details = getattr(usage, "input_tokens_details", None)
+                cached = getattr(details, "cached_tokens", None) or 0
+                usage_details = {
+                    "input": usage.input_tokens - cached,
+                    "cache_read_input_tokens": cached,
+                    # output_tokens already includes reasoning tokens.
+                    "output": usage.output_tokens,
+                }
+            langfuse_client.update_current_generation(
+                output=response.output_parsed, usage_details=usage_details
+            )
         return response.output_parsed
 
     def _generate_gcp(
@@ -273,6 +428,22 @@ class ConversationManager:
             contents=self.messages,
             config=config,
         )
+        if langfuse_client is not None:
+            usage = getattr(response, "usage_metadata", None)
+            usage_details = None
+            if usage:
+                # prompt_token_count includes cached tokens, and thinking tokens are
+                # billed at the output rate, so fold them into output.
+                cached = usage.cached_content_token_count or 0
+                usage_details = {
+                    "input": (usage.prompt_token_count or 0) - cached,
+                    "cache_read_input_tokens": cached,
+                    "output": (usage.candidates_token_count or 0)
+                    + (usage.thoughts_token_count or 0),
+                }
+            langfuse_client.update_current_generation(
+                output=response.text, usage_details=usage_details
+            )
         if response.text is None:
             raise RuntimeError(
                 f"GCP model returned an empty text response. Response object: {response}"
@@ -345,53 +516,11 @@ class ConversationManager:
 
     @staticmethod
     def unwrap_structured_output(raw: Any) -> LLMOutput:
-        """Extract LLMOutput from whatever wrapper shape Claude produced."""
-        if not isinstance(raw, dict):
-            raise ValueError(f"structured_output is not a dict: {type(raw)}")
-        try:
-            return LLMOutput.model_validate(raw)
-        except Exception:
-            for v in raw.values():
-                if isinstance(v, dict):
-                    try:
-                        return LLMOutput.model_validate(v)
-                    except Exception:
-                        continue
-        raise ValueError(f"Could not extract LLMOutput from structured_output: {raw}")
+        return unwrap_structured_output(raw)
 
     @staticmethod
     def structured_output_from_tool_use(event: AssistantMessage) -> dict[str, Any] | None:
-        """The payload the agent passed to the StructuredOutput tool, if it called it.
-
-        ``ResultMessage.structured_output`` can come back empty on a run where the agent did
-        call the tool with a complete answer, so the tool call is the only surviving copy of
-        it. What is stable about that call is the tool name and the payload shape, not the
-        name of the argument the payload arrives under::
-
-            ToolUseBlock(
-                name="StructuredOutput",
-                input={<key varies>: '{"metadata_fields": [...]}'},  # dict or JSON string
-            )
-
-        So this searches the values rather than reading a known key, and requires
-        ``metadata_fields`` so an empty wrapper is not recovered as an answer.
-        """
-        for block in event.content or []:
-            if getattr(block, "name", None) != STRUCTURED_OUTPUT_TOOL:
-                continue
-            payload = getattr(block, "input", None)
-            if not isinstance(payload, dict):
-                continue
-            for candidate in (*payload.values(), payload):
-                parsed: Any = candidate
-                if isinstance(parsed, str):
-                    try:
-                        parsed = json.loads(parsed)
-                    except json.JSONDecodeError:
-                        continue
-                if isinstance(parsed, dict) and parsed.get("metadata_fields"):
-                    return parsed
-        return None
+        return structured_output_from_tool_use(event)
 
     @staticmethod
     def run_health(event: ResultMessage) -> dict[str, Any]:
@@ -498,18 +627,9 @@ class ConversationManager:
             if self.llm_client.access_provider == "gcp"
             else self.llm_client.model
         )
-        # set env variable to enable Claude Agent SDK to pick up GCP credentials
-        # Claude Agent SDK requires a Claude model, not a Gemini model, even on Vertex AI
-        options = ClaudeAgentOptions(
-            skills="all",
-            model=model,
+        options = build_agent_options(
+            model,
             system_prompt=orchestrator_prompt,
-            # Read .claude/settings.json. Without this the SDK runs under the default
-            # permission mode, where Bash needs interactive approval -- which a headless run
-            # cannot give, so every ontology lookup the skill asks for is denied and the
-            # agent answers from the prompt alone.
-            setting_sources=["project"],
-            settings=str(AGENT_SETTINGS) if AGENT_SETTINGS.is_file() else None,
             output_format={"type": "json_schema", "schema": LLMOutput.model_json_schema()},
         )
 
@@ -535,8 +655,8 @@ class ConversationManager:
                 if isinstance(event, SystemMessage) and event.subtype == "init":
                     session_id = event.data["session_id"]
                 elif isinstance(event, AssistantMessage):
-                    print(f"Assistant: {event.content}")
                     tool_payload = self.structured_output_from_tool_use(event) or tool_payload
+                    log_assistant_message(event.content)
                 elif isinstance(event, ResultMessage):
                     health = self.run_health(event)
                     result = self.finalize_result(event, tool_payload, interface_names)
@@ -562,6 +682,7 @@ class ConversationManager:
                         session_id = event.data["session_id"]
                     elif isinstance(event, AssistantMessage):
                         tool_payload = self.structured_output_from_tool_use(event) or tool_payload
+                        log_assistant_message(event.content)
                     elif isinstance(event, ResultMessage):
                         health = self.run_health(event)
                         result = self.finalize_result(event, tool_payload, interface_names)

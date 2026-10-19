@@ -15,3 +15,4 @@ class ResolverContext(NamedTuple):
     # (for example, when referring to a supplemental DOI) to avoid
     # confusion with the main DOI of the context.
     publication_dois: list[str] | None = None
+    license: str | None = None

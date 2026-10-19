@@ -6,6 +6,8 @@ from urllib.parse import urlparse
 import requests
 from curl_cffi import requests as cffi_requests
 
+from nmdc_metadata_suggestor_ai_tool.tracing import observe
+
 logger = logging.getLogger(__name__)
 
 # Domains known to use Cloudflare JS challenges that require browser-like
@@ -22,6 +24,7 @@ def _needs_browser_impersonation(url: str) -> bool:
     return hostname in CLOUDFLARE_PROTECTED_DOMAINS
 
 
+@observe(name="pdf_download", as_type="tool")
 def download_pdf_to_tempfile(url: str) -> str:
     """Download a PDF from *url* to a temporary file and return its path.
 

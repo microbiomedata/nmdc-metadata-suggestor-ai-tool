@@ -39,6 +39,9 @@ from nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements import (
     retrieve_supplements_from_figshare,
     retrieve_supplements_from_zenodo,
 )
+from nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements.europepmc import (
+    fetch_europepmc_captions,
+)
 from nmdc_metadata_suggestor_ai_tool.publication_ingestion.supplements.retrieve import (
     is_removable_temp_file,
     merge_results,
@@ -223,6 +226,78 @@ def test_parse_supplement_captions() -> None:
     captions = parse_supplement_captions(JATS_XML)
     assert captions["table_s1"].startswith("Table S1")
     assert "environmental metadata" in captions["table_s1"]
+
+
+# The nested shape: caption on <supplementary-material>, href on its child <media>.
+# Trimmed from the real Europe PMC full text for PMC7796900, which yielded no
+# captions at all while the parser only read one element at a time (issue 159).
+NESTED_JATS_XML = """<article xmlns:xlink="http://www.w3.org/1999/xlink"><back>
+  <supplementary-material id="mmc1" position="float"><?disp-level 2?>
+    <caption><title>Table S1. CRISPR Screen Results</title>
+      <p>Huh-7.5 37C SARS-CoV-2 z-scores.</p></caption>
+    <media xlink:href="mmc1.xlsx" mimetype="application"><?size 6567478?></media>
+  </supplementary-material>
+  <supplementary-material id="mmc2" position="float">
+    <caption><title>Table S2. Gene ontology enrichment</title></caption>
+    <media xlink:href="mmc2.xlsx" mimetype="application"/>
+  </supplementary-material>
+</back></article>"""
+
+
+def test_parse_supplement_captions_nested_href_on_child_media() -> None:
+    captions = parse_supplement_captions(NESTED_JATS_XML)
+    assert set(captions) == {"mmc1", "mmc2"}
+    assert captions["mmc1"] == "Table S1. CRISPR Screen Results Huh-7.5 37C SARS-CoV-2 z-scores."
+    assert captions["mmc2"] == "Table S2. Gene ontology enrichment"
+
+
+def test_parse_supplement_captions_ignores_non_caption_text() -> None:
+    # Real shapes from PMC13228077 and PMC13126852: a <media> with an <object-id>
+    # DOI or an <alt-text> placeholder, and no caption of its own. That text is
+    # not a caption, and once stored it also blocked the parent's real caption.
+    xml = """<article xmlns:xlink="http://www.w3.org/1999/xlink"><back>
+      <supplementary-material id="SuF1">
+        <label>Supplemental figures</label>
+        <caption><p>Fig. S1 to S3 and supplemental methods.</p></caption>
+        <media xlink:href="spectrum.00456-26-s0001.docx">
+          <object-id pub-id-type="doi">10.1128/spectrum.00456-26.SuF1</object-id>
+        </media>
+      </supplementary-material>
+      <supplementary-material id="ecom0001">
+        <media xlink:href="mmc1.zip"><alt-text>Image, application 1</alt-text></media>
+      </supplementary-material>
+    </back></article>"""
+    captions = parse_supplement_captions(xml)
+    assert captions == {
+        "spectrum.00456-26-s0001": "Supplemental figures Fig. S1 to S3 and supplemental methods."
+    }
+
+
+def test_parse_supplement_captions_child_caption_beats_parent() -> None:
+    # A wrapper holding several captioned files lends its caption only to the
+    # files that have none of their own.
+    xml = """<article xmlns:xlink="http://www.w3.org/1999/xlink">
+      <supplementary-material>
+        <caption><p>All supplementary data</p></caption>
+        <media xlink:href="a.csv"><caption><p>Sample metadata</p></caption></media>
+        <media xlink:href="b.csv"/>
+      </supplementary-material>
+    </article>"""
+    captions = parse_supplement_captions(xml)
+    assert captions == {"a": "Sample metadata", "b": "All supplementary data"}
+
+
+def test_parse_supplement_captions_first_listing_wins() -> None:
+    # Full text often lists every supplement twice (body and back matter). A
+    # first listing without a caption must not hide a later one that has it.
+    xml = """<article xmlns:xlink="http://www.w3.org/1999/xlink">
+      <supplementary-material><media xlink:href="t.csv"/></supplementary-material>
+      <supplementary-material><caption><p>Late caption</p></caption>
+        <media xlink:href="t.csv"/></supplementary-material>
+      <supplementary-material><caption><p>Ignored repeat</p></caption>
+        <media xlink:href="t.csv"/></supplementary-material>
+    </article>"""
+    assert parse_supplement_captions(xml) == {"t": "Late caption"}
 
 
 def test_parse_supplement_captions_bad_xml_returns_empty() -> None:
@@ -1205,6 +1280,16 @@ def test_europepmc_live_url_is_reachable() -> None:
         )
     finally:
         response.close()
+
+
+@integration
+def test_europepmc_live_nested_captions() -> None:
+    # PMC7796900 uses the nested JATS shape (caption on <supplementary-material>,
+    # href on child <media>) and yielded no captions before issue 159 was fixed.
+    # Only the full-text XML is fetched; its supplement ZIP is slow to serve.
+    captions = fetch_europepmc_captions("PMC7796900")
+    assert {"mmc1", "mmc2"} <= set(captions), captions
+    assert captions["mmc1"].startswith("Table S1")
 
 
 @integration

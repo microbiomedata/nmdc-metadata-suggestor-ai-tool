@@ -1,6 +1,6 @@
 [project]
 name = "nmdc-metadata-suggestor-ai-tool"
-version = "1.2.1"
+version = "1.3.0"
 description = "NMDC Submission portal metadata suggestor tool, powered by AI"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -28,13 +28,17 @@ dependencies = [
     "pydantic-settings>=2.14.2",
     "python-multipart>=0.0.30",
     "starlette>=1.2.0",
-    "langfuse==4.14.0",
-    "opentelemetry-sdk==1.43.0",
-    "openinference-instrumentation-claude-agent-sdk==0.1.7",
+    "langfuse==4.15.1",
+    "opentelemetry-sdk==1.44.0",
+    "openinference-instrumentation-claude-agent-sdk==0.1.16",
     # ENVO lookups for the env triad. Ships the semantic-sql adapter used by
     # envo.py; the ontology itself is fetched and cached on first use.
-    "oaklib>=0.7,<0.8",
+    # BBOP sqlite S3 bucket at https://s3.amazonaws.com/bbop-sqlite/ was
+    # retired. We now need to fetch from https://semanticsql.berkeleybop.io
+    # for which we should use more recent versions of oaklib (>=0.7.4)
+    "oaklib>=0.7.4,<0.8",
     "defusedxml>=0.7.1",
+    "RestrictedPython>=7.0",
 ]
 
 [project.urls]

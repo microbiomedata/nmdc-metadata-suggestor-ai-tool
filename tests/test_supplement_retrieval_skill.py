@@ -163,7 +163,7 @@ async def _run_agent(prompt: str) -> tuple[list[str], str]:
         model=DEFAULT_CLAUDE_MODEL,
         cwd=str(Path(__file__).resolve().parent.parent),
         setting_sources=["project"],
-        permission_mode="bypassPermissions",
+        permission_mode="default",
         max_turns=30,
     )
 
