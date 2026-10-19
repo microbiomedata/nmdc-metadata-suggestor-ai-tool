@@ -1,15 +1,20 @@
 """
-A module to attempt to retrieve publication abstract and PDF bytes via a provided OSTI DOI.
+A module to attempt to retrieve publication's abstract and PDF bytes or an award's description
+ via a provided OSTI DOI or OSTI award DOI.
 
 This module provides direct API-based retrieval of OSTI DOIs abstracts
 and full-text PDFs links starting from OSTI, then calling Crossref and/or Europe PMC.
+It also provides direct API-based retrieval of OSTI award DOIs descriptions.
 """
+
+from typing import Any
 
 import requests
 
 from nmdc_metadata_suggestor_ai_tool.constants import (
     DEFAULT_TIMEOUT,
     OSTI_API_URL,
+    OSTI_AWARD_API_URL,
     OSTI_E2_API_URL,
     USER_AGENT,
 )
@@ -88,7 +93,7 @@ def query_osti_by_doi(osti_doi: str) -> list[dict]:
     }
     headers = {"User-Agent": USER_AGENT, "Accept": "application/json"}
     try:
-        osti_url = f"{OSTI_E2_API_URL}"
+        osti_url = OSTI_E2_API_URL
         response = request_with_retry(
             "GET",
             osti_url,
@@ -99,9 +104,9 @@ def query_osti_by_doi(osti_doi: str) -> list[dict]:
         response.raise_for_status()
         return response.json()  # type: ignore
 
-    except (requests.RequestException, ValueError):
-        # Fallback to the original API if the E2 API fails (network error or bad JSON)
-        osti_url = f"{OSTI_API_URL}"
+    except requests.RequestException:
+        # Fallback to the original API if the E2 API fails
+        osti_url = OSTI_API_URL
 
         response = request_with_retry(
             "GET",
@@ -112,3 +117,63 @@ def query_osti_by_doi(osti_doi: str) -> list[dict]:
         )
         response.raise_for_status()
         return response.json()  # type: ignore
+
+
+def query_osti_by_award_doi(award_doi: str) -> dict[str, Any]:
+    """
+    Query OSTI award API for a given award DOI and return the JSON response.
+    """
+    params = {
+        "award_doi": award_doi,
+    }
+    headers = {"User-Agent": USER_AGENT}
+    osti_url = OSTI_AWARD_API_URL
+    response = request_with_retry(
+        "GET",
+        osti_url,
+        timeout=DEFAULT_TIMEOUT,
+        headers=headers,
+        params=params,
+    )
+    response.raise_for_status()
+    return response.json()  # type: ignore
+
+
+def try_osti_award(award_doi: str, errors: list[str] | None = None) -> ResolverContext | None:
+    """Return abstract/description context from OSTI award API if available."""
+    try:
+        data = query_osti_by_award_doi(award_doi=award_doi)
+    except requests.RequestException as exc:
+        append_error(errors, f"OSTI Award API request failed: {exc.__class__.__name__}")
+        return None
+    except ValueError:
+        append_error(errors, "OSTI Award API returned invalid JSON")
+        return None
+
+    response_data = data.get("response")
+    if not isinstance(response_data, dict):
+        append_error(errors, "OSTI Award API response is missing response data")
+        return None
+
+    documents = response_data.get("docs")
+    if not isinstance(documents, list) or not documents:
+        append_error(errors, "OSTI Award API response contains no award documents")
+        return None
+
+    first_document = documents[0]
+    if not isinstance(first_document, dict):
+        append_error(errors, "OSTI Award API response contains an invalid award document")
+        return None
+
+    raw_description = first_document.get("award_description")
+    description = clean_text(raw_description) if isinstance(raw_description, str) else None
+    if not description:
+        append_error(errors, "No description found in OSTI Award record")
+        return None
+
+    return ResolverContext(
+        text=description,
+        raw_text=raw_description if isinstance(raw_description, str) else None,
+        kind="description",
+        source="osti_award",
+    )
