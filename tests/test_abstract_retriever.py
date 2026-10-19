@@ -247,7 +247,11 @@ class TestGetAbstractClassificationGate:
             is_valid=True,
             inferred_nmdc_category="award_doi",
         )
-        assert default_source_order("emsl", classification) == ["osti_award"]
+        assert default_source_order("osti_award", classification) == [
+            "osti_award",
+            "crossref",
+            "datacite",
+        ]
 
     @responses.activate
     def test_award_doi_retrieves_description_from_osti(self) -> None:

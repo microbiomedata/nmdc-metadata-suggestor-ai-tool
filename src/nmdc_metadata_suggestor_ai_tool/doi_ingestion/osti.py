@@ -93,7 +93,7 @@ def query_osti_by_doi(osti_doi: str) -> list[dict]:
     }
     headers = {"User-Agent": USER_AGENT}
     try:
-        osti_url = f"{OSTI_E2_API_URL}"
+        osti_url = OSTI_E2_API_URL
         response = request_with_retry(
             "GET",
             osti_url,
@@ -106,7 +106,7 @@ def query_osti_by_doi(osti_doi: str) -> list[dict]:
 
     except requests.RequestException:
         # Fallback to the original API if the E2 API fails
-        osti_url = f"{OSTI_API_URL}"
+        osti_url = OSTI_API_URL
 
         response = request_with_retry(
             "GET",
@@ -127,7 +127,7 @@ def query_osti_by_award_doi(award_doi: str) -> dict[str, Any]:
         "award_doi": award_doi,
     }
     headers = {"User-Agent": USER_AGENT}
-    osti_url = f"{OSTI_AWARD_API_URL}"
+    osti_url = OSTI_AWARD_API_URL
     response = request_with_retry(
         "GET",
         osti_url,

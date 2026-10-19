@@ -107,7 +107,6 @@ MAX_EUROPEPMC_FULLTEXT_XML_CHARS = int(os.environ.get("NMDC_EUROPEPMC_MAX_XML_CH
 # DOI prefixes that indicate the target provider for context retrieval.
 TARGET_PROVIDER_PREFIXES: dict[str, str] = {
     "10.6073": "edi",
-    "10.46936": "emsl",
     "10.15485": "ess-dive",
     "10.21952": "ess-dive",
     "10.6084": "figshare",
@@ -117,6 +116,7 @@ TARGET_PROVIDER_PREFIXES: dict[str, str] = {
     "10.17504": "cyverse",
     "10.5281": "zenodo",
     "10.11578": "osti",
+    "10.46936": "osti_award",
 }
 
 TARGET_PROVIDER_KEYWORDS: dict[str, str] = {

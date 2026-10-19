@@ -236,7 +236,9 @@ def default_source_order(
     """Return default source order based on DOI type and provider signal."""
 
     if classification and classification.inferred_nmdc_category == "award_doi":
-        return ["osti_award"]
+        if provider in _PROVIDER_API_SOURCES:
+             return list(dict.fromkeys([provider, "osti_award", *PUBLICATION_API_SOURCES, *DATA_DOI_BASE_SOURCES]))
+        return list(dict.fromkeys(["osti_award", *PUBLICATION_API_SOURCES, *DATA_DOI_BASE_SOURCES]))
 
     is_publication = _classification_is_publication(classification)
 
@@ -494,5 +496,4 @@ _PROVIDER_API_SOURCES = {
     "cyverse",
     "zenodo",
     "osti",
-    "osti_award",
 }
