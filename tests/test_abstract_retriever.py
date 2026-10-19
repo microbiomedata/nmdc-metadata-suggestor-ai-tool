@@ -249,8 +249,11 @@ class TestGetAbstractClassificationGate:
         )
         assert default_source_order("osti_award", classification) == [
             "osti_award",
-            "crossref",
             "datacite",
+            "crossref",
+            "content_negotiation",
+            "openalex",
+            "pubmed",
         ]
 
     @responses.activate

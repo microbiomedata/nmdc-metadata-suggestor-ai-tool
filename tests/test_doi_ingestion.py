@@ -31,6 +31,7 @@ from nmdc_metadata_suggestor_ai_tool.constants import (
     CYVERSE_METADATA_SEARCH_API,
     DATAONE_CN_SOLR_API,
     DOI_CONTENT_NEGOTIATION_API,
+    DOI_RA_API,
     DOI_RESOLVER_URL,
     EDI_DOI_API,
     EMSL_PROJECTS_API,
@@ -41,6 +42,7 @@ from nmdc_metadata_suggestor_ai_tool.constants import (
     KBASE_SEARCH_API,
     KBASE_WORKSPACE_API,
     OPENALEX_API_URL,
+    OSTI_AWARD_API_URL,
     PROXI_DATASETS_API,
     PUBMED_ID_CONVERTER,
     ZENODO_API,
@@ -75,7 +77,7 @@ _FIXTURE_PROVIDER_TO_SOURCE: dict[str, str] = {
     "Figshare": "figshare",
     "EDI (Environmental Data Initiative)": "edi",
     "KBase": "kbase",
-    "EMSL/OSTI": "emsl",
+    "EMSL/OSTI": "osti_award",
 }
 
 
@@ -234,6 +236,28 @@ def _mock_pubmed_miss() -> None:
 
 def _mock_provider_resolver_hit(source: str, doi: str) -> None:
     """Register minimal mocks that make one provider resolver return context."""
+    if source == "osti_award":
+        responses.add(
+            responses.GET,
+            f"{DOI_RA_API}/{doi}",
+            json=[{"DOI": doi, "RA": "Crossref"}],
+        )
+        responses.add(
+            responses.GET,
+            f"{CROSSREF_API}/{doi}",
+            json={"message": {"type": "grant"}},
+        )
+        responses.add(
+            responses.GET,
+            OSTI_AWARD_API_URL,
+            json={
+                "response": {
+                    "docs": [{"award_doi": doi, "award_description": "Award context."}]
+                }
+            },
+        )
+        return
+
     if source == "edi":
         metadata_url = "https://pasta.lternet.edu/package/metadata/eml/edi/123/1"
         responses.add(
@@ -352,15 +376,15 @@ def test_fixture_provider_dois_use_expected_resolvers(doi: str, expected_source:
 
 
 def test_real_world_source_fixture_coverage() -> None:
-    """Fixture includes all dedicated DOI resolver sources with multiple cases."""
+    """Fixture includes the default DOI resolver routes with multiple cases."""
     expected_sources = {
         "edi",
-        "emsl",
         "ess-dive",
         "figshare",
         "jgi",
         "kbase",
         "massive",
+        "osti_award",
         "zenodo",
         "cyverse",
     }
@@ -542,7 +566,7 @@ def test_edi_unsafe_metadata_xml_falls_back_to_datacite() -> None:
 
 @responses.activate
 def test_emsl_provider_api_abstract_wins() -> None:
-    """Resolve EMSL award DOI to project details and return abstract text."""
+    """An explicit EMSL lookup can resolve a project DOI to abstract text."""
     doi = "10.46936/jejc.proj.2014.48483/60005501"
     responses.add(
         responses.GET,
@@ -550,17 +574,17 @@ def test_emsl_provider_api_abstract_wins() -> None:
         json=_json_payload("emsl_provider_hit", doi=doi),
     )
 
-    result = get_doi_description_or_abstract(doi)
+    result = get_doi_description_or_abstract(doi, sources=["emsl"])
     assert result.context == "EMSL project abstract text."
     assert result.context_type == "abstract"
     assert result.source == "emsl"
-    assert result.provider == "emsl"
+    assert result.provider == "osti_award"
     assert result.attempts == ["emsl"]
 
 
 @responses.activate
 def test_emsl_mismatch_falls_back_to_datacite() -> None:
-    """If EMSL project lookup DOI does not match, continue waterfall."""
+    """An explicit EMSL miss can continue through the requested fallback source."""
     doi = "10.46936/jejc.proj.2014.48483/60005501"
     responses.add(
         responses.GET,
@@ -573,11 +597,11 @@ def test_emsl_mismatch_falls_back_to_datacite() -> None:
         json=_json_payload("datacite_emsl_fallback"),
     )
 
-    result = get_doi_description_or_abstract(doi)
+    result = get_doi_description_or_abstract(doi, sources=["emsl", "datacite"])
     assert result.context == "DataCite fallback abstract"
     assert result.context_type == "abstract"
     assert result.source == "datacite"
-    assert result.provider == "emsl"
+    assert result.provider == "osti_award"
     assert result.attempts == ["emsl", "datacite"]
 
 
@@ -1597,7 +1621,10 @@ def test_live_source_example_returns_context(case: dict[str, str]) -> None:
         result = get_doi_description_or_abstract(doi, sources=[source])
         assert result.attempts == [source]
     else:
-        result = get_doi_description_or_abstract(doi, skip_classification=True)
+        result = get_doi_description_or_abstract(
+            doi,
+            skip_classification=source != "osti_award",
+        )
         assert result.attempts[0] == source
         assert result.provider == source
 
