@@ -251,9 +251,7 @@ def _mock_provider_resolver_hit(source: str, doi: str) -> None:
             responses.GET,
             OSTI_AWARD_API_URL,
             json={
-                "response": {
-                    "docs": [{"award_doi": doi, "award_description": "Award context."}]
-                }
+                "response": {"docs": [{"award_doi": doi, "award_description": "Award context."}]}
             },
         )
         return
