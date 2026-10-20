@@ -20,16 +20,17 @@ from collections.abc import Callable
 from functools import wraps
 from typing import Any, TypeVar
 
-from dotenv import load_dotenv
+from dotenv import dotenv_values
 
-load_dotenv()
+
+secrets = dotenv_values(".env")
 
 logger = logging.getLogger(__name__)
 
 F = TypeVar("F", bound=Callable[..., Any])
 
 langfuse_enabled = bool(
-    os.environ.get("LANGFUSE_PUBLIC_KEY") and os.environ.get("LANGFUSE_SECRET_KEY")
+    secrets.get("LANGFUSE_PUBLIC_KEY") and secrets.get("LANGFUSE_SECRET_KEY")
 )
 
 if langfuse_enabled:
@@ -40,12 +41,12 @@ if langfuse_enabled:
         from openinference.instrumentation.claude_agent_sdk import ClaudeAgentSDKInstrumentor  # noqa I001
         from langfuse import Langfuse  # noqa I001
 
-        langfuse_environment = os.environ.get("LANGFUSE_TRACING_ENVIRONMENT")
+        langfuse_environment = secrets.get("LANGFUSE_TRACING_ENVIRONMENT")
         # check if the tracing environment is set, default to 'unknown' if not
         if langfuse_environment not in ["production", "development", "local"]:
             langfuse_environment = "unknown"
         logger.debug(f"Langfuse tracing environment set to: {langfuse_environment}")
-        Langfuse(environment=langfuse_environment)
+        Langfuse(environment=langfuse_environment, public_key=secrets.get("LANGFUSE_PUBLIC_KEY"), secret_key=secrets.get("LANGFUSE_SECRET_KEY"))
 
         langfuse_client = get_client()
         observe = _lf_observe

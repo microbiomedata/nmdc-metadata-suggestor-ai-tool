@@ -107,3 +107,113 @@ Use the full path, not ~. Get it with `echo ~/bin/claude-nono`.
 Put this in **user settings**, not .vscode/settings.json. The project folder is writable inside the sandbox, so Claude could remove a workspace-level setting.
 5. Then Open the Command Palette and choose `Developer: Reload Window`.
 6. You can see the nono logs with tail /tmp/claude-nono.log
+
+
+## Sandbox Agent code locally with VSCode debugger
+The agent pipelines run inside a nono sandbox when launched from the VS Code debugger. The sandbox lets the pipeline read the project and its .env, write only to workspace/, and reach the network. It blocks .claude/, the keychain, ~/.ssh, ~/.aws, and the rest of the home directory.
+
+`Activate debugger → ~/bin/agent-nono (wrapper) → nono → .venv/bin/python → debugpy → pipeline`
+
+1. Create the nono profile `~/.config/nono/profiles/nmdc-metadata-suggestor-ai-tool.json`
+```bash
+{
+  "extends": "default",
+  "meta": {
+    "name": "nmdc-metadata-suggestor-ai-tool",
+    "version": "1.0.0",
+    "description": "Python agent: read-only project, writable workspace, no creds"
+  },
+  "groups": {
+    "include": [
+      "python_runtime",
+      "unlink_protection"
+    ]
+  },
+  "security": {
+    "signal_mode": "isolated",
+    "capability_elevation": false
+  },
+  "workdir": { "access": "read" },
+  "filesystem": {
+    "allow": [
+      "$WORKDIR/workspace",
+       "$HOME/.data"
+    ],
+    "read": [
+      "$HOME/.vscode/extensions"
+    ],
+    "deny": [
+      "$HOME/Library/Keychains",
+      "$WORKDIR/.claude/settings.local.json"
+    ]
+  },
+  "network": { "block": false },
+  "diagnostics": {
+    "suppress_system_services": ["forbidden-exec-sugid"]
+  }
+}
+```
+2. Create the wrapper script
+```bash
+mkdir -p ~/bin
+
+cat > ~/bin/agent-nono <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+NONO=/opt/homebrew/bin/nono
+PROFILE=nmdc-metadata-suggestor-ai-tool
+PROJECT="$PWD"
+PYTHON="$PROJECT/.venv/bin/python"
+
+# Runs outside the sandbox: create the writable folder
+mkdir -p "$PROJECT/workspace"
+
+# Log each launch to confirm VS Code uses this wrapper
+echo "$(date) cwd=$PROJECT args=$*" >> /tmp/nmdc-metadata-suggestor-ai-tool.log
+
+# Keep only the debugger's own variables
+PASS=()
+while IFS='=' read -r k _; do
+  PASS+=("$k=${!k}")
+done < <(env | grep -E '^(DEBUGPY|PYDEVD)_' || true)
+
+# env -i drops everything else (shell exports, tokens, VS Code envFile values)
+exec env -i \
+  HOME="$HOME" \
+  USER="$USER" \
+  TERM="${TERM:-dumb}" \
+  LANG="${LANG:-en_US.UTF-8}" \
+  TMPDIR="${TMPDIR:-/tmp}" \
+  PATH="$PROJECT/.venv/bin:/opt/homebrew/bin:/usr/bin:/bin" \
+  PYTHONDONTWRITEBYTECODE=1 \
+  PYTHONNOUSERSITE=1 \
+  PYSTOW_HOME="$PROJECT/workspace/.data" \
+  AGENT_IN_NONO=1 \
+  ${PASS[@]+"${PASS[@]}"} \
+  "$NONO" run --allow-cwd --profile "$PROFILE" -- "$PYTHON" "$@"
+EOF
+
+chmod +x ~/bin/agent-nono
+```
+3. Add debug configurations in VS Code
+```json
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Agent (nono) - current file",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "python": "${userHome}/bin/nmdc-metadata-suggestor-ai-tool",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "envFile": "${workspaceFolder}/.vscode/no-env-file",
+      "justMyCode": true
+    }
+  ]
+}
+```
+4. Run the debugger. In the terminal you will see the activated sandbox.
+5. See the logs with `tail /tmp/nmdc-metadata-suggestor-ai-tool.log`
