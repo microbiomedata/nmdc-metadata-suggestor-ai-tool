@@ -45,7 +45,11 @@ if langfuse_enabled:
         if langfuse_environment not in ["production", "development", "local"]:
             langfuse_environment = "unknown"
         logger.debug(f"Langfuse tracing environment set to: {langfuse_environment}")
-        Langfuse(environment=langfuse_environment)
+        from nmdc_metadata_suggestor_ai_tool.trace_masking import mask, mask_otel_spans
+
+        # mask covers @observe and create_event data; mask_otel_spans covers the Claude
+        # Agent SDK instrumentor's tool spans, which never pass through mask.
+        Langfuse(environment=langfuse_environment, mask=mask, mask_otel_spans=mask_otel_spans)
 
         langfuse_client = get_client()
         observe = _lf_observe
