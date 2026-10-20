@@ -12,6 +12,7 @@ import logging
 import os
 import re
 import tempfile
+import xml.etree.ElementTree as ET
 import zipfile
 from collections.abc import Callable, Iterable
 from typing import Any, NamedTuple
@@ -171,11 +172,41 @@ def caption_key(filename: str) -> str:
     return stem if (ext and stem) else base
 
 
+SUPPLEMENT_TAGS = frozenset({"supplementary-material", "inline-supplementary-material", "media"})
+
+# Only these children describe the file. Siblings such as ``<object-id>`` (a
+# DOI) and ``<alt-text>`` ("Image, application 1") are not captions.
+CAPTION_TAGS = frozenset({"label", "caption"})
+
+
+def element_href(elem: ET.Element) -> str | None:
+    """Return the ``xlink:href`` (or bare ``href``) of *elem*, if any."""
+    return next((v for k, v in elem.attrib.items() if localname(k) == "href"), None)
+
+
+def own_caption_text(elem: ET.Element) -> str:
+    """Return the text of *elem*'s direct ``<label>``/``<caption>`` children."""
+    parts = [" ".join(child.itertext()) for child in elem if localname(child.tag) in CAPTION_TAGS]
+    return re.sub(r"\s+", " ", " ".join(parts)).strip()
+
+
 def parse_supplement_captions(xml_text: str | bytes) -> dict[str, str]:
     """Map supplement filenames to their captions from JATS full-text XML.
 
     Reads ``<supplementary-material>``/``<media>`` elements, keying each caption
     on the referenced file's normalized basename (see :func:`caption_key`).
+
+    JATS puts the two halves in either of two shapes, and both occur in Europe
+    PMC full text:
+
+    - flat: one element carries both the ``xlink:href`` and the caption;
+    - nested: the caption is on ``<supplementary-material>`` and the
+      ``xlink:href`` is on a child ``<media>`` (e.g. PMC7796900).
+
+    A captioned element therefore lends its caption to every file referenced
+    at or below it, except a descendant that has a caption of its own. The
+    first caption seen for a file wins, since full text often lists each
+    supplement twice.
 
     Args:
         xml_text: JATS XML document (Europe PMC ``fullTextXML``).
@@ -189,20 +220,21 @@ def parse_supplement_captions(xml_text: str | bytes) -> dict[str, str]:
     if root is None:
         return captions
 
-    supplement_tags = {"supplementary-material", "inline-supplementary-material", "media"}
     for elem in root.iter():
-        if localname(elem.tag) not in supplement_tags:
+        if localname(elem.tag) not in SUPPLEMENT_TAGS:
             continue
-        href = next(
-            (v for k, v in elem.attrib.items() if localname(k) == "href"),
-            None,
-        )
-        if not href:
+        text = own_caption_text(elem)
+        if not text:
             continue
-        text = re.sub(r"\s+", " ", " ".join(elem.itertext())).strip()
-        key = caption_key(href)
-        if key and text and key not in captions:
-            captions[key] = text[:1000]
+        for target in elem.iter():
+            if localname(target.tag) not in SUPPLEMENT_TAGS:
+                continue
+            if target is not elem and own_caption_text(target):
+                continue  # it captions itself when the outer loop reaches it
+            href = element_href(target)
+            key = caption_key(href) if href else ""
+            if key and key not in captions:
+                captions[key] = text[:1000]
     return captions
 
 

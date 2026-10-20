@@ -53,6 +53,10 @@ uv run python -c "from oaklib import get_adapter; get_adapter('sqlite:obo:envo')
 
 Set `ENVO_ADAPTER` to point at a different build (a pinned or self-hosted one) if you need to.
 
+The BBOP-administered S3 bucket (https://s3.amazonaws.com/bbop-sqlite/) which used to hold the ontology builds was retired (2026-08-28) and the builds were made accessible at a new URL: https://semanticsql.berkeleybop.io. The minimum version of `oaklib` to support this change is 0.7.4. 
+
+Note: You can configure the `OAKLIB_SEMSQL_SQLITE_URL_BASE` constant if you want to download from a mirror.
+
 ### Using uv (Local Development)
 
 1. **Install uv** (if not already installed):
@@ -205,8 +209,15 @@ Advanced ingestion tuning (all optional; defaults shown):
 6. Push to the branch (`git push origin feature/amazing-feature`)
 7. Open a Pull Request
 
+For more details on contributing, visit [CONTRIBUTING.md](CONTRIBUTING.md)
+
+## Release Instructions
+Should only be done by maintainers of this repo.
+1. Increment the version in [pyproject.toml](pyproject.toml). This repo follows semantic versioning - MAJOR.MINOR.PATCH.
+2. Run `uv sync` to sync the new version in the lock file.
+3. Once this is merged into main, create a new release in GitHub. Use "v<<version>version>" syntax and auto generate the notes.
+4. Publish the release and GHA will handle pushing to PyPI.
+
 ## License
 
 See [LICENSE](LICENSE) for licensing terms.
-
-

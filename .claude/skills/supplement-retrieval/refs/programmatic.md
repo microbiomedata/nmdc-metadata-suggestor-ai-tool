@@ -184,3 +184,9 @@ articles whose supplements the OA-scoped endpoint cannot serve.
 key is the referenced file's basename without extension, lowercased. Europe PMC
 pulls these from the article `fullTextXML`. Captions populate `SupplementFile.caption` so you can judge relevance
 ("Table S1. Sample metadata…") beyond the file extension.
+
+A caption is the `<label>` plus `<caption>` text only. It is read whether it sits on
+the same element as the `xlink:href` or on a `<supplementary-material>` wrapping the
+`<media>` that holds it. Other text such as `<object-id>` DOIs and `<alt-text>`
+placeholders is not treated as a caption. Many publishers (Frontiers, MDPI,
+ACS) give supplements no caption at all, so expect `caption` to be `None` often.

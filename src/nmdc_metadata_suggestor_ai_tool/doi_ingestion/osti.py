@@ -86,7 +86,7 @@ def query_osti_by_doi(osti_doi: str) -> list[dict]:
     params = {
         "doi": osti_doi,
     }
-    headers = {"User-Agent": USER_AGENT}
+    headers = {"User-Agent": USER_AGENT, "Accept": "application/json"}
     try:
         osti_url = f"{OSTI_E2_API_URL}"
         response = request_with_retry(
@@ -99,8 +99,8 @@ def query_osti_by_doi(osti_doi: str) -> list[dict]:
         response.raise_for_status()
         return response.json()  # type: ignore
 
-    except requests.RequestException:
-        # Fallback to the original API if the E2 API fails
+    except (requests.RequestException, ValueError):
+        # Fallback to the original API if the E2 API fails (network error or bad JSON)
         osti_url = f"{OSTI_API_URL}"
 
         response = request_with_retry(

@@ -1,5 +1,6 @@
 """Test configuration for pytest."""
 
+import os
 import sys
 from pathlib import Path
 
@@ -8,6 +9,12 @@ import pytest
 # Make `tests/` importable so fixture plugins under tests/fixtures can be loaded.
 tests_path = Path(__file__).parent
 sys.path.insert(0, str(tests_path))
+
+# Keep tests from sending traces to Langfuse. tracing.py reads these at import and
+# runs load_dotenv(), which never overrides a variable that is already set -- so
+# blanking them (rather than deleting them) keeps .env from filling them back in.
+os.environ["LANGFUSE_PUBLIC_KEY"] = ""
+os.environ["LANGFUSE_SECRET_KEY"] = ""
 
 pytest_plugins = ["fixtures.llm_auth"]
 

@@ -109,3 +109,34 @@ def test_wastewater_sludge_resolves_from_its_sample_slot_name() -> None:
     assert MixsExtensions.map_to_interface_name(["wastewater_sludge"]) == [
         "WastewaterSludgeInterface"
     ]
+
+
+def test_get_submission_fields_reads_publication_and_award_dois_and_the_interface() -> None:
+    """A minimal portal submission: one publication DOI, one award DOI, one package.
+
+    Modeled on the phyllosphere study (nmdc:sty-11-e4yb9z58), the supplement eval
+    case in nmdc-ai-eval. The pipeline fetches the abstract through the first DOI
+    and routes the second as an award, so both must come back, in that order.
+    """
+    submission = {
+        "metadata_submission": {
+            "packageName": ["plant-associated"],
+            "studyForm": {
+                "studyName": "Seasonal activities of the phyllosphere microbiome",
+                "description": "Leaf surface samples from perennial bioenergy crops.",
+                "publicationDois": [{"value": "10.1038/s41467-023-36515-y", "provider": None}],
+            },
+            "multiOmicsForm": {
+                "awardDois": [{"value": "10.46936/10.25585/60000818", "provider": "jgi"}]
+            },
+        }
+    }
+
+    result = get_submission_fields(submission)
+
+    assert result["mixs_extensions"] == ["PlantAssociatedInterface"]
+    assert [d["value"] for d in result["dois"]] == [
+        "10.1038/s41467-023-36515-y",
+        "10.46936/10.25585/60000818",
+    ]
+    assert result["study_name"].startswith("Seasonal activities")
