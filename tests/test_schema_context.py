@@ -6,7 +6,11 @@ since it's a local, deterministic, no-network-call dependency.
 
 import pytest
 
-from nmdc_metadata_suggestor_ai_tool.constants import EXCLUDED_INTERFACE_CLASSES, EXCLUDED_SLOTS
+from nmdc_metadata_suggestor_ai_tool.constants import (
+    ENV_TRIAD_SLOTS,
+    EXCLUDED_INTERFACE_CLASSES,
+    EXCLUDED_SLOTS,
+)
 from nmdc_metadata_suggestor_ai_tool.schema_context import SchemaContextBuilder, get_schema_view
 
 
@@ -235,3 +239,53 @@ def test_format_env_triad_context_all_interfaces() -> None:
     # The number of sections separated by the divider should equal interfaces count
     sections = ctx.split("\n\n---\n\n")
     assert len(sections) == len(interfaces)
+
+
+def test_format_fillable_keeps_required_slots() -> None:
+    """The fillable formatter keeps required per-row slots that format_interface_context drops."""
+    builder = SchemaContextBuilder()
+    fillable = builder.format_fillable_interface_context("WaterInterface")
+    standard = builder.format_interface_context("WaterInterface")
+    # geo_loc_name and collection_date are required MIxS slots: absent from the standard
+    # (required-filtered) context, present in the fillable one.
+    for slot in ("geo_loc_name", "collection_date"):
+        assert f"**{slot}**" in fillable, f"{slot} should be in fillable context"
+        assert f"**{slot}**" not in standard, f"{slot} should be filtered from standard context"
+
+
+def test_format_fillable_excludes_triad_and_ecosystem_slots() -> None:
+    """Env-triad slots (owned by env-triad) and GOLD ecosystem slots never appear."""
+    builder = SchemaContextBuilder()
+    fillable = builder.format_fillable_interface_context("SoilInterface")
+    for slot in ENV_TRIAD_SLOTS:
+        assert f"**{slot}**" not in fillable, f"{slot} is owned by env-triad and must be excluded"
+    for slot in EXCLUDED_SLOTS:
+        assert f"**{slot}**" not in fillable, f"{slot} is excluded everywhere"
+
+
+def test_format_fillable_marks_required() -> None:
+    """Required slots carry a 'required' marker so the recommender can prioritize them."""
+    builder = SchemaContextBuilder()
+    fillable = builder.format_fillable_interface_context("WaterInterface")
+    assert "required" in fillable
+    assert "(fillable fields)" in fillable
+
+
+def test_format_fillable_slots_context_multi_separated() -> None:
+    """The multi-interface wrapper emits one divider-separated section per interface."""
+    builder = SchemaContextBuilder()
+    ctx = builder.format_fillable_slots_context(["SoilInterface", "WaterInterface"])
+    assert "# SoilInterface (fillable fields)" in ctx
+    assert "# WaterInterface (fillable fields)" in ctx
+    assert len(ctx.split("\n\n---\n\n")) == 2
+
+
+def test_format_fillable_all_interfaces_run_clean() -> None:
+    """Every interface formats without error and never leaks an excluded slot."""
+    builder = SchemaContextBuilder()
+    forbidden = set(ENV_TRIAD_SLOTS) | set(EXCLUDED_SLOTS)
+    for interface in builder.list_interfaces():
+        ctx = builder.format_fillable_interface_context(interface)
+        assert ctx.startswith(f"# {interface} (fillable fields)")
+        for slot in forbidden:
+            assert f"**{slot}**" not in ctx

@@ -15,6 +15,7 @@ from linkml_runtime.linkml_model import SlotDefinition  # type: ignore[import-un
 from linkml_runtime.utils.schemaview import SchemaView  # type: ignore[import-untyped]
 
 from nmdc_metadata_suggestor_ai_tool.constants import (
+    ENV_TRIAD_SLOTS,
     EXCLUDED_INTERFACE_CLASSES,
     EXCLUDED_SLOTS,
     INTERFACE_CLASS_SUFFIX,
@@ -37,10 +38,17 @@ def get_schema_view() -> SchemaView:
         return SchemaView(str(schema_path))
 
 
-def format_slot(slot: SlotInfo) -> list[str]:
-    """Format a single slot as Markdown lines for LLM context."""
+def format_slot(slot: SlotInfo, show_required: bool = False) -> list[str]:
+    """Format a single slot as Markdown lines for LLM context.
+
+    ``show_required`` adds a ``required`` marker for required slots. It defaults
+    to ``False`` so ``format_interface_context`` output is unchanged (that path
+    filters required slots out before formatting, so the marker never applied).
+    """
     slot_lines: list[str] = []
     markers: list[str] = []
+    if show_required and slot.required:
+        markers.append("required")
     if slot.recommended:
         markers.append("recommended")
     marker_str = f" [{', '.join(markers)}]" if markers else ""
@@ -289,4 +297,61 @@ class SchemaContextBuilder:
         sections = [
             self.format_specific_slots_context(name, env_triad_slots) for name in class_names
         ]
+        return "\n\n---\n\n".join(sections)
+
+    def format_fillable_interface_context(self, class_name: str) -> str:
+        """Format every per-row slot a general value filler may populate for one interface.
+
+        This differs from ``format_interface_context`` in what it keeps. That method
+        filters out required slots; here they are kept and marked ``required``, because a
+        required slot the submitter still has to fill is a prime suggestion target. Dropped:
+        deprecated slots, the GOLD ecosystem slots in ``EXCLUDED_SLOTS``, and the three
+        ``ENV_TRIAD_SLOTS`` -- the env-triad skill owns those, so leaving them out keeps the
+        two per-row fillers from suggesting the same field.
+        """
+        schema = self.get_interface_schema(class_name)
+        excluded = EXCLUDED_SLOTS | set(ENV_TRIAD_SLOTS)
+        slots = [s for s in schema.slots if s.name not in excluded and not s.deprecated]
+
+        required_count = sum(1 for s in slots if s.required)
+        recommended_count = sum(1 for s in slots if s.recommended)
+
+        lines: list[str] = [f"# {class_name} (fillable fields)"]
+        if schema.description:
+            lines.append(f"\n{schema.description}")
+        lines.append(f"\nTotal fields: {len(slots)} | ")
+        if required_count:
+            lines.append(f"Required: {required_count} | ")
+        if recommended_count:
+            lines.append(f"Recommended: {recommended_count} | ")
+        if schema.ancestors:
+            lines.append(f"Ancestors: {', '.join(schema.ancestors)}")
+
+        grouped: dict[str, list[SlotInfo]] = defaultdict(list)
+        ungrouped: list[SlotInfo] = []
+        for slot in slots:
+            if slot.slot_group:
+                grouped[slot.slot_group].append(slot)
+            else:
+                ungrouped.append(slot)
+
+        for group_name in sorted(grouped):
+            lines.append(f"\n## {group_name}")
+            for slot in grouped[group_name]:
+                lines.extend(format_slot(slot, show_required=True))
+
+        if ungrouped:
+            lines.append("\n## Other fields")
+            for slot in ungrouped:
+                lines.extend(format_slot(slot, show_required=True))
+
+        return "\n".join(lines)
+
+    def format_fillable_slots_context(self, class_names: list[str]) -> str:
+        """Format fillable per-row slots across multiple interfaces, divider-separated.
+
+        Primary schema method for the ``sample-value-filling`` skill. See
+        ``format_fillable_interface_context`` for what is kept and what is dropped.
+        """
+        sections = [self.format_fillable_interface_context(name) for name in class_names]
         return "\n\n---\n\n".join(sections)
