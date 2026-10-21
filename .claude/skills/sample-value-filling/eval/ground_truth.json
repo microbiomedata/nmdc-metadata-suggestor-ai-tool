@@ -1,0 +1,56 @@
+[
+  {
+    "samp_name": "WHONDRS_S19S_0026_SED_FIELD_D",
+    "geo_loc_name": "USA: Colorado, Nederland",
+    "collection_date": "2019-08-05",
+    "lat_lon": "40.03497, -105.544",
+    "elev": 3021.23,
+    "habitat": "Freshwater sediment",
+    "id": "nmdc:bsm-11-01c63q78"
+  },
+  {
+    "samp_name": "WHONDRS_S19S_0042_SED_FIELD_D",
+    "geo_loc_name": "USA: Florida, Flamingo",
+    "collection_date": "2019-08-05",
+    "lat_lon": "25.40982, -80.9642",
+    "elev": -1.39,
+    "habitat": "Freshwater sediment",
+    "id": "nmdc:bsm-11-00esf117"
+  },
+  {
+    "samp_name": "WHONDRS_S19S_0039_SED_INC_D",
+    "geo_loc_name": "USA: Tennessee, Oak Ridge",
+    "collection_date": "2019-08-05",
+    "lat_lon": "35.96624, -84.3574",
+    "elev": 230.85,
+    "habitat": "Freshwater sediment",
+    "id": "nmdc:bsm-11-02323679"
+  },
+  {
+    "samp_name": "WHONDRS_S19S_0093_SED_FIELD_U",
+    "geo_loc_name": "UK: Staffordshire, Stafford",
+    "collection_date": "2019-08-19",
+    "lat_lon": "52.80067, -2.30469",
+    "elev": 98.4,
+    "habitat": "Freshwater sediment",
+    "id": "nmdc:bsm-11-04jj9q59"
+  },
+  {
+    "samp_name": "WHONDRS_S19S_0003_SED_FIELD_D",
+    "geo_loc_name": "Canada: British Columbia, Kamloops",
+    "collection_date": "2019-09-08",
+    "lat_lon": "50.6887, -120.366",
+    "elev": 343.01,
+    "habitat": "Freshwater sediment",
+    "id": "nmdc:bsm-11-0p5q3s54"
+  },
+  {
+    "samp_name": "WHONDRS_S19S_0089_SED_INC_M",
+    "geo_loc_name": "USA: Virginia, Blacksburg",
+    "collection_date": "2019-08-26",
+    "lat_lon": "37.21014, -80.4451",
+    "elev": 604.38,
+    "habitat": "Freshwater sediment",
+    "id": "nmdc:bsm-11-02nnrj92"
+  }
+]

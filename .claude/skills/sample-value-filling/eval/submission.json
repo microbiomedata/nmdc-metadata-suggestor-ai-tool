@@ -1,0 +1,97 @@
+{
+  "metadata_submission": {
+    "studyForm": {
+      "studyName": "Creating the GROW (Genome Resolved Open Watershed) Database: Leveraging Distributed Research Networks to Understand Watershed Systems",
+      "description": "Streams and rivers represent key functioning units in Earth\u2019s terrestrial system that provide services essential for global energy, food and water security, as well as human recreation. Rivers are responsible for the transport and nutrient processing of terrestrial water and solutes across landscapes with discharge into reservoirs, estuaries, and oceans. Despite these important ecological roles, we know surprisingly little about the microbiomes in river and stream systems. Here, we will address this knowledge gap by sampling over 250 rivers, including the 35 larger rivers in the United States, many of which will be collected over time or across interconnected hydrological units, with a sub-set also receiving metatranscriptomes and metabolome data. To accomplish this breadth and intensity of sampling, we have formed a collaborative 15-member research consortium composed of hydrologists, geochemists, ecologists, and microbiologists. The overarching objective is to genomically resolve the taxonomy, the metabolic potential and expression, and distribution of riverine microorganisms and traits within and across watersheds. Samples were collected as part of the WHONDRS Summer 2019 Synoptic Sampling (S19S) campaign (August to September 2019). Surface river sediments were collected from depositional zones along each river reach.",
+      "notes": "",
+      "GOLDStudyId": "Gs0149396"
+    },
+    "multiOmicsForm": {
+      "JGIStudyId": "",
+      "awardDois": [
+        {
+          "value": "10.46936/10.25585/60001289",
+          "provider": "jgi"
+        },
+        {
+          "value": "10.46936/sarr.proj.2018.50298/60000034",
+          "provider": "emsl"
+        },
+        {
+          "value": "10.46936/cpcy.proj.2019.51180/60006718",
+          "provider": "emsl"
+        },
+        {
+          "value": "10.15485/1603775",
+          "provider": "ess_dive"
+        },
+        {
+          "value": "10.15485/1729719",
+          "provider": "ess_dive"
+        },
+        {
+          "value": "10.25982/109073.30/1895615",
+          "provider": "kbase"
+        }
+      ]
+    },
+    "sampleData": {
+      "sediment_data": [
+        {
+          "samp_name": "WHONDRS_S19S_0026_SED_FIELD_D",
+          "description": "River sediment microbial communities from Como Creek, Colorado, USA",
+          "geo_loc_name": "",
+          "collection_date": "",
+          "lat_lon": "",
+          "elev": "",
+          "habitat": ""
+        },
+        {
+          "samp_name": "WHONDRS_S19S_0042_SED_FIELD_D",
+          "description": "River sediment microbial communities from Shark River Slough, Florida, USA",
+          "geo_loc_name": "",
+          "collection_date": "",
+          "lat_lon": "",
+          "elev": "",
+          "habitat": ""
+        },
+        {
+          "samp_name": "WHONDRS_S19S_0039_SED_INC_D",
+          "description": "River sediment microbial communities from East Fork Poplar Creek, Tennessee, USA",
+          "geo_loc_name": "",
+          "collection_date": "",
+          "lat_lon": "",
+          "elev": "",
+          "habitat": ""
+        },
+        {
+          "samp_name": "WHONDRS_S19S_0093_SED_FIELD_U",
+          "description": "River sediment microbial communities from Wood Brook, Staffordshire, UK",
+          "geo_loc_name": "",
+          "collection_date": "",
+          "lat_lon": "",
+          "elev": "",
+          "habitat": ""
+        },
+        {
+          "samp_name": "WHONDRS_S19S_0003_SED_FIELD_D",
+          "description": "River sediment microbial communities from Thompson, British Columbia, Canada",
+          "geo_loc_name": "",
+          "collection_date": "",
+          "lat_lon": "",
+          "elev": "",
+          "habitat": ""
+        },
+        {
+          "samp_name": "WHONDRS_S19S_0089_SED_INC_M",
+          "description": "River sediment microbial communities from Stroubles Creek, Virginia, USA",
+          "geo_loc_name": "",
+          "collection_date": "",
+          "lat_lon": "",
+          "elev": "",
+          "habitat": ""
+        }
+      ]
+    }
+  }
+}
