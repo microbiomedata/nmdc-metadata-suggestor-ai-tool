@@ -27,10 +27,14 @@ Three skills fill values, each owning a distinct slice so their suggestions neve
 - `env-triad` — `env_broad_scale`, `env_local_scale`, `env_medium`, per row
 - `sample-value-filling` — every other fillable MIxS slot, per row
 
+Evaluate top to bottom and take the first row that matches. The field-name rows are ordered so a
+request that names **both** a triad and a non-triad field (e.g. "suggest `env_medium` and `depth`")
+falls through to the second row and runs both fillers — it is not captured by the triad-only row.
+
 | Condition | Route to |
 |---|---|
-| Input explicitly names `env_triad`, `env_broad_scale`, `env_local_scale`, or `env_medium` | `env-triad` only |
-| Input explicitly names a specific non-triad field, or asks for "row" / "per-sample" values | `sample-value-filling` only (add `env-triad` if a triad slot is also named) |
+| Input explicitly names at least one non-triad field, or asks for "row" / "per-sample" values | `sample-value-filling` — and also `env-triad` if a triad field is named too |
+| Input explicitly names only env triad field(s) (`env_triad`, `env_broad_scale`, `env_local_scale`, `env_medium`) and no other field | `env-triad` only |
 | Input is samples only (no submission object) | `env-triad` and `sample-value-filling` |
 | Input is a submission object with no sample list | `metadata-suggestion-pipeline` only |
 | Input is a submission object that includes samples | All three — run `metadata-suggestion-pipeline` first (submission-level), then `env-triad` and `sample-value-filling` (both per row) |

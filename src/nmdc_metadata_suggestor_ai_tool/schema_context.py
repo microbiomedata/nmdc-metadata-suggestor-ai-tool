@@ -74,6 +74,35 @@ def format_slot(slot: SlotInfo, show_required: bool = False) -> list[str]:
     return slot_lines
 
 
+def format_slot_groups(slots: list[SlotInfo], show_required: bool = False) -> list[str]:
+    """Group slots by ``slot_group`` and format each group as Markdown lines.
+
+    Shared body for ``format_interface_context`` and ``format_fillable_interface_context``,
+    which differ only in which slots they pass in and whether required slots are marked.
+    Groups are emitted in sorted order, then any ungrouped slots under "Other fields".
+    """
+    grouped: dict[str, list[SlotInfo]] = defaultdict(list)
+    ungrouped: list[SlotInfo] = []
+    for slot in slots:
+        if slot.slot_group:
+            grouped[slot.slot_group].append(slot)
+        else:
+            ungrouped.append(slot)
+
+    lines: list[str] = []
+    for group_name in sorted(grouped):
+        lines.append(f"\n## {group_name}")
+        for slot in grouped[group_name]:
+            lines.extend(format_slot(slot, show_required=show_required))
+
+    if ungrouped:
+        lines.append("\n## Other fields")
+        for slot in ungrouped:
+            lines.extend(format_slot(slot, show_required=show_required))
+
+    return lines
+
+
 class SchemaContextBuilder:
     """Builds LLM-ready context from the NMDC submission schema."""
 
@@ -252,25 +281,7 @@ class SchemaContextBuilder:
         if filtered_schema.ancestors:
             lines.append(f"Ancestors: {', '.join(filtered_schema.ancestors)}")
 
-        # Group slots by slot_group
-        grouped: dict[str, list[SlotInfo]] = defaultdict(list)
-        ungrouped: list[SlotInfo] = []
-        for slot in filtered_schema.slots:
-            if slot.slot_group:
-                grouped[slot.slot_group].append(slot)
-            else:
-                ungrouped.append(slot)
-
-        for group_name in filtered_schema.slot_groups:
-            if group_name in grouped:
-                lines.append(f"\n## {group_name}")
-                for slot in grouped[group_name]:
-                    lines.extend(format_slot(slot))
-
-        if ungrouped:
-            lines.append("\n## Other fields")
-            for slot in ungrouped:
-                lines.extend(format_slot(slot))
+        lines.extend(format_slot_groups(filtered_schema.slots))
 
         return "\n".join(lines)
 
@@ -293,9 +304,8 @@ class SchemaContextBuilder:
     @observe(name="env_triad_schema_context", as_type="span", capture_output=False)
     def format_env_triad_context(self, class_names: list[str]) -> str:
         """Convenience method to format context specifically for the env triad slots."""
-        env_triad_slots = ["env_broad_scale", "env_local_scale", "env_medium"]
         sections = [
-            self.format_specific_slots_context(name, env_triad_slots) for name in class_names
+            self.format_specific_slots_context(name, list(ENV_TRIAD_SLOTS)) for name in class_names
         ]
         return "\n\n---\n\n".join(sections)
 
@@ -305,9 +315,9 @@ class SchemaContextBuilder:
         This differs from ``format_interface_context`` in what it keeps. That method
         filters out required slots; here they are kept and marked ``required``, because a
         required slot the submitter still has to fill is a prime suggestion target. Dropped:
-        deprecated slots, the GOLD ecosystem slots in ``EXCLUDED_SLOTS``, and the three
-        ``ENV_TRIAD_SLOTS`` -- the env-triad skill owns those, so leaving them out keeps the
-        two per-row fillers from suggesting the same field.
+        deprecated slots, the slots in ``EXCLUDED_SLOTS`` (the five GOLD ecosystem slots plus
+        ``collection_date_inc``), and the three ``ENV_TRIAD_SLOTS`` -- the env-triad skill owns
+        those, so leaving them out keeps the two per-row fillers from suggesting the same field.
         """
         schema = self.get_interface_schema(class_name)
         excluded = EXCLUDED_SLOTS | set(ENV_TRIAD_SLOTS)
@@ -327,26 +337,11 @@ class SchemaContextBuilder:
         if schema.ancestors:
             lines.append(f"Ancestors: {', '.join(schema.ancestors)}")
 
-        grouped: dict[str, list[SlotInfo]] = defaultdict(list)
-        ungrouped: list[SlotInfo] = []
-        for slot in slots:
-            if slot.slot_group:
-                grouped[slot.slot_group].append(slot)
-            else:
-                ungrouped.append(slot)
-
-        for group_name in sorted(grouped):
-            lines.append(f"\n## {group_name}")
-            for slot in grouped[group_name]:
-                lines.extend(format_slot(slot, show_required=True))
-
-        if ungrouped:
-            lines.append("\n## Other fields")
-            for slot in ungrouped:
-                lines.extend(format_slot(slot, show_required=True))
+        lines.extend(format_slot_groups(slots, show_required=True))
 
         return "\n".join(lines)
 
+    @observe(name="fillable_schema_context", as_type="span", capture_output=False)
     def format_fillable_slots_context(self, class_names: list[str]) -> str:
         """Format fillable per-row slots across multiple interfaces, divider-separated.
 
