@@ -21,12 +21,19 @@ Receives data, determines what to run, returns `LLMOutput` JSON. No user interac
 
 ## Step 2 — Detect requested output
 
+Three skills fill values, each owning a distinct slice so their suggestions never collide:
+
+- `metadata-suggestion-pipeline` — study/submission-level fields (`id: null`)
+- `env-triad` — `env_broad_scale`, `env_local_scale`, `env_medium`, per row
+- `sample-value-filling` — every other fillable MIxS slot, per row
+
 | Condition | Route to |
 |---|---|
 | Input explicitly names `env_triad`, `env_broad_scale`, `env_local_scale`, or `env_medium` | `env-triad` only |
-| Input is samples only (no submission object) | `env-triad` only |
+| Input explicitly names a specific non-triad field, or asks for "row" / "per-sample" values | `sample-value-filling` only (add `env-triad` if a triad slot is also named) |
+| Input is samples only (no submission object) | `env-triad` and `sample-value-filling` |
 | Input is a submission object with no sample list | `metadata-suggestion-pipeline` only |
-| Input is a submission object that includes samples | Both — run `metadata-suggestion-pipeline` first, then `env-triad` |
+| Input is a submission object that includes samples | All three — run `metadata-suggestion-pipeline` first (submission-level), then `env-triad` and `sample-value-filling` (both per row) |
 
 ---
 
@@ -34,6 +41,8 @@ Receives data, determines what to run, returns `LLMOutput` JSON. No user interac
 
 Run the routed skill(s) and return a single `LLMOutput` JSON object.
 
-If both pipelines run, merge their `metadata_fields` lists into one response.
+If more than one skill runs, merge their `metadata_fields` lists into one response. The slices do not
+overlap, so no de-duplication is needed: submission-level entries carry `id: null`, the three triad
+fields come only from `env-triad`, and all other per-row fields come only from `sample-value-filling`.
 
 **IMPORTANT: Do NOT call StructuredOutput until all routed skills have finished executing. Call StructuredOutput exactly once at the very end with the complete merged `LLMOutput` JSON.**
