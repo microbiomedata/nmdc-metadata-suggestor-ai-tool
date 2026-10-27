@@ -1,0 +1,16 @@
+{
+  "metadata_fields": [
+    {"id": "WHONDRS_S19S_0026_SED_FIELD_D", "field_name": "geo_loc_name", "value": "USA: Colorado, Como Creek", "reason": "Sample description: 'from Como Creek, Colorado, USA' (sample field)."},
+    {"id": "WHONDRS_S19S_0026_SED_FIELD_D", "field_name": "collection_date", "value": "2019", "reason": "Study states samples were collected in the 'Summer 2019 Synoptic Sampling (S19S) campaign (August to September 2019)'; applies to every row (inference)."},
+    {"id": "WHONDRS_S19S_0042_SED_FIELD_D", "field_name": "geo_loc_name", "value": "USA: Florida, Shark River Slough", "reason": "Sample description: 'from Shark River Slough, Florida, USA' (sample field)."},
+    {"id": "WHONDRS_S19S_0042_SED_FIELD_D", "field_name": "collection_date", "value": "2019", "reason": "Study-wide 'Summer 2019 Synoptic Sampling (S19S) campaign (August to September 2019)' (inference)."},
+    {"id": "WHONDRS_S19S_0039_SED_INC_D", "field_name": "geo_loc_name", "value": "USA: Tennessee, East Fork Poplar Creek", "reason": "Sample description: 'from East Fork Poplar Creek, Tennessee, USA' (sample field)."},
+    {"id": "WHONDRS_S19S_0039_SED_INC_D", "field_name": "collection_date", "value": "2019", "reason": "Study-wide 'Summer 2019 Synoptic Sampling (S19S) campaign (August to September 2019)' (inference)."},
+    {"id": "WHONDRS_S19S_0093_SED_FIELD_U", "field_name": "geo_loc_name", "value": "UK: Staffordshire, Wood Brook", "reason": "Sample description: 'from Wood Brook, Staffordshire, UK' (sample field)."},
+    {"id": "WHONDRS_S19S_0093_SED_FIELD_U", "field_name": "collection_date", "value": "2019", "reason": "Study-wide 'Summer 2019 Synoptic Sampling (S19S) campaign (August to September 2019)' (inference)."},
+    {"id": "WHONDRS_S19S_0003_SED_FIELD_D", "field_name": "geo_loc_name", "value": "Canada: British Columbia, Thompson", "reason": "Sample description: 'from Thompson, British Columbia, Canada' (sample field)."},
+    {"id": "WHONDRS_S19S_0003_SED_FIELD_D", "field_name": "collection_date", "value": "2019", "reason": "Study-wide 'Summer 2019 Synoptic Sampling (S19S) campaign (August to September 2019)' (inference)."},
+    {"id": "WHONDRS_S19S_0089_SED_INC_M", "field_name": "geo_loc_name", "value": "USA: Virginia, Stroubles Creek", "reason": "Sample description: 'from Stroubles Creek, Virginia, USA' (sample field)."},
+    {"id": "WHONDRS_S19S_0089_SED_INC_M", "field_name": "collection_date", "value": "2019", "reason": "Study-wide 'Summer 2019 Synoptic Sampling (S19S) campaign (August to September 2019)' (inference)."}
+  ]
+}
