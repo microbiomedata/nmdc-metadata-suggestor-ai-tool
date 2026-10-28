@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Literal, cast, get_origin
 
 import google.auth
-from dotenv import load_dotenv
+from dotenv import dotenv_values
 from google import genai
 from google.auth.transport.requests import Request
 from google.genai import types as genai_types
@@ -40,7 +40,7 @@ from nmdc_metadata_suggestor_ai_tool.tracing import (
     propagate_attributes,
 )
 
-load_dotenv()
+secrets = dotenv_values(".env")
 
 logger = logging.getLogger(__name__)
 
@@ -138,16 +138,16 @@ class LLMClient:
                 f"Unknown access_provider '{access_provider}'. Use 'pnnl', 'cborg', or 'gcp'."
             )
         self.access_provider = access_provider
-        self.project = project or os.environ.get("VERTEX_PROJECT_ID")
-        self.region = region or os.environ.get("GCP_REGION")
-        self.credentials_file = credentials_file or os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+        self.project = project or secrets.get("VERTEX_PROJECT_ID")
+        self.region = region or secrets.get("GCP_REGION")
+        self.credentials_file = credentials_file or secrets.get("GOOGLE_APPLICATION_CREDENTIALS")
         self.client: OpenAI | genai.Client
 
         if access_provider == "pnnl":
             self.model = model or PNNL_GPT_MODELS[0]
             # load ai incubator key from env
-            api_key = os.environ.get("AI_INCUBATOR_KEY")
-            base_url = os.environ.get("AI_INCUBATOR_BASE_URL")
+            api_key = secrets.get("AI_INCUBATOR_KEY")
+            base_url = secrets.get("AI_INCUBATOR_BASE_URL")
             if not api_key or not base_url:
                 raise RuntimeError(
                     "AI_INCUBATOR_KEY or AI_INCUBATOR_BASE_URL is not set in environment variables."
@@ -157,8 +157,8 @@ class LLMClient:
         if access_provider == "cborg":
             self.model = model or DEFAULT_GEMINI_MODEL
             # load cborg key from env
-            api_key = os.environ.get("CBORG_KEY")
-            base_url = os.environ.get("CBORG_BASE_URL")
+            api_key = secrets.get("CBORG_KEY")
+            base_url = secrets.get("CBORG_BASE_URL")
             if not api_key or not base_url:
                 raise RuntimeError(
                     "CBORG_KEY or CBORG_BASE_URL is not set in environment variables."
