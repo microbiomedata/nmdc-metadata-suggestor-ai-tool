@@ -27,9 +27,12 @@ Three skills fill values, each owning a distinct slice so their suggestions neve
 - `env-triad` — `env_broad_scale`, `env_local_scale`, `env_medium`, per row
 - `sample-value-filling` — every other fillable MIxS slot, per row
 
-Evaluate top to bottom and take the first row that matches. The field-name rows are ordered so a
-request that names **both** a triad and a non-triad field (e.g. "suggest `env_medium` and `depth`")
-falls through to the second row and runs both fillers — it is not captured by the triad-only row.
+Check the rows in the order they are listed below and use the first one that matches the input. The
+order matters for a request that names specific fields: if it names any non-triad field, it matches
+the first row and runs `sample-value-filling` (and `env-triad` too, when a triad field is also
+named). Only a request that names triad fields and nothing else reaches the second row and runs
+`env-triad` alone. So "suggest `env_medium` and `depth`" runs both, while "suggest `env_medium`"
+runs `env-triad` only.
 
 | Condition | Route to |
 |---|---|
