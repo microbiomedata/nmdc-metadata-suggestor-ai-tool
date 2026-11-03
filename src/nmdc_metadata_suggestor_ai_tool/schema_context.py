@@ -80,6 +80,16 @@ def format_slot_groups(slots: list[SlotInfo], show_required: bool = False) -> li
     Shared body for ``format_interface_context`` and ``format_fillable_interface_context``,
     which differ only in which slots they pass in and whether required slots are marked.
     Groups are emitted in sorted order, then any ungrouped slots under "Other fields".
+
+    ``slot_group`` is the MIxS section a slot belongs to (e.g. ``mixs_core_section``). It is
+    used here only to lay the Markdown out under section headings -- it is not a new
+    categorization. A slot with no ``slot_group`` falls under a final ``## Other fields``
+    heading. For example, a slot whose ``slot_group`` is ``mixs_core_section`` renders as::
+
+        ## mixs_core_section
+        - **ph**
+          pH of the sample
+          (type: float)
     """
     grouped: dict[str, list[SlotInfo]] = defaultdict(list)
     ungrouped: list[SlotInfo] = []
