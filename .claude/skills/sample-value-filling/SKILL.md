@@ -103,7 +103,8 @@ is the one you do here.
 
 Process rows in chunks of 50 if there are many. For each row, scan the evidence and the slot
 definitions, and emit a suggestion for each slot the evidence supports. A field with no supporting
-evidence for a row is simply **omitted** for that row — do not force a value, and do not invent one.
+evidence for a row is **omitted** by default (see the pointing exception below) — never force a value,
+and never invent one.
 
 **Value rules:**
 - **Explicit value:** when the source states that specific value for that sample (or for a group the
@@ -118,8 +119,16 @@ evidence for a row is simply **omitted** for that row — do not force a value, 
   a unit (e.g. `"3.5 m"`, `"12 degrees Celsius"`); include the unit the source gives.
 - **Multivalued slots:** return a list when the slot is `multivalued` and the evidence names several
   values.
-- Never leave `value` empty on an emitted suggestion. If you cannot support a value, omit the
-  suggestion entirely (this is the opposite of `env-triad`, which always fills).
+- **Default to omission.** If the evidence does not support a value, omit the suggestion — do not
+  force or invent one (this is the opposite of `env-triad`, which always fills).
+- **Pointing to a slot (empty value, used sparingly).** The one exception to "fill or omit": when a
+  slot is clearly expected for these samples — a required slot, or one the study context shows is
+  directly relevant — but no available source provides its value, you may emit a suggestion with
+  `value: ""` and a `reason` that says what is missing and where that value would have to come from
+  (e.g. `"no sampling depth stated in the study text, abstract, or sample fields; needs the field
+  methods or a supplementary table"`). This is transparent to the submitter: it marks the field as
+  still needing a value and explains why the agent could not supply one, rather than leaving a silent
+  gap. Use it only when the gap is genuinely informative — not for every empty slot.
 
 **Reason rules:**
 - Every `reason` must cite specific input text — an exact short quote (up to 12 words) or a
@@ -132,8 +141,9 @@ evidence for a row is simply **omitted** for that row — do not force a value, 
 
 ## Output format
 
-Return a JSON object matching `LLMOutput`. Emit one entry per `(row, supported field)` pair. Every
-entry carries the row's `id`. Do **not** set `provenance` — this skill has no validation gate.
+Return a JSON object matching `LLMOutput`. Emit one entry per `(row, field)` pair you fill or point
+to. Every entry carries the row's `id`. Do **not** set `provenance` — this skill has no validation
+gate.
 
 ```json
 {

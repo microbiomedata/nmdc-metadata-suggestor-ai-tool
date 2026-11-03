@@ -27,6 +27,12 @@ Three skills fill values, each owning a distinct slice so their suggestions neve
 - `env-triad` — `env_broad_scale`, `env_local_scale`, `env_medium`, per row
 - `sample-value-filling` — every other fillable MIxS slot, per row
 
+Submission-level suggestions still exist and are distinct from row-level ones: they carry `id: null`
+and describe the study as a whole, while row-level suggestions attach to an individual sample's `id`.
+When a row-level value genuinely cannot be extracted from any source, `sample-value-filling` may
+still point to the slot with an empty `value` and a `reason` (see that skill), so the submitter sees
+which fields remain unfilled and why — rather than a silent gap.
+
 Check the rows in the order they are listed below and use the first one that matches the input. The
 order matters for a request that names specific fields: if it names any non-triad field, it matches
 the first row and runs `sample-value-filling` (and `env-triad` too, when a triad field is also
