@@ -22,16 +22,23 @@ from typing import Any, TypeVar
 
 from dotenv import dotenv_values
 
-
 secrets = dotenv_values(".env")
+
+
+def _setting(name: str) -> str | None:
+    """A variable set in the environment wins over .env, even when set to "".
+
+    The environment is how a sandboxed run (no .env) gets its settings, and how
+    tests switch tracing off by blanking the keys.
+    """
+    return os.environ[name] if name in os.environ else secrets.get(name)
+
 
 logger = logging.getLogger(__name__)
 
 F = TypeVar("F", bound=Callable[..., Any])
 
-langfuse_enabled = bool(
-    secrets.get("LANGFUSE_PUBLIC_KEY") and secrets.get("LANGFUSE_SECRET_KEY")
-)
+langfuse_enabled = bool(_setting("LANGFUSE_PUBLIC_KEY") and _setting("LANGFUSE_SECRET_KEY"))
 
 if langfuse_enabled:
     try:
@@ -41,12 +48,17 @@ if langfuse_enabled:
         from openinference.instrumentation.claude_agent_sdk import ClaudeAgentSDKInstrumentor  # noqa I001
         from langfuse import Langfuse  # noqa I001
 
-        langfuse_environment = secrets.get("LANGFUSE_TRACING_ENVIRONMENT")
+        langfuse_environment = _setting("LANGFUSE_TRACING_ENVIRONMENT")
         # check if the tracing environment is set, default to 'unknown' if not
         if langfuse_environment not in ["production", "development", "local"]:
             langfuse_environment = "unknown"
         logger.debug(f"Langfuse tracing environment set to: {langfuse_environment}")
-        Langfuse(environment=langfuse_environment, public_key=secrets.get("LANGFUSE_PUBLIC_KEY"), secret_key=secrets.get("LANGFUSE_SECRET_KEY"))
+        Langfuse(
+            environment=langfuse_environment,
+            public_key=_setting("LANGFUSE_PUBLIC_KEY"),
+            secret_key=_setting("LANGFUSE_SECRET_KEY"),
+            base_url=_setting("LANGFUSE_BASE_URL"),
+        )
 
         langfuse_client = get_client()
         observe = _lf_observe
