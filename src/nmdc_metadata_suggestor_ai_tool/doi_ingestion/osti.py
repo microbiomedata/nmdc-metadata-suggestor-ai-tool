@@ -15,7 +15,6 @@ from nmdc_metadata_suggestor_ai_tool.constants import (
     DEFAULT_TIMEOUT,
     OSTI_API_URL,
     OSTI_AWARD_API_URL,
-    OSTI_E2_API_URL,
     USER_AGENT,
 )
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.doi_utils import (
@@ -86,37 +85,22 @@ def try_osti(doi: str, errors: list[str] | None = None) -> ResolverContext | Non
 def query_osti_by_doi(osti_doi: str) -> list[dict]:
     """
     Query OSTI API for a given DOI and return the JSON response.
-    First queries the new E2 API, and if that fails, falls back to the original API.
     """
     params = {
         "doi": osti_doi,
     }
     headers = {"User-Agent": USER_AGENT, "Accept": "application/json"}
-    try:
-        osti_url = OSTI_E2_API_URL
-        response = request_with_retry(
-            "GET",
-            osti_url,
-            timeout=DEFAULT_TIMEOUT,
-            headers=headers,
-            params=params,
-        )
-        response.raise_for_status()
-        return response.json()  # type: ignore
+    osti_url = OSTI_API_URL
 
-    except requests.RequestException:
-        # Fallback to the original API if the E2 API fails
-        osti_url = OSTI_API_URL
-
-        response = request_with_retry(
-            "GET",
-            osti_url,
-            timeout=DEFAULT_TIMEOUT,
-            headers=headers,
-            params=params,
-        )
-        response.raise_for_status()
-        return response.json()  # type: ignore
+    response = request_with_retry(
+        "GET",
+        osti_url,
+        timeout=DEFAULT_TIMEOUT,
+        headers=headers,
+        params=params,
+    )
+    response.raise_for_status()
+    return response.json()  # type: ignore
 
 
 def query_osti_by_award_doi(award_doi: str) -> dict[str, Any]:
