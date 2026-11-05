@@ -176,7 +176,6 @@ def test_try_osti_abstract_retrieval_real_dois() -> None:
     assert len(successful) >= 1
 
 
-
 @integration
 def test_try_osti_invalid_osti_doi() -> None:
     """Return errors for invalid OSTI DOI."""
