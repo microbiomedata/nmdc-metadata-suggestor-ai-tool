@@ -45,23 +45,7 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 DEFAULT_GCP_REGION = "us-east5"
-
-
-GEMINI_MODELS = [
-    "gemini-2.5-pro",
-    "gemini-2.5-flash",
-]
-
-
-PNNL_GPT_MODELS = [
-    "gpt-5-project",
-    "gpt-5.1-project",
-    "gpt-5.2-project",
-    "gpt-4.1-project",
-    "o3-project",
-    "o4-mini-project",
-]
-
+DEFAULT_PNNL_MODEL = "gpt-6-luna"
 DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
 DEFAULT_CLAUDE_MODEL = "claude-opus-4-6"
 DEFAULT_MAX_TOKENS_BY_PROVIDER: dict[str, int] = {
@@ -144,7 +128,7 @@ class LLMClient:
         self.client: OpenAI | genai.Client
 
         if access_provider == "pnnl":
-            self.model = model or PNNL_GPT_MODELS[0]
+            self.model = model or DEFAULT_PNNL_MODEL
             # load ai incubator key from env
             api_key = os.environ.get("AI_INCUBATOR_KEY")
             base_url = os.environ.get("AI_INCUBATOR_BASE_URL")
@@ -329,7 +313,7 @@ class ConversationManager:
 
         Dispatches by ``access_provider``:
         - ``pnnl``: uses OpenAI-compatible Responses API (model defaults to first
-            entry in ``PNNL_GPT_MODELS`` when omitted).
+            entry in ``DEFAULT_PNNL_MODEL`` when omitted).
         - ``cborg``: uses OpenAI-compatible API (model defaults to
             ``DEFAULT_GEMINI_MODEL`` when omitted).
         - ``gcp``: uses Vertex Gemini ``models.generate_content`` (model defaults
