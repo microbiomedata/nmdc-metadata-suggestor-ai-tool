@@ -13,8 +13,8 @@ from nmdc_metadata_suggestor_ai_tool.constants import (
     DATACITE_API_URL,
     DOI_RA_API,
     OPENALEX_API_URL,
+    OSTI_API_URL,
     OSTI_AWARD_API_URL,
-    OSTI_E2_API_URL,
     PUBMED_EFETCH,
     PUBMED_ID_CONVERTER,
 )
@@ -324,7 +324,7 @@ class TestGetAbstractWaterfall:
         _mock_classify_as_publication(doi)
         responses.add(
             responses.GET,
-            OSTI_E2_API_URL,
+            OSTI_API_URL,
             json=[{"doi": doi, "description": "OSTI abstract text."}],
         )
 
@@ -345,7 +345,7 @@ class TestGetAbstractWaterfall:
         _mock_classify_as_publication(requested_doi)
         responses.add(
             responses.GET,
-            OSTI_E2_API_URL,
+            OSTI_API_URL,
             json=[
                 {
                     "product_type": "Journal Article",
@@ -374,7 +374,7 @@ class TestGetAbstractWaterfall:
         pdf_url = "https://example.org/fulltext.pdf"
         responses.add(
             responses.GET,
-            OSTI_E2_API_URL,
+            OSTI_API_URL,
             json=[
                 {
                     "product_type": "Journal Article",

@@ -3,7 +3,7 @@
 import pytest
 import responses
 
-from nmdc_metadata_suggestor_ai_tool.constants import OSTI_API_URL, OSTI_E2_API_URL
+from nmdc_metadata_suggestor_ai_tool.constants import OSTI_API_URL
 from nmdc_metadata_suggestor_ai_tool.doi_ingestion.osti import try_osti
 from nmdc_metadata_suggestor_ai_tool.models.resolver_context import ResolverContext
 
@@ -26,7 +26,7 @@ def test_try_osti_retrieve_abstract_success() -> None:
 
     responses.add(
         responses.GET,
-        OSTI_E2_API_URL,
+        OSTI_API_URL,
         json=[{"doi": doi, "description": abstract_text}],
         status=200,
     )
@@ -50,7 +50,7 @@ def test_try_osti_no_description_or_pdf_returns_none() -> None:
 
     responses.add(
         responses.GET,
-        OSTI_E2_API_URL,
+        OSTI_API_URL,
         json=[{"doi": doi, "product_type": "Dataset"}],
         status=200,
     )
@@ -73,7 +73,7 @@ def test_try_osti_uses_osti_pdf_link_for_journal_article() -> None:
 
     responses.add(
         responses.GET,
-        OSTI_E2_API_URL,
+        OSTI_API_URL,
         json=[
             {
                 "product_type": "Journal Article",
@@ -108,7 +108,7 @@ def test_try_osti_pdf_link_without_description_returns_context_with_empty_text()
 
     responses.add(
         responses.GET,
-        OSTI_E2_API_URL,
+        OSTI_API_URL,
         json=[
             {
                 "product_type": "Journal Article",
@@ -139,7 +139,7 @@ def test_try_osti_404_returns_none_with_errors() -> None:
 
     responses.add(
         responses.GET,
-        OSTI_E2_API_URL,
+        OSTI_API_URL,
         status=404,
     )
     responses.add(
@@ -174,17 +174,6 @@ def test_try_osti_abstract_retrieval_real_dois() -> None:
 
     successful = [resolved for resolved in results.values() if resolved and resolved.text]
     assert len(successful) >= 1
-
-
-@integration
-def test_try_osti_waterfall_to_v1_for_known_doi() -> None:
-    """Exercise E2 -> v1 fallback for a DOI known to be inconsistently indexed in E2."""
-    doi = "10.15485/1234567"
-    errors: list[str] = []
-    result = try_osti(doi, errors=errors)
-
-    assert result is None or isinstance(result, ResolverContext)
-    assert (result and result.text) or errors
 
 
 @integration
