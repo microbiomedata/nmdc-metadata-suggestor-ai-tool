@@ -696,7 +696,7 @@ wheels = [
 
 [[package]]
 name = "e2b"
-version = "2.62.0"
+version = "2.63.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs" },
@@ -712,9 +712,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "wcmatch" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/05/2b/c8a6dccf865a092cc817a8d0de87cd91b5a218d72d59a06b8d7dca8e4641/e2b-2.62.0.tar.gz", hash = "sha256:480c447f26c8a3bd6340eef9f3cdbcf78764fddff574aa3270db84e3891ee6a9", size = 270189, upload-time = "2026-10-28T20:24:00.246Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/9a/f7/4d317f3c22992152a934e1f47ec5c6eea61350635a1de628f2c8f4e34987/e2b-2.63.0.tar.gz", hash = "sha256:01c9aa7c8565e9730c6cfa075a10a67a7560db9e11f67458fb1bce21e0e2e0cc", size = 273466, upload-time = "2026-11-04T16:41:31.849Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d7/93/a6e540a6b4a96dd0af69dff089f6e6806b78c359d11367e82b7eeea42337/e2b-2.62.0-py3-none-any.whl", hash = "sha256:8773c829f2537c7543fbcc83610f5b7f295f5db1e02805d92036186880585158", size = 426444, upload-time = "2026-10-28T20:23:58.63Z" },
+    { url = "https://files.pythonhosted.org/packages/0a/24/4777775082b058be6c531bbeadf22d97897953320b24323b8dd45e902231/e2b-2.63.0-py3-none-any.whl", hash = "sha256:fae437d0de051c633e6854260d94c178d7155711387375b5a447b326efdda065", size = 430158, upload-time = "2026-11-04T16:41:30.173Z" },
 ]
 
 [[package]]
@@ -1867,6 +1867,7 @@ dependencies = [
     { name = "claude-agent-sdk" },
     { name = "curl-cffi" },
     { name = "defusedxml" },
+    { name = "e2b" },
     { name = "google-auth" },
     { name = "google-genai" },
     { name = "langfuse" },
@@ -1908,6 +1909,7 @@ requires-dist = [
     { name = "claude-agent-sdk", specifier = ">=0.2.87" },
     { name = "curl-cffi", specifier = ">=0.13.0" },
     { name = "defusedxml", specifier = ">=0.7.1" },
+    { name = "e2b", specifier = ">=2.63.0" },
     { name = "e2b", marker = "extra == 'e2b'", specifier = ">=2.62.0" },
     { name = "google-auth", specifier = ">=2.0.0" },
     { name = "google-genai", specifier = ">=1.62.0" },
