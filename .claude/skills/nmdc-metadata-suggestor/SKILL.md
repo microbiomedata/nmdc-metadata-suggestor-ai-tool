@@ -29,9 +29,12 @@ Three skills fill values, each owning a distinct slice so their suggestions neve
 
 Submission-level suggestions still exist and are distinct from row-level ones: they carry `id: null`
 and describe the study as a whole, while row-level suggestions attach to an individual sample's `id`.
-When a row-level value genuinely cannot be extracted from any source, `sample-value-filling` may
-still point to the slot with an empty `value` and a `reason` (see that skill), so the submitter sees
-which fields remain unfilled and why — rather than a silent gap.
+When a row-level value genuinely cannot be extracted from any source, `sample-value-filling` still
+emits an entry with an empty `value`: always for a **required** slot the row is missing (reason
+`"Required slot; no value found in the available evidence."`, since the submission will not
+validate without it), and sparingly for a clearly relevant non-required slot (with a `reason` saying
+what is missing). Pass these entries through unchanged, so the submitter sees which fields remain
+unfilled rather than a silent gap.
 
 Check the rows in the order they are listed below and use the first one that matches the input. The
 order matters for a request that names specific fields: if it names any non-triad field, it matches

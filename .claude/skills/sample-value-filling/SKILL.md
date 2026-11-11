@@ -95,7 +95,20 @@ SchemaContextBuilder().format_fillable_slots_context(interfaces)
 Read the returned definitions carefully. For each slot they give the `type`, any `pattern`, any
 `Allowed values` (a controlled vocabulary), whether it is `multivalued`, and `min`/`max`. These are
 the constraints your values must satisfy — there is no validation gate downstream, so the only check
-is the one you do here.
+is the one you do here. Slots marked `[required]` must end up with a value, or the submission will
+not validate.
+
+Then list, for **every row**, the required slots that row is still missing. Do this in code — do not
+work it out by reading the definitions:
+
+```python
+builder = SchemaContextBuilder()
+missing = builder.missing_required_slots("SedimentInterface", row)  # one call per row
+# -> ["collection_date", "depth", "elev", "geo_loc_name", "lat_lon", ...]
+```
+
+Pass the interface for the row's `sampleData` group (Step 3). Keep each row's `missing` list — Step 5
+must account for every slot in it.
 
 ---
 
@@ -103,8 +116,8 @@ is the one you do here.
 
 Process rows in chunks of 50 if there are many. For each row, scan the evidence and the slot
 definitions, and emit a suggestion for each slot the evidence supports. A field with no supporting
-evidence for a row is **omitted** by default (see the pointing exception below) — never force a value,
-and never invent one.
+evidence for a row is **omitted** by default — except a missing required slot, which is always
+flagged (see below). Never force a value, and never invent one.
 
 **Value rules:**
 - **Explicit value:** when the source states that specific value for that sample (or for a group the
@@ -120,30 +133,38 @@ and never invent one.
 - **Multivalued slots:** return a list when the slot is `multivalued` and the evidence names several
   values.
 - **Default to omission.** If the evidence does not support a value, omit the suggestion — do not
-  force or invent one (this is the opposite of `env-triad`, which always fills).
-- **Pointing to a slot (empty value, used sparingly).** The one exception to "fill or omit": when a
-  slot is clearly expected for these samples — a required slot, or one the study context shows is
-  directly relevant — but no available source provides its value, you may emit a suggestion with
-  `value: ""` and a `reason` that says what is missing and where that value would have to come from
-  (e.g. `"no sampling depth stated in the study text, abstract, or sample fields; needs the field
-  methods or a supplementary table"`). This is transparent to the submitter: it marks the field as
-  still needing a value and explains why the agent could not supply one, rather than leaving a silent
-  gap. Use it only when the gap is genuinely informative — not for every empty slot.
+  force or invent one (this is the opposite of `env-triad`, which always fills). Missing required
+  slots are the exception; see the next rule.
+- **Missing required slots are always flagged (mandatory).** Every slot in a row's `missing` list
+  from Step 4 gets exactly one entry for that row. If the evidence supports a value, fill it under
+  the rules above. If not, emit the entry anyway with `value: ""` and exactly this reason:
+  `"Required slot; no value found in the available evidence."` Do not add guidance on where the
+  value might come from — the flag alone is the point: the submission will not validate until the
+  submitter supplies it. Never drop a missing required slot silently, and never invent a value to
+  avoid flagging one.
+- **Pointing to a non-required slot (empty value, used sparingly).** When a slot that is *not*
+  required is still clearly relevant — the study context shows these samples should have it — but
+  no available source provides its value, you may emit `value: ""` with a `reason` that says what
+  is missing and where that value would have to come from (e.g. `"no sampling depth stated in the
+  study text, abstract, or sample fields; needs the field methods or a supplementary table"`). Use it
+  only when the gap is genuinely informative — not for every empty slot.
 
 **Reason rules:**
 - Every `reason` must cite specific input text — an exact short quote (up to 12 words) or a
   paraphrase with a source label such as "abstract", "study description", "protocol description",
   "sample field". For an inference, name the evidence the inference rests on.
 - No generic domain justifications without citing input text.
+- The one exception is a required-slot flag (`value: ""`), whose reason is always the fixed string
+  above — there is no input text to cite.
 - Do not reference schema package or interface names (e.g. `WaterInterface`) in reasons.
 
 ---
 
 ## Output format
 
-Return a JSON object matching `LLMOutput`. Emit one entry per `(row, field)` pair you fill or point
-to. Every entry carries the row's `id`. Do **not** set `provenance` — this skill has no validation
-gate.
+Return a JSON object matching `LLMOutput`. Emit one entry per `(row, field)` pair you fill, flag as
+required, or point to. Every entry carries the row's `id`. Do **not** set `provenance` — this skill
+has no validation gate.
 
 ```json
 {
@@ -171,6 +192,12 @@ gate.
       "field_name": "depth",
       "value": "10 m",
       "reason": "Sample table lists this sample at 'depth 10 m' (sample field)."
+    },
+    {
+      "id": "SAMP_002",
+      "field_name": "lat_lon",
+      "value": "",
+      "reason": "Required slot; no value found in the available evidence."
     }
   ]
 }
