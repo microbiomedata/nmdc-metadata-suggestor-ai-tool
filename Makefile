@@ -9,7 +9,7 @@
 # Background: docs/makefile-phony.md.
 FILE_TARGETS =
 
-.PHONY: help all-install prod-install dev-install test test-integration lint check-phony format security check-deps clean validate-doi classify-doi classify-fixture get-abstract get-abstracts
+.PHONY: help all-install prod-install dev-install test test-integration lint check-phony format security check-deps clean validate-doi classify-doi classify-fixture get-abstract get-abstracts litellm
 
 help: ## Show this help message
 	@echo "Usage: make [target]"
@@ -81,3 +81,8 @@ get-abstract: ## Fetch abstract for a DOI (usage: make get-abstract DOI=10.1038/
 
 get-abstracts: ## Fetch abstracts for all publication DOIs in the fixture
 	$(DOI_CLI) get-abstracts
+
+litellm: ## Run a local LiteLLM proxy (Anthropic-compatible) for testing non-Claude models in agentic() (PORT=4000)
+	set -a && . ./.env && set +a && \
+	LITELLM_MASTER_KEY=$${LITELLM_MASTER_KEY:-sk-local-litellm} \
+	uvx --from 'litellm[proxy]' --with google-auth litellm --config deploy/litellm/config.yaml --port $${PORT:-4000}

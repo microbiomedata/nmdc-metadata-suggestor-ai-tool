@@ -71,6 +71,34 @@ DEFAULT_MAX_TOKENS_BY_PROVIDER: dict[str, int] = {
 }
 
 
+def litellm_proxy_env(model: str) -> dict[str, str]:
+    """Env overrides that route the Agent SDK through a LiteLLM proxy, if one is configured.
+
+    Set ``LITELLM_BASE_URL`` (and optionally ``LITELLM_MASTER_KEY``) in ``.env`` to opt in;
+    see ``deploy/litellm/config.yaml``. Returns ``{}`` when unset, so the default
+    Claude-on-Vertex path is unchanged. Every model tier the CLI may call (including
+    background "small fast" requests) is pinned to ``model`` so nothing bypasses the proxy.
+    """
+    base_url = secrets.get("LITELLM_BASE_URL")
+    if not base_url:
+        return {}
+    return {
+        "ANTHROPIC_BASE_URL": base_url,
+        "ANTHROPIC_AUTH_TOKEN": secrets.get("LITELLM_MASTER_KEY") or "sk-local-litellm",
+        # The proxy speaks the Anthropic API; disable direct Vertex routing.
+        "CLAUDE_CODE_USE_VERTEX": "0",
+        # Behind a custom base URL the CLI assumes first-party API features and sends
+        # native structured outputs, which Vertex org policy blocks for partner models
+        # and which skips the StructuredOutput tool our parser reads. Keep the request
+        # shape the same as the direct Vertex path.
+        "CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS": "1",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL": model,
+        "ANTHROPIC_DEFAULT_SONNET_MODEL": model,
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL": model,
+        "ANTHROPIC_SMALL_FAST_MODEL": model,
+    }
+
+
 def build_agent_options(
     model: str,
     *,
@@ -623,7 +651,7 @@ class ConversationManager:
 
         """
         model = (
-            DEFAULT_CLAUDE_MODEL
+            "claude-opus-4-6"  # A/B via LiteLLM proxy; was "gemini-3.8-flash"
             if self.llm_client.access_provider == "gcp"
             else self.llm_client.model
         )
@@ -631,6 +659,7 @@ class ConversationManager:
             model,
             system_prompt=orchestrator_prompt,
             output_format={"type": "json_schema", "schema": LLMOutput.model_json_schema()},
+            env=litellm_proxy_env(model),
         )
 
         if message is None:

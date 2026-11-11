@@ -1,0 +1,51 @@
+# LiteLLM proxy for running the Claude Agent SDK path (ConversationManager.agentic)
+# against non-Claude Vertex models. The proxy exposes an Anthropic-compatible
+# /v1/messages endpoint and translates requests to Vertex Gemini.
+#
+# Start:  make litellm          (reads .env for VERTEX_PROJECT_ID etc.)
+# Use:    set LITELLM_BASE_URL=http://localhost:4000 in .env, then call agentic()
+#
+# `model_name` is what the agent asks for; `model` is what Vertex actually serves.
+# Claude entries are included so both models can be compared through the same
+# proxy (same latency overhead, same Langfuse/proxy logging).
+
+model_list:
+  # --- Gemini (non-Claude) ---
+  - model_name: gemini-2.5-flash
+    litellm_params:
+      model: vertex_ai/gemini-2.5-flash
+      vertex_project: os.environ/VERTEX_PROJECT_ID
+      vertex_location: os.environ/GCP_REGION
+      vertex_credentials: os.environ/GOOGLE_APPLICATION_CREDENTIALS
+
+  - model_name: gemini-2.5-pro
+    litellm_params:
+      model: vertex_ai/gemini-2.5-pro
+      vertex_project: os.environ/VERTEX_PROJECT_ID
+      vertex_location: os.environ/GCP_REGION
+      vertex_credentials: os.environ/GOOGLE_APPLICATION_CREDENTIALS
+
+  # Newer Gemini models are often served only from the "global" location.
+  - model_name: gemini-3.8-flash
+    litellm_params:
+      model: vertex_ai/gemini-3.8-flash
+      vertex_project: os.environ/VERTEX_PROJECT_ID
+      vertex_location: global
+      vertex_credentials: os.environ/GOOGLE_APPLICATION_CREDENTIALS
+
+  # --- Claude baseline (same proxy, for apples-to-apples comparison) ---
+  - model_name: claude-opus-4-6
+    litellm_params:
+      model: vertex_ai/claude-opus-4-6
+      vertex_project: os.environ/VERTEX_PROJECT_ID
+      vertex_location: us-east5
+      vertex_credentials: os.environ/GOOGLE_APPLICATION_CREDENTIALS
+
+litellm_settings:
+  # Claude Code sends Anthropic-only params (thinking, cache_control, betas).
+  # Drop what the target model can't accept instead of failing the request.
+  drop_params: true
+  request_timeout: 600
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
