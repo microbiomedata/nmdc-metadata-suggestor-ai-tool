@@ -35,19 +35,25 @@ output, produced by executing the skill's instructions by hand (not a headless a
 uv run python .claude/skills/sample-value-filling/eval/score.py
 ```
 
-## Results (2026-10-21)
+## Results (2026-10-21, required-slot flags added 2026-11-11)
 
-- **Schema:** validates as `LLMOutput`; 12 entries; no `provenance` (correct — no gate on this path).
-- **Patterns:** 0 failures. Every `geo_loc_name` and `collection_date` matches its SedimentInterface
+- **Schema:** validates as `LLMOutput`; 42 entries (12 filled, 30 required-slot flags); no
+  `provenance` (correct — no gate on this path).
+- **Patterns:** 0 failures (empty required-slot flags are not pattern-checked). Every `geo_loc_name` and `collection_date` matches its SedimentInterface
   regex.
 - **`geo_loc_name`:** 6/6 correct country and state/province, extracted per row. The specific
   locality reflects the water body named in each description (e.g. "Como Creek") rather than ground
   truth's nearest town ("Nederland") — both correct, drawn faithfully from the given text.
 - **`collection_date`:** 6/6 correct year (`2019`), inferred study-wide. Coarser than the exact dates
   because the study text gave only the campaign span — the honest precision, not a fabricated day.
-- **Restraint:** `lat_lon`, `elev`, `depth`, `collection_time`, `samp_mat_process` were all omitted.
-  No coordinates, elevations, depths, times, or processing in the evidence, so none emitted — even
-  though several are *required* slots.
+- **Restraint:** no value was invented for `lat_lon`, `elev`, `depth`, `collection_time`, or
+  `samp_mat_process` — the evidence has no coordinates, elevations, depths, times, or processing.
+  The non-required ones (`collection_time`, `samp_mat_process`) are absent from the output.
+- **Required-slot flags:** every required slot a row is missing is accounted for. `depth`, `elev`,
+  `lat_lon`, `samp_store_temp`, and `analysis_type` are flagged on all 6 rows with `value: ""` and
+  the fixed reason `"Required slot; no value found in the available evidence."` None is dropped
+  silently. (These 30 flags were added on 2026-11-11 by applying the new mandatory-flag rule to the
+  original hand-run output via `missing_required_slots`; the 12 filled values are unchanged.)
 
 ## Caveat
 

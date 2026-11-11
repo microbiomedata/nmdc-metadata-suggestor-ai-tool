@@ -7,6 +7,8 @@ Offline and deterministic: it reads the captured artifacts in this directory
 2. Every emitted value is checked against its SedimentInterface slot pattern.
 3. Emitted values are compared to ground truth captured from the NMDC API, and
    the fields the skill declined to fill are listed (the restraint check).
+4. Every required slot a row is missing is either filled or flagged as required
+   (an entry with an empty value and the fixed required-slot reason).
 
 Run with: ``uv run python .claude/skills/sample-value-filling/eval/score.py``
 """
@@ -18,13 +20,15 @@ import re
 from pathlib import Path
 
 from nmdc_metadata_suggestor_ai_tool.models.llm_output import LLMOutput
-from nmdc_metadata_suggestor_ai_tool.schema_context import get_schema_view
+from nmdc_metadata_suggestor_ai_tool.schema_context import SchemaContextBuilder, get_schema_view
 
 HERE = Path(__file__).resolve().parent
 INTERFACE = "SedimentInterface"
-# Slots whose absence from the output is the correct answer for this submission:
-# the evidence names no coordinates, elevations, depths, times, or processing.
-EXPECTED_OMISSIONS = ("lat_lon", "elev", "depth", "collection_time", "samp_mat_process")
+# Slots that must not be filled for this submission: the evidence names no coordinates,
+# elevations, depths, times, or processing. Required ones among them are flagged with an
+# empty value instead; non-required ones should be absent from the output entirely.
+EXPECTED_UNFILLED = ("lat_lon", "elev", "depth", "collection_time", "samp_mat_process")
+REQUIRED_REASON = "Required slot; no value found in the available evidence."
 
 
 def load_json(name: str) -> dict | list:
@@ -39,6 +43,8 @@ def slot_patterns() -> dict[str, str]:
 def main() -> None:
     output = LLMOutput.model_validate(load_json("llm_output.json"))
     truth = {row["samp_name"]: row for row in load_json("ground_truth.json")}
+    submission = load_json("submission.json")
+    rows = submission["metadata_submission"]["sampleData"]["sediment_data"]
     patterns = slot_patterns()
 
     print(f"Pydantic validation: OK ({len(output.metadata_fields)} entries)")
@@ -46,7 +52,9 @@ def main() -> None:
     pattern_failures = [
         (f.id, f.field_name, f.value)
         for f in output.metadata_fields
-        if f.field_name in patterns and not re.match(patterns[f.field_name], str(f.value))
+        if f.value != ""
+        and f.field_name in patterns
+        and not re.match(patterns[f.field_name], str(f.value))
     ]
     print(f"Slot-pattern failures: {pattern_failures or 'none'}")
 
@@ -72,12 +80,29 @@ def main() -> None:
         year_ok = real[:4] == str(f.value)
         print(f"  {f.id:30} emit={f.value!r:8} real={real!r:14} year={'OK' if year_ok else 'X'}")
 
-    emitted = {f.field_name for f in output.metadata_fields}
-    print("\nfields emitted:", sorted(emitted))
-    print("correctly omitted (no evidence):", sorted(set(EXPECTED_OMISSIONS) - emitted))
-    leaked = sorted(set(EXPECTED_OMISSIONS) & emitted)
+    filled = {f.field_name for f in output.metadata_fields if f.value != ""}
+    flagged = {f.field_name for f in output.metadata_fields if f.value == ""}
+    print("\nfields filled:", sorted(filled))
+    print("fields flagged with an empty value:", sorted(flagged))
+    print("correctly left unfilled (no evidence):", sorted(set(EXPECTED_UNFILLED) - filled))
+    leaked = sorted(set(EXPECTED_UNFILLED) & filled)
     if leaked:
-        print("WARNING: emitted fields that have no supporting evidence:", leaked)
+        print("WARNING: filled fields that have no supporting evidence:", leaked)
+
+    print("\nrequired-slot coverage (every missing required slot filled or flagged):")
+    builder = SchemaContextBuilder()
+    by_cell = {(f.id, f.field_name): f for f in output.metadata_fields}
+    gaps: list[tuple[str, str]] = []
+    bad_reasons: list[tuple[str, str]] = []
+    for row in rows:
+        for slot in builder.missing_required_slots(INTERFACE, row):
+            entry = by_cell.get((row["samp_name"], slot))
+            if entry is None:
+                gaps.append((row["samp_name"], slot))
+            elif entry.value == "" and entry.reason != REQUIRED_REASON:
+                bad_reasons.append((row["samp_name"], slot))
+    print(f"  silently dropped: {gaps or 'none'}")
+    print(f"  flagged with a non-standard reason: {bad_reasons or 'none'}")
 
 
 if __name__ == "__main__":
