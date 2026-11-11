@@ -15,6 +15,7 @@ from linkml_runtime.linkml_model import SlotDefinition  # type: ignore[import-un
 from linkml_runtime.utils.schemaview import SchemaView  # type: ignore[import-untyped]
 
 from nmdc_metadata_suggestor_ai_tool.constants import (
+    ENV_TRIAD_SLOTS,
     EXCLUDED_INTERFACE_CLASSES,
     EXCLUDED_SLOTS,
     INTERFACE_CLASS_SUFFIX,
@@ -37,10 +38,17 @@ def get_schema_view() -> SchemaView:
         return SchemaView(str(schema_path))
 
 
-def format_slot(slot: SlotInfo) -> list[str]:
-    """Format a single slot as Markdown lines for LLM context."""
+def format_slot(slot: SlotInfo, show_required: bool = False) -> list[str]:
+    """Format a single slot as Markdown lines for LLM context.
+
+    ``show_required`` adds a ``required`` marker for required slots. It defaults
+    to ``False`` so ``format_interface_context`` output is unchanged (that path
+    filters required slots out before formatting, so the marker never applied).
+    """
     slot_lines: list[str] = []
     markers: list[str] = []
+    if show_required and slot.required:
+        markers.append("required")
     if slot.recommended:
         markers.append("recommended")
     marker_str = f" [{', '.join(markers)}]" if markers else ""
@@ -64,6 +72,45 @@ def format_slot(slot: SlotInfo) -> list[str]:
         values_text = ", ".join(ev.text for ev in slot.enum_values)
         slot_lines.append(f"  Allowed values: {values_text}")
     return slot_lines
+
+
+def format_slot_groups(slots: list[SlotInfo], show_required: bool = False) -> list[str]:
+    """Group slots by ``slot_group`` and format each group as Markdown lines.
+
+    Shared body for ``format_interface_context`` and ``format_fillable_interface_context``,
+    which differ only in which slots they pass in and whether required slots are marked.
+    Groups are emitted in sorted order, then any ungrouped slots under "Other fields".
+
+    ``slot_group`` is the MIxS section a slot belongs to (e.g. ``mixs_core_section``). It is
+    used here only to lay the Markdown out under section headings -- it is not a new
+    categorization. A slot with no ``slot_group`` falls under a final ``## Other fields``
+    heading. For example, a slot whose ``slot_group`` is ``mixs_core_section`` renders as::
+
+        ## mixs_core_section
+        - **ph**
+          pH of the sample
+          (type: float)
+    """
+    grouped: dict[str, list[SlotInfo]] = defaultdict(list)
+    ungrouped: list[SlotInfo] = []
+    for slot in slots:
+        if slot.slot_group:
+            grouped[slot.slot_group].append(slot)
+        else:
+            ungrouped.append(slot)
+
+    lines: list[str] = []
+    for group_name in sorted(grouped):
+        lines.append(f"\n## {group_name}")
+        for slot in grouped[group_name]:
+            lines.extend(format_slot(slot, show_required=show_required))
+
+    if ungrouped:
+        lines.append("\n## Other fields")
+        for slot in ungrouped:
+            lines.extend(format_slot(slot, show_required=show_required))
+
+    return lines
 
 
 class SchemaContextBuilder:
@@ -244,25 +291,7 @@ class SchemaContextBuilder:
         if filtered_schema.ancestors:
             lines.append(f"Ancestors: {', '.join(filtered_schema.ancestors)}")
 
-        # Group slots by slot_group
-        grouped: dict[str, list[SlotInfo]] = defaultdict(list)
-        ungrouped: list[SlotInfo] = []
-        for slot in filtered_schema.slots:
-            if slot.slot_group:
-                grouped[slot.slot_group].append(slot)
-            else:
-                ungrouped.append(slot)
-
-        for group_name in filtered_schema.slot_groups:
-            if group_name in grouped:
-                lines.append(f"\n## {group_name}")
-                for slot in grouped[group_name]:
-                    lines.extend(format_slot(slot))
-
-        if ungrouped:
-            lines.append("\n## Other fields")
-            for slot in ungrouped:
-                lines.extend(format_slot(slot))
+        lines.extend(format_slot_groups(filtered_schema.slots))
 
         return "\n".join(lines)
 
@@ -285,8 +314,84 @@ class SchemaContextBuilder:
     @observe(name="env_triad_schema_context", as_type="span", capture_output=False)
     def format_env_triad_context(self, class_names: list[str]) -> str:
         """Convenience method to format context specifically for the env triad slots."""
-        env_triad_slots = ["env_broad_scale", "env_local_scale", "env_medium"]
         sections = [
-            self.format_specific_slots_context(name, env_triad_slots) for name in class_names
+            self.format_specific_slots_context(name, list(ENV_TRIAD_SLOTS)) for name in class_names
         ]
         return "\n\n---\n\n".join(sections)
+
+    def format_fillable_interface_context(self, class_name: str) -> str:
+        """Format every per-row slot a general value filler may populate for one interface.
+
+        This differs from ``format_interface_context`` in what it keeps. That method
+        filters out required slots; here they are kept and marked ``required``, because a
+        required slot the submitter still has to fill is a prime suggestion target. Dropped:
+        deprecated slots, the slots in ``EXCLUDED_SLOTS`` (the five GOLD ecosystem slots plus
+        ``collection_date_inc``), and the three ``ENV_TRIAD_SLOTS`` -- the env-triad skill owns
+        those, so leaving them out keeps the two per-row fillers from suggesting the same field.
+        """
+        schema = self.get_interface_schema(class_name)
+        excluded = EXCLUDED_SLOTS | set(ENV_TRIAD_SLOTS)
+        slots = [s for s in schema.slots if s.name not in excluded and not s.deprecated]
+
+        required_count = sum(1 for s in slots if s.required)
+        recommended_count = sum(1 for s in slots if s.recommended)
+
+        lines: list[str] = [f"# {class_name} (fillable fields)"]
+        if schema.description:
+            lines.append(f"\n{schema.description}")
+        lines.append(f"\nTotal fields: {len(slots)} | ")
+        if required_count:
+            lines.append(f"Required: {required_count} | ")
+        if recommended_count:
+            lines.append(f"Recommended: {recommended_count} | ")
+        if schema.ancestors:
+            lines.append(f"Ancestors: {', '.join(schema.ancestors)}")
+
+        lines.extend(format_slot_groups(slots, show_required=True))
+
+        return "\n".join(lines)
+
+    @observe(name="fillable_schema_context", as_type="span", capture_output=False)
+    def format_fillable_slots_context(self, class_names: list[str]) -> str:
+        """Format fillable per-row slots across multiple interfaces, divider-separated.
+
+        Primary schema method for the ``sample-value-filling`` skill. See
+        ``format_fillable_interface_context`` for what is kept and what is dropped.
+        """
+        sections = [self.format_fillable_interface_context(name) for name in class_names]
+        return "\n\n---\n\n".join(sections)
+
+    def required_fillable_slots(self, class_name: str) -> list[str]:
+        """Names of the required slots a general value filler is responsible for.
+
+        Same exclusions as ``format_fillable_interface_context`` (deprecated slots,
+        ``EXCLUDED_SLOTS``, and the env triad, which env-triad owns), in schema order.
+        """
+        schema = self.get_interface_schema(class_name)
+        excluded = EXCLUDED_SLOTS | set(ENV_TRIAD_SLOTS)
+        return [
+            s.name
+            for s in schema.slots
+            if s.required and not s.deprecated and s.name not in excluded
+        ]
+
+    def missing_required_slots(self, class_name: str, row: dict) -> list[str]:
+        """Required fillable slots that have no value in one sample row.
+
+        A slot counts as missing when the row lacks the key or its value is ``None``,
+        an empty or whitespace-only string, or an empty list. These are the slots the
+        ``sample-value-filling`` skill must either fill or flag as required: a row
+        missing any of them will not validate.
+
+        For example, a SedimentInterface row holding only ``samp_name`` and an empty
+        ``geo_loc_name`` returns ``["collection_date", "depth", "elev", "geo_loc_name",
+        ...]`` -- every required slot except ``samp_name``.
+        """
+        missing: list[str] = []
+        for name in self.required_fillable_slots(class_name):
+            value = row.get(name)
+            is_blank_str = isinstance(value, str) and not value.strip()
+            is_empty_list = isinstance(value, list) and not value
+            if value is None or is_blank_str or is_empty_list:
+                missing.append(name)
+        return missing

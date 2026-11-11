@@ -15,6 +15,8 @@ builder = SchemaContextBuilder()
 
 **For full metadata suggestions** — call `format_multi_interface_context(mixs_extensions)` with interface names from the parsed submission (e.g. `["SoilInterface"]`).
 
+**For per-row value filling (`sample-value-filling`)** — call `format_fillable_slots_context(class_names)`, which keeps required slots and marks them `[required]` (the full-suggestion method above drops them). Then call `missing_required_slots(class_name, row)` for each row to get the required slots that row still lacks; each must be filled or flagged as required.
+
 **For env triad only** — call `format_env_triad_context(class_names)`, which returns only the `env_broad_scale`, `env_local_scale`, and `env_medium` slot definitions.
 
 For the full method reference and slot filtering rules, see [refs/methods.md](refs/methods.md).
