@@ -289,3 +289,30 @@ def test_format_fillable_all_interfaces_run_clean() -> None:
         assert ctx.startswith(f"# {interface} (fillable fields)")
         for slot in forbidden:
             assert f"**{slot}**" not in ctx
+
+
+def test_required_fillable_slots_excludes_triad() -> None:
+    """Required fillable slots skip the env triad (env-triad's job) but keep the rest."""
+    required = SchemaContextBuilder().required_fillable_slots("SedimentInterface")
+    assert "geo_loc_name" in required
+    assert "lat_lon" in required
+    for slot in ENV_TRIAD_SLOTS:
+        assert slot not in required
+
+
+def test_missing_required_slots_finds_blank_and_absent() -> None:
+    """Absent keys, None, blank strings, and empty lists all count as missing."""
+    builder = SchemaContextBuilder()
+    row = {
+        "samp_name": "S1",
+        "geo_loc_name": "  ",
+        "collection_date": None,
+        "lat_lon": [],
+        "depth": "0.1 m",
+    }
+    missing = builder.missing_required_slots("SedimentInterface", row)
+    assert "samp_name" not in missing
+    assert "depth" not in missing
+    for slot in ("geo_loc_name", "collection_date", "lat_lon", "elev"):
+        assert slot in missing
+    assert set(missing) <= set(builder.required_fillable_slots("SedimentInterface"))

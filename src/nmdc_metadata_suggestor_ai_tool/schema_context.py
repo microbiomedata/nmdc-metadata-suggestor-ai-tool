@@ -360,3 +360,38 @@ class SchemaContextBuilder:
         """
         sections = [self.format_fillable_interface_context(name) for name in class_names]
         return "\n\n---\n\n".join(sections)
+
+    def required_fillable_slots(self, class_name: str) -> list[str]:
+        """Names of the required slots a general value filler is responsible for.
+
+        Same exclusions as ``format_fillable_interface_context`` (deprecated slots,
+        ``EXCLUDED_SLOTS``, and the env triad, which env-triad owns), in schema order.
+        """
+        schema = self.get_interface_schema(class_name)
+        excluded = EXCLUDED_SLOTS | set(ENV_TRIAD_SLOTS)
+        return [
+            s.name
+            for s in schema.slots
+            if s.required and not s.deprecated and s.name not in excluded
+        ]
+
+    def missing_required_slots(self, class_name: str, row: dict) -> list[str]:
+        """Required fillable slots that have no value in one sample row.
+
+        A slot counts as missing when the row lacks the key or its value is ``None``,
+        an empty or whitespace-only string, or an empty list. These are the slots the
+        ``sample-value-filling`` skill must either fill or flag as required: a row
+        missing any of them will not validate.
+
+        For example, a SedimentInterface row holding only ``samp_name`` and an empty
+        ``geo_loc_name`` returns ``["collection_date", "depth", "elev", "geo_loc_name",
+        ...]`` -- every required slot except ``samp_name``.
+        """
+        missing: list[str] = []
+        for name in self.required_fillable_slots(class_name):
+            value = row.get(name)
+            is_blank_str = isinstance(value, str) and not value.strip()
+            is_empty_list = isinstance(value, list) and not value
+            if value is None or is_blank_str or is_empty_list:
+                missing.append(name)
+        return missing
