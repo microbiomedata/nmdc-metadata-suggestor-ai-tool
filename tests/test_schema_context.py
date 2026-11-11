@@ -303,7 +303,7 @@ def test_required_fillable_slots_excludes_triad() -> None:
 def test_missing_required_slots_finds_blank_and_absent() -> None:
     """Absent keys, None, blank strings, and empty lists all count as missing."""
     builder = SchemaContextBuilder()
-    row = {
+    row: dict[str, object] = {
         "samp_name": "S1",
         "geo_loc_name": "  ",
         "collection_date": None,
