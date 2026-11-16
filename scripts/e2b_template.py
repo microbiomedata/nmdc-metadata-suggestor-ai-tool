@@ -49,8 +49,12 @@ IGNORE = [
 
 template = (
     Template(file_context_path=REPO, file_ignore_patterns=IGNORE)
-    .from_python_image("3.12")
-    .run_cmd("pip install --quiet uv", user="root")
+    .from_python_image("3.12-slim")
+    .run_cmd(
+        "apt-get update && apt-get install -y --no-install-recommends ca-certificates openssl "
+        "&& rm -rf /var/lib/apt/lists/* && pip install --quiet --no-cache-dir uv",
+        user="root",
+    )
     .set_envs(
         {
             # Keep the ENVO cache at a fixed path regardless of which user runs.
@@ -60,11 +64,16 @@ template = (
         }
     )
     # Dependencies first, in their own layer, so code changes don't reinstall them.
+    # Clean uv's wheel cache in the same layer instead of --no-cache: uv hardlinks from
+    # /root/.cache/uv into .venv on /, avoiding a cross-filesystem copy through /tmp.
     .copy(["pyproject.toml", "uv.lock", "README.md", "LICENSE"], f"{APP}/", user="root")
-    .run_cmd(f"cd {APP} && uv sync --frozen --no-dev --no-install-project", user="root")
+    .run_cmd(
+        f"cd {APP} && uv sync --frozen --no-dev --no-install-project && rm -rf /root/.cache/uv",
+        user="root",
+    )
     .copy("src", f"{APP}/src", user="root")
     .copy(".claude/skills", f"{APP}/.claude/skills", user="root")
-    .run_cmd(f"cd {APP} && uv sync --frozen --no-dev", user="root")
+    .run_cmd(f"cd {APP} && uv sync --frozen --no-dev && rm -rf /root/.cache/uv", user="root")
     # Fail the build early if the bundled CLI is missing or can't run on this image.
     .run_cmd(
         f"{APP}/.venv/bin/python -c "
@@ -77,13 +86,14 @@ template = (
     .run_cmd(
         f"{APP}/.venv/bin/python -c "
         "\"from oaklib import get_adapter; get_adapter('sqlite:obo:envo'); "
-        "print('ENVO cache warm')\"",
+        "print('ENVO cache warm')\" "
+        f"&& find {APP}/data -name '*.gz' -delete",
         user="root",
     )
     # Code and venv: readable by the sandbox user, writable only by root (used for the
     # fresh-wheel install). The pystow/ENVO cache must stay writable: pystow writes to
     # its home on import, and oaklib may write lock/index files next to the database.
-    .run_cmd(f"chmod -R a+rX {APP} && chmod -R a+rwX {APP}/data", user="root")
+    .run_cmd(f"chmod -R a+rX {APP} && chmod -R a+rwX {APP}/data && df -h /", user="root")
     .set_workdir(APP)
 )
 
@@ -93,6 +103,12 @@ def main() -> None:
     parser.add_argument("--name", default="nmdc-agent", help="template name")
     parser.add_argument("--cpu", type=int, default=2)
     parser.add_argument("--memory-mb", type=int, default=4096)
+    parser.add_argument(
+        "--min-free-disk-mb",
+        type=int,
+        default=2048,
+        help="minimum free disk space after build (MiB)",
+    )
     parser.add_argument("--skip-cache", action="store_true", help="rebuild every layer")
     args = parser.parse_args()
 
@@ -105,6 +121,7 @@ def main() -> None:
         args.name,
         cpu_count=args.cpu,
         memory_mb=args.memory_mb,
+        min_free_disk_mb=args.min_free_disk_mb,
         skip_cache=args.skip_cache,
         on_build_logs=default_build_logger(),
         api_key=api_key,
