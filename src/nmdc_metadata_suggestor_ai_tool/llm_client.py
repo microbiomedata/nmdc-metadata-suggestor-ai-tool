@@ -46,8 +46,8 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_GCP_REGION = "us-east5"
 DEFAULT_PNNL_MODEL = "gpt-6-luna"
-DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
-DEFAULT_CLAUDE_MODEL = "claude-opus-4-6"
+DEFAULT_GEMINI_MODEL = "gemini-3.8-flash"
+DEFAULT_CLAUDE_MODEL = "claude-opus-5-5"
 DEFAULT_MAX_TOKENS_BY_PROVIDER: dict[str, int] = {
     "pnnl": 128000,
     "cborg": 128000,
