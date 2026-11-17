@@ -1,0 +1,15 @@
+# Never ship secrets or local state into images.
+.env
+.env.*
+**/settings.local.json
+**/*credentials*.json
+service-account.json
+**/*.pem
+**/*.key
+# Local build/state noise.
+.git
+.venv
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.ruff_cache
