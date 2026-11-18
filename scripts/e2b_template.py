@@ -136,7 +136,6 @@ def main() -> None:
     parser.add_argument("--image", help="base image built from the Dockerfile")
     parser.add_argument(
         "--no-docker",
-        default=True,
         action="store_true",
         help="experimental: install deps with E2B build steps instead of a prebuilt image",
     )

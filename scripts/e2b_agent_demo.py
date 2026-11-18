@@ -23,6 +23,7 @@ The sandbox only gets a placeholder secret key.
     uv run --extra e2b python scripts/e2b_agent_demo.py env-triad --langfuse \\
         --gcp-credentials ~/keys/nmdc-e2b-trial.json
 """
+import ipaddress
 
 import argparse
 import json
@@ -33,10 +34,9 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from e2b_demo import OUT_DIR, REPO, TEMPLATE_VENV, build_wheel, e2b_api_key, env_value, log
-from e2b_langfuse_secret import SECRET_NAME as LANGFUSE_SECRET
 
 try:
-    from e2b import CommandExitException, Sandbox, Secret
+    from e2b import CommandExitException, Sandbox
 except ImportError:
     sys.exit("e2b is not installed. Run: uv sync --extra e2b")
 
@@ -57,30 +57,28 @@ SYSTEM_CA_BUNDLE = "/etc/ssl/certs/ca-certificates.crt"
 def langfuse_setup(agent_env: dict[str, str], network: dict) -> str:
     """Point the sandbox at Langfuse and have the egress proxy add the real auth."""
     public_key = env_value("LANGFUSE_PUBLIC_KEY")
-    base_url = env_value("LANGFUSE_BASE_URL") or "https://us.cloud.langfuse.com"
+    base_url = env_value("LANGFUSE_BASE_URL")
     if not public_key:
         sys.exit("--langfuse needs LANGFUSE_PUBLIC_KEY in .env or the shell.")
     host = urlparse(base_url).hostname
-    if not host or urlparse(base_url).scheme != "https":
-        # The proxy only injects secrets into HTTPS requests.
-        sys.exit(f"LANGFUSE_BASE_URL must be an https URL, got {base_url!r}.")
+    if not host or urlparse(base_url).scheme != "http":
+        # The proxy only injects secrets into HTTP requests.
+        sys.exit(f"LANGFUSE_BASE_URL must be an http URL, got {base_url!r}.")
     agent_env.update(
         {
-            "LANGFUSE_PUBLIC_KEY": public_key,
-            "LANGFUSE_SECRET_KEY": LANGFUSE_PLACEHOLDER_SECRET,
-            "LANGFUSE_BASE_URL": base_url,
-            "LANGFUSE_TRACING_ENVIRONMENT": env_value("LANGFUSE_TRACING_ENVIRONMENT") or "local",
-            # Injecting the header means E2B's proxy terminates TLS with its own cert.
-            # requests (and so the OTel exporter) trusts only certifi's bundle by default
-            # and rejects it; point both at the system store, which trusts the proxy.
-            "REQUESTS_CA_BUNDLE": SYSTEM_CA_BUNDLE,
-            "SSL_CERT_FILE": SYSTEM_CA_BUNDLE,
-            "OTEL_EXPORTER_OTLP_CERTIFICATE": SYSTEM_CA_BUNDLE,
+        "LANGFUSE_PUBLIC_KEY": public_key,
+        "LANGFUSE_SECRET_KEY": LANGFUSE_PLACEHOLDER_SECRET,
+        "LANGFUSE_BASE_URL": base_url.rstrip("/"),
+        "LANGFUSE_TRACING_ENVIRONMENT": env_value("LANGFUSE_TRACING_ENVIRONMENT") or "local",
         }
     )
-    auth = f"Basic {Secret.fill(LANGFUSE_SECRET)}"
-    network["allow_out"] = [*network["allow_out"], host]
-    network["rules"] = {host: [{"transform": {"headers": {"Authorization": auth}}}]}
+    try:
+        ipaddress.ip_address(host)
+        allow_entry = f"{host}/32"
+    except ValueError:
+        allow_entry = host
+
+    network["allow_out"] = [*network["allow_out"], f"{host}/32"]
     return host
 
 
@@ -131,8 +129,6 @@ def main() -> None:
     network: dict = {"allow_out": ALLOWED_HOSTS, "deny_out": lambda ctx: [ctx.all_traffic]}
     langfuse_host = None
     if args.langfuse:
-        if not Secret.exists(LANGFUSE_SECRET, api_key=api_key):
-            sys.exit(f"E2B secret {LANGFUSE_SECRET!r} not found: run e2b_langfuse_secret.py.")
         langfuse_host = langfuse_setup(agent_env, network)
 
     start = time.time()
