@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 @observe(name="recommendation_pipeline", as_type="span", capture_input=False, capture_output=False)
 def run_recommendation_pipeline(
     submission_object: dict,
+    sample_set_object: dict,
     llm_client: LLMClient,
     interface_name: str | None = None,
     max_tokens: int | None = None,
@@ -39,7 +40,7 @@ def run_recommendation_pipeline(
     conversation_manager = ConversationManager(
         llm_client=llm_client, system_prompt=system_prompt
     )  # initialize the conversation manager with the LLM client
-    parsed_submission_object = get_submission_fields(submission_object=submission_object)
+    parsed_submission_object = get_submission_fields(submission_object=submission_object, sample_set_object=sample_set_object)
     # adds info to the conversation object
     messages, pdf_files = build_submission_context(
         parsed_submission_object=parsed_submission_object

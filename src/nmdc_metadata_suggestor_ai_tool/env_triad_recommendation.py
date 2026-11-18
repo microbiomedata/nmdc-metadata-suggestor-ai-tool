@@ -60,6 +60,7 @@ def get_env_triad_recommendation(
     samples: list[dict],
     study_context: list[Any] | None = None,
     submission_object: dict | None = None,
+    sample_set_object: dict | None = None,
     interface_names: list[str] | None = None,
     max_tokens: int | None = None,
     chunk_size: int = 50,
@@ -84,12 +85,14 @@ def get_env_triad_recommendation(
         llm_client = LLMClient(access_provider="gcp")
         # full object
         submission_object = {"fields":"yay"}
+        sample_set_object = {"fields":"yay"}
         # break out which page the user is on and send those samples
         samples = submission_object.get("metadata_submission").get("sampleData")["water_data"]
         # send the interface tab name as well
         interface_names = ["water"]
         result = get_env_triad_recommendation(
             submission_object=submission_object,
+            sample_set_object=sample_set_object,
             samples=samples,
             llm_client=llm_client,
             interface_names=interface_names,
@@ -101,6 +104,7 @@ def get_env_triad_recommendation(
         study_context: Optional contextual information for the LLM to generate recommendations.
         samples: A list of sample records to generate the env triad for.
         submission_object: Optional submission object containing metadata fields.
+        sample_set_object: Optional sample set object containing additional metadata fields.
         llm_client: LLMClient instance used for model interaction and configuration.
         interface_names: Optional list of specific interface names to focus on for schema context.
             If None, defaults to all interfaces -- roughly 51 KB of value sets, which costs
@@ -126,7 +130,7 @@ def get_env_triad_recommendation(
     )
     envo_context = build_envo_expansion_context(interface_names)
 
-    parsed_submission = get_submission_fields(submission_object) if submission_object else None
+    parsed_submission = get_submission_fields(submission_object=submission_object, sample_set_object=sample_set_object) if submission_object and sample_set_object else None
     # build submission context once to avoid repeated DOI lookups / PDF downloads per chunk
     submission_messages: list[Any] = []
     if parsed_submission:

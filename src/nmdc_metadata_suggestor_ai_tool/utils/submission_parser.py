@@ -82,7 +82,7 @@ def make_unique_doi_list(entries: list[dict]) -> list[dict]:
 # The raw submission object is large and holds every sample row; the parsed
 # fields are the part worth seeing.
 @observe(name="parse_submission", as_type="span", capture_input=False)
-def get_submission_fields(submission_object: dict) -> dict:
+def get_submission_fields(submission_object: dict, sample_set_object: dict) -> dict:
     """
     Extract relevant fields from the submission object for metadata recommendation.
     At the moment, this returns:
@@ -91,19 +91,13 @@ def get_submission_fields(submission_object: dict) -> dict:
     - study name
     - dois
     - gold study id
-    - jgi study id
-    - protocol descriptions
-    - protocol names
-    - MIxS extensions (mapped to interface names)
 
     Parameters:
         submission_object: Raw submission object containing NMDC metadata fields.
     Returns:
         A dict with the extracted fields.
     """
-    metadata_submission = submission_object.get("metadata_submission", {})
-    study_form = metadata_submission.get("studyForm", {})
-    multiomics_form = metadata_submission.get("multiOmicsForm", {})
+    study_form = submission_object.get("study_form", {})
 
     # study form fields
     description = study_form.get("description", None)
@@ -113,9 +107,25 @@ def get_submission_fields(submission_object: dict) -> dict:
     publication_dois = study_form.get("publicationDois", []) or []
     gold_study_id = study_form.get("GOLDStudyId", None)
 
+    sample_set_fields = get_sample_set_fields(sample_set_object)
+    # combine and dedupe DOI list[dict]
+    combined_dois = make_unique_doi_list(
+        data_dois + publication_dois + sample_set_fields.get("award_dois", []) + sample_set_fields.get("protocol_dois", [])
+    )
+
+    return {
+        "description": description,
+        "notes": notes,
+        "study_name": study_name,
+        "dois": combined_dois,
+        "gold_study_id": gold_study_id,
+        **sample_set_fields
+    }
+
+def get_sample_set_fields(sample_set_object: dict) -> dict:
     # multiomics form fields
-    jgi_study_id = multiomics_form.get("JGIStudyId", None)
-    awarddois = multiomics_form.get("awardDois", []) or []
+    jgi_study_id = sample_set_object.get("JGIStudyId", None)
+    awarddois = sample_set_object.get("awardDois", []) or []
 
     # get all protocol DOIs, descriptions, names from the multiomics form
     # go from multiomics form-protocol->externalprotocol->doi, description, name
@@ -130,7 +140,7 @@ def get_submission_fields(submission_object: dict) -> dict:
         "nomProtocols",
         "nomLcProtocols",
     ]:
-        protocols = multiomics_form.get(protocol_section) or {}
+        protocols = sample_set_object.get(protocol_section) or {}
         for protocol in protocols.values():
             if protocol and isinstance(protocol, dict):
                 doi = protocol.get("doi")
@@ -144,20 +154,14 @@ def get_submission_fields(submission_object: dict) -> dict:
                     protocol_names.append(name.strip())
 
     # sample environment form fields
-    mixs_extensions_strings = metadata_submission.get("packageName", [])
+    mixs_extensions_strings = sample_set_object.get("packageName", [])
     mixs_extensions = MixsExtensions.map_to_interface_name(mixs_extensions_strings)
 
-    # combine and dedupe DOI list[dict]
-    combined_dois = make_unique_doi_list(data_dois + publication_dois + awarddois + protocol_dois)
-
     return {
-        "description": description,
-        "notes": notes,
-        "study_name": study_name,
-        "dois": combined_dois,
-        "gold_study_id": gold_study_id,
         "jgi_study_id": jgi_study_id,
+        "award_dois": awarddois,
+        "protocol_dois": protocol_dois,
         "protocol_descs": protocol_descs,
         "protocol_names": protocol_names,
-        "mixs_extensions": mixs_extensions,
+        "mixs_extensions": mixs_extensions
     }
