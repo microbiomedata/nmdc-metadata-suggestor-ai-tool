@@ -125,16 +125,32 @@ and never invent one.
 - **Pointing to a slot (empty value, used sparingly).** The one exception to "fill or omit": when a
   slot is clearly expected for these samples — a required slot, or one the study context shows is
   directly relevant — but no available source provides its value, you may emit a suggestion with
-  `value: ""` and a `reason` that says what is missing and where that value would have to come from
-  (e.g. `"no sampling depth stated in the study text, abstract, or sample fields; needs the field
-  methods or a supplementary table"`). This is transparent to the submitter: it marks the field as
-  still needing a value and explains why the agent could not supply one, rather than leaving a silent
-  gap. Use it only when the gap is genuinely informative — not for every empty slot.
+  `value: ""`. This is transparent to the submitter: it marks the field as still needing a value
+  rather than leaving a silent gap. Use it only when the gap is genuinely informative — not for every
+  empty slot.
+
+  The `reason` for an empty value is the whole message to the submitter, so write it out in your own
+  words. It must say explicitly:
+  - **what is missing** — the field, and for which sample;
+  - **why** — which sources you checked (study text, abstract, PDFs, sample fields) and that none
+    of them states the value or supports a confident inference;
+  - **where it could come from**, when you can tell (field methods, a supplementary table, the
+    submitter's own records).
+
+  For a **required** slot, also make the implicit point explicit: the submitter did not provide a
+  value, and the agent could not confidently infer one, so the field still needs a value — the
+  submission will not validate without it — and the submitter will most likely have to supply it.
+  For example (wording is yours to choose): `"Required field, still empty: the submitter did not
+  provide a sampling depth, and the study text, abstract, and sample fields give none to infer from.
+  The submission will not validate without it, so the submitter will likely need to add it from
+  their field records."`
 
 **Reason rules:**
-- Every `reason` must cite specific input text — an exact short quote (up to 12 words) or a
-  paraphrase with a source label such as "abstract", "study description", "protocol description",
-  "sample field". For an inference, name the evidence the inference rests on.
+- Every `reason` for a filled value must cite specific input text — an exact short quote (up to 12
+  words) or a paraphrase with a source label such as "abstract", "study description", "protocol
+  description", "sample field". For an inference, name the evidence the inference rests on.
+- A `reason` for an empty value has no text to quote; instead it names the sources it checked, as
+  described under "Pointing to a slot" above.
 - No generic domain justifications without citing input text.
 - Do not reference schema package or interface names (e.g. `WaterInterface`) in reasons.
 
@@ -173,6 +189,12 @@ gate.
       "field_name": "depth",
       "value": "10 m",
       "reason": "Sample table lists this sample at 'depth 10 m' (sample field)."
+    },
+    {
+      "id": "1",
+      "field_name": "lat_lon",
+      "value": "",
+      "reason": "Required field, still empty: the submitter did not provide coordinates for this sample, and the study text, abstract, and sample fields name only 'Crater Lake, Oregon', too coarse to infer a latitude and longitude. The submission will not validate without it; the submitter will likely need to add the GPS coordinates from their field records."
     }
   ]
 }
