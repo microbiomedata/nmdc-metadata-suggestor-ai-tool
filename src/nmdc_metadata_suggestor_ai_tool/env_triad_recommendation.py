@@ -132,9 +132,9 @@ def get_env_triad_recommendation(
 
     parsed_submission = (
         get_submission_fields(
-            submission_object=submission_object, sample_set_object=sample_set_object
+            submission_object=submission_object or {}, sample_set_object=sample_set_object
         )
-        if submission_object
+        if submission_object or sample_set_object
         else None
     )
     # build submission context once to avoid repeated DOI lookups / PDF downloads per chunk
