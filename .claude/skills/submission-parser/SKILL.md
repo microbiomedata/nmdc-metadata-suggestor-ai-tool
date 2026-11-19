@@ -11,7 +11,9 @@ Use this skill to extract structured fields from a raw NMDC submission portal ob
 
 ## Input
 
-A raw submission portal payload in the shape `{"submission": {...}, "sample_set": {...}}` (where `sample_set` is optional).
+Accept either a wrapped portal payload `{"submission": {...}, "sample_set": {...}}` (where `sample_set` is optional) or a bare submission dict with top-level `study_form`.
+
+Before extracting fields, set `submission` to the input's `submission` value when present, otherwise to the input itself. Set `sample_set` to the input's `sample_set` value or `{}` when absent. The source paths below refer to these normalized objects.
 
 ---
 
