@@ -87,7 +87,7 @@ def get_env_triad_recommendation(
         submission_object = {"fields":"yay"}
         sample_set_object = {"fields":"yay"}
         # break out which page the user is on and send those samples
-        samples = submission_object.get("metadata_submission").get("sampleData")["water_data"]
+        samples = sample_set_object["sample_data"]["data"]["water_data"]
         # send the interface tab name as well
         interface_names = ["water"]
         result = get_env_triad_recommendation(

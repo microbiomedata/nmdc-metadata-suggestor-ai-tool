@@ -10,26 +10,27 @@ Use this skill to extract structured fields from a raw NMDC submission portal ob
 ---
 
 ## Input
-  
-A raw submission portal dict with a `metadata_submission` key.
+
+A raw submission portal payload in the shape `{"submission": {...}, "sample_set": {...}}` (where `sample_set` is optional).
 
 ---
 
 ## What to extract
 
-Parse the following fields from `metadata_submission`:
+Parse from `submission` and `sample_set`:
 
 | Output field | Source path |
 |---|---|
-| `study_name` | `studyForm.studyName` |
-| `description` | `studyForm.description` |
-| `notes` | `studyForm.notes` |
-| `gold_study_id` | `studyForm.GOLDStudyId` |
-| `jgi_study_id` | `multiOmicsForm.JGIStudyId` |
-| `dois` | Merge and deduplicate `studyForm.dataDois`, `studyForm.publicationDois`, `multiOmicsForm.awardDois` — each entry is `{"value": "10.x/y", "provider": "osti" \| null}` |
-| `protocol_descs` | All `externalProtocol.description` values across `mpProtocols`, `mbProtocols`, `mbGcProtocols`, `lipProtocols`, `nomProtocols`, `nomLcProtocols` |
-| `protocol_names` | All `externalProtocol.name` values from same sections |
-| `mixs_extensions` | Interface class names derived from the `sampleData` keys or declared extensions (e.g. `["SoilInterface"]`) |
+| `study_name` | `submission.study_form.studyName` |
+| `description` | `submission.study_form.description` |
+| `notes` | `submission.study_form.notes` |
+| `gold_study_id` | `submission.study_form.GOLDStudyId` |
+| `ncbi_bio_project` | `submission.study_form.NCBIBioProjectId` |
+| `jgi_study_id` | `sample_set.multi_omics_form.JGIStudyId` |
+| `dois` | Merge and deduplicate `submission.study_form.dataDois`, `submission.study_form.publicationDois`, `sample_set.multi_omics_form.awardDois`, and any `doi` strings from protocol entries (as `{"value": doi, "provider": null}`) |
+| `protocol_descs` | All `description` values across `mpProtocols`, `mbProtocols`, `mbGcProtocols`, `lipProtocols`, `nomProtocols`, `nomLcProtocols` in `sample_set.multi_omics_form` |
+| `protocol_names` | All `name` values from the same protocol sections |
+| `mixs_extensions` | Interface class names mapped from `sample_set.sample_environment_form.packageName` (e.g. `"soil"` → `"SoilInterface"`) |
 
 ### Deduplication
 
@@ -37,13 +38,12 @@ Deduplicate DOIs by `(value, provider)` pair. Preserve original order.
 
 ### Protocol extraction
 
-For each protocol section in `multiOmicsForm`:
+For each protocol section in `sample_set.multi_omics_form`:
 ```
 for section in [mpProtocols, mbProtocols, mbGcProtocols, lipProtocols, nomProtocols, nomLcProtocols]:
-    protocols = multiOmicsForm.get(section) or {}
-    for protocol in protocols values:
-        external = protocol.get("externalProtocol", {})
-        collect external.description and external.name if present
+    protocols = multi_omics_form.get(section) or {}
+    for protocol in protocols.values():
+        collect protocol.get("doi"), protocol.get("description"), and protocol.get("name") if present and non-empty
 ```
 
 ---

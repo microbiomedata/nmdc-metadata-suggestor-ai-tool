@@ -53,12 +53,15 @@ def _assert_valid_output(result: tuple[Any, Any] | None) -> LLMOutput:
 
 
 @pytest.mark.timeout(INTEGRATION_TIMEOUT)
-def test_agentic_metadata_pipeline_with_full_submission(requires_credentials: None) -> None:
-    """Full submission object → metadata field suggestions via agentic()."""
-    submission = _load("full_submission_chopped.json")
+def test_agentic_metadata_pipeline_with_cc_by_submission(requires_credentials: None) -> None:
+    """Submission with CC-BY publication → metadata field suggestions via agentic()."""
+    submission = _load("submission_cc_by_publication.json")
+    sample_set = _load("submission_sample_set.json")
     cm = _make_conversation_manager(system_prompt)
 
-    result = asyncio.run(cm.agentic(message=str(submission)))
+    result = asyncio.run(
+        cm.agentic(message=str({"submission": submission, "sample_set": sample_set}))
+    )
     output = _assert_valid_output(result)
 
     fields_with_values = sum(1 for f in output.metadata_fields if f.value != "")
@@ -139,11 +142,14 @@ def test_agentic_env_triad_with_study_context(requires_credentials: None) -> Non
 @pytest.mark.timeout(INTEGRATION_TIMEOUT * 2)
 def test_agentic_session_resumption(requires_credentials: None) -> None:
     """Start a session, then resume it with a follow-up message."""
-    submission = _load("test_submission.json")
+    submission = _load("submission_response_multiple_sample_sets.json")
+    sample_set = _load("submission_sample_set.json")
     cm = _make_conversation_manager(system_prompt)
 
     # first turn — start session
-    result1 = asyncio.run(cm.agentic(message=str(submission)))
+    result1 = asyncio.run(
+        cm.agentic(message=str({"submission": submission, "sample_set": sample_set}))
+    )
     assert result1 is not None
     _, session_id = result1
     assert session_id, "Expected a session_id after first turn"

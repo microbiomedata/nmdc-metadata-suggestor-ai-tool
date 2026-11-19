@@ -92,7 +92,7 @@ Return a JSON object matching `LLMOutput`:
       "id": null,
       "field_name": "relevant_protocols",
       "value": "https://doi.org/10.17504/protocols.io.xxx",
-      "reason": "Protocol DOI explicitly listed in multiOmicsForm.mbProtocols (submission data)."
+      "reason": "Protocol DOI explicitly listed in sample_set.multi_omics_form.mbProtocols (submission data)."
     }
   ]
 }
