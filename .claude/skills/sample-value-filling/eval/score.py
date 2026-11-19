@@ -38,7 +38,11 @@ def slot_patterns() -> dict[str, str]:
 
 def main() -> None:
     output = LLMOutput.model_validate(load_json("llm_output.json"))
-    truth = {row["samp_name"]: row for row in load_json("ground_truth.json")}
+    truth_by_name = {row["samp_name"]: row for row in load_json("ground_truth.json")}
+    # The submission rows have no `id`, so the skill keys them by 0-based index (as env-triad does);
+    # map each index back to the row's samp_name to find its ground truth.
+    rows = load_json("submission.json")["metadata_submission"]["sampleData"]["sediment_data"]
+    truth = {str(i): truth_by_name[row["samp_name"]] for i, row in enumerate(rows)}
     patterns = slot_patterns()
 
     print(f"Pydantic validation: OK ({len(output.metadata_fields)} entries)")

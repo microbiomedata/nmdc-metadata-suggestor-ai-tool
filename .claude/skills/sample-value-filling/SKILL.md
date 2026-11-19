@@ -35,14 +35,15 @@ Never emit the GOLD ecosystem slots (`ecosystem`, `ecosystem_category`, `ecosyst
 
 ## Step 1 — Assign sample IDs
 
-Every suggestion must be tied to the row it fills. Copy the row's identifier **verbatim** — never
-fabricate or normalize it:
+Every suggestion must be tied to the row it fills. Use the same rule as `env-triad`, so that both
+skills give the same row the same `id` in the merged output:
 
-1. If the row has an `id` field, use it.
-2. Otherwise use `samp_name` — this is what DataHarmonizer shows as the row label, so it is the most
-   reliable cell key.
-3. If neither exists, assign the row's 0-based position within its `sampleData` group as a string
-   (`"0"`, `"1"`, ...).
+1. If the row has an `id` field, copy it **verbatim**. Never fabricate or normalize an existing ID.
+2. Otherwise assign the row's 0-based position within its `sampleData` group as a string (`"0"`,
+   `"1"`, ...).
+
+Do not use `samp_name` (or any other field) as the `id`, even though DataHarmonizer shows it as the
+row label: `env-triad` keys a row without an `id` by its index, and the two must agree.
 
 `sampleData` is a dict of `<extension>_data` lists (e.g. `water_data`, `soil_data`); each list holds
 the row dicts. Keep track of which group each row came from — it tells you the interface in Step 3.
@@ -142,32 +143,33 @@ and never invent one.
 ## Output format
 
 Return a JSON object matching `LLMOutput`. Emit one entry per `(row, field)` pair you fill or point
-to. Every entry carries the row's `id`. Do **not** set `provenance` — this skill has no validation
+to. Every entry carries the row's `id`. The `id` values below are row indexes, as for rows with no
+`id` field; a row that has one keeps it. Do **not** set `provenance` — this skill has no validation
 gate.
 
 ```json
 {
   "metadata_fields": [
     {
-      "id": "SAMP_001",
+      "id": "0",
       "field_name": "collection_date",
       "value": "2021-07-14",
       "reason": "Methods state samples 1-10 were 'collected on 14 July 2021' (abstract)."
     },
     {
-      "id": "SAMP_001",
+      "id": "0",
       "field_name": "collection_time",
       "value": "08:30",
       "reason": "'sampled at 08:30 local time each morning' (protocol description)."
     },
     {
-      "id": "SAMP_001",
+      "id": "0",
       "field_name": "geo_loc_name",
       "value": "USA: Oregon, Crater Lake",
       "reason": "Study describes a single site, 'Crater Lake, Oregon'; applies to every row (inference)."
     },
     {
-      "id": "SAMP_002",
+      "id": "1",
       "field_name": "depth",
       "value": "10 m",
       "reason": "Sample table lists this sample at 'depth 10 m' (sample field)."
@@ -176,5 +178,6 @@ gate.
 }
 ```
 
-Each `(id, field_name)` names a single DataHarmonizer cell: match `id` to the row's `samp_name` (or
-its index when `samp_name` is absent), and `field_name` to the column.
+Each `(id, field_name)` names a single DataHarmonizer cell: match `id` to the row's `id` (or to its
+0-based position in its `sampleData` group when the row has no `id`), and `field_name` to the
+column.

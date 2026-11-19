@@ -26,7 +26,10 @@ various locations all over the world." Six river-sediment biosamples were pulled
   Summer 2019 Synoptic Sampling (S19S), August–September 2019, surface sediments from depositional
   zones. It gives a study-wide signal for `collection_date` to test confident inference.
 
-`ground_truth.json` holds the real biosample values for comparison. `llm_output.json` is the skill's
+`ground_truth.json` holds the real biosample values for comparison. The rows have no `id`, so
+`llm_output.json` keys each entry by the row's 0-based index (`"0"`–`"5"`), the same rule `env-triad`
+uses; `score.py` maps each index back to the row's `samp_name` to find its ground truth. (The output
+was first keyed by `samp_name`; it was re-keyed by index on 2026-11-19 with the values unchanged.) `llm_output.json` is the skill's
 output, produced by executing the skill's instructions by hand (not a headless agentic run).
 
 `score.py` reproduces the checks offline:
