@@ -265,7 +265,9 @@ def test_run_recommendation_pipeline(requires_credentials: None) -> None:
     sample_set_object = load_sample_set_object()
     llm_client = LLMClient(access_provider="gcp")
     recommended_metadata = recommendation_pipeline.run_recommendation_pipeline(
-        submission_object=sample_submission_object, sample_set_object=sample_set_object, llm_client=llm_client
+        submission_object=sample_submission_object,
+        sample_set_object=sample_set_object,
+        llm_client=llm_client,
     )
     print(recommended_metadata.model_dump())
     # assert there is data in the recommended_metadata obj

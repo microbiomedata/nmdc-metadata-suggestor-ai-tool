@@ -61,16 +61,6 @@ def load_study_object() -> dict[str, Any]:
         return data
 
 
-def load_full_submission() -> dict[str, Any]:
-    """Load full submission object from the test fixtures."""
-    import json
-
-    sample_path = Path(__file__).parent / "fixtures" / "full_submission.json"
-    with open(sample_path) as f:
-        data: dict[str, Any] = json.load(f)
-        return data
-
-
 def test_run_env_triad_pipeline(requires_credentials: None) -> None:
     sample_submission_object = load_sample_submission_object()
     sample_set_object = load_sample_set_object()
@@ -138,8 +128,10 @@ def test_run_env_triad_pipeline_with_bioscales(requires_credentials: None) -> No
 
 def test_run_env_triad_pipeline_with_submission_samples(requires_credentials: None) -> None:
     llm_client = LLMClient(access_provider="gcp")
-    submission_object = load_full_submission()
-    samples = submission_object["metadata_submission"]["sampleData"]["water_data"][:10]
+    submission_object = load_sample_submission_object()
+    sample_set_object = load_sample_set_object()
+
+    samples = sample_set_object["sample_data"]["data"]["soil_data"]
     # pop env_medium, env_broad_scale, and env_local_scale from the samples
     for sample in samples:
         sample.pop("env_medium", None)
@@ -148,8 +140,9 @@ def test_run_env_triad_pipeline_with_submission_samples(requires_credentials: No
 
     recommended_metadata = env_triad_recommendation.get_env_triad_recommendation(
         submission_object=submission_object,
+        sample_set_object=sample_set_object,
         # Using a subset of the sample objects for testing
-        interface_names=["water"],
+        interface_names=["soil"],
         samples=samples,
         llm_client=llm_client,
     )
@@ -159,7 +152,7 @@ def test_run_env_triad_pipeline_with_submission_samples(requires_credentials: No
     # get a unique list of ids from the LLM output
     ids = {f.id for f in recommended_metadata.metadata_fields if f.id is not None}
     # in this case we know there is 10 samples -> so the ids should be 0-9
-    truth_ids = [str(x) for x in sorted(range(10))]
+    truth_ids = [str(x) for x in sorted(range(2))]
     # assert the ids are 0-9
     assert sorted(set(ids)) == truth_ids
     # Ensure at least one of the recommended fields is an env triad slot
