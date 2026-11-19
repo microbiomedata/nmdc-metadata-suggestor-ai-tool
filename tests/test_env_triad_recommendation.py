@@ -13,7 +13,19 @@ def load_sample_submission_object() -> dict[str, Any]:
     """Load a sample submission object from the test fixtures."""
     import json
 
-    sample_path = Path(__file__).parent / "fixtures" / "test_submission.json"
+    sample_path = (
+        Path(__file__).parent / "fixtures" / "submission_response_multiple_sample_sets.json"
+    )
+    with open(sample_path) as f:
+        data: dict[str, Any] = json.load(f)
+        return data
+
+
+def load_sample_set_object() -> dict[str, Any]:
+    """Load a sample set object from the test fixtures."""
+    import json
+
+    sample_path = Path(__file__).parent / "fixtures" / "submission_sample_set.json"
     with open(sample_path) as f:
         data: dict[str, Any] = json.load(f)
         return data
@@ -61,10 +73,12 @@ def load_full_submission() -> dict[str, Any]:
 
 def test_run_env_triad_pipeline(requires_credentials: None) -> None:
     sample_submission_object = load_sample_submission_object()
+    sample_set_object = load_sample_set_object()
     llm_client = LLMClient(access_provider="gcp")
     recommended_metadata = env_triad_recommendation.get_env_triad_recommendation(
         submission_object=sample_submission_object,
-        samples=sample_submission_object["metadata_submission"]["sampleData"]["soil_data"],
+        sample_set_object=sample_set_object,
+        samples=sample_set_object["sample_data"]["data"]["soil_data"],
         interface_names=["soil"],
         llm_client=llm_client,
     )

@@ -82,7 +82,7 @@ def make_unique_doi_list(entries: list[dict]) -> list[dict]:
 # The raw submission object is large and holds every sample row; the parsed
 # fields are the part worth seeing.
 @observe(name="parse_submission", as_type="span", capture_input=False)
-def get_submission_fields(submission_object: dict, sample_set_object: dict) -> dict:
+def get_submission_fields(submission_object: dict, sample_set_object: dict | None = None) -> dict:
     """
     Extract relevant fields from the submission object for metadata recommendation.
     At the moment, this returns:
@@ -109,10 +109,13 @@ def get_submission_fields(submission_object: dict, sample_set_object: dict) -> d
     gold_study_id = study_form.get("GOLDStudyId", None)
     ncbi_bio_project = study_form.get("NCBIBioProjectId", None)
 
-    sample_set_fields = get_sample_set_fields(sample_set_object)
+    sample_set_fields = get_sample_set_fields(sample_set_object or {})
     # combine and dedupe DOI list[dict]
     combined_dois = make_unique_doi_list(
-        data_dois + publication_dois + sample_set_fields.get("award_dois", []) + sample_set_fields.get("protocol_dois", [])
+        data_dois
+        + publication_dois
+        + sample_set_fields.get("award_dois", [])
+        + sample_set_fields.get("protocol_dois", [])
     )
 
     return {
@@ -122,8 +125,9 @@ def get_submission_fields(submission_object: dict, sample_set_object: dict) -> d
         "dois": combined_dois,
         "gold_study_id": gold_study_id,
         "ncbi_bio_project": ncbi_bio_project,
-        **sample_set_fields
+        **sample_set_fields,
     }
+
 
 def get_sample_set_fields(sample_set_object: dict) -> dict:
     """
@@ -135,10 +139,42 @@ def get_sample_set_fields(sample_set_object: dict) -> dict:
         A dict with the extracted fields.
     """
     multi_omics_form = sample_set_object.get("multi_omics_form", {})
-    jgi_study_id = sample_set_object.get("JGIStudyId", None)
+    jgi_study_id = multi_omics_form.get("JGIStudyId", None)
     awarddois = multi_omics_form.get("awardDois", []) or []
+
+    protocol_dois: list[dict] = []
+    protocol_descs: list[str] = []
+    protocol_names: list[str] = []
+    for protocol_section in [
+        "mpProtocols",
+        "mbProtocols",
+        "mbGcProtocols",
+        "lipProtocols",
+        "nomProtocols",
+        "nomLcProtocols",
+    ]:
+        protocols = multi_omics_form.get(protocol_section) or {}
+        for protocol in protocols.values():
+            if protocol and isinstance(protocol, dict):
+                doi = protocol.get("doi")
+                desc = protocol.get("description")
+                name = protocol.get("name")
+                if isinstance(doi, str) and doi.strip():
+                    protocol_dois.append({"value": doi.strip(), "provider": None})
+                if isinstance(desc, str) and desc.strip():
+                    protocol_descs.append(desc.strip())
+                if isinstance(name, str) and name.strip():
+                    protocol_names.append(name.strip())
+
+    sample_environment_form = sample_set_object.get("sample_environment_form", {})
+    mixs_extensions_strings = sample_environment_form.get("packageName", []) or []
+    mixs_extensions = MixsExtensions.map_to_interface_name(mixs_extensions_strings)
 
     return {
         "jgi_study_id": jgi_study_id,
         "award_dois": awarddois,
+        "protocol_dois": protocol_dois,
+        "protocol_descs": protocol_descs,
+        "protocol_names": protocol_names,
+        "mixs_extensions": mixs_extensions,
     }

@@ -67,11 +67,17 @@ def test_agentic_metadata_pipeline_with_full_submission(requires_credentials: No
 
 @pytest.mark.timeout(INTEGRATION_TIMEOUT)
 def test_agentic_metadata_pipeline_with_test_submission(requires_credentials: None) -> None:
-    """test_submission.json fixture → metadata field suggestions via agentic()."""
-    submission = _load("test_submission.json")
+    """
+    submission_response_multiple_sample_sets.json + submission_sample_set.json
+    → metadata field suggestions via agentic().
+    """
+    submission = _load("submission_response_multiple_sample_sets.json")
+    sample_set = _load("submission_sample_set.json")
     cm = _make_conversation_manager(system_prompt)
 
-    result = asyncio.run(cm.agentic(message=str(submission)))
+    result = asyncio.run(
+        cm.agentic(message=str({"submission": submission, "sample_set": sample_set}))
+    )
     _assert_valid_output(result)
 
 

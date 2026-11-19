@@ -130,7 +130,13 @@ def get_env_triad_recommendation(
     )
     envo_context = build_envo_expansion_context(interface_names)
 
-    parsed_submission = get_submission_fields(submission_object=submission_object, sample_set_object=sample_set_object) if submission_object and sample_set_object else None
+    parsed_submission = (
+        get_submission_fields(
+            submission_object=submission_object, sample_set_object=sample_set_object
+        )
+        if submission_object
+        else None
+    )
     # build submission context once to avoid repeated DOI lookups / PDF downloads per chunk
     submission_messages: list[Any] = []
     if parsed_submission:

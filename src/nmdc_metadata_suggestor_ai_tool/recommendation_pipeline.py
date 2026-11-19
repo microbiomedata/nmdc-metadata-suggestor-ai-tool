@@ -40,7 +40,9 @@ def run_recommendation_pipeline(
     conversation_manager = ConversationManager(
         llm_client=llm_client, system_prompt=system_prompt
     )  # initialize the conversation manager with the LLM client
-    parsed_submission_object = get_submission_fields(submission_object=submission_object, sample_set_object=sample_set_object)
+    parsed_submission_object = get_submission_fields(
+        submission_object=submission_object, sample_set_object=sample_set_object
+    )
     # adds info to the conversation object
     messages, pdf_files = build_submission_context(
         parsed_submission_object=parsed_submission_object

@@ -14,7 +14,19 @@ def load_sample_submission_object() -> dict[str, Any]:
     """Load a sample submission object from the test fixtures."""
     import json
 
-    sample_path = Path(__file__).parent / "fixtures" / "test_submission.json"
+    sample_path = (
+        Path(__file__).parent / "fixtures" / "submission_response_multiple_sample_sets.json"
+    )
+    with open(sample_path) as f:
+        data: dict[str, Any] = json.load(f)
+        return data
+
+
+def load_sample_set_object() -> dict[str, Any]:
+    """Load a sample set object from the test fixtures."""
+    import json
+
+    sample_path = Path(__file__).parent / "fixtures" / "submission_sample_set.json"
     with open(sample_path) as f:
         data: dict[str, Any] = json.load(f)
         return data
@@ -74,6 +86,7 @@ def test_run_recommendation_pipeline_validates_and_returns_output(
 
     result = recommendation_pipeline.run_recommendation_pipeline(
         submission_object=sample_submission_object,
+        sample_set_object=load_sample_set_object(),
         llm_client=cast(LLMClient, client),
     )
 
@@ -94,6 +107,7 @@ def test_run_recommendation_pipeline_raises_for_invalid_output_schema(
     with pytest.raises(ValueError, match="expected output schema"):
         recommendation_pipeline.run_recommendation_pipeline(
             submission_object=sample_submission_object,
+            sample_set_object=load_sample_set_object(),
             llm_client=cast(LLMClient, client),
         )
 
@@ -145,6 +159,7 @@ def test_interface_name_resolves_to_interface_class_names(
 
     recommendation_pipeline.run_recommendation_pipeline(
         submission_object=load_sample_submission_object(),
+        sample_set_object=load_sample_set_object(),
         llm_client=cast(LLMClient, client),
         interface_name="soil",
     )
@@ -165,6 +180,7 @@ def test_interface_name_accepts_interface_class_name_form(
 
     recommendation_pipeline.run_recommendation_pipeline(
         submission_object=load_sample_submission_object(),
+        sample_set_object=load_sample_set_object(),
         llm_client=cast(LLMClient, client),
         interface_name="SoilInterface",
     )
@@ -191,6 +207,7 @@ def test_interface_name_does_not_crash_schema_context_builder(
 
     result = recommendation_pipeline.run_recommendation_pipeline(
         submission_object=load_sample_submission_object(),
+        sample_set_object=load_sample_set_object(),
         llm_client=cast(LLMClient, client),
         interface_name="soil",
     )
@@ -212,6 +229,7 @@ def test_interface_name_overrides_submission_package(
 
     recommendation_pipeline.run_recommendation_pipeline(
         submission_object=load_sample_submission_object(),
+        sample_set_object=load_sample_set_object(),
         llm_client=cast(LLMClient, client),
         interface_name="water",
     )
@@ -233,6 +251,7 @@ def test_absent_interface_name_falls_back_to_submission_package(
 
     recommendation_pipeline.run_recommendation_pipeline(
         submission_object=load_sample_submission_object(),
+        sample_set_object=load_sample_set_object(),
         llm_client=cast(LLMClient, client),
         interface_name=interface_name,
     )
@@ -243,9 +262,10 @@ def test_absent_interface_name_falls_back_to_submission_package(
 def test_run_recommendation_pipeline(requires_credentials: None) -> None:
     start = time.time_ns()
     sample_submission_object = load_sample_submission_object()
+    sample_set_object = load_sample_set_object()
     llm_client = LLMClient(access_provider="gcp")
     recommended_metadata = recommendation_pipeline.run_recommendation_pipeline(
-        submission_object=sample_submission_object, llm_client=llm_client
+        submission_object=sample_submission_object, sample_set_object=sample_set_object, llm_client=llm_client
     )
     print(recommended_metadata.model_dump())
     # assert there is data in the recommended_metadata obj
