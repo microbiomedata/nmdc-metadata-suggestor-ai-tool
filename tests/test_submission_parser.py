@@ -8,6 +8,7 @@ import pytest
 from nmdc_metadata_suggestor_ai_tool.schema_context import get_schema_view
 from nmdc_metadata_suggestor_ai_tool.utils.submission_parser import (
     MixsExtensions,
+    get_samples,
     get_submission_fields,
 )
 
@@ -97,6 +98,30 @@ def test_every_env_triad_interface_is_reachable_from_a_portal_name() -> None:
 )
 def test_misc_envs_resolves_from_either_spelling(spelling: str) -> None:
     assert MixsExtensions.map_to_interface_name([spelling]) == ["MiscEnvsInterface"]
+
+
+def test_get_samples_extracts_samples_from_fixture() -> None:
+    sample_set = _load_fixture("submission_sample_set.json")
+    samples = get_samples(sample_set, "soil")
+
+    assert isinstance(samples, list)
+    assert len(samples) > 0
+    assert samples == sample_set["sample_data"]["data"]["soil_data"]
+
+
+@pytest.mark.parametrize(
+    "sample_set_object,interface_name",
+    [
+        ({}, "soil"),
+        ({"sample_data": {}}, "soil"),
+        ({"sample_data": {"data": {}}}, "soil"),
+        ({"sample_data": {"data": {"water_data": [{"samp_name": "s1"}]}}}, "soil"),
+    ],
+)
+def test_get_samples_returns_empty_list_when_missing(
+    sample_set_object: dict[str, Any], interface_name: str
+) -> None:
+    assert get_samples(sample_set_object, interface_name) == []
 
 
 def test_wastewater_sludge_resolves_from_its_sample_slot_name() -> None:

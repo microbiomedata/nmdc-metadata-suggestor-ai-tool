@@ -15,6 +15,7 @@ from nmdc_metadata_suggestor_ai_tool.utils.build_submission_context import build
 from nmdc_metadata_suggestor_ai_tool.utils.submission_parser import (
     MixsExtensions,
     get_submission_fields,
+    get_samples,
 )
 from nmdc_metadata_suggestor_ai_tool.utils.utils import chunk_samples, validate_output
 
@@ -57,29 +58,13 @@ def build_envo_expansion_context(interface_names: list[str] | None) -> str:
 @observe(name="env_triad_recommendation", as_type="span", capture_input=False, capture_output=False)
 def get_env_triad_recommendation(
     llm_client: LLMClient,
-    samples: list[dict],
-    study_context: list[Any] | None = None,
-    submission_object: dict | None = None,
-    sample_set_object: dict | None = None,
-    interface_names: list[str] | None = None,
+    submission_object: dict,
+    sample_set_object: dict,
+    interface_names: str,
     max_tokens: int | None = None,
     chunk_size: int = 50,
 ) -> LLMOutput:
     """Get the recommended environment triad metadata fields for a submission and LLM client.
-
-    Example for ETL:
-        llm_client = LLMClient(access_provider="gcp")
-        # the study dict, maybe other useful context as well
-        study_context = [{"nmdc-study-record": "value"}]
-        # the biosamples
-        samples = [{"nmdc-biosample-record": "value"}, {"nmdc-biosample-record": "value"}]
-        # get the results
-        result = get_env_triad_recommendation(
-            study_context=study_context,
-            samples=samples,
-            llm_client=llm_client,
-        )
-        print(result)
 
     Example for submission server:
         llm_client = LLMClient(access_provider="gcp")
@@ -101,29 +86,28 @@ def get_env_triad_recommendation(
 
 
     Parameters:
-        study_context: Optional contextual information for the LLM to generate recommendations.
-        samples: A list of sample records to generate the env triad for.
         submission_object: Optional submission object containing metadata fields.
         sample_set_object: Optional sample set object containing additional metadata fields.
-        llm_client: LLMClient instance used for model interaction and configuration.
         interface_names: Optional list of specific interface names to focus on for schema context.
             If None, defaults to all interfaces -- roughly 51 KB of value sets, which costs
             tokens and blurs precision. Pass the extension(s) actually in play whenever they
             are known. ENVO expansion candidates are scoped to the same list.
         max_tokens: Optional maximum number of output response tokens.
+        chunk_size: The number of samples to process in each chunk.
+        llm_client: LLMClient instance used for model interaction and configuration.
     Returns:
         The response from the LLM containing the recommended environment triad metadata fields.
     """
     if chunk_size <= 0:
         raise ValueError("chunk_size must be greater than 0")
+    samples = get_samples(sample_set_object, interface_names)
     # normalize and shallow-copy samples to avoid mutating caller-supplied objects
     samples = [dict(s) for s in (samples or [])]
     for idx, s in enumerate(samples):
         s.setdefault("id", str(idx))
 
     # prepare schema/context once
-    if interface_names:
-        interface_names = MixsExtensions.map_to_interface_name(interface_names)
+    interface_names = MixsExtensions.map_to_interface_name(interface_names)
     builder = SchemaContextBuilder()
     mixs_schema = builder.format_env_triad_context(
         class_names=interface_names or builder.list_interfaces()
@@ -144,9 +128,6 @@ def get_env_triad_recommendation(
             parsed_submission_object=parsed_submission
         )
 
-    # if there is study context make sure it is a string
-    study_texts = [m if isinstance(m, str) else str(m) for m in (study_context or [])]
-
     # process samples in chunks to avoid very large prompts
     aggregated = LLMOutput()
     errors: list[dict] = []
@@ -162,8 +143,6 @@ def get_env_triad_recommendation(
 
         cm.add_schema_context(mixs_schema)
         cm.add_message(text=envo_context)
-        for text in study_texts:
-            cm.add_message(text=text)
 
         cm.add_message(
             text=(

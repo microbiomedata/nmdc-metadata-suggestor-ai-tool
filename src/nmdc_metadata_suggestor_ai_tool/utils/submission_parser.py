@@ -178,3 +178,14 @@ def get_sample_set_fields(sample_set_object: dict) -> dict:
         "protocol_names": protocol_names,
         "mixs_extensions": mixs_extensions,
     }
+
+def get_samples(sample_set_object: dict, interface_name: str) -> list[dict]:
+    """
+    Extract individual sample records from the sample set object.
+
+    Parameters:
+        sample_set_object: Raw sample set object containing sample data.
+    Returns:
+        A list of sample records as dictionaries.
+    """
+    return sample_set_object.get("sample_data", {}).get("data", {}).get(interface_name + "_data", [])
