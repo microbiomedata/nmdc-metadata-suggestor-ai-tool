@@ -1,0 +1,16 @@
+{
+  "metadata_fields": [
+    {"id": "0", "field_name": "geo_loc_name", "value": "USA: Colorado, Como Creek", "reason": "Sample description: 'from Como Creek, Colorado, USA' (sample field)."},
+    {"id": "0", "field_name": "collection_date", "value": "2019", "reason": "Study states samples were collected in the 'Summer 2019 Synoptic Sampling (S19S) campaign (August to September 2019)'; applies to every row (inference)."},
+    {"id": "1", "field_name": "geo_loc_name", "value": "USA: Florida, Shark River Slough", "reason": "Sample description: 'from Shark River Slough, Florida, USA' (sample field)."},
+    {"id": "1", "field_name": "collection_date", "value": "2019", "reason": "Study-wide 'Summer 2019 Synoptic Sampling (S19S) campaign (August to September 2019)' (inference)."},
+    {"id": "2", "field_name": "geo_loc_name", "value": "USA: Tennessee, East Fork Poplar Creek", "reason": "Sample description: 'from East Fork Poplar Creek, Tennessee, USA' (sample field)."},
+    {"id": "2", "field_name": "collection_date", "value": "2019", "reason": "Study-wide 'Summer 2019 Synoptic Sampling (S19S) campaign (August to September 2019)' (inference)."},
+    {"id": "3", "field_name": "geo_loc_name", "value": "UK: Staffordshire, Wood Brook", "reason": "Sample description: 'from Wood Brook, Staffordshire, UK' (sample field)."},
+    {"id": "3", "field_name": "collection_date", "value": "2019", "reason": "Study-wide 'Summer 2019 Synoptic Sampling (S19S) campaign (August to September 2019)' (inference)."},
+    {"id": "4", "field_name": "geo_loc_name", "value": "Canada: British Columbia, Thompson", "reason": "Sample description: 'from Thompson, British Columbia, Canada' (sample field)."},
+    {"id": "4", "field_name": "collection_date", "value": "2019", "reason": "Study-wide 'Summer 2019 Synoptic Sampling (S19S) campaign (August to September 2019)' (inference)."},
+    {"id": "5", "field_name": "geo_loc_name", "value": "USA: Virginia, Stroubles Creek", "reason": "Sample description: 'from Stroubles Creek, Virginia, USA' (sample field)."},
+    {"id": "5", "field_name": "collection_date", "value": "2019", "reason": "Study-wide 'Summer 2019 Synoptic Sampling (S19S) campaign (August to September 2019)' (inference)."}
+  ]
+}
