@@ -32,7 +32,7 @@ Parse from `submission` and `sample_set`:
 | `dois` | Merge and deduplicate `submission.study_form.dataDois`, `submission.study_form.publicationDois`, `sample_set.multi_omics_form.awardDois`, and any `doi` strings from protocol entries (as `{"value": doi, "provider": null}`) |
 | `protocol_descs` | All `description` values across `mpProtocols`, `mbProtocols`, `mbGcProtocols`, `lipProtocols`, `nomProtocols`, `nomLcProtocols` in `sample_set.multi_omics_form` |
 | `protocol_names` | All `name` values from the same protocol sections |
-| `mixs_extensions` | Interface class names mapped from `sample_set.sample_environment_form.packageName` (e.g. `"soil"` → `"SoilInterface"`) |
+| `mixs_extensions` | Interface class names mapped from `sample_set.sample_environment_form.packageName` (e.g. `"soil"` → `"SoilInterface"`). If `sample_set` is absent or `packageName` is empty, fall back to template names across `submission.sample_sets[].templates` (deduplicated, preserving order). |
 
 ### Deduplication
 
