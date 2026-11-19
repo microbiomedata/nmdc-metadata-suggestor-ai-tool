@@ -14,8 +14,8 @@ from nmdc_metadata_suggestor_ai_tool.tracing import langfuse_client, observe
 from nmdc_metadata_suggestor_ai_tool.utils.build_submission_context import build_submission_context
 from nmdc_metadata_suggestor_ai_tool.utils.submission_parser import (
     MixsExtensions,
-    get_submission_fields,
     get_samples,
+    get_submission_fields,
 )
 from nmdc_metadata_suggestor_ai_tool.utils.utils import chunk_samples, validate_output
 
