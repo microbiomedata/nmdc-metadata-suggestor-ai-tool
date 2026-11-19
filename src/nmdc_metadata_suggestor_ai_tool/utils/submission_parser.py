@@ -179,6 +179,7 @@ def get_sample_set_fields(sample_set_object: dict) -> dict:
         "mixs_extensions": mixs_extensions,
     }
 
+
 def get_samples(sample_set_object: dict, interface_name: str) -> list[dict]:
     """
     Extract individual sample records from the sample set object.
