@@ -95,10 +95,20 @@ def get_env_triad_recommendation(
     """
     if chunk_size <= 0:
         raise ValueError("chunk_size must be greater than 0")
+
+    # normalize interface names first, before extracting samples
+    mapped_interface_names = MixsExtensions.map_to_interface_name(interface_names)
+    # convert enum names to their values for get_samples (e.g., "SoilInterface" -> "soil")
+    interface_values = [
+        MixsExtensions[name].value
+        for name in mapped_interface_names
+        if name in MixsExtensions.__members__
+    ]
+
     samples = [
         sample
-        for interface_name in interface_names
-        for sample in get_samples(sample_set_object, interface_name)
+        for interface_value in interface_values
+        for sample in get_samples(sample_set_object, interface_value)
     ]
     # normalize and shallow-copy samples to avoid mutating caller-supplied objects
     samples = [dict(s) for s in (samples or [])]
@@ -106,7 +116,7 @@ def get_env_triad_recommendation(
         s.setdefault("id", str(idx))
 
     # prepare schema/context once
-    interface_names = MixsExtensions.map_to_interface_name(interface_names)
+    interface_names = mapped_interface_names
     builder = SchemaContextBuilder()
     mixs_schema = builder.format_env_triad_context(
         class_names=interface_names or builder.list_interfaces()
