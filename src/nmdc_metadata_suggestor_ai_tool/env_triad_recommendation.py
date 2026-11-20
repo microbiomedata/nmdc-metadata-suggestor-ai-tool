@@ -60,7 +60,7 @@ def get_env_triad_recommendation(
     llm_client: LLMClient,
     submission_object: dict,
     sample_set_object: dict,
-    interface_names: str,
+    interface_names: list[str],
     max_tokens: int | None = None,
     chunk_size: int = 50,
 ) -> LLMOutput:
@@ -71,14 +71,10 @@ def get_env_triad_recommendation(
         # full object
         submission_object = {"fields":"yay"}
         sample_set_object = {"fields":"yay"}
-        # break out which page the user is on and send those samples
-        samples = sample_set_object["sample_data"]["data"]["water_data"]
-        # send the interface tab name as well
         interface_names = ["water"]
         result = get_env_triad_recommendation(
             submission_object=submission_object,
             sample_set_object=sample_set_object,
-            samples=samples,
             llm_client=llm_client,
             interface_names=interface_names,
         )
@@ -88,10 +84,8 @@ def get_env_triad_recommendation(
     Parameters:
         submission_object: Optional submission object containing metadata fields.
         sample_set_object: Optional sample set object containing additional metadata fields.
-        interface_names: Optional list of specific interface names to focus on for schema context.
-            If None, defaults to all interfaces -- roughly 51 KB of value sets, which costs
-            tokens and blurs precision. Pass the extension(s) actually in play whenever they
-            are known. ENVO expansion candidates are scoped to the same list.
+        interface_names: Optional list of specific sample interfaces to process and use for schema context.
+            ENVO expansion candidates are scoped to the same list.
         max_tokens: Optional maximum number of output response tokens.
         chunk_size: The number of samples to process in each chunk.
         llm_client: LLMClient instance used for model interaction and configuration.
@@ -100,7 +94,11 @@ def get_env_triad_recommendation(
     """
     if chunk_size <= 0:
         raise ValueError("chunk_size must be greater than 0")
-    samples = get_samples(sample_set_object, interface_names)
+    samples = [
+        sample
+        for interface_name in interface_names
+        for sample in get_samples(sample_set_object, interface_name)
+    ]
     # normalize and shallow-copy samples to avoid mutating caller-supplied objects
     samples = [dict(s) for s in (samples or [])]
     for idx, s in enumerate(samples):

@@ -189,6 +189,7 @@ def get_samples(sample_set_object: dict, interface_name: str) -> list[dict]:
     Returns:
         A list of sample records as dictionaries.
     """
-    return (
+    samples: list[dict] = (
         sample_set_object.get("sample_data", {}).get("data", {}).get(interface_name + "_data", [])
     )
+    return samples

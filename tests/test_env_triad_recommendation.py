@@ -68,7 +68,6 @@ def test_run_env_triad_pipeline(requires_credentials: None) -> None:
     recommended_metadata = env_triad_recommendation.get_env_triad_recommendation(
         submission_object=sample_submission_object,
         sample_set_object=sample_set_object,
-        samples=sample_set_object["sample_data"]["data"]["soil_data"],
         interface_names=["soil"],
         llm_client=llm_client,
     )
@@ -83,8 +82,11 @@ def test_run_env_triad_pipeline(requires_credentials: None) -> None:
 def test_run_env_triad_pipeline_with_biosample(requires_credentials: None) -> None:
     llm_client = LLMClient(access_provider="gcp")
     biosample_object = load_biosample_object()
+    sample_set_object = {"sample_data": {"data": {"soil_data": biosample_object["biosample_set"]}}}
     recommended_metadata = env_triad_recommendation.get_env_triad_recommendation(
-        samples=biosample_object["biosample_set"],
+        submission_object={},
+        sample_set_object=sample_set_object,
+        interface_names=["soil"],
         llm_client=llm_client,
     )
 
@@ -99,10 +101,17 @@ def test_run_env_triad_pipeline_with_bioscales(requires_credentials: None) -> No
     llm_client = LLMClient(access_provider="gcp")
     biosample_objects = load_bioscales_object()["resources"]
     study_object = load_study_object()
+    sample_set_object = {"sample_data": {"data": {"soil_data": biosample_objects}}}
     recommended_metadata = env_triad_recommendation.get_env_triad_recommendation(
-        study_context=[study_object],
+        submission_object={
+            "study_form": {
+                "description": study_object["description"],
+                "studyName": study_object["name"],
+            }
+        },
+        sample_set_object=sample_set_object,
+        interface_names=["soil"],
         # Using a subset of the biosample objects for testing
-        samples=biosample_objects,
         llm_client=llm_client,
     )
 
@@ -143,7 +152,6 @@ def test_run_env_triad_pipeline_with_submission_samples(requires_credentials: No
         sample_set_object=sample_set_object,
         # Using a subset of the sample objects for testing
         interface_names=["soil"],
-        samples=samples,
         llm_client=llm_client,
     )
 
