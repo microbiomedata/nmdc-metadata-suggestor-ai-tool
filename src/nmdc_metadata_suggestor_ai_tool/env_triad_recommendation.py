@@ -84,7 +84,8 @@ def get_env_triad_recommendation(
     Parameters:
         submission_object: Optional submission object containing metadata fields.
         sample_set_object: Optional sample set object containing additional metadata fields.
-        interface_names: Optional list of specific sample interfaces to process and use for schema context.
+        interface_names: Optional list of specific sample interfaces to process and
+                         use for schema context.
             ENVO expansion candidates are scoped to the same list.
         max_tokens: Optional maximum number of output response tokens.
         chunk_size: The number of samples to process in each chunk.
