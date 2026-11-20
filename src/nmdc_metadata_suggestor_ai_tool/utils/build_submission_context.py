@@ -34,9 +34,7 @@ def build_submission_context(parsed_submission_object: dict) -> tuple[list[str],
 
     # add the submission context to the LLM
     submission_context = (
-        f"Submission description: {description}\n"
-        f"Notes: {notes}\n"
-        f"Study name: {study_name}\n"
+        f"Submission description: {description}\nNotes: {notes}\nStudy name: {study_name}\n"
         f"Protocol descriptions: {'; '.join(protocol_descs)}\n"
         f"Protocol names: {'; '.join(protocol_names)}"
     )

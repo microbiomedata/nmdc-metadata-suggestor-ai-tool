@@ -8,6 +8,7 @@ import pytest
 from nmdc_metadata_suggestor_ai_tool.schema_context import get_schema_view
 from nmdc_metadata_suggestor_ai_tool.utils.submission_parser import (
     MixsExtensions,
+    get_samples,
     get_submission_fields,
 )
 
@@ -20,30 +21,25 @@ def _load_fixture(filename: str) -> dict[str, Any]:
         return data
 
 
-def test_get_submission_fields_extracts_protocol_metadata_from_fixture() -> None:
-    submission = _load_fixture("test_submission.json")
-    study_form = submission["metadata_submission"]["studyForm"]
+def test_get_submission_fields_extracts_metadata_from_fixtures() -> None:
+    submission = _load_fixture("submission_response_multiple_sample_sets.json")
+    sample_set = _load_fixture("submission_sample_set.json")
+    study_form = submission["study_form"]
 
-    result = get_submission_fields(submission)
+    result = get_submission_fields(submission, sample_set)
 
     assert result["study_name"] == study_form["studyName"]
     assert result["description"] == study_form["description"]
     assert result["dois"] == [
         {"value": "10.1073/pnas.2004192118", "provider": "osti"},
+        {"value": "10.1038/s41587-020-0718-6", "provider": None},
         {"value": "10.46936/10.25585/60013043", "provider": "jgi"},
-        {"value": "doi:10.3791/57343", "provider": None},
     ]
-    assert result["notes"] == ""
-    assert result["gold_study_id"] == ""
-    assert result["jgi_study_id"] == "510963"
-    assert result["protocol_names"] == [
-        "proteomics lc",
-        "metabolome lc",
-        "lc lipid",
-        "methanol water extraction",
-        "nom fticr",
-    ]
-    assert len(result["protocol_descs"]) == 5
+    assert result["notes"] == study_form["notes"]
+    assert result["gold_study_id"] == study_form["GOLDStudyId"]
+    assert result["ncbi_bio_project"] == study_form["NCBIBioProjectId"]
+    assert result["jgi_study_id"] == sample_set["multi_omics_form"]["JGIStudyId"]
+    assert result["award_dois"] == sample_set["multi_omics_form"]["awardDois"]
     assert result["mixs_extensions"] == ["SoilInterface"]
 
 
@@ -104,6 +100,30 @@ def test_misc_envs_resolves_from_either_spelling(spelling: str) -> None:
     assert MixsExtensions.map_to_interface_name([spelling]) == ["MiscEnvsInterface"]
 
 
+def test_get_samples_extracts_samples_from_fixture() -> None:
+    sample_set = _load_fixture("submission_sample_set.json")
+    samples = get_samples(sample_set, "soil")
+
+    assert isinstance(samples, list)
+    assert len(samples) > 0
+    assert samples == sample_set["sample_data"]["data"]["soil_data"]
+
+
+@pytest.mark.parametrize(
+    "sample_set_object,interface_name",
+    [
+        ({}, "soil"),
+        ({"sample_data": {}}, "soil"),
+        ({"sample_data": {"data": {}}}, "soil"),
+        ({"sample_data": {"data": {"water_data": [{"samp_name": "s1"}]}}}, "soil"),
+    ],
+)
+def test_get_samples_returns_empty_list_when_missing(
+    sample_set_object: dict[str, Any], interface_name: str
+) -> None:
+    assert get_samples(sample_set_object, interface_name) == []
+
+
 def test_wastewater_sludge_resolves_from_its_sample_slot_name() -> None:
     """Schema-only extension: no portal template, so the ETL path is its only route."""
     assert MixsExtensions.map_to_interface_name(["wastewater_sludge"]) == [
@@ -111,32 +131,64 @@ def test_wastewater_sludge_resolves_from_its_sample_slot_name() -> None:
     ]
 
 
-def test_get_submission_fields_reads_publication_and_award_dois_and_the_interface() -> None:
-    """A minimal portal submission: one publication DOI, one award DOI, one package.
+def test_get_submission_fields_reads_publication_and_award_dois() -> None:
+    """A minimal portal submission: one publication DOI, one award DOI.
 
     Modeled on the phyllosphere study (nmdc:sty-11-e4yb9z58), the supplement eval
     case in nmdc-ai-eval. The pipeline fetches the abstract through the first DOI
     and routes the second as an award, so both must come back, in that order.
     """
     submission = {
-        "metadata_submission": {
-            "packageName": ["plant-associated"],
-            "studyForm": {
-                "studyName": "Seasonal activities of the phyllosphere microbiome",
-                "description": "Leaf surface samples from perennial bioenergy crops.",
-                "publicationDois": [{"value": "10.1038/s41467-023-36515-y", "provider": None}],
-            },
-            "multiOmicsForm": {
-                "awardDois": [{"value": "10.46936/10.25585/60000818", "provider": "jgi"}]
-            },
+        "study_form": {
+            "studyName": "Seasonal activities of the phyllosphere microbiome",
+            "description": "Leaf surface samples from perennial bioenergy crops.",
+            "publicationDois": [{"value": "10.1038/s41467-023-36515-y", "provider": None}],
+        }
+    }
+    sample_set = {
+        "multi_omics_form": {
+            "awardDois": [{"value": "10.46936/10.25585/60000818", "provider": "jgi"}]
         }
     }
 
-    result = get_submission_fields(submission)
+    result = get_submission_fields(submission, sample_set)
 
-    assert result["mixs_extensions"] == ["PlantAssociatedInterface"]
     assert [d["value"] for d in result["dois"]] == [
         "10.1038/s41467-023-36515-y",
         "10.46936/10.25585/60000818",
     ]
     assert result["study_name"].startswith("Seasonal activities")
+
+
+def test_get_submission_fields_extracts_protocol_metadata() -> None:
+    submission = {"study_form": {"studyName": "Protocol Study"}}
+    sample_set = {
+        "multi_omics_form": {
+            "mbProtocols": {
+                "sampleProtocol": {
+                    "url": "",
+                    "doi": "10.3333/99999",
+                    "name": "sample prep",
+                    "description": "extraction protocol",
+                },
+                "acquisitionProtocol": {
+                    "url": "",
+                    "doi": "",
+                    "name": "",
+                    "description": "",
+                },
+                "dataProtocol": {
+                    "url": "",
+                    "doi": None,
+                    "name": None,
+                    "description": None,
+                },
+            }
+        }
+    }
+
+    result = get_submission_fields(submission, sample_set)
+
+    assert result["dois"] == [{"value": "10.3333/99999", "provider": None}]
+    assert result["protocol_names"] == ["sample prep"]
+    assert result["protocol_descs"] == ["extraction protocol"]

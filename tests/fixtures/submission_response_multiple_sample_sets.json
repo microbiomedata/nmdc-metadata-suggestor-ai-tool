@@ -1,0 +1,108 @@
+{
+  "study_form": {
+    "studyName": "Test Soil Study",
+    "piName": "",
+    "piEmail": "test.pi@example.org",
+    "piOrcid": "",
+    "fundingSources": [],
+    "dataDois": [
+      {
+        "value": "10.1073/pnas.2004192118",
+        "provider": "osti"
+      }
+    ],
+    "publicationDois": [
+      {
+        "value": "10.1038/s41587-020-0718-6",
+        "provider": null
+      }
+    ],
+    "linkOutWebpage": [],
+    "studyDate": null,
+    "description": "soil samples with multiple reps for genomics from different crop fields. corn and soy bean rotation with and without fertilizer",
+    "notes": "t3ewqteqw",
+    "contributors": [],
+    "validation": [],
+    "alternativeNames": [
+      "tewa"
+    ],
+    "GOLDStudyId": "fewe",
+    "NCBIBioProjectId": "ewa"
+  },
+  "source_client": "submission_portal",
+  "is_test_submission": true,
+  "id": "b6a4c55d-cb1e-43e2-87bb-821c7e4e52f9",
+  "author": {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "orcid": "0000-0000-0000-0000",
+    "name": "Test Author",
+    "email": "test.author@example.org",
+    "is_admin": true
+  },
+  "study_name": "Test Soil Study",
+  "date_last_modified": "2026-11-19T17:36:00.527491",
+  "created": "2026-09-29T04:23:26.232833",
+  "sample_count": 91,
+  "reviewers": [],
+  "contributors": [
+    "0000-0000-0000-0000"
+  ],
+  "author_orcid": "0000-0000-0000-0000",
+  "field_notes_metadata": null,
+  "nmdc_study_id": null,
+  "github_issue": null,
+  "lock_updated": "2026-11-19T17:36:41.455359",
+  "locked_by": null,
+  "permission_level": "owner",
+  "sample_sets": [
+    {
+      "id": "f9186101-04c5-4367-b125-d280c8e2faf7",
+      "name": "Sample Set 1",
+      "templates": [
+        "soil",
+        "emsl"
+      ],
+      "status": "InProgress",
+      "created": "2026-09-29T04:23:38.181509",
+      "date_last_modified": "2026-11-18T21:54:44.148607",
+      "navigation_validation": {
+        "multi_omics_data": [
+          "EMSL Proposal Number must be a 5 digit numerical value"
+        ],
+        "sample_environment": [],
+        "sample_metadata": [
+          "Tab \"emsl\" has not been validated.",
+          "Tab \"soil\" has invalid cells."
+        ]
+      }
+    },
+    {
+      "id": "0e68747c-cb3f-4f9a-a956-748bc910843d",
+      "name": "Sample Set 2",
+      "templates": [
+        "host-associated",
+        "emsl",
+        "jgi_mg",
+        "jgi_mg_lr",
+        "jgi_mt"
+      ],
+      "status": "InProgress",
+      "created": "2026-11-18T21:02:11.630636",
+      "date_last_modified": "2026-11-19T17:36:00.527491",
+      "navigation_validation": {
+        "multi_omics_data": [],
+        "sample_environment": [],
+        "sample_metadata": [
+          "Tab \"emsl\" has not been validated.",
+          "Tab \"jgi_mg\" has not been validated.",
+          "Tab \"jgi_mt\" has not been validated.",
+          "Tab \"jgi_mg_lr\" has not been validated.",
+          "Tab \"host-associated\" has not been validated."
+        ]
+      }
+    }
+  ],
+  "pi_image_url": null,
+  "primary_study_image_url": null,
+  "study_image_urls": []
+}
