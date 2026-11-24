@@ -87,7 +87,7 @@ def test_cborg_client_reads_env_at_initialization_time(monkeypatch: Any) -> None
 
     client = LLMClient(access_provider="cborg")
 
-    assert client.model == "gemini-3.8-flash"
+    assert client.model == "gemini-flash-3.7"
     assert isinstance(client.client, OpenAI)
     assert str(client.client.base_url).rstrip("/") == "https://api.cborg.lbl.gov"
 
