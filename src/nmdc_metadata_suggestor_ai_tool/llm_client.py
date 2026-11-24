@@ -47,6 +47,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_GCP_REGION = "us-east5"
 DEFAULT_PNNL_MODEL = "gpt-6-luna"
 DEFAULT_GEMINI_MODEL = "gemini-3.8-flash"
+DEFAULT_CBORG_MODEL = "gemini-flash-3.7"
 DEFAULT_CLAUDE_MODEL = "claude-opus-5-5"
 DEFAULT_MAX_TOKENS_BY_PROVIDER: dict[str, int] = {
     "pnnl": 128000,
@@ -139,7 +140,7 @@ class LLMClient:
             self.client = OpenAI(base_url=base_url, api_key=api_key)
 
         if access_provider == "cborg":
-            self.model = model or DEFAULT_GEMINI_MODEL
+            self.model = model or DEFAULT_CBORG_MODEL
             # load cborg key from env
             api_key = os.environ.get("CBORG_KEY")
             base_url = os.environ.get("CBORG_BASE_URL")
@@ -315,7 +316,7 @@ class ConversationManager:
         - ``pnnl``: uses OpenAI-compatible Responses API (model defaults to first
             entry in ``DEFAULT_PNNL_MODEL`` when omitted).
         - ``cborg``: uses OpenAI-compatible API (model defaults to
-            ``DEFAULT_GEMINI_MODEL`` when omitted).
+            ``DEFAULT_CBORG_MODEL`` when omitted).
         - ``gcp``: uses Vertex Gemini ``models.generate_content`` (model defaults
             to ``DEFAULT_GEMINI_MODEL`` when omitted).
 
