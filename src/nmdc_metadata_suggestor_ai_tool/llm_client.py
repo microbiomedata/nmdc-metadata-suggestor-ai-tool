@@ -44,7 +44,7 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_GCP_REGION = "us-east5"
+DEFAULT_GCP_REGION = "us"
 DEFAULT_PNNL_MODEL = "gpt-6-luna"
 DEFAULT_GEMINI_MODEL = "gemini-3.8-flash"
 DEFAULT_CBORG_MODEL = "gemini-flash-3.7"
@@ -124,7 +124,7 @@ class LLMClient:
             )
         self.access_provider = access_provider
         self.project = project or os.environ.get("VERTEX_PROJECT_ID")
-        self.region = region or os.environ.get("GCP_REGION")
+        self.region = region or os.environ.get("CLOUD_ML_REGION")
         self.credentials_file = credentials_file or os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
         self.client: OpenAI | genai.Client
 
