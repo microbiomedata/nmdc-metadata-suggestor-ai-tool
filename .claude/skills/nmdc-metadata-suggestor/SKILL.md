@@ -13,7 +13,7 @@ Receives data, determines what to run, returns `LLMOutput` JSON. No user interac
 
 | Condition | Shape |
 |---|---|
-| Input has top-level key `metadata_submission` | Submission portal object |
+| Input has top-level `submission` (with optional `sample_set`) or `study_form` | Submission portal object |
 | Input is a list of dicts with biosample-like keys (`id`, `lat_lon`, env fields) | ETL samples |
 | Input is a list of dicts with MIxS column-name keys | Submission portal-shaped samples |
 

@@ -66,11 +66,13 @@ def test_cborg_pipeline_returns_field_guidance(requires_cborg: None) -> None:
     submitter should populate, with a reason. Suggested values are optional for
     this task, so the test does not require them.
     """
-    submission = _load_fixture("full_submission.json")
+    submission = _load_fixture("submission_response_multiple_sample_sets.json")
+    sample_set = _load_fixture("submission_sample_set.json")
     client = LLMClient(access_provider="cborg", model=CBORG_MODEL)
 
     result = run_recommendation_pipeline(
         submission_object=submission,
+        sample_set_object=sample_set,
         llm_client=client,
         max_tokens=INTEGRATION_MAX_TOKENS,
     )

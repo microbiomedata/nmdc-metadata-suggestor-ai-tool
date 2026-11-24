@@ -33,11 +33,13 @@ def _load_fixture(filename: str) -> dict[str, Any]:
 @pytest.mark.timeout(INTEGRATION_TIMEOUT)
 def test_pipeline_returns_valid_llm_output() -> None:
     """Run the full recommendation pipeline and validate the LLMOutput model."""
-    submission = _load_fixture("test_submission.json")
+    submission = _load_fixture("submission_response_multiple_sample_sets.json")
+    sample_set = _load_fixture("submission_sample_set.json")
     client = LLMClient(access_provider="gcp")
 
     result = run_recommendation_pipeline(
         submission_object=submission,
+        sample_set_object=sample_set,
         llm_client=client,
     )
 
