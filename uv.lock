@@ -1826,7 +1826,7 @@ wheels = [
 
 [[package]]
 name = "nmdc-metadata-suggestor-ai-tool"
-version = "1.4.0"
+version = "1.4.1"
 source = { editable = "." }
 dependencies = [
     { name = "claude-agent-sdk" },
