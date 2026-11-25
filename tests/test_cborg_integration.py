@@ -23,13 +23,13 @@ from typing import Any
 import pytest
 from openai import OpenAI
 
-from nmdc_metadata_suggestor_ai_tool.llm_client import DEFAULT_GEMINI_MODEL, LLMClient
+from nmdc_metadata_suggestor_ai_tool.llm_client import DEFAULT_CBORG_MODEL, LLMClient
 from nmdc_metadata_suggestor_ai_tool.recommendation_pipeline import run_recommendation_pipeline
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 INTEGRATION_TIMEOUT = 120  # seconds
 INTEGRATION_MAX_TOKENS = 8192
-CBORG_MODEL = os.environ.get("CBORG_TEST_MODEL", DEFAULT_GEMINI_MODEL)
+CBORG_MODEL = os.environ.get("CBORG_TEST_MODEL", DEFAULT_CBORG_MODEL)
 
 
 def _load_fixture(filename: str) -> Any:
